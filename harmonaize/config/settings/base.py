@@ -59,6 +59,12 @@ ROOT_URLCONF = "config.urls"
 WSGI_APPLICATION = "config.wsgi.application"
 
 # APPS
+INSTALLED_APPS = [
+    # ...
+    "harmonization",
+    # ...
+]
+
 # ------------------------------------------------------------------------------
 DJANGO_APPS = [
     "django.contrib.auth",
