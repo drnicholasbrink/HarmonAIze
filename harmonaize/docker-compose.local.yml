@@ -1,5 +1,3 @@
-version: '3.8'
-
 volumes:
   harmonaize_local_postgres_data: {}
   harmonaize_local_postgres_data_backups: {}
@@ -21,7 +19,6 @@ services:
     env_file:
       - ./.envs/.local/.django
       - ./.envs/.local/.postgres
-
     ports:
       - '8000:8000'
     command: /start
