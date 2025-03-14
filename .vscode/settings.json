@@ -5,5 +5,7 @@
     "azureFunctions.projectLanguage": "Python",
     "azureFunctions.projectRuntime": "~4",
     "debug.internalConsoleOptions": "neverOpen",
-    "azureFunctions.projectLanguageModel": 2
+    "azureFunctions.projectLanguageModel": 2,
+    "appService.defaultWebAppToDeploy": "/subscriptions/ac4e90f8-6ff1-4436-a112-77f2e5fa781a/resourceGroups/appsvc_linux_centralus/providers/Microsoft.Web/sites/HarmonAIze",
+    "appService.deploySubpath": "."
 }
