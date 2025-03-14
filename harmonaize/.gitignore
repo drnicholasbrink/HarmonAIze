@@ -276,3 +276,12 @@ harmonaize/media/
 .env
 .envs/*
 !.envs/.local/
+
+# Azure Functions local settings and build artifacts
+local.settings.json
+bin/
+obj/
+.vscode/settings.json
+.vscode/tasks.json
+.vscode/launch.json
+.vscode/extensions.json
