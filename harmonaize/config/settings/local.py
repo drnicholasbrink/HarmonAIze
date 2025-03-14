@@ -1,8 +1,6 @@
 # ruff: noqa: E501
 from .base import *  # noqa: F403
-from .base import INSTALLED_APPS
-from .base import MIDDLEWARE
-from .base import env
+from .base import INSTALLED_APPS, MIDDLEWARE, env
 
 # GENERAL
 # ------------------------------------------------------------------------------
@@ -57,7 +55,8 @@ DEBUG_TOOLBAR_CONFIG = {
 }
 # https://django-debug-toolbar.readthedocs.io/en/latest/installation.html#internal-ips
 INTERNAL_IPS = ["127.0.0.1", "10.0.2.2"]
-if env("USE_DOCKER") == "yes":
+# Use the bool method with a default value to avoid errors
+if env.bool("USE_DOCKER", default=True):
     import socket
 
     hostname, _, ips = socket.gethostbyname_ex(socket.gethostname())
@@ -74,3 +73,13 @@ INSTALLED_APPS += ["django_extensions"]
 CELERY_TASK_EAGER_PROPAGATES = True
 # Your stuff...
 # ------------------------------------------------------------------------------
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': env('POSTGRES_DB', default='postgres'),
+        'USER': env('POSTGRES_USER', default='drnicholasbrink'),
+        'PASSWORD': env('POSTGRES_PASSWORD', default='qirvyw-nurkoR-kyzgi7'),
+        'HOST': env('POSTGRES_HOST', default='harmonaize-db.postgres.database.azure.com'),
+        'PORT': env('POSTGRES_PORT', default='5432'),
+    }
+}
