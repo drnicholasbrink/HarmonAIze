@@ -73,13 +73,3 @@ INSTALLED_APPS += ["django_extensions"]
 CELERY_TASK_EAGER_PROPAGATES = True
 # Your stuff...
 # ------------------------------------------------------------------------------
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': env('POSTGRES_DB', default='postgres'),
-        'USER': env('POSTGRES_USER', default='drnicholasbrink'),
-        'PASSWORD': env('POSTGRES_PASSWORD', default='qirvyw-nurkoR-kyzgi7'),
-        'HOST': env('POSTGRES_HOST', default='harmonaize-db.postgres.database.azure.com'),
-        'PORT': env('POSTGRES_PORT', default='5432'),
-    }
-}
