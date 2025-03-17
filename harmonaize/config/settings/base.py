@@ -46,7 +46,7 @@ LOCALE_PATHS = [str(BASE_DIR / "locale")]
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#databases
 DATABASES = {
-    'default': env.db('DATABASE_URL', default='postgres://VyEeAsAhLQRemlTBkLvZEOFiVOAtvIHf:DA3372kNwHHhsmhr5cS5ucomOjsY9hs0UiNzxlfOITRM4ZwjW1nTYXSPz1zWousV@postgres:5432/harmonaize-db')
+    'default': env.db('DATABASE_URL', default='postgres://VyEeAsAhLQRemlTBkLvZEOFiVOAtvIHf:DA3372kNwHHhsmhr5cS5ucomOjsY9hs0UiNzxlfOITRM4ZwjW1nTYXSPz1zWousV@localhost:5432/harmonaize')
 }
 DATABASES["default"]["ATOMIC_REQUESTS"] = True
 # https://docs.djangoproject.com/en/stable/ref/settings/#std:setting-DEFAULT_AUTO_FIELD
