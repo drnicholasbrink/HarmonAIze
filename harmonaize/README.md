@@ -7,6 +7,61 @@ an open-source toolkit that streamlines the process of harmonizing and integrati
 
 License: MIT
 
+## Setup
+
+
+Prerequisites
+-------------
+
+Before you begin, ensure you have the following installed on your system:
+
+- Python: https://www.python.org/downloads/
+- pip: https://pip.pypa.io/en/stable/installation/
+- Docker Desktop: https://www.docker.com/products/docker-desktop/
+- conda or your preferred virtual environment manager: https://docs.conda.io/en/latest/miniconda.html
+
+Setup Instructions
+------------------
+
+1. Start Your Environment
+
+- Launch your virtual environment (e.g., using conda)
+- Start Docker Desktop
+
+2. Open the Project
+
+- Use Visual Studio Code (https://code.visualstudio.com/) or your preferred editor
+- Open a terminal inside the project root directory
+- Ensure you’re using the correct Python interpreter from your virtual environment
+- Clone this repo locally using git clone <url>
+
+3. Install Dependencies
+
+Make sure you are in the `harmonaize` project directory:
+
+    cd harmonaize
+
+Install Python dependencies:
+
+    pip install -r requirements/base.txt
+    pip install -r requirements/local.txt  # Note: 'psycopg' may cause issues
+    pip install -r requirements/production.txt
+
+4. Build and Run with Docker
+
+    docker-compose -f docker-compose.local.yml build
+
+Run Django database migrations:
+
+    python manage.py makemigrations
+    python manage.py migrate
+
+Start the local server:
+
+    docker-compose -f docker-compose.local.yml up
+
+
+
 ## Settings
 
 Moved to [settings](https://cookiecutter-django.readthedocs.io/en/latest/1-getting-started/settings.html).
@@ -20,6 +75,11 @@ Moved to [settings](https://cookiecutter-django.readthedocs.io/en/latest/1-getti
 - To create a **superuser account**, use this command:
 
       $ python manage.py createsuperuser
+- Alternatively if your container is not running, use this command:
+        $ docker-compose -f local.yml run --rm django python manage.py createsuperuser
+
+- Open your browser and go to: http://127.0.0.1:8000/admin
+- Log in and start using the application
 
 For convenience, you can keep your normal user logged in on Chrome and your superuser logged in on Firefox (or similar), so that you can see how the site behaves for both kinds of users.
 
