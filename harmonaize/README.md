@@ -83,6 +83,12 @@ Moved to [settings](https://cookiecutter-django.readthedocs.io/en/latest/1-getti
 
 For convenience, you can keep your normal user logged in on Chrome and your superuser logged in on Firefox (or similar), so that you can see how the site behaves for both kinds of users.
 
+### Reviewing the entity-relationship diagram
+To create and view the current erd for all apps
+- docker-compose -f local.yml run --rm django python manage.py graph_models -a -o erd.png 
+To only view one app's erd, specify with -[app] flag
+- docker-compose -f local.yml run --rm django python manage.py graph_models -[app] -o erd.png 
+
 ### Type checks
 
 Running type checks with mypy:
@@ -151,6 +157,7 @@ You must set the DSN url in production.
 ## Deployment
 
 The following details how to deploy this application.
+#TO DO
 
 ### Docker
 
