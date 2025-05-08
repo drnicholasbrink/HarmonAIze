@@ -29,3 +29,6 @@ drf-spectacular==0.28.0  # https://github.com/tfranzel/drf-spectacular
 #pygraphviz for ERD
 #graphviz==0.17 
 #pygraphviz==1.7  # https://pygraphviz.github.io/
+
+# Data processing
+pandas

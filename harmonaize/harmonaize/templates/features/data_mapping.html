@@ -36,35 +36,49 @@
     </div>
   </section>
 
-  <!-- Working Example -->
+  <!-- Interactive Demo Section -->
   <section class="mb-5 bg-light p-4 rounded">
-    <h3 class="mb-4">How It Works: Interactive Mapping Interface</h3>
-    <p class="lead mb-4">Drag and drop variables from source datasets to target schemas with AI-assisted suggestions</p>
+    <h3 class="mb-4">Interactive Data Mapping Demo</h3>
+    <p class="lead mb-4">Upload a sample dataset to see how HarmonAIze can map your variables automatically!</p>
+    {% if error %}
+      <div class="alert alert-danger">{{ error }}</div>
+    {% endif %}
+    {% if not preview %}
+      <form method="post" enctype="multipart/form-data" class="mb-4">
+        {% csrf_token %}
+        <div class="mb-3">
+          <label for="dataset" class="form-label">Upload your CSV dataset</label>
+          <input class="form-control" type="file" id="dataset" name="dataset" accept=".csv" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Analyze Dataset</button>
+      </form>
+    {% endif %}
     
+    <!-- Sample Dataset Section -->
     <div class="card shadow-sm">
-      <div class="card-header bg-primary text-white">
-        <ul class="nav nav-tabs card-header-tabs" id="mappingTabs" role="tablist">
+      <div class="card-header bg-white">
+        <ul class="nav nav-tabs card-header-tabs" id="datasetTabs" role="tablist">
           <li class="nav-item" role="presentation">
-            <button class="nav-link active text-dark" id="source-tab" data-bs-toggle="tab" data-bs-target="#source" type="button" role="tab" aria-controls="source" aria-selected="true">Source Dataset</button>
+            <button class="nav-link active" id="variables-tab" data-bs-toggle="tab" data-bs-target="#variables" type="button" role="tab" aria-controls="variables" aria-selected="true">Sample Variables</button>
           </li>
           <li class="nav-item" role="presentation">
-            <button class="nav-link text-dark" id="mapping-tab" data-bs-toggle="tab" data-bs-target="#mapping" type="button" role="tab" aria-controls="mapping" aria-selected="false">Mapping Interface</button>
+            <button class="nav-link" id="mapping-tab" data-bs-toggle="tab" data-bs-target="#mapping" type="button" role="tab" aria-controls="mapping" aria-selected="false">Mapping Interface</button>
           </li>
           <li class="nav-item" role="presentation">
-            <button class="nav-link text-dark" id="result-tab" data-bs-toggle="tab" data-bs-target="#result" type="button" role="tab" aria-controls="result" aria-selected="false">Result Preview</button>
+            <button class="nav-link" id="result-tab" data-bs-toggle="tab" data-bs-target="#result" type="button" role="tab" aria-controls="result" aria-selected="false">Mapping Results</button>
           </li>
         </ul>
       </div>
       <div class="card-body">
-        <div class="tab-content" id="mappingTabsContent">
-          <!-- Source Dataset Tab -->
-          <div class="tab-pane fade show active" id="source" role="tabpanel" aria-labelledby="source-tab">
+        <div class="tab-content" id="datasetTabsContent">
+          <!-- Variables Tab -->
+          <div class="tab-pane fade show active" id="variables" role="tabpanel" aria-labelledby="variables-tab">
             <div class="table-responsive">
-              <table class="table table-striped table-hover">
-                <thead class="table-dark">
+              <table class="table table-bordered">
+                <thead>
                   <tr>
-                    <th>Climate Dataset Variables</th>
-                    <th>Health Dataset Variables</th>
+                    <th>Source Dataset Variables</th>
+                    <th>Target Dataset Variables</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -72,11 +86,11 @@
                     <td>
                       <div class="mb-2 p-2 bg-light rounded">
                         <strong>temp_max</strong><br>
-                        <small class="text-muted">Maximum daily temperature (°C)</small>
+                        <small class="text-muted">Maximum temperature of the day (°C)</small>
                       </div>
                       <div class="mb-2 p-2 bg-light rounded">
                         <strong>temp_min</strong><br>
-                        <small class="text-muted">Minimum daily temperature (°C)</small>
+                        <small class="text-muted">Minimum temperature of the day (°C)</small>
                       </div>
                       <div class="mb-2 p-2 bg-light rounded">
                         <strong>precipitation</strong><br>
@@ -251,4 +265,4 @@
     <a href="#" class="btn btn-primary">Try Data Mapping</a>
   </section>
 </div>
-{% endblock content %}
+{% endblock %}
