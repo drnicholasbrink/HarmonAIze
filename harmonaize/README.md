@@ -148,6 +148,157 @@ The system is set up with reasonable defaults, including 404 logging and integra
 
 You must set the DSN url in production.
 
+## Contributing & Development Guidelines
+
+### Project Overview
+
+HarmonAIze is a Django-based web application designed to facilitate the harmonization of climate and health data. The project is structured as follows:
+
+- **config/**: Contains Django project settings, URL configurations, and WSGI/ASGI applications
+- **harmonaize/**: Main Django application with core functionality 
+  - **templates/**: HTML templates for the web interface
+  - **static/**: CSS, JavaScript, and static files
+  - **users/**: User authentication and management
+- **core/**: Contains data processing and mapping functionality
+
+### Getting Started as a Contributor
+
+1. **Fork the Repository**
+   - Create your own fork of the repository on GitHub
+   - Clone your fork locally
+
+2. **Set Up Development Environment**
+   - Follow the setup instructions above
+   - Create a new branch for your feature or fix: `git checkout -b feature/your-feature-name`
+
+3. **Understand the Architecture**
+   - The application follows Django's MVT (Model-View-Template) pattern
+   - Data mapping functionality is in the `core` app
+   - User interface components are in the `harmonaize/templates` directory
+
+### Development Workflow
+
+1. **Pick an Issue or Feature**
+   - Check the GitHub issues for open tasks
+   - Discuss with the team if you want to implement a new feature
+
+2. **Local Development**
+   - Make your changes locally
+   - Test thoroughly using Django's development server
+   - Use Docker for a production-like environment
+
+3. **Code Style and Standards**
+   - Follow PEP 8 for Python code
+   - Use the pre-configured ruff linter to check your code: `ruff check .`
+   - Document your code using docstrings
+   - Add type hints for better code readability
+
+4. **Testing**
+   - Write tests for your code using pytest
+   - Ensure all tests pass: `pytest`
+   - Aim for good test coverage
+
+5. **Submitting Changes for Review**
+   - Commit your changes with clear, descriptive messages
+   - Push to your fork: `git push origin feature/your-feature-name`
+   - Create a Pull Request (PR) against Dr. Nicholas Brink's original repository:
+     1. Go to [the original repository](https://github.com/drnicholasbrink/HarmonAIze)
+     2. Click on "Pull Requests" > "New Pull Request"
+     3. Click "compare across forks"
+     4. Select your fork as the head repository and your feature branch
+     5. Click "Create Pull Request"
+     6. Fill out the PR template with a detailed description of your changes
+     7. Tag relevant reviewers (e.g., @drnicholasbrink)
+   - Respond to any feedback or requested changes from reviewers
+   - Make additional commits to address review comments if needed
+   - Once approved, your changes will be merged into the main repository
+
+### Feature Development Guidelines
+
+#### Adding a New Feature
+
+1. **Plan Your Feature**
+   - Define the scope and requirements
+   - Create a design document if needed
+
+2. **Implement Backend Logic**
+   - Add models to represent your data
+   - Create views in `core/views.py` or a new app if necessary
+   - Add URL patterns in `config/urls.py`
+   - Include necessary validation and error handling
+
+3. **Develop Frontend Components**
+   - Create or modify templates in `harmonaize/templates/`
+   - Use Bootstrap for consistent styling
+   - Test responsiveness on different devices
+
+4. **Documentation**
+   - Document your APIs and functions
+   - Update the README or documentation as needed
+   - Add usage examples where appropriate
+
+#### Data Processing Features
+
+When adding data processing features:
+
+1. Use pandas for data manipulation (already installed)
+2. Add proper error handling for file uploads and data processing
+3. Implement async processing for resource-intensive tasks using Celery
+4. Consider privacy implications when handling health data
+
+### Running Tests and Validation
+
+```bash
+# Run all tests
+pytest
+
+# Run tests for a specific app
+pytest core/
+
+# Check code style
+ruff check .
+
+# Run type checking
+mypy harmonaize
+```
+
+### Common Development Tasks
+
+#### Adding a New Dependency
+
+1. Add the dependency to the appropriate requirements file:
+   - `requirements/base.txt` for core dependencies
+   - `requirements/local.txt` for development dependencies
+   - `requirements/production.txt` for production-specific dependencies
+
+2. Rebuild your Docker container:
+   ```bash
+   docker-compose -f docker-compose.local.yml build
+   ```
+
+#### Creating a New Django App
+
+```bash
+python manage.py startapp new_app_name
+```
+
+Then add your app to `INSTALLED_APPS` in `config/settings/base.py`.
+
+#### Database Migrations
+
+After modifying models:
+
+```bash
+python manage.py makemigrations
+python manage.py migrate
+```
+
+### Getting Help
+
+- Join our community discussions on GitHub
+- Check out the existing codebase for examples
+- Reach out to the team via the project email or issue comments
+
 ## Deployment
 
 The following details how to deploy this application.
