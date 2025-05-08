@@ -1,0 +1,348 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}HarmonAIze - Data Cleaning{% endblock %}
+
+{% block content %}
+<!-- Feature Hero Section -->
+<section class="hero-section">
+  <div class="container text-center">
+    <h1 class="display-4 fw-bold">Data Cleaning</h1>
+    <p class="lead">Automatically detect and fix data quality issues in your climate and health datasets</p>
+  </div>
+</section>
+
+<div class="container py-5">
+  <!-- Feature Overview -->
+  <section class="mb-5">
+    <div class="row align-items-center">
+      <div class="col-lg-6">
+        <h2 class="mb-4">AI-Powered Data Quality Enhancement</h2>
+        <p class="lead">Transform messy data into clean, research-ready datasets</p>
+        <p>Climate and health data often come with quality issues, inconsistencies, and missing values. HarmonAIze automatically identifies these issues and applies appropriate cleaning techniques to prepare your data for analysis.</p>
+        <p>Our machine learning algorithms can detect outliers, suggest imputation strategies for missing values, and standardize formats across heterogeneous datasets.</p>
+        <div class="mt-4">
+          <span class="badge bg-primary me-2 p-2"><i class="bi bi-stars"></i> Automated Outlier Detection</span>
+          <span class="badge bg-primary me-2 p-2"><i class="bi bi-patch-check"></i> Smart Missing Value Imputation</span>
+          <span class="badge bg-primary me-2 p-2"><i class="bi bi-arrow-repeat"></i> Format Standardization</span>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="card shadow border-0">
+          <div class="card-body p-0">
+            <img src="https://via.placeholder.com/600x350?text=Data+Quality+Dashboard" class="img-fluid rounded" alt="Data Quality Dashboard">
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Interactive Demo -->
+  <section class="mb-5 bg-light p-4 rounded">
+    <h3 class="mb-4">Interactive Data Cleaning Interface</h3>
+    
+    <ul class="nav nav-tabs mb-4" id="cleaningTabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="validation-tab" data-bs-toggle="tab" data-bs-target="#validation" type="button" role="tab" aria-controls="validation" aria-selected="true">
+          <i class="bi bi-clipboard-check me-1"></i> Data Validation
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="cleaning-tab" data-bs-toggle="tab" data-bs-target="#cleaning" type="button" role="tab" aria-controls="cleaning" aria-selected="false">
+          <i class="bi bi-magic me-1"></i> Automated Cleaning
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="results-tab" data-bs-toggle="tab" data-bs-target="#results" type="button" role="tab" aria-controls="results" aria-selected="false">
+          <i class="bi bi-bar-chart me-1"></i> Results
+        </button>
+      </li>
+    </ul>
+    
+    <div class="tab-content" id="cleaningTabsContent">
+      <!-- Data Validation Tab -->
+      <div class="tab-pane fade show active" id="validation" role="tabpanel" aria-labelledby="validation-tab">
+        <div class="card mb-4">
+          <div class="card-header bg-secondary text-white">
+            <h5 class="mb-0">Data Quality Report</h5>
+          </div>
+          <div class="card-body">
+            <div class="alert alert-warning">
+              <i class="bi bi-exclamation-triangle me-2"></i> Found 23 data quality issues in your dataset
+            </div>
+            
+            <div class="table-responsive">
+              <table class="table table-bordered table-hover">
+                <thead class="table-light">
+                  <tr>
+                    <th>Issue Type</th>
+                    <th>Severity</th>
+                    <th>Column</th>
+                    <th>Count</th>
+                    <th>Recommended Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><i class="bi bi-x-circle text-danger me-1"></i> Missing Values</td>
+                    <td><span class="badge bg-danger">High</span></td>
+                    <td>precipitation</td>
+                    <td>12</td>
+                    <td>Time-series interpolation</td>
+                  </tr>
+                  <tr>
+                    <td><i class="bi bi-exclamation-triangle text-warning me-1"></i> Outliers</td>
+                    <td><span class="badge bg-warning text-dark">Medium</span></td>
+                    <td>temp_max</td>
+                    <td>5</td>
+                    <td>Statistical verification</td>
+                  </tr>
+                  <tr>
+                    <td><i class="bi bi-question-circle text-info me-1"></i> Inconsistent Format</td>
+                    <td><span class="badge bg-info">Low</span></td>
+                    <td>reporting_date</td>
+                    <td>6</td>
+                    <td>Format standardization</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            
+            <div class="mt-4">
+              <h6>Dataset Overview</h6>
+              <div class="progress mb-2" style="height: 25px;">
+                <div class="progress-bar bg-success" role="progressbar" style="width: 75%;" aria-valuenow="75" aria-valuemin="0" aria-valuemax="100">
+                  75% Clean Data
+                </div>
+                <div class="progress-bar bg-warning" role="progressbar" style="width: 15%;" aria-valuenow="15" aria-valuemin="0" aria-valuemax="100">
+                  15% Warning
+                </div>
+                <div class="progress-bar bg-danger" role="progressbar" style="width: 10%;" aria-valuenow="10" aria-valuemin="0" aria-valuemax="100">
+                  10% Critical
+                </div>
+              </div>
+              <div class="d-flex justify-content-between small text-muted">
+                <span>Data Quality Score: 75/100</span>
+                <span>23 issues detected across 3 categories</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="text-center">
+          <button class="btn btn-primary">Run Deep Scan <i class="bi bi-arrow-right ms-1"></i></button>
+        </div>
+      </div>
+      
+      <!-- Automated Cleaning Tab -->
+      <div class="tab-pane fade" id="cleaning" role="tabpanel" aria-labelledby="cleaning-tab">
+        <div class="card">
+          <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Cleaning Operations</h5>
+          </div>
+          <div class="card-body">
+            <div class="mb-4">
+              <h6>Select Cleaning Strategies</h6>
+              <div class="row">
+                <div class="col-md-6">
+                  <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" value="" id="missingCheck" checked>
+                    <label class="form-check-label" for="missingCheck">
+                      <strong>Handle Missing Values</strong>
+                    </label>
+                  </div>
+                  <div class="ms-4 mb-3">
+                    <select class="form-select form-select-sm">
+                      <option selected>Time-series interpolation</option>
+                      <option>Mean imputation</option>
+                      <option>Median imputation</option>
+                      <option>KNN imputation</option>
+                    </select>
+                  </div>
+                  
+                  <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" value="" id="outlierCheck" checked>
+                    <label class="form-check-label" for="outlierCheck">
+                      <strong>Handle Outliers</strong>
+                    </label>
+                  </div>
+                  <div class="ms-4 mb-3">
+                    <select class="form-select form-select-sm">
+                      <option selected>IQR-based detection & verification</option>
+                      <option>Z-score method</option>
+                      <option>Isolation forest</option>
+                      <option>Manual review only</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <div class="col-md-6">
+                  <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" value="" id="formatCheck" checked>
+                    <label class="form-check-label" for="formatCheck">
+                      <strong>Standardize Formats</strong>
+                    </label>
+                  </div>
+                  <div class="ms-4 mb-3">
+                    <select class="form-select form-select-sm">
+                      <option selected>Auto-detect & convert</option>
+                      <option>ISO date format</option>
+                      <option>Custom format rules</option>
+                    </select>
+                  </div>
+                  
+                  <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" value="" id="duplicateCheck">
+                    <label class="form-check-label" for="duplicateCheck">
+                      <strong>Remove Duplicates</strong>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="alert alert-info">
+              <i class="bi bi-info-circle me-2"></i> HarmonAIze's AI has recommended the selected strategies based on your data characteristics.
+            </div>
+            
+            <div class="progress mb-3" style="height: 25px;">
+              <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 65%;" aria-valuenow="65" aria-valuemin="0" aria-valuemax="100">Cleaning in progress (65%)</div>
+            </div>
+            
+            <div class="d-flex justify-content-between">
+              <button class="btn btn-outline-secondary">Cancel</button>
+              <button class="btn btn-success">Apply Cleaning <i class="bi bi-check-circle ms-1"></i></button>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Results Tab -->
+      <div class="tab-pane fade" id="results" role="tabpanel" aria-labelledby="results-tab">
+        <div class="card">
+          <div class="card-header bg-success text-white">
+            <h5 class="mb-0">Cleaning Results</h5>
+          </div>
+          <div class="card-body">
+            <div class="alert alert-success">
+              <i class="bi bi-check-circle-fill me-2"></i> Data cleaning completed successfully! 21 of 23 issues resolved.
+            </div>
+            
+            <h6>Before vs After Comparison</h6>
+            <div class="table-responsive mb-4">
+              <table class="table table-bordered table-hover">
+                <thead class="table-light">
+                  <tr>
+                    <th>Metric</th>
+                    <th>Before Cleaning</th>
+                    <th>After Cleaning</th>
+                    <th>Improvement</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Data Quality Score</td>
+                    <td>75/100</td>
+                    <td>94/100</td>
+                    <td class="text-success">+19 points</td>
+                  </tr>
+                  <tr>
+                    <td>Missing Values</td>
+                    <td>12</td>
+                    <td>0</td>
+                    <td class="text-success">100% resolved</td>
+                  </tr>
+                  <tr>
+                    <td>Outliers</td>
+                    <td>5</td>
+                    <td>2</td>
+                    <td class="text-success">60% resolved</td>
+                  </tr>
+                  <tr>
+                    <td>Format Issues</td>
+                    <td>6</td>
+                    <td>0</td>
+                    <td class="text-success">100% resolved</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            
+            <h6>Data Distribution Visualization</h6>
+            <div class="text-center">
+              <img src="https://via.placeholder.com/800x300?text=Before+and+After+Distribution+Graphs" class="img-fluid border rounded" alt="Data Distribution Visualization">
+            </div>
+            
+            <div class="d-flex justify-content-between mt-4">
+              <button class="btn btn-outline-secondary">View Detailed Report</button>
+              <button class="btn btn-primary">Export Cleaned Dataset <i class="bi bi-download ms-1"></i></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  
+  <!-- Key Features -->
+  <section class="mb-5">
+    <h3 class="text-center mb-4">Key Cleaning Capabilities</h3>
+    <div class="row">
+      <div class="col-md-4 mb-4">
+        <div class="card h-100 shadow-sm">
+          <div class="card-body">
+            <div class="text-center mb-3">
+              <i class="bi bi-dash-circle text-danger" style="font-size: 2.5rem;"></i>
+            </div>
+            <h4 class="card-title text-center">Missing Value Detection & Imputation</h4>
+            <p class="card-text">Our advanced algorithms automatically detect missing values and apply the most appropriate imputation technique based on the data type, distribution, and research context.</p>
+            <ul class="list-unstyled">
+              <li><i class="bi bi-check-circle-fill text-success me-2"></i>Time-series specific methods</li>
+              <li><i class="bi bi-check-circle-fill text-success me-2"></i>ML-based imputation</li>
+              <li><i class="bi bi-check-circle-fill text-success me-2"></i>Multi-variate approaches</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4 mb-4">
+        <div class="card h-100 shadow-sm">
+          <div class="card-body">
+            <div class="text-center mb-3">
+              <i class="bi bi-graph-up-arrow text-primary" style="font-size: 2.5rem;"></i>
+            </div>
+            <h4 class="card-title text-center">Outlier Detection & Handling</h4>
+            <p class="card-text">Identify anomalous data points that could distort your research findings. Our system differentiates between data errors and actual climate or health anomalies worth investigating.</p>
+            <ul class="list-unstyled">
+              <li><i class="bi bi-check-circle-fill text-success me-2"></i>Context-aware detection</li>
+              <li><i class="bi bi-check-circle-fill text-success me-2"></i>Multiple detection methods</li>
+              <li><i class="bi bi-check-circle-fill text-success me-2"></i>Interactive verification</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4 mb-4">
+        <div class="card h-100 shadow-sm">
+          <div class="card-body">
+            <div class="text-center mb-3">
+              <i class="bi bi-arrow-left-right text-success" style="font-size: 2.5rem;"></i>
+            </div>
+            <h4 class="card-title text-center">Format Standardization</h4>
+            <p class="card-text">Automatically detect and convert inconsistent data formats including dates, times, measurements, and units to ensure comparability across datasets from different sources.</p>
+            <ul class="list-unstyled">
+              <li><i class="bi bi-check-circle-fill text-success me-2"></i>Unit conversion</li>
+              <li><i class="bi bi-check-circle-fill text-success me-2"></i>Date/time normalization</li>
+              <li><i class="bi bi-check-circle-fill text-success me-2"></i>Custom format rules</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Get Started Section -->
+  <section class="text-center py-4 bg-light rounded">
+    <h3 class="mb-3">Ready to Clean Your Climate and Health Data?</h3>
+    <p class="mb-4">Improve your data quality with HarmonAIze's intelligent cleaning tools.</p>
+    <a href="#" class="btn btn-primary">Try Data Cleaning</a>
+  </section>
+</div>
+{% endblock content %}

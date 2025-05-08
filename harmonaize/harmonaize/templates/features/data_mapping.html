@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}HarmonAIze - Data Mapping{% endblock %}
+
+{% block content %}
+<!-- Feature Hero Section -->
+<section class="hero-section">
+  <div class="container text-center">
+    <h1 class="display-4 fw-bold">Data Mapping</h1>
+    <p class="lead">Intelligently connect variables across heterogeneous climate and health datasets</p>
+  </div>
+</section>
+
+<div class="container py-5">
+  <!-- Feature Overview -->
+  <section class="mb-5">
+    <div class="row align-items-center">
+      <div class="col-lg-6">
+        <h2 class="mb-4">AI-Assisted Variable Mapping</h2>
+        <p>Mapping variables across different datasets is one of the most time-consuming tasks in data integration. HarmonAIze uses machine learning to automatically suggest mappings between variables in different datasets.</p>
+        <p>Our algorithms analyze variable names, descriptions, data types, value ranges, and statistical distributions to identify potential matches, saving researchers countless hours of manual work.</p>
+        <div class="d-flex mt-4">
+          <span class="badge bg-success me-2 p-2"><i class="bi bi-check-circle"></i> Variable Name Analysis</span>
+          <span class="badge bg-success me-2 p-2"><i class="bi bi-check-circle"></i> Semantic Matching</span>
+          <span class="badge bg-success me-2 p-2"><i class="bi bi-check-circle"></i> Distribution Comparison</span>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="card shadow border-0">
+          <div class="card-body p-0">
+            <img src="https://via.placeholder.com/600x350?text=AI+Mapping+Visualization" class="img-fluid rounded" alt="AI Mapping Visualization">
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Working Example -->
+  <section class="mb-5 bg-light p-4 rounded">
+    <h3 class="mb-4">How It Works: Interactive Mapping Interface</h3>
+    <p class="lead mb-4">Drag and drop variables from source datasets to target schemas with AI-assisted suggestions</p>
+    
+    <div class="card shadow-sm">
+      <div class="card-header bg-primary text-white">
+        <ul class="nav nav-tabs card-header-tabs" id="mappingTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active text-dark" id="source-tab" data-bs-toggle="tab" data-bs-target="#source" type="button" role="tab" aria-controls="source" aria-selected="true">Source Dataset</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link text-dark" id="mapping-tab" data-bs-toggle="tab" data-bs-target="#mapping" type="button" role="tab" aria-controls="mapping" aria-selected="false">Mapping Interface</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link text-dark" id="result-tab" data-bs-toggle="tab" data-bs-target="#result" type="button" role="tab" aria-controls="result" aria-selected="false">Result Preview</button>
+          </li>
+        </ul>
+      </div>
+      <div class="card-body">
+        <div class="tab-content" id="mappingTabsContent">
+          <!-- Source Dataset Tab -->
+          <div class="tab-pane fade show active" id="source" role="tabpanel" aria-labelledby="source-tab">
+            <div class="table-responsive">
+              <table class="table table-striped table-hover">
+                <thead class="table-dark">
+                  <tr>
+                    <th>Climate Dataset Variables</th>
+                    <th>Health Dataset Variables</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      <div class="mb-2 p-2 bg-light rounded">
+                        <strong>temp_max</strong><br>
+                        <small class="text-muted">Maximum daily temperature (°C)</small>
+                      </div>
+                      <div class="mb-2 p-2 bg-light rounded">
+                        <strong>temp_min</strong><br>
+                        <small class="text-muted">Minimum daily temperature (°C)</small>
+                      </div>
+                      <div class="mb-2 p-2 bg-light rounded">
+                        <strong>precipitation</strong><br>
+                        <small class="text-muted">Daily precipitation (mm)</small>
+                      </div>
+                      <div class="mb-2 p-2 bg-light rounded">
+                        <strong>humidity</strong><br>
+                        <small class="text-muted">Relative humidity (%)</small>
+                      </div>
+                      <div class="mb-2 p-2 bg-light rounded">
+                        <strong>pm25_level</strong><br>
+                        <small class="text-muted">PM2.5 particulate matter (μg/m³)</small>
+                      </div>
+                    </td>
+                    <td>
+                      <div class="mb-2 p-2 bg-light rounded">
+                        <strong>max_temperature</strong><br>
+                        <small class="text-muted">Maximum temperature of the day (Celsius)</small>
+                      </div>
+                      <div class="mb-2 p-2 bg-light rounded">
+                        <strong>min_temperature</strong><br>
+                        <small class="text-muted">Minimum temperature of the day (Celsius)</small>
+                      </div>
+                      <div class="mb-2 p-2 bg-light rounded">
+                        <strong>rainfall</strong><br>
+                        <small class="text-muted">Daily rainfall in millimeters</small>
+                      </div>
+                      <div class="mb-2 p-2 bg-light rounded">
+                        <strong>respiratory_cases</strong><br>
+                        <small class="text-muted">Daily count of respiratory disease cases</small>
+                      </div>
+                      <div class="mb-2 p-2 bg-light rounded">
+                        <strong>heat_stress_incidents</strong><br>
+                        <small class="text-muted">Number of heat stress related incidents</small>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          
+          <!-- Mapping Interface Tab -->
+          <div class="tab-pane fade" id="mapping" role="tabpanel" aria-labelledby="mapping-tab">
+            <div class="row">
+              <div class="col-md-10 mx-auto">
+                <div class="bg-white p-3 rounded shadow-sm text-center">
+                  <img src="https://via.placeholder.com/800x400?text=Interactive+Mapping+Interface" class="img-fluid" alt="Mapping Interface">
+                  <div class="mt-4">
+                    <div class="row">
+                      <div class="col-md-5 border-end">
+                        <h5>Source Variables</h5>
+                        <div class="p-2 mb-2 bg-light rounded d-flex justify-content-between">
+                          <span>temp_max</span>
+                          <i class="bi bi-arrow-right-circle text-success"></i>
+                        </div>
+                        <div class="p-2 mb-2 bg-light rounded d-flex justify-content-between">
+                          <span>temp_min</span>
+                          <i class="bi bi-arrow-right-circle text-success"></i>
+                        </div>
+                        <div class="p-2 mb-2 bg-light rounded d-flex justify-content-between">
+                          <span>precipitation</span>
+                          <i class="bi bi-arrow-right-circle text-success"></i>
+                        </div>
+                      </div>
+                      <div class="col-md-2 d-flex align-items-center justify-content-center">
+                        <div class="text-center">
+                          <i class="bi bi-arrow-left-right text-primary" style="font-size: 2rem;"></i>
+                          <p><small>AI Match Score</small></p>
+                          <div class="badge bg-success">98%</div>
+                        </div>
+                      </div>
+                      <div class="col-md-5">
+                        <h5>Target Variables</h5>
+                        <div class="p-2 mb-2 bg-success bg-opacity-25 rounded d-flex justify-content-between">
+                          <i class="bi bi-arrow-left-circle text-success"></i>
+                          <span>max_temperature</span>
+                        </div>
+                        <div class="p-2 mb-2 bg-success bg-opacity-25 rounded d-flex justify-content-between">
+                          <i class="bi bi-arrow-left-circle text-success"></i>
+                          <span>min_temperature</span>
+                        </div>
+                        <div class="p-2 mb-2 bg-success bg-opacity-25 rounded d-flex justify-content-between">
+                          <i class="bi bi-arrow-left-circle text-success"></i>
+                          <span>rainfall</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Result Preview Tab -->
+          <div class="tab-pane fade" id="result" role="tabpanel" aria-labelledby="result-tab">
+            <div class="bg-white p-3 rounded shadow-sm">
+              <div class="alert alert-success">
+                <i class="bi bi-check-circle-fill me-2"></i> Mapping completed successfully! 5 variables mapped with 3 high-confidence matches.
+              </div>
+              <div class="table-responsive">
+                <table class="table table-bordered table-hover">
+                  <thead class="table-primary">
+                    <tr>
+                      <th>Source Variable</th>
+                      <th>Target Variable</th>
+                      <th>Confidence</th>
+                      <th>Transformation</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr class="table-success">
+                      <td>temp_max</td>
+                      <td>max_temperature</td>
+                      <td><span class="badge bg-success">High (98%)</span></td>
+                      <td>Direct match</td>
+                    </tr>
+                    <tr class="table-success">
+                      <td>temp_min</td>
+                      <td>min_temperature</td>
+                      <td><span class="badge bg-success">High (97%)</span></td>
+                      <td>Direct match</td>
+                    </tr>
+                    <tr class="table-success">
+                      <td>precipitation</td>
+                      <td>rainfall</td>
+                      <td><span class="badge bg-success">High (95%)</span></td>
+                      <td>Direct match</td>
+                    </tr>
+                    <tr class="table-warning">
+                      <td>humidity</td>
+                      <td>(No match)</td>
+                      <td><span class="badge bg-warning text-dark">N/A</span></td>
+                      <td>No equivalent found</td>
+                    </tr>
+                    <tr class="table-warning">
+                      <td>pm25_level</td>
+                      <td>(Potential relationship with respiratory_cases)</td>
+                      <td><span class="badge bg-warning text-dark">Medium (65%)</span></td>
+                      <td>Suggested correlation analysis</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="d-flex justify-content-end mt-3">
+                <button class="btn btn-secondary me-2">Modify Mappings</button>
+                <button class="btn btn-primary">Export Mapping Schema</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ERD Section -->
+  <section class="mb-5">
+    <h3 class="mb-4">Data Model</h3>
+    <p>Understanding the relationships between data entities is crucial for effective mapping. Below is the entity-relationship diagram (ERD) of HarmonAIze's data model:</p>
+    <div class="text-center mb-4">
+      <img src="{% static 'images/erd.png' %}" class="img-fluid border rounded shadow" alt="HarmonAIze ERD">
+    </div>
+    <div class="alert alert-info">
+      <i class="bi bi-info-circle me-2"></i> The ERD shows how datasets, variables, and mappings are related in the HarmonAIze system. This structure enables efficient storage and retrieval of mapping information.
+    </div>
+  </section>
+
+  <!-- Get Started Section -->
+  <section class="text-center py-4 bg-light rounded">
+    <h3 class="mb-3">Ready to Map Your Climate and Health Data?</h3>
+    <p class="mb-4">Start creating intelligent variable mappings with HarmonAIze today.</p>
+    <a href="#" class="btn btn-primary">Try Data Mapping</a>
+  </section>
+</div>
+{% endblock content %}
