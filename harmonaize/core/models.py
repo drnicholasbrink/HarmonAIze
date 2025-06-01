@@ -1,5 +1,6 @@
 from django.db import models
 from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator, MaxValueValidator
 import ast
 
 class Patient(models.Model):
@@ -19,13 +20,27 @@ class Location(models.Model):
     Attributes (e.g., climate, population, etc.) are attached via LocationAttribute.
     """
     name = models.CharField(max_length=200, blank=True, help_text="Place name (clinic, city, etc.)")
-    latitude = models.FloatField(null=True, blank=True)
-    longitude = models.FloatField(null=True, blank=True)
+    latitude = models.FloatField(
+        null=True, blank=True,
+        validators=[MinValueValidator(-90.0), MaxValueValidator(90.0)],
+        help_text="Latitude in decimal degrees (-90 to 90)."
+    )
+    longitude = models.FloatField(
+        null=True, blank=True,
+        validators=[MinValueValidator(-180.0), MaxValueValidator(180.0)],
+        help_text="Longitude in decimal degrees (-180 to 180)."
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.name or f"Location #{self.pk}"
+
+    def clean(self):
+        if self.latitude is not None and not (-90.0 <= self.latitude <= 90.0):
+            raise ValidationError("Latitude must be between -90 and 90.")
+        if self.longitude is not None and not (-180.0 <= self.longitude <= 180.0):
+            raise ValidationError("Longitude must be between -180 and 180.")
 
 class TimeDimension(models.Model):
     """
