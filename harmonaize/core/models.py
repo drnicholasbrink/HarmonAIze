@@ -87,7 +87,7 @@ class Observation(models.Model):
     float_value = models.FloatField(null=True, blank=True)
     int_value = models.IntegerField(null=True, blank=True)
     text_value = models.TextField(blank=True)
-    boolean_value = models.NullBooleanField()
+    boolean_value = models.BooleanField(null=True, blank=True)
     datetime_value = models.DateTimeField(null=True, blank=True)
     # Automatically track creation and updates
     created_at = models.DateTimeField(auto_now_add=True)
