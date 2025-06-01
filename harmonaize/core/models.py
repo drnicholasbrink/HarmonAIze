@@ -64,7 +64,14 @@ class Attribute(models.Model):
             ('datetime', 'Datetime'),
         ]
     )
-    category = models.CharField(max_length=100, blank=True, help_text="Domain/category (e.g. 'health', 'climate', 'location').")
+    #category field to classify attributes from a dropdown list
+    category = models.CharField(max_length=100, 
+            choices=[
+            ('health', 'Health'),
+            ('climate', 'Climate'),
+            ('geolocation', 'Geolocation'),
+        ],
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
