@@ -38,7 +38,7 @@ services:
     env_file:
       - ./.envs/.local/.postgres
     ports:
-      - '5432:5432'
+      - '5433:5432'
 
   mailpit:
     image: docker.io/axllent/mailpit:latest

@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}HarmonAIze - Data Integration{% endblock %}
+
+{% block content %}
+<!-- Feature Hero Section -->
+<section class="hero-section">
+  <div class="container text-center">
+    <h1 class="display-4 fw-bold">Data Integration</h1>
+    <p class="lead">Seamlessly combine climate and health datasets while preserving privacy</p>
+  </div>
+</section>
+
+<div class="container py-5">
+  <!-- Feature Overview -->
+  <section class="mb-5">
+    <div class="row align-items-center">
+      <div class="col-lg-6">
+        <h2 class="mb-4">Privacy-Preserving Data Integration</h2>
+        <p>Integrating climate and health data poses unique challenges, especially when dealing with sensitive health information. HarmonAIze uses advanced federated approaches to integrate datasets without compromising privacy.</p>
+        <p>Our platform enables temporal and spatial alignment of diverse data sources, creating unified datasets that can reveal correlations between climate factors and health outcomes.</p>
+        <div class="d-flex flex-wrap mt-4">
+          <span class="badge bg-info me-2 mb-2 p-2"><i class="bi bi-shield-check"></i> Privacy-First Architecture</span>
+          <span class="badge bg-info me-2 mb-2 p-2"><i class="bi bi-geo-alt"></i> Spatial Data Alignment</span>
+          <span class="badge bg-info me-2 mb-2 p-2"><i class="bi bi-calendar4"></i> Temporal Harmonization</span>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="card shadow border-0">
+          <div class="card-body p-0">
+            <img src="https://via.placeholder.com/600x350?text=Integration+Visualization" class="img-fluid rounded" alt="Data Integration Visualization">
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Integration Workflow -->
+  <section class="mb-5 bg-light p-4 rounded">
+    <h3 class="mb-4">Integration Workflow</h3>
+    <div class="row">
+      <div class="col-lg-12">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <div class="row">
+              <div class="col text-center">
+                <div class="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+                  <i class="bi bi-file-earmark-arrow-up" style="font-size: 1.5rem;"></i>
+                </div>
+                <h5>1. Import</h5>
+                <p class="small">Upload or connect to climate and health datasets</p>
+              </div>
+              <div class="col text-center">
+                <div class="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+                  <i class="bi bi-arrow-left-right" style="font-size: 1.5rem;"></i>
+                </div>
+                <h5>2. Map</h5>
+                <p class="small">Create variable mappings between datasets</p>
+              </div>
+              <div class="col text-center">
+                <div class="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+                  <i class="bi bi-droplet-half" style="font-size: 1.5rem;"></i>
+                </div>
+                <h5>3. Clean</h5>
+                <p class="small">Resolve data quality issues</p>
+              </div>
+              <div class="col text-center">
+                <div class="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+                  <i class="bi bi-layers" style="font-size: 1.5rem;"></i>
+                </div>
+                <h5>4. Align</h5>
+                <p class="small">Temporal and spatial harmonization</p>
+              </div>
+              <div class="col text-center">
+                <div class="rounded-circle bg-success text-white d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+                  <i class="bi bi-check-lg" style="font-size: 1.5rem;"></i>
+                </div>
+                <h5>5. Integrate</h5>
+                <p class="small">Create unified research-ready dataset</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  
+  <!-- Interactive Demo -->
+  <section class="mb-5">
+    <h3 class="mb-4">Interactive Integration Interface</h3>
+    <div class="card shadow-sm">
+      <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">Data Integration Dashboard</h5>
+      </div>
+      <div class="card-body">
+        <div class="row mb-4">
+          <div class="col-md-4">
+            <div class="card mb-3">
+              <div class="card-header bg-light">
+                <strong>Climate Dataset</strong>
+              </div>
+              <div class="card-body p-2">
+                <small>
+                  <i class="bi bi-file-earmark-text text-primary me-1"></i> climate_data_2020.csv<br>
+                  <i class="bi bi-table text-muted me-1"></i> 365 rows × 8 columns<br>
+                  <i class="bi bi-geo-alt text-muted me-1"></i> Resolution: 0.5° × 0.5°<br>
+                  <i class="bi bi-calendar text-muted me-1"></i> Daily data (Jan-Dec 2020)
+                </small>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card text-center mb-3">
+              <div class="card-body">
+                <i class="bi bi-arrow-left-right text-primary mb-2" style="font-size: 2rem;"></i>
+                <h6>Integration Settings</h6>
+                <div class="form-check form-switch d-flex justify-content-between mb-2">
+                  <label class="form-check-label" for="privacySwitch">Privacy Protection</label>
+                  <input class="form-check-input" type="checkbox" id="privacySwitch" checked>
+                </div>
+                <div class="form-check form-switch d-flex justify-content-between mb-2">
+                  <label class="form-check-label" for="temporalSwitch">Temporal Alignment</label>
+                  <input class="form-check-input" type="checkbox" id="temporalSwitch" checked>
+                </div>
+                <div class="form-check form-switch d-flex justify-content-between">
+                  <label class="form-check-label" for="spatialSwitch">Spatial Alignment</label>
+                  <input class="form-check-input" type="checkbox" id="spatialSwitch" checked>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card mb-3">
+              <div class="card-header bg-light">
+                <strong>Health Dataset</strong>
+              </div>
+              <div class="card-body p-2">
+                <small>
+                  <i class="bi bi-file-earmark-text text-primary me-1"></i> health_records_2020.csv<br>
+                  <i class="bi bi-table text-muted me-1"></i> 52 rows × 12 columns<br>
+                  <i class="bi bi-geo-alt text-muted me-1"></i> Resolution: District level<br>
+                  <i class="bi bi-calendar text-muted me-1"></i> Weekly data (Jan-Dec 2020)
+                </small>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="alert alert-success">
+          <i class="bi bi-check-circle-fill me-2"></i> Integration preview is ready. The system has automatically aligned temporal and spatial resolutions.
+        </div>
+        
+        <div class="mb-4">
+          <h6>Integration Preview</h6>
+          <div class="table-responsive">
+            <table class="table table-sm table-bordered">
+              <thead class="table-light">
+                <tr>
+                  <th>Date</th>
+                  <th>Region</th>
+                  <th>temp_max</th>
+                  <th>temp_min</th>
+                  <th>precipitation</th>
+                  <th>respiratory_cases</th>
+                  <th>heat_stress_incidents</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>2020-01-01</td>
+                  <td>District A</td>
+                  <td>32.1</td>
+                  <td>24.3</td>
+                  <td>0.0</td>
+                  <td>45</td>
+                  <td>12</td>
+                </tr>
+                <tr>
+                  <td>2020-01-01</td>
+                  <td>District B</td>
+                  <td>30.5</td>
+                  <td>22.8</td>
+                  <td>5.2</td>
+                  <td>28</td>
+                  <td>5</td>
+                </tr>
+                <tr>
+                  <td>2020-01-02</td>
+                  <td>District A</td>
+                  <td>33.7</td>
+                  <td>25.1</td>
+                  <td>0.0</td>
+                  <td>48</td>
+                  <td>15</td>
+                </tr>
+                <tr class="table-secondary">
+                  <td colspan="7" class="text-center">...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        
+        <div class="d-flex justify-content-between">
+          <button class="btn btn-outline-secondary">Modify Integration Settings</button>
+          <button class="btn btn-success">Complete Integration <i class="bi bi-check2-circle ms-1"></i></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Benefits Section -->
+  <section class="mb-5">
+    <h3 class="text-center mb-4">Key Benefits</h3>
+    <div class="row">
+      <div class="col-md-6 mb-4">
+        <div class="card h-100 shadow-sm border-0">
+          <div class="card-body">
+            <h4><i class="bi bi-shield-lock text-primary me-2"></i> Privacy Preservation</h4>
+            <p>HarmonAIze's federated approach allows researchers to analyze relationships between climate factors and health outcomes without revealing sensitive patient information.</p>
+            <ul>
+              <li>Differential privacy techniques</li>
+              <li>De-identification protocols</li>
+              <li>Secure access controls</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6 mb-4">
+        <div class="card h-100 shadow-sm border-0">
+          <div class="card-body">
+            <h4><i class="bi bi-clock-history text-primary me-2"></i> Temporal Alignment</h4>
+            <p>Automatically align datasets with different temporal resolutions, ensuring you can analyze data from daily climate readings alongside weekly or monthly health records.</p>
+            <ul>
+              <li>Upsampling/downsampling techniques</li>
+              <li>Time-series interpolation</li>
+              <li>Flexible aggregation methods</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6 mb-4">
+        <div class="card h-100 shadow-sm border-0">
+          <div class="card-body">
+            <h4><i class="bi bi-map text-primary me-2"></i> Spatial Harmonization</h4>
+            <p>Integrate datasets with different geographic resolutions, from grid-based climate data to administrative boundary-defined health records.</p>
+            <ul>
+              <li>Coordinate system standardization</li>
+              <li>GIS-based integration</li>
+              <li>Area-weighted aggregation</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6 mb-4">
+        <div class="card h-100 shadow-sm border-0">
+          <div class="card-body">
+            <h4><i class="bi bi-graph-up text-primary me-2"></i> Correlation Analysis</h4>
+            <p>Automatically identify potential relationships between climate variables and health outcomes to guide more detailed research.</p>
+            <ul>
+              <li>Cross-correlation functions</li>
+              <li>Lag analysis</li>
+              <li>Statistical significance testing</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Get Started Section -->
+  <section class="text-center py-4 bg-light rounded">
+    <h3 class="mb-3">Ready to Integrate Climate and Health Data?</h3>
+    <p class="mb-4">Start revealing insights with HarmonAIze's powerful integration capabilities.</p>
+    <a href="#" class="btn btn-primary">Try Data Integration</a>
+  </section>
+</div>
+{% endblock content %}

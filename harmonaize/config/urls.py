@@ -18,6 +18,10 @@ urlpatterns = [
         TemplateView.as_view(template_name="pages/about.html"),
         name="about",
     ),
+    # Feature pages
+    path("features/data_mapping/", __import__('core.views', fromlist=['data_mapping_demo']).data_mapping_demo, name="data_mapping"),
+    path("features/data_cleaning/", TemplateView.as_view(template_name="features/data_cleaning.html"), name="data_cleaning"),
+    path("features/data_integration/", TemplateView.as_view(template_name="features/data_integration.html"), name="data_integration"),
     # Django Admin, use {% url 'admin:index' %}
     path(settings.ADMIN_URL, admin.site.urls),
     # User management
