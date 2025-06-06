@@ -44,7 +44,7 @@ Make sure you are in the `harmonaize` project directory:
 Install Python dependencies:
 
     pip install -r requirements/base.txt
-    pip install -r requirements/local.txt  # Note: 'psycopg' may cause issues
+    pip install -r requirements/local.txt  # Note: 'psycopg' may cause issues> try updating https://visualstudio.microsoft.com/downloads/?q=build+tools
     pip install -r requirements/production.txt
 
 4. Build and Run with Docker
