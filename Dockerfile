@@ -5,6 +5,11 @@ FROM mcr.microsoft.com/azure-functions/python:4-python3.10
 ENV AzureWebJobsScriptRoot=/home/site/wwwroot \
     AzureFunctionsJobHost__Logging__Console__IsEnabled=true
 
+# Install system dependencies for pygraphviz
+RUN apt-get update && \
+    apt-get install -y graphviz graphviz-dev pkg-config && \
+    rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt /
 RUN pip install -r /requirements.txt
 
