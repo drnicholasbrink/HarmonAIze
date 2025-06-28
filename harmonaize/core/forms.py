@@ -194,6 +194,7 @@ class VariableForm(forms.Form):
     """
     variable_name = forms.CharField(
         max_length=200,
+        required=False,  # Made conditionally required in clean()
         widget=forms.TextInput(attrs={
             'class': 'form-control',
             'readonly': True
@@ -203,6 +204,7 @@ class VariableForm(forms.Form):
     
     display_name = forms.CharField(
         max_length=200,
+        required=False,  # Made conditionally required in clean()
         widget=forms.TextInput(attrs={
             'class': 'form-control',
             'placeholder': 'Human-readable name for this variable'
@@ -222,6 +224,7 @@ class VariableForm(forms.Form):
     
     variable_type = forms.ChoiceField(
         choices=[
+            ('', '-- Select Type --'),  # Add empty choice
             ('float', 'Float (decimal numbers)'),
             ('int', 'Integer (whole numbers)'),
             ('string', 'String (text)'),
@@ -229,18 +232,9 @@ class VariableForm(forms.Form):
             ('boolean', 'Boolean (yes/no)'),
             ('datetime', 'Date/Time'),
         ],
+        required=False,  # Made conditionally required in clean()
         widget=forms.Select(attrs={'class': 'form-select'}),
         help_text="Data type of this variable"
-    )
-    
-    category = forms.ChoiceField(
-        choices=[
-            ('health', 'Health'),
-            ('climate', 'Climate'),
-            ('geolocation', 'Geolocation'),
-        ],
-        widget=forms.Select(attrs={'class': 'form-select'}),
-        help_text="Category this variable belongs to"
     )
     
     unit = forms.CharField(
@@ -269,6 +263,35 @@ class VariableForm(forms.Form):
         widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         help_text="Include this variable in the study"
     )
+    
+    def clean(self):
+        """
+        Custom validation that only validates required fields if the variable is selected.
+        """
+        cleaned_data = super().clean()
+        include = cleaned_data.get('include', False)
+        
+        # If the variable is not included, we don't need to validate other fields
+        if not include:
+            # Clear any validation errors for non-included variables
+            self._errors.clear()
+            return cleaned_data
+        
+        # If variable is included, ensure required fields are present
+        variable_name = cleaned_data.get('variable_name')
+        display_name = cleaned_data.get('display_name')
+        variable_type = cleaned_data.get('variable_type')
+        
+        if include and not variable_name:
+            self.add_error('variable_name', 'Variable name is required for included variables.')
+        
+        if include and not display_name:
+            self.add_error('display_name', 'Display name is required for included variables.')
+            
+        if include and not variable_type:
+            self.add_error('variable_type', 'Variable type is required for included variables.')
+        
+        return cleaned_data
 
 
 class VariableConfirmationFormSet(forms.BaseFormSet):
@@ -278,6 +301,9 @@ class VariableConfirmationFormSet(forms.BaseFormSet):
     
     def __init__(self, *args, **kwargs):
         self.variables_data = kwargs.pop('variables_data', [])
+        # Set initial data if not already provided
+        if 'initial' not in kwargs and self.variables_data:
+            kwargs['initial'] = self.variables_data
         super().__init__(*args, **kwargs)
     
     def get_form_kwargs(self, index):
@@ -286,12 +312,38 @@ class VariableConfirmationFormSet(forms.BaseFormSet):
             kwargs['initial'] = self.variables_data[index]
         return kwargs
     
+    def total_form_count(self):
+        """Return the total number of forms in this formset."""
+        if hasattr(self, 'variables_data') and self.variables_data:
+            return len(self.variables_data)
+        return super().total_form_count()
+    
+    def _construct_form(self, i, **kwargs):
+        """Construct and return the form."""
+        if i < len(self.variables_data):
+            # Set initial data for this form
+            if 'initial' not in kwargs:
+                kwargs['initial'] = {}
+            kwargs['initial'].update(self.variables_data[i])
+        return super()._construct_form(i, **kwargs)
+    
     def clean(self):
         """
         Validate that at least one variable is selected for inclusion.
+        Only validate forms that are marked for inclusion.
         """
         if any(self.errors):
-            return
+            # Only check if there are errors in forms that are included
+            included_forms_with_errors = []
+            for form in self.forms:
+                if form.cleaned_data.get('include', False) and form.errors:
+                    included_forms_with_errors.append(form)
+            
+            # If there are errors only in non-included forms, clear them
+            if not included_forms_with_errors:
+                for form in self.forms:
+                    if not form.cleaned_data.get('include', False):
+                        form._errors.clear()
         
         included_count = 0
         for form in self.forms:
@@ -312,10 +364,25 @@ class VariableConfirmationFormSet(forms.BaseFormSet):
         return included
 
 
-# Create the formset factory
-VariableConfirmationFormSetFactory = forms.formset_factory(
-    VariableForm,
-    formset=VariableConfirmationFormSet,
-    extra=0,
-    can_delete=False
-)
+# Create the formset factory with dynamic extra parameter
+def VariableConfirmationFormSetFactory(*args, **kwargs):
+    """
+    Factory function to create a VariableConfirmationFormSet with dynamic extra parameter.
+    """
+    variables_data = kwargs.get('variables_data', [])
+    extra = len(variables_data) if variables_data else 0
+    
+    # Create the formset class
+    FormSetClass = forms.formset_factory(
+        VariableForm,
+        formset=VariableConfirmationFormSet,
+        extra=extra,
+        can_delete=False
+    )
+    
+    # Remove variables_data from kwargs before passing to formset
+    formset_kwargs = kwargs.copy()
+    if 'variables_data' in formset_kwargs:
+        formset_kwargs['variables_data'] = variables_data
+    
+    return FormSetClass(*args, **formset_kwargs)

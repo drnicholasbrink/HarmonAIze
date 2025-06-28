@@ -1,0 +1,453 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ page_title }}{% endblock title %}
+
+{% block css %}
+  {{ block.super }}
+  <style>
+    :root {
+      --primary-color: #007AFF;
+      --secondary-color: #5AC8FA;
+      --accent-color: #34C759;
+      --health-color: #FF6B6B;
+      --background-color: #F2F2F7;
+      --card-background: #FFFFFF;
+      --text-primary: #1C1C1E;
+      --text-secondary: #8E8E93;
+      --border-color: #C6C6C8;
+      --shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+      --border-radius: 12px;
+    }
+
+    body {
+      background-color: var(--background-color);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--text-primary);
+      line-height: 1.5;
+    }
+
+    .hero-section {
+      background: linear-gradient(135deg, var(--health-color) 0%, var(--primary-color) 100%);
+      color: white;
+      padding: 3rem 0;
+      margin: -1rem -15px 0 -15px;
+      text-align: center;
+    }
+
+    .hero-title {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    .hero-subtitle {
+      font-size: 1.1rem;
+      opacity: 0.9;
+    }
+
+    .progress-indicator {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 2rem;
+    }
+
+    .step {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      margin: 0 1rem;
+      position: relative;
+    }
+
+    .step.completed {
+      background: var(--accent-color);
+    }
+
+    .step.active {
+      background: var(--health-color);
+      box-shadow: 0 0 0 4px rgba(255, 107, 107, 0.2);
+    }
+
+    .step.inactive {
+      background: var(--border-color);
+      color: var(--text-secondary);
+    }
+
+    .step::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 100%;
+      width: 2rem;
+      height: 2px;
+      background: var(--border-color);
+      transform: translateY(-50%);
+    }
+
+    .step:last-child::after {
+      display: none;
+    }
+
+    .content-wrapper {
+      max-width: 1200px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+
+    .card {
+      background: var(--card-background);
+      border-radius: var(--border-radius);
+      padding: 2rem;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border-color);
+      margin-bottom: 2rem;
+    }
+
+    .card-title {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      color: var(--text-primary);
+    }
+
+    .health-info-box {
+      background: linear-gradient(135deg, rgba(255, 107, 107, 0.1), rgba(0, 122, 255, 0.1));
+      border: 1px solid rgba(255, 107, 107, 0.2);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .health-info-box h4 {
+      margin: 0 0 0.5rem 0;
+      color: var(--health-color);
+      font-size: 1.1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .health-info-box p {
+      margin: 0;
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+
+    .preview-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 2rem;
+      font-size: 0.9rem;
+    }
+
+    .preview-table th,
+    .preview-table td {
+      padding: 0.75rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .preview-table th {
+      background: var(--background-color);
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .preview-table td {
+      color: var(--text-secondary);
+    }
+
+    .mapping-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .field-label {
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+    }
+
+    .field-label.required {
+      color: var(--health-color);
+    }
+
+    .field-help {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      margin-top: 0.25rem;
+    }
+
+    .form-select {
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 0.75rem;
+      font-size: 0.9rem;
+      background-color: var(--card-background);
+      transition: all 0.2s ease;
+    }
+
+    .form-select:focus {
+      border-color: var(--health-color);
+      box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.1);
+      outline: none;
+    }
+
+    .form-select.required:focus {
+      border-color: var(--health-color);
+      box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.2);
+    }
+
+    .btn {
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.3s ease;
+      border: none;
+      cursor: pointer;
+      display: inline-block;
+    }
+
+    .btn-health {
+      background: linear-gradient(135deg, var(--health-color), var(--primary-color));
+      color: white;
+      box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+    }
+
+    .btn-health:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(255, 107, 107, 0.4);
+      color: white;
+      text-decoration: none;
+    }
+
+    .btn-secondary {
+      background: transparent;
+      color: var(--health-color);
+      border: 1px solid var(--health-color);
+      margin-right: 1rem;
+    }
+
+    .btn-secondary:hover {
+      background: var(--health-color);
+      color: white;
+      text-decoration: none;
+    }
+
+    .health-attribute-hint {
+      background: rgba(255, 107, 107, 0.05);
+      border-left: 3px solid var(--health-color);
+      padding: 0.75rem;
+      margin-top: 0.5rem;
+      border-radius: 0 4px 4px 0;
+      font-size: 0.85rem;
+    }
+
+    @media (max-width: 768px) {
+      .mapping-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .preview-table {
+        font-size: 0.8rem;
+      }
+    }
+  </style>
+{% endblock css %}
+
+{% block content %}
+  <!-- Hero Section -->
+  <div class="hero-section">      <h1 class="hero-title">Health Data Mapping</h1>
+    <p class="hero-subtitle">
+      Map your codebook columns to health attribute schema
+    </p>
+  </div>
+
+  <!-- Progress Indicator -->
+  <div class="container">
+    <div class="progress-indicator">
+      <div class="step completed">1</div>
+      <div class="step active">2</div>
+      <div class="step inactive">3</div>
+      <div class="step inactive">4</div>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="content-wrapper">
+    
+    <!-- Health-specific Info Box -->
+    <div class="health-info-box">
+      <h4>Health Data Harmonisation</h4>
+      <p>
+        We detected a <strong>{{ detected_format|upper }}</strong> file with {{ columns|length }} columns. 
+        Map each field to corresponding health attributes.
+      </p>
+      <div class="health-attribute-hint">
+        <strong>💡 Tip:</strong> Only "Variable Name" mapping is required. Other mappings help improve data quality 
+        and enable better health-specific analysis and interoperability.
+      </div>
+    </div>
+
+    <!-- File Preview -->
+    <div class="card">
+      <h2 class="card-title">📋 Codebook Preview</h2>
+      <p class="text-muted">First few rows of your health data codebook:</p>
+      
+      <div style="overflow-x: auto;">
+        <table class="preview-table">
+          <thead>
+            <tr>
+              {% for column in columns %}
+                <th>{{ column }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in sample_data %}
+              <tr>
+                {% for column in columns %}
+                  <td>
+                    {% for key, value in row.items %}
+                      {% if key == column %}
+                        {{ value|default:"—" }}
+                      {% endif %}
+                    {% endfor %}
+                  </td>
+                {% endfor %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Column Mapping Form -->
+    <form method="post">
+      {% csrf_token %}
+      
+      <div class="card">
+        <h2 class="card-title">🔗 Map Columns to Health Attributes</h2>
+        
+        <div class="mapping-grid">
+          
+          <!-- Variable Name (Required) -->
+          <div class="field-group">
+            <label class="field-label required">
+              Variable Name <span style="color: var(--health-color);">*</span>
+            </label>
+            <select name="variable_name_column" class="form-select required" required>
+              <option value="">Select column...</option>
+              {% for column in columns %}
+                <option value="{{ column }}">{{ column }}</option>
+              {% endfor %}
+            </select>
+            <div class="field-help">
+              Column containing the variable names/identifiers (required for health data mapping)
+            </div>
+          </div>
+
+          <!-- Display Name (Optional) -->
+          <div class="field-group">
+            <label class="field-label">Display Name</label>
+            <select name="display_name_column" class="form-select">
+              <option value="">Select column...</option>
+              {% for column in columns %}
+                <option value="{{ column }}">{{ column }}</option>
+              {% endfor %}
+            </select>
+            <div class="field-help">
+              Column with human-readable health variable labels
+            </div>
+          </div>
+
+          <!-- Description (Optional) -->
+          <div class="field-group">
+            <label class="field-label">Description</label>
+            <select name="description_column" class="form-select">
+              <option value="">Select column...</option>
+              {% for column in columns %}
+                <option value="{{ column }}">{{ column }}</option>
+              {% endfor %}
+            </select>
+            <div class="field-help">
+              Column with detailed descriptions of health variables
+            </div>
+          </div>
+
+          <!-- Variable Type (Optional) -->
+          <div class="field-group">
+            <label class="field-label">Variable Type</label>
+            <select name="variable_type_column" class="form-select">
+              <option value="">Select column...</option>
+              {% for column in columns %}
+                <option value="{{ column }}">{{ column }}</option>
+              {% endfor %}
+            </select>
+            <div class="field-help">
+              Column specifying data types (numeric, categorical, etc.)
+            </div>
+          </div>
+
+          <!-- Unit (Optional) -->
+          <div class="field-group">
+            <label class="field-label">Unit of Measurement</label>
+            <select name="unit_column" class="form-select">
+              <option value="">Select column...</option>
+              {% for column in columns %}
+                <option value="{{ column }}">{{ column }}</option>
+              {% endfor %}
+            </select>
+            <div class="field-help">
+              Column with measurement units (kg, cm, mmHg, etc.)
+            </div>
+          </div>
+
+        </div>
+
+        <!-- TODO: LLM Integration Notice -->
+        <div class="health-info-box" style="margin-top: 2rem;">
+          <h4>🤖 AI Enhancement (Coming Soon)</h4>
+          <p>
+            <strong>TODO:</strong> LLM integration will be added here to automatically enhance your health data mapping with:
+          </p>
+          <ul style="margin: 0.5rem 0 0 1.5rem; color: var(--text-secondary);">
+            <li>Automatic health variable categorisation</li>
+            <li>Ontology code suggestions</li>
+            <li>Health data validation and quality checks</li>
+            <li>Standardized health terminology mapping</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Submit Section -->
+      <div class="card">
+        <div style="text-align: center;">
+          <a href="{% url 'core:study_detail' study.pk %}" class="btn btn-secondary">
+            ← Back to Study
+          </a>
+          <button type="submit" class="btn btn-health">
+            🔍 Extract Health Variables →
+          </button>
+        </div>
+      </div>
+
+    </form>
+  </div>
+{% endblock content %}

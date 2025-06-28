@@ -1,0 +1,347 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ page_title }}{% endblock title %}
+
+{% block css %}
+  {{ block.super }}
+  <style>
+    :root {
+      --primary-color: #007AFF;
+      --secondary-color: #5AC8FA;
+      --accent-color: #34C759;
+      --health-color: #FF6B6B;
+      --background-color: #F2F2F7;
+      --card-background: #FFFFFF;
+      --text-primary: #1C1C1E;
+      --text-secondary: #8E8E93;
+      --border-color: #C6C6C8;
+      --shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+      --border-radius: 12px;
+    }
+
+    body {
+      background-color: var(--background-color);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--text-primary);
+      line-height: 1.5;
+    }
+
+    .hero-section {
+      background: linear-gradient(135deg, var(--health-color) 0%, var(--primary-color) 100%);
+      color: white;
+      padding: 3rem 0;
+      margin: -1rem -15px 0 -15px;
+      text-align: center;
+    }
+
+    .hero-title {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    .hero-subtitle {
+      font-size: 1.1rem;
+      opacity: 0.9;
+    }
+
+    .progress-indicator {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 2rem 0;
+      gap: 1rem;
+    }
+
+    .progress-step {
+      display: flex;
+      align-items: center;
+      padding: 0.75rem 1.5rem;
+      border-radius: 25px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      transition: all 0.3s ease;
+    }
+
+    .progress-step.completed {
+      background-color: var(--accent-color);
+      color: white;
+    }
+
+    .progress-step.active {
+      background-color: var(--primary-color);
+      color: white;
+      transform: scale(1.05);
+    }
+
+    .progress-step.inactive {
+      background-color: rgba(255, 255, 255, 0.3);
+      color: rgba(255, 255, 255, 0.7);
+    }
+
+    .progress-arrow {
+      color: rgba(255, 255, 255, 0.5);
+      font-size: 1.2rem;
+    }
+
+    .main-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    .extraction-card {
+      background: var(--card-background);
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow);
+      padding: 2rem;
+      margin-bottom: 2rem;
+    }
+
+    .extraction-header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .extraction-title {
+      color: var(--text-primary);
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    .extraction-subtitle {
+      color: var(--text-secondary);
+      font-size: 1rem;
+    }
+
+    .llm-placeholder {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: var(--border-radius);
+      color: white;
+      padding: 2rem;
+      text-align: center;
+      margin: 2rem 0;
+    }
+
+    .llm-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+    }
+
+    .llm-description {
+      font-size: 1rem;
+      opacity: 0.9;
+      margin-bottom: 1.5rem;
+    }
+
+    .llm-features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+
+    .llm-feature {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 1rem;
+      text-align: left;
+    }
+
+    .llm-feature-title {
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    .processing-status {
+      background: linear-gradient(135deg, var(--accent-color) 0%, var(--secondary-color) 100%);
+      border-radius: var(--border-radius);
+      color: white;
+      padding: 1.5rem;
+      text-align: center;
+      margin: 2rem 0;
+    }
+
+    .processing-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+
+    .processing-title {
+      font-size: 1.3rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    .processing-description {
+      opacity: 0.9;
+    }
+
+    .action-buttons {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+
+    .btn {
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.3s ease;
+      border: none;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+
+    .btn-primary {
+      background-color: var(--primary-color);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background-color: #0056CC;
+      transform: translateY(-2px);
+    }
+
+    .btn-secondary {
+      background-color: var(--text-secondary);
+      color: white;
+    }
+
+    .btn-secondary:hover {
+      background-color: #666;
+      transform: translateY(-2px);
+    }
+
+    .study-info {
+      background: rgba(255, 255, 255, 0.5);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 2rem;
+      text-align: center;
+    }
+
+    .study-name {
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 0.5rem;
+    }
+
+    .study-detail {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+
+    @media (max-width: 768px) {
+      .hero-title {
+        font-size: 2rem;
+      }
+      
+      .progress-indicator {
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+      
+      .progress-arrow {
+        transform: rotate(90deg);
+      }
+      
+      .main-content {
+        padding: 1rem;
+      }
+      
+      .action-buttons {
+        flex-direction: column;
+      }
+    }
+  </style>
+{% endblock css %}
+
+{% block content %}
+  <div class="hero-section">
+    <div class="container">
+      <h1 class="hero-title">Health Data Extraction</h1>
+      <p class="hero-subtitle">Processing your health variables with intelligent analysis</p>
+      
+      <!-- Progress Indicator -->
+      <div class="progress-indicator">
+        <div class="progress-step completed">
+          <span>📋 Map Codebook</span>
+        </div>
+        <div class="progress-arrow">→</div>
+        <div class="progress-step active">
+          <span>🔍 Extract Variables</span>
+        </div>
+        <div class="progress-arrow">→</div>
+        <div class="progress-step inactive">
+          <span>✅ Select Variables</span>
+        </div>
+      </div>
+      
+      <div class="study-info">
+        <div class="study-name">{{ study.name }}</div>
+        <div class="study-detail">Health Data Harmonisation Workflow</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="main-content">
+    <div class="extraction-card">
+      <div class="extraction-header">
+        <h2 class="extraction-title">Variable Extraction Complete</h2>
+        <p class="extraction-subtitle">
+          Your health variables have been successfully extracted from the codebook using your column mappings.
+        </p>
+      </div>
+
+      <div class="processing-status">
+        <div class="processing-icon">✅</div>
+        <div class="processing-title">Extraction Successful</div>
+        <div class="processing-description">
+          Variables have been extracted and are ready for your review and selection.
+        </div>
+      </div>
+
+      <!-- LLM Integration Placeholder -->
+      <div class="llm-placeholder">
+        <div class="llm-title">🤖 AI Enhancement (Coming Soon)</div>
+        <div class="llm-description">
+          Future LLM integration will enhance your health variables with intelligent metadata enrichment
+        </div>
+        
+        <div class="llm-features">
+          <div class="llm-feature">
+            <div class="llm-feature-title">🏥 Medical Context</div>
+            <div>Enhance descriptions with health-specific knowledge</div>
+          </div>
+          <div class="llm-feature">
+            <div class="llm-feature-title">🏷️ Ontology Mapping</div>
+            <div>Auto-suggest SNOMED-CT, LOINC, and ICD codes</div>
+          </div>
+          <div class="llm-feature">
+            <div class="llm-feature-title">📊 Type Detection</div>
+            <div>Intelligent variable type classification</div>
+          </div>
+          <div class="llm-feature">
+            <div class="llm-feature-title">Category Assignment</div>
+            <div>Organise variables into health domains</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="action-buttons">
+        <a href="{% url 'health:map_codebook' study.id %}" class="btn btn-secondary">
+          ← Back to Mapping
+        </a>
+        <a href="{% url 'health:select_variables' study.id %}" class="btn btn-primary">
+          Continue to Selection →
+        </a>
+      </div>
+    </div>
+  </div>
+{% endblock content %}

@@ -1,0 +1,1129 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ page_title }}{% endblock title %}
+
+{% block css %}
+  {{ block.super }}
+  <style>
+    :root {
+      --primary-color: #007AFF;
+      --secondary-color: #5AC8FA;
+      --accent-color: #34C759;
+      --health-color: #FF6B6B;
+      --background-color: #F2F2F7;
+      --card-background: #FFFFFF;
+      --text-primary: #1C1C1E;
+      --text-secondary: #8E8E93;
+      --border-color: #C6C6C8;
+      --shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+      --border-radius: 12px;
+    }
+
+    body {
+      background-color: var(--background-color);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--text-primary);
+      line-height: 1.5;
+    }
+
+    .hero-section {
+      background: linear-gradient(135deg, var(--health-color) 0%, var(--primary-color) 100%);
+      color: white;
+      padding: 3rem 0;
+      margin: -1rem -15px 0 -15px;
+      text-align: center;
+    }
+
+    .hero-title {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    .hero-subtitle {
+      font-size: 1.1rem;
+      opacity: 0.9;
+    }
+
+    .progress-indicator {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 2rem 0;
+      gap: 1rem;
+    }
+
+    .progress-step {
+      display: flex;
+      align-items: center;
+      padding: 0.75rem 1.5rem;
+      border-radius: 25px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      transition: all 0.3s ease;
+    }
+
+    .progress-step.completed {
+      background-color: var(--accent-color);
+      color: white;
+    }
+
+    .progress-step.active {
+      background-color: var(--primary-color);
+      color: white;
+      transform: scale(1.05);
+    }
+
+    .progress-step.inactive {
+      background-color: rgba(255, 255, 255, 0.3);
+      color: rgba(255, 255, 255, 0.7);
+    }
+
+    .progress-arrow {
+      color: rgba(255, 255, 255, 0.5);
+      font-size: 1.2rem;
+    }
+
+    .main-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    .selection-card {
+      background: var(--card-background);
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow);
+      padding: 2rem;
+      margin-bottom: 2rem;
+    }
+
+    .selection-header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .selection-title {
+      color: var(--text-primary);
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    .selection-subtitle {
+      color: var(--text-secondary);
+      font-size: 1rem;
+    }
+
+    .variables-summary {
+      background: linear-gradient(135deg, var(--secondary-color) 0%, var(--primary-color) 100%);
+      border-radius: var(--border-radius);
+      color: white;
+      padding: 1.5rem;
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .summary-count {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    .summary-text {
+      font-size: 1.1rem;
+      opacity: 0.9;
+    }
+
+    .variables-grid {
+      display: grid;
+      gap: 1rem;
+      margin: 2rem 0;
+    }
+
+    .variable-item {
+      background: var(--card-background);
+      border: 2px solid var(--border-color);
+      border-radius: 8px;
+      padding: 1rem;
+      transition: all 0.3s ease;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .variable-item:hover {
+      border-color: var(--primary-color);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow);
+    }
+
+    .variable-item.selected {
+      border-color: var(--accent-color);
+      background: rgba(52, 199, 89, 0.05);
+    }
+
+    .variable-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .checkbox-container {
+      margin-top: 0.2rem;
+    }
+
+    .variable-checkbox {
+      width: 1.2rem;
+      height: 1.2rem;
+      accent-color: var(--accent-color);
+      pointer-events: none; /* Let parent handle clicks */
+    }
+
+    .variable-name {
+      font-weight: 600;
+      color: var(--text-primary);
+      flex: 1;
+    }
+
+    .variable-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .variable-type {
+      background: var(--secondary-color);
+      color: white;
+      padding: 0.25rem 0.75rem;
+      border-radius: 15px;
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+
+    .btn-edit {
+      background: none;
+      border: 2px solid var(--primary-color);
+      border-radius: 6px;
+      padding: 0.3rem 0.75rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .btn-edit:hover {
+      background: var(--primary-color);
+      color: white;
+    }
+
+    .edit-text {
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .variable-details {
+      margin-left: 2.2rem;
+      color: var(--text-secondary);
+    }
+
+    .variable-description {
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+    }
+
+    .variable-meta {
+      display: flex;
+      gap: 1rem;
+      font-size: 0.8rem;
+      flex-wrap: wrap;
+    }
+
+    .variable-unit,
+    .variable-ontology,
+    .variable-type-detail {
+      color: var(--text-secondary);
+      padding: 0.2rem 0.5rem;
+      background: var(--background-color);
+      border-radius: 4px;
+    }
+
+    .selection-controls {
+      background: rgba(0, 122, 255, 0.05);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .bulk-actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .btn-small {
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      font-weight: 500;
+      text-decoration: none;
+      transition: all 0.3s ease;
+      border: none;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+
+    .btn-outline {
+      background: transparent;
+      border: 2px solid var(--primary-color);
+      color: var(--primary-color);
+    }
+
+    .btn-outline:hover {
+      background: var(--primary-color);
+      color: white;
+    }
+
+    .selection-count {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .action-buttons {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-top: 2rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .btn {
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.3s ease;
+      border: none;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+
+    .btn-primary {
+      background-color: var(--primary-color);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background-color: #0056CC;
+      transform: translateY(-2px);
+    }
+
+    .btn-primary:disabled {
+      background-color: var(--text-secondary);
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-secondary {
+      background-color: var(--text-secondary);
+      color: white;
+    }
+
+    .btn-secondary:hover {
+      background-color: #666;
+      transform: translateY(-2px);
+    }
+
+    .study-info {
+      background: rgba(255, 255, 255, 0.5);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 2rem;
+      text-align: center;
+    }
+
+    .study-name {
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 0.5rem;
+    }
+
+    .study-detail {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+
+    .filter-section {
+      background: var(--card-background);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      border: 1px solid var(--border-color);
+    }
+
+    .filter-title {
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: var(--text-primary);
+    }
+
+    .filter-options {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .filter-tag {
+      background: var(--background-color);
+      border: 1px solid var(--border-color);
+      border-radius: 15px;
+      padding: 0.3rem 0.8rem;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .filter-tag:hover,
+    .filter-tag.active {
+      background: var(--primary-color);
+      color: white;
+      border-color: var(--primary-color);
+    }
+
+    /* Error and Alert Styling */
+    .error-messages-section,
+    .formset-errors {
+      margin: 1rem 0;
+    }
+
+    .alert {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 0.5rem;
+      font-weight: 500;
+      border-left: 4px solid;
+    }
+
+    .alert-error {
+      background: #fee;
+      border-left-color: #dc3545;
+      color: #721c24;
+    }
+
+    .alert-success {
+      background: #d4edda;
+      border-left-color: #28a745;
+      color: #155724;
+    }
+
+    .alert-info {
+      background: #d1ecf1;
+      border-left-color: #17a2b8;
+      color: #0c5460;
+    }
+
+    .error-icon,
+    .success-icon,
+    .info-icon {
+      font-size: 1.2rem;
+      min-width: 1.2rem;
+    }
+
+    .error-title {
+      color: #dc3545;
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    .variable-item.has-error {
+      border-color: #dc3545 !important;
+      background: rgba(220, 53, 69, 0.05);
+    }
+
+    .variable-item.has-error .variable-header {
+      border-bottom: 1px solid rgba(220, 53, 69, 0.2);
+      padding-bottom: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .form-errors {
+      background: rgba(220, 53, 69, 0.1);
+      border: 1px solid rgba(220, 53, 69, 0.3);
+      border-radius: 6px;
+      padding: 0.75rem;
+      margin: 0.5rem 0;
+    }
+
+    .field-error {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: #721c24;
+      font-size: 0.9rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .field-error:last-child {
+      margin-bottom: 0;
+    }
+
+    .field-error .error-icon {
+      font-size: 1rem;
+      min-width: 1rem;
+    }
+
+    /* Modal Styling */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(5px);
+    }
+
+    .modal-content {
+      background-color: var(--card-background);
+      margin: 5% auto;
+      padding: 0;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 600px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+      animation: modalSlideIn 0.3s ease;
+    }
+
+    @keyframes modalSlideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-50px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1.5rem;
+      border-bottom: 1px solid var(--border-color);
+      background: linear-gradient(135deg, var(--health-color) 0%, var(--primary-color) 100%);
+      color: white;
+      border-radius: 12px 12px 0 0;
+    }
+
+    .modal-header h3 {
+      margin: 0;
+      font-size: 1.3rem;
+    }
+
+    .close {
+      font-size: 1.5rem;
+      font-weight: bold;
+      cursor: pointer;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      transition: background-color 0.3s;
+    }
+
+    .close:hover {
+      background-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .modal-body {
+      padding: 1.5rem;
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 1rem;
+      padding: 1rem 1.5rem;
+      border-top: 1px solid var(--border-color);
+      background: var(--background-color);
+      border-radius: 0 0 12px 12px;
+    }
+
+    .form-group {
+      margin-bottom: 1rem;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .form-control,
+    .form-select {
+      width: 100%;
+      padding: 0.75rem;
+      border: 2px solid var(--border-color);
+      border-radius: 6px;
+      font-size: 1rem;
+      transition: border-color 0.3s;
+    }
+
+    .form-control:focus,
+    .form-select:focus {
+      outline: none;
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+    }
+
+    @media (max-width: 768px) {
+      .hero-title {
+        font-size: 2rem;
+      }
+      
+      .progress-indicator {
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+      
+      .progress-arrow {
+        transform: rotate(90deg);
+      }
+      
+      .main-content {
+        padding: 1rem;
+      }
+      
+      .action-buttons {
+        flex-direction: column;
+      }
+      
+      .selection-controls {
+        flex-direction: column;
+        text-align: center;
+      }
+      
+      .variable-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+      }
+      
+      .variable-meta {
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+    }
+  </style>
+{% endblock css %}
+
+{% block content %}
+  <div class="hero-section">
+    <div class="container">
+      <h1 class="hero-title">Select Health Variables</h1>
+      <p class="hero-subtitle">Choose which variables to include in your health data harmonisation</p>
+      
+      <!-- Progress Indicator -->
+      <div class="progress-indicator">
+        <div class="progress-step completed">
+          <span>Map Codebook</span>
+        </div>
+        <div class="progress-arrow">→</div>
+        <div class="progress-step completed">
+          <span>Extract Variables</span>
+        </div>
+        <div class="progress-arrow">→</div>
+        <div class="progress-step active">
+          <span>Select Variables</span>
+        </div>
+      </div>
+      
+      <div class="study-info">
+        <div class="study-name">{{ study.name }}</div>
+        <div class="study-detail">Health Data Harmonisation Workflow</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="main-content">
+    <div class="selection-card">
+      <div class="selection-header">
+        <h2 class="selection-title">Select Variables for Your Study</h2>
+        <p class="selection-subtitle">
+          Review the extracted variables and select which ones to include in your health data harmonisation project.
+        </p>
+      </div>
+
+      <div class="variables-summary">
+        <div class="summary-count">{{ variables_count }}</div>
+        <div class="summary-text">Health Variables Available</div>
+      </div>
+
+      <!-- Error Messages Display -->
+      {% if messages %}
+        <div class="error-messages-section">
+          {% for message in messages %}
+            {% if message.tags == 'error' %}
+              <div class="alert alert-error">
+                <span class="error-icon">⚠️</span>
+                <span class="error-text">{{ message }}</span>
+              </div>
+            {% elif message.tags == 'success' %}
+              <div class="alert alert-success">
+                <span class="success-icon">✅</span>
+                <span class="success-text">{{ message }}</span>
+              </div>
+            {% elif message.tags == 'info' %}
+              <div class="alert alert-info">
+                <span class="info-icon">ℹ️</span>
+                <span class="info-text">{{ message }}</span>
+              </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <!-- Formset Errors Display -->
+      {% if formset.non_form_errors %}
+        <div class="formset-errors">
+          <h4 class="error-title">Form Errors:</h4>
+          {% for error in formset.non_form_errors %}
+            <div class="alert alert-error">
+              <span class="error-icon">⚠️</span>
+              <span class="error-text">{{ error }}</span>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <form method="post" id="variable-selection-form">
+        {% csrf_token %}
+        {{ formset.management_form }}
+        
+        <!-- Selection Controls -->
+        <div class="selection-controls">
+          <div class="bulk-actions">
+            <button type="button" class="btn-small btn-outline" onclick="selectAll()">
+              Select All
+            </button>
+            <button type="button" class="btn-small btn-outline" onclick="selectNone()">
+              Select None
+            </button>
+            <button type="button" class="btn-small btn-outline" onclick="selectHealthCore()">
+              Select Health Core
+            </button>
+          </div>
+          <div class="selection-count">
+            <span id="selected-count">0</span> variables selected
+          </div>
+        </div>
+
+        <!-- Filter Section -->
+        <div class="filter-section">
+          <div class="filter-title">Filter by Type:</div>
+          <div class="filter-options">
+            <span class="filter-tag active" onclick="filterByType('all')">All</span>
+            <span class="filter-tag" onclick="filterByType('categorical')">Categorical</span>
+            <span class="filter-tag" onclick="filterByType('continuous')">Continuous</span>
+            <span class="filter-tag" onclick="filterByType('binary')">Binary</span>
+            <span class="filter-tag" onclick="filterByType('ordinal')">Ordinal</span>
+          </div>
+        </div>
+
+        <!-- Variables Grid -->
+        <div class="variables-grid">
+          {% for form in formset %}
+            <div class="variable-item{% if form.errors and form.include.value %} has-error{% endif %}" 
+                 data-type="{{ form.variable_type.value|default:'unknown'|lower }}" 
+                 data-form-index="{{ forloop.counter0 }}"
+                 onclick="toggleVariableSelection(this)">
+              
+              <div class="variable-header">
+                <div class="checkbox-container">
+                  {{ form.include }}
+                </div>
+                <div class="variable-name">
+                  <strong>{{ form.display_name.value|default:form.variable_name.value|default:"Unknown Variable" }}</strong>
+                  {% if form.variable_name.value and form.variable_name.value != form.display_name.value %}
+                    <br><small class="text-muted">{{ form.variable_name.value }}</small>
+                  {% endif %}
+                </div>
+                <div class="variable-actions">
+                  <div class="variable-type">{{ form.variable_type.value|default:"Unknown" }}</div>
+                  <button type="button" class="btn-edit" onclick="openEditModal(event, {{ forloop.counter0 }})" title="Edit variable">
+                    <span class="edit-text">Edit</span>
+                  </button>
+                </div>
+              </div>
+              
+              <!-- Individual Form Errors (only show if variable is selected) -->
+              {% if form.errors and form.include.value %}
+                <div class="form-errors">
+                  {% for field, errors in form.errors.items %}
+                    {% for error in errors %}
+                      <div class="field-error">
+                        <span class="error-icon">⚠️</span>
+                        <strong>{{ field }}:</strong> {{ error }}
+                      </div>
+                    {% endfor %}
+                  {% endfor %}
+                </div>
+              {% endif %}
+              
+              <div class="variable-details">
+                <div class="variable-description">
+                  {{ form.description.value|default:"No description available" }}
+                </div>
+                
+                <div class="variable-meta">
+                  {% if form.unit.value %}
+                    <span class="variable-unit"><strong>Unit:</strong> {{ form.unit.value }}</span>
+                  {% endif %}
+                  {% if form.ontology_code.value %}
+                    <span class="variable-ontology"><strong>Code:</strong> {{ form.ontology_code.value }}</span>
+                  {% endif %}
+                  <span class="variable-type-detail"><strong>Type:</strong> {{ form.variable_type.value|default:"Unknown" }}</span>
+                </div>
+              </div>
+              
+              <!-- Hidden fields for form data -->
+              {{ form.variable_name.as_hidden }}
+              {{ form.display_name.as_hidden }}
+              {{ form.description.as_hidden }}
+              {{ form.variable_type.as_hidden }}
+              {{ form.unit.as_hidden }}
+              {{ form.ontology_code.as_hidden }}
+            </div>
+          {% empty %}
+            <div class="text-center">
+              <p>No variables found. Please go back and extract variables from your codebook.</p>
+              <p><small class="text-muted">Debug: Formset has {{ formset.total_form_count }} forms</small></p>
+            </div>
+          {% endfor %}
+        </div>
+
+        <div class="action-buttons">
+          <a href="{% url 'health:extract_variables' study.id %}" class="btn btn-secondary">
+            ← Back to Extraction
+          </a>
+          <button type="submit" class="btn btn-primary" id="submit-btn" disabled>
+            Complete Variable Selection →
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Edit Variable Modal -->
+  <div id="editModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Edit Variable</h3>
+        <span class="close" onclick="closeEditModal()">&times;</span>
+      </div>
+      <div class="modal-body">
+        <form id="editForm">
+          <div class="form-group">
+            <label for="editVariableName">Variable Name:</label>
+            <input type="text" id="editVariableName" class="form-control" readonly>
+          </div>
+          <div class="form-group">
+            <label for="editDisplayName">Display Name:</label>
+            <input type="text" id="editDisplayName" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label for="editDescription">Description:</label>
+            <textarea id="editDescription" class="form-control" rows="3"></textarea>
+          </div>
+          <div class="form-group">
+            <label for="editVariableType">Variable Type:</label>
+            <select id="editVariableType" class="form-select" required>
+              <option value="">-- Select Type --</option>
+              <option value="float">Float (decimal numbers)</option>
+              <option value="int">Integer (whole numbers)</option>
+              <option value="string">String (text)</option>
+              <option value="categorical">Categorical (predefined choices)</option>
+              <option value="boolean">Boolean (yes/no)</option>
+              <option value="datetime">Date/Time</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="editUnit">Unit:</label>
+            <input type="text" id="editUnit" class="form-control" placeholder="e.g., kg, cm, °C">
+          </div>
+          <div class="form-group">
+            <label for="editOntologyCode">Ontology Code:</label>
+            <input type="text" id="editOntologyCode" class="form-control" placeholder="e.g., LOINC:33747-0">
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="saveEdit()">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentEditIndex = -1;
+
+    function toggleVariableSelection(element) {
+      // Don't toggle if clicking on the edit button
+      if (event.target.closest('.btn-edit')) {
+        return;
+      }
+      
+      const checkbox = element.querySelector('input[type="checkbox"]');
+      checkbox.checked = !checkbox.checked;
+      updateSelectedCount();
+    }
+
+    function updateSelectedCount() {
+      const checkboxes = document.querySelectorAll('input[type="checkbox"]:checked');
+      const count = checkboxes.length;
+      document.getElementById('selected-count').textContent = count;
+      
+      const submitBtn = document.getElementById('submit-btn');
+      submitBtn.disabled = count === 0;
+      
+      // Update visual state of selected items
+      document.querySelectorAll('.variable-item').forEach(item => {
+        const checkbox = item.querySelector('input[type="checkbox"]');
+        if (checkbox.checked) {
+          item.classList.add('selected');
+        } else {
+          item.classList.remove('selected');
+        }
+      });
+    }
+
+    function selectAll() {
+      const visibleCheckboxes = document.querySelectorAll('.variable-item:not([style*="display: none"]) input[type="checkbox"]');
+      visibleCheckboxes.forEach(cb => cb.checked = true);
+      updateSelectedCount();
+    }
+
+    function selectNone() {
+      document.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+      updateSelectedCount();
+    }
+
+    function selectHealthCore() {
+      // Select common health variables
+      selectNone();
+      const coreTypes = ['float', 'int', 'categorical'];
+      document.querySelectorAll('.variable-item').forEach(item => {
+        const type = item.dataset.type;
+        if (coreTypes.includes(type)) {
+          const checkbox = item.querySelector('input[type="checkbox"]');
+          checkbox.checked = true;
+        }
+      });
+      updateSelectedCount();
+    }
+
+    function filterByType(type) {
+      // Update active filter tag
+      document.querySelectorAll('.filter-options .filter-tag').forEach(tag => {
+        tag.classList.remove('active');
+      });
+      event.target.classList.add('active');
+      
+      // Show/hide variables
+      document.querySelectorAll('.variable-item').forEach(item => {
+        const itemType = item.dataset.type;
+        if (type === 'all' || itemType === type) {
+          item.style.display = 'block';
+        } else {
+          item.style.display = 'none';
+        }
+      });
+    }
+
+    function openEditModal(event, formIndex) {
+      event.stopPropagation(); // Prevent variable selection toggle
+      
+      currentEditIndex = formIndex;
+      const modal = document.getElementById('editModal');
+      
+      // Get form data
+      const variableItem = document.querySelector(`[data-form-index="${formIndex}"]`);
+      const hiddenInputs = variableItem.querySelectorAll('input[type="hidden"]');
+      
+      // Populate modal fields
+      document.getElementById('editVariableName').value = getHiddenFieldValue(hiddenInputs, 'variable_name');
+      document.getElementById('editDisplayName').value = getHiddenFieldValue(hiddenInputs, 'display_name');
+      document.getElementById('editDescription').value = getHiddenFieldValue(hiddenInputs, 'description');
+      document.getElementById('editVariableType').value = getHiddenFieldValue(hiddenInputs, 'variable_type');
+      document.getElementById('editUnit').value = getHiddenFieldValue(hiddenInputs, 'unit');
+      document.getElementById('editOntologyCode').value = getHiddenFieldValue(hiddenInputs, 'ontology_code');
+      
+      modal.style.display = 'block';
+    }
+
+    function closeEditModal() {
+      document.getElementById('editModal').style.display = 'none';
+    }
+
+    function getHiddenFieldValue(hiddenInputs, fieldName) {
+      for (let input of hiddenInputs) {
+        if (input.name.includes(fieldName)) {
+          return input.value || '';
+        }
+      }
+      return '';
+    }
+
+    function saveEdit() {
+      if (currentEditIndex === -1) return;
+      
+      const variableItem = document.querySelector(`[data-form-index="${currentEditIndex}"]`);
+      const hiddenInputs = variableItem.querySelectorAll('input[type="hidden"]');
+      
+      // Update hidden field values
+      setHiddenFieldValue(hiddenInputs, 'display_name', document.getElementById('editDisplayName').value);
+      setHiddenFieldValue(hiddenInputs, 'description', document.getElementById('editDescription').value);
+      setHiddenFieldValue(hiddenInputs, 'variable_type', document.getElementById('editVariableType').value);
+      setHiddenFieldValue(hiddenInputs, 'unit', document.getElementById('editUnit').value);
+      setHiddenFieldValue(hiddenInputs, 'ontology_code', document.getElementById('editOntologyCode').value);
+      
+      // Update display values
+      updateVariableDisplay(variableItem);
+      
+      closeEditModal();
+      
+      // Show success message
+      showNotification('Variable updated successfully!', 'success');
+    }
+
+    function setHiddenFieldValue(hiddenInputs, fieldName, value) {
+      for (let input of hiddenInputs) {
+        if (input.name.includes(fieldName)) {
+          input.value = value;
+          break;
+        }
+      }
+    }
+
+    function updateVariableDisplay(variableItem) {
+      const hiddenInputs = variableItem.querySelectorAll('input[type="hidden"]');
+      
+      // Update display name
+      const displayName = getHiddenFieldValue(hiddenInputs, 'display_name');
+      const variableName = getHiddenFieldValue(hiddenInputs, 'variable_name');
+      const nameElement = variableItem.querySelector('.variable-name strong');
+      nameElement.textContent = displayName || variableName;
+      
+      // Update type
+      const variableType = getHiddenFieldValue(hiddenInputs, 'variable_type');
+      variableItem.querySelector('.variable-type').textContent = variableType || 'Unknown';
+      variableItem.querySelector('.variable-type-detail').innerHTML = '<strong>Type:</strong> ' + (variableType || 'Unknown');
+      variableItem.dataset.type = (variableType || 'unknown').toLowerCase();
+      
+      // Update description
+      const description = getHiddenFieldValue(hiddenInputs, 'description');
+      variableItem.querySelector('.variable-description').textContent = description || 'No description available';
+      
+      // Update unit
+      const unit = getHiddenFieldValue(hiddenInputs, 'unit');
+      const unitElement = variableItem.querySelector('.variable-unit');
+      if (unit) {
+        if (unitElement) {
+          unitElement.innerHTML = '<strong>Unit:</strong> ' + unit;
+        } else {
+          // Add unit element if it doesn't exist
+          const metaContainer = variableItem.querySelector('.variable-meta');
+          metaContainer.insertAdjacentHTML('afterbegin', '<span class="variable-unit"><strong>Unit:</strong> ' + unit + '</span>');
+        }
+      } else if (unitElement) {
+        unitElement.remove();
+      }
+      
+      // Update ontology code
+      const ontologyCode = getHiddenFieldValue(hiddenInputs, 'ontology_code');
+      const ontologyElement = variableItem.querySelector('.variable-ontology');
+      if (ontologyCode) {
+        if (ontologyElement) {
+          ontologyElement.innerHTML = '<strong>Code:</strong> ' + ontologyCode;
+        } else {
+          // Add ontology element if it doesn't exist
+          const metaContainer = variableItem.querySelector('.variable-meta');
+          const unitElement = metaContainer.querySelector('.variable-unit');
+          if (unitElement) {
+            unitElement.insertAdjacentHTML('afterend', '<span class="variable-ontology"><strong>Code:</strong> ' + ontologyCode + '</span>');
+          } else {
+            metaContainer.insertAdjacentHTML('afterbegin', '<span class="variable-ontology"><strong>Code:</strong> ' + ontologyCode + '</span>');
+          }
+        }
+      } else if (ontologyElement) {
+        ontologyElement.remove();
+      }
+    }
+
+    function showNotification(message, type) {
+      const alertDiv = document.createElement('div');
+      alertDiv.className = `alert alert-${type}`;
+      alertDiv.innerHTML = `
+        <span class="${type}-icon">${type === 'success' ? '✅' : '⚠️'}</span>
+        <span class="${type}-text">${message}</span>
+      `;
+      
+      const container = document.querySelector('.error-messages-section') || document.querySelector('.variables-summary');
+      container.insertAdjacentElement('afterend', alertDiv);
+      
+      // Auto-remove after 3 seconds
+      setTimeout(() => {
+        alertDiv.style.opacity = '0';
+        setTimeout(() => alertDiv.remove(), 300);
+      }, 3000);
+    }
+
+    // Close modal when clicking outside
+    window.onclick = function(event) {
+      const modal = document.getElementById('editModal');
+      if (event.target === modal) {
+        closeEditModal();
+      }
+    }
+
+    // Add event listeners to checkboxes
+    document.addEventListener('DOMContentLoaded', function() {
+      document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+        checkbox.addEventListener('change', updateSelectedCount);
+      });
+      
+      // Initial count update
+      updateSelectedCount();
+      
+      // Auto-dismiss success messages after 5 seconds
+      setTimeout(function() {
+        document.querySelectorAll('.alert-success').forEach(alert => {
+          alert.style.opacity = '0';
+          setTimeout(() => alert.remove(), 300);
+        });
+      }, 5000);
+      
+      // Add click handler to error messages for dismissal
+      document.querySelectorAll('.alert').forEach(alert => {
+        alert.style.cursor = 'pointer';
+        alert.title = 'Click to dismiss';
+        alert.addEventListener('click', function() {
+          this.style.opacity = '0';
+          setTimeout(() => this.remove(), 300);
+        });
+      });
+    });
+  </script>
+{% endblock content %}

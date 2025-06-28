@@ -67,7 +67,6 @@ def process_csv_codebook(file_path: str) -> List[Dict[str, Any]]:
                 'description': str(row[label_col]).strip() if label_col and pd.notna(row[label_col]) else '',
                 'variable_type': infer_variable_type(str(row[type_col]) if type_col and pd.notna(row[type_col]) else ''),
                 'unit': str(row[unit_col]).strip() if unit_col and pd.notna(row[unit_col]) else '',
-                'category': infer_category(var_name),
                 'ontology_code': '',
             }
             variables.append(variable)
@@ -159,7 +158,6 @@ def process_sqlite_codebook(file_path: str) -> List[Dict[str, Any]]:
                     'description': f"Column {name} from table {table_name}",
                     'variable_type': sqlite_type_to_variable_type(data_type),
                     'unit': '',
-                    'category': infer_category(name),
                     'ontology_code': '',
                 }
                 variables.append(variable)
@@ -183,7 +181,6 @@ def process_dataframe_codebook(df: pd.DataFrame) -> List[Dict[str, Any]]:
     label_cols = ['label', 'description', 'variable_label', 'desc', 'display_name']
     type_cols = ['type', 'data_type', 'variable_type', 'format', 'dtype']
     unit_cols = ['unit', 'units', 'measurement_unit', 'uom']
-    category_cols = ['category', 'domain', 'group', 'section']
     
     # Find actual column names (case-insensitive)
     df_cols_lower = [col.lower() for col in df.columns]
@@ -196,8 +193,6 @@ def process_dataframe_codebook(df: pd.DataFrame) -> List[Dict[str, Any]]:
                     if col in [n.lower() for n in type_cols]), None)
     unit_col = next((df.columns[i] for i, col in enumerate(df_cols_lower) 
                     if col in [n.lower() for n in unit_cols]), None)
-    category_col = next((df.columns[i] for i, col in enumerate(df_cols_lower) 
-                        if col in [n.lower() for n in category_cols]), None)
     
     for _, row in df.iterrows():
         var_name = str(row[name_col]).strip()
@@ -210,7 +205,6 @@ def process_dataframe_codebook(df: pd.DataFrame) -> List[Dict[str, Any]]:
             'description': str(row[label_col]).strip() if label_col and pd.notna(row[label_col]) else '',
             'variable_type': infer_variable_type(str(row[type_col]) if type_col and pd.notna(row[type_col]) else ''),
             'unit': str(row[unit_col]).strip() if unit_col and pd.notna(row[unit_col]) else '',
-            'category': str(row[category_col]).strip() if category_col and pd.notna(row[category_col]) else infer_category(var_name),
             'ontology_code': '',
         }
         variables.append(variable)
@@ -227,7 +221,6 @@ def normalize_variable_dict(var_dict: Dict[str, Any]) -> Dict[str, Any]:
     label_keys = ['label', 'display_name', 'description', 'desc']
     type_keys = ['type', 'data_type', 'variable_type', 'dtype']
     unit_keys = ['unit', 'units', 'measurement_unit']
-    category_keys = ['category', 'domain', 'group']
     
     def get_first_value(keys, default=''):
         for key in keys:
@@ -243,7 +236,6 @@ def normalize_variable_dict(var_dict: Dict[str, Any]) -> Dict[str, Any]:
         'description': get_first_value(label_keys),
         'variable_type': infer_variable_type(get_first_value(type_keys)),
         'unit': get_first_value(unit_keys),
-        'category': get_first_value(category_keys, infer_category(var_name)),
         'ontology_code': var_dict.get('ontology_code', ''),
     }
 
@@ -279,44 +271,6 @@ def infer_variable_type(type_hint: str) -> str:
     
     # Default to string
     return 'string'
-
-
-def infer_category(variable_name: str) -> str:
-    """
-    Infer category based on variable name patterns.
-    """
-    if not variable_name:
-        return 'health'
-    
-    var_lower = variable_name.lower()
-    
-    # Health-related patterns
-    health_patterns = [
-        'age', 'weight', 'height', 'bmi', 'blood', 'pressure', 'heart', 'pulse',
-        'temperature', 'diagnosis', 'symptom', 'medication', 'treatment', 'disease',
-        'condition', 'patient', 'medical', 'clinical', 'health', 'hospital'
-    ]
-    
-    # Climate-related patterns
-    climate_patterns = [
-        'temp', 'temperature', 'rain', 'precipitation', 'humidity', 'wind',
-        'weather', 'climate', 'season', 'solar', 'uv', 'pressure', 'atmospheric'
-    ]
-    
-    # Geolocation patterns
-    geo_patterns = [
-        'lat', 'latitude', 'lon', 'longitude', 'coord', 'location', 'address',
-        'city', 'country', 'region', 'postal', 'zip', 'geocode', 'gps'
-    ]
-    
-    if any(pattern in var_lower for pattern in health_patterns):
-        return 'health'
-    elif any(pattern in var_lower for pattern in climate_patterns):
-        return 'climate'
-    elif any(pattern in var_lower for pattern in geo_patterns):
-        return 'geolocation'
-    
-    return 'health'  # Default to health
 
 
 def sqlite_type_to_variable_type(sqlite_type: str) -> str:
@@ -399,11 +353,63 @@ def validate_variables(variables: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         if var['variable_type'] not in valid_types:
             var['variable_type'] = 'string'
         
-        # Validate category
-        valid_categories = ['health', 'climate', 'geolocation']
-        if var['category'] not in valid_categories:
-            var['category'] = 'health'
-        
         valid_variables.append(var)
     
     return valid_variables
+
+
+def extract_variables_from_codebook(file_path: str, column_mapping: Dict[str, str]) -> List[Dict[str, Any]]:
+    """
+    Extract variables from codebook using user-defined column mapping.
+    Simple approach that reads the mapped columns directly.
+    """
+    try:
+        file_format = detect_file_format(file_path)
+        
+        # Read the file
+        if file_format == 'csv':
+            df = pd.read_csv(file_path)
+        elif file_format in ['excel', 'xlsx']:
+            df = pd.read_excel(file_path)
+        else:
+            raise ValueError(f"Unsupported format: {file_format}")
+        
+        variables = []
+        
+        # Get the mapped column name for variable names (required)
+        var_name_col = column_mapping.get('variable_name')
+        if not var_name_col or var_name_col not in df.columns:
+            raise ValueError("Variable name column must be specified and exist in the file")
+        
+        # Process each row
+        for _, row in df.iterrows():
+            var_name = str(row[var_name_col]).strip()
+            if not var_name or var_name.lower() in ['nan', 'none', '']:
+                continue
+            
+            # Extract data from mapped columns (with fallbacks)
+            variable = {
+                'variable_name': var_name,
+                'display_name': _get_column_value(row, column_mapping.get('display_name'), df.columns, var_name.replace('_', ' ').title()),
+                'description': _get_column_value(row, column_mapping.get('description'), df.columns, ''),
+                'variable_type': infer_variable_type(_get_column_value(row, column_mapping.get('variable_type'), df.columns, '')),
+                'unit': _get_column_value(row, column_mapping.get('unit'), df.columns, ''),
+                'ontology_code': '',
+            }
+            variables.append(variable)
+        
+        logger.info(f"Extracted {len(variables)} variables using column mapping")
+        return variables
+        
+    except Exception as e:
+        logger.error(f"Error extracting variables from codebook: {str(e)}")
+        raise
+
+
+def _get_column_value(row, column_name: Optional[str], available_columns: List[str], default_value: str = '') -> str:
+    """
+    Helper function to safely get value from a mapped column.
+    """
+    if column_name and column_name in available_columns and pd.notna(row[column_name]):
+        return str(row[column_name]).strip()
+    return default_value
