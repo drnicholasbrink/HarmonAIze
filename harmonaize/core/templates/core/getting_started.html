@@ -438,20 +438,25 @@
           </p>
           
           <div class="form-group">
-            <label for="{{ form.source_codebook.id_for_label }}" class="form-label">Source Codebook</label>
+            <label for="{{ form.codebook.id_for_label }}" class="form-label">Source Codebook</label>
             <div class="file-upload-area">
-              <div class="file-upload-icon">📊</div>
+              <div class="file-upload-icon">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 3v18h18"></path>
+                  <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"></path>
+                </svg>
+              </div>
               <div class="file-upload-text">
                 <strong>Choose your source codebook file</strong><br>
                 or drag and drop it here
               </div>
-              {{ form.source_codebook }}
+              {{ form.codebook }}
               <div class="supported-formats">
                 Supported formats: CSV, Excel (.xlsx, .xls), SPSS (.sav), Stata (.dta), JSON, SQLite (.db), XML, TXT
               </div>
             </div>
-            {% if form.source_codebook.help_text %}
-              <small class="form-text text-muted">{{ form.source_codebook.help_text }}</small>
+            {% if form.codebook.help_text %}
+              <small class="form-text text-muted">{{ form.codebook.help_text }}</small>
             {% endif %}
           </div>
 

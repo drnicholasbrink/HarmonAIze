@@ -191,6 +191,19 @@
       color: var(--text-primary);
     }
 
+    .btn-danger {
+      background: linear-gradient(135deg, #dc3545, #c82333);
+      color: white;
+      box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
+    }
+
+    .btn-danger:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(220, 53, 69, 0.4);
+      color: white;
+      text-decoration: none;
+    }
+
     .empty-state {
       text-align: center;
       padding: 2rem;
@@ -662,8 +675,24 @@
     
     <!-- Study Overview -->
     <div class="info-card">
-      <h2 class="card-title">Study Overview</h2>
+      <h2 class="card-title">
+        {% if study.study_purpose == 'target' %}
+          Target Study Overview
+        {% else %}
+          Source Study Overview
+        {% endif %}
+      </h2>
       <div class="info-grid">
+        <div class="info-item">
+          <div class="info-label">Study Purpose</div>
+          <div class="info-value">
+            {% if study.study_purpose == 'target' %}
+              Target (Harmonization Standard)
+            {% else %}
+              Source (Data to Harmonize)
+            {% endif %}
+          </div>
+        </div>
         <div class="info-item">
           <div class="info-label">Study Type</div>
           <div class="info-value">{{ study.get_study_type_display }}</div>
@@ -697,16 +726,16 @@
       <h2 class="card-title">Study Characteristics</h2>
       <div class="characteristics-list">
         {% if study.has_dates %}
-          <span class="characteristic-tag">📅 Date/Time Variables</span>
+          <span class="characteristic-tag">Date/Time Variables</span>
         {% endif %}
         {% if study.has_locations %}
-          <span class="characteristic-tag">📍 Location Data</span>
+          <span class="characteristic-tag">Location Data</span>
         {% endif %}
         {% if study.needs_geolocation %}
-          <span class="characteristic-tag">🗺️ Geolocation Required</span>
+          <span class="characteristic-tag">Geolocation Required</span>
         {% endif %}
         {% if study.needs_climate_linkage %}
-          <span class="characteristic-tag">🌍 Climate Linkage</span>
+          <span class="characteristic-tag">Climate Linkage</span>
         {% endif %}
         {% if not study.has_dates and not study.has_locations and not study.needs_geolocation and not study.needs_climate_linkage %}
           <div class="empty-state">No specific characteristics selected</div>
@@ -722,9 +751,9 @@
           <div class="info-label">Ethical Approval</div>
           <div class="info-value">
             {% if study.has_ethical_approval %}
-              ✅ Approved
+              Approved
             {% else %}
-              ❌ Not approved
+              Not approved
             {% endif %}
           </div>
         </div>
@@ -756,15 +785,27 @@
 
     <!-- Files -->
     <div class="info-card">
-      <h2 class="card-title">Source Materials</h2>
+      <h2 class="card-title">
+        {% if study.study_purpose == 'target' %}
+          Target Study Materials
+        {% else %}
+          Source Study Materials
+        {% endif %}
+      </h2>
       <div class="info-grid">
-        {% if study.source_codebook %}
+        {% if study.codebook %}
           <div class="info-item">
-            <div class="info-label">Source Codebook</div>
+            <div class="info-label">
+              {% if study.study_purpose == 'target' %}
+                Target Codebook
+              {% else %}
+                Source Codebook
+              {% endif %}
+            </div>
             <div class="info-value">
-              <a href="{{ study.source_codebook.url }}" class="file-link" target="_blank">
-                {{ study.source_codebook.name }} 
-                {% if study.source_codebook_format %}({{ study.source_codebook_format|upper }}){% endif %}
+              <a href="{{ study.codebook.url }}" class="file-link" target="_blank">
+                {{ study.codebook.name }} 
+                {% if study.codebook_format %}({{ study.codebook_format|upper }}){% endif %}
               </a>
             </div>
           </div>
@@ -792,7 +833,7 @@
           </div>
         {% endif %}
         
-        {% if not study.source_codebook and not study.protocol_file and not study.additional_files %}
+        {% if not study.codebook and not study.protocol_file and not study.additional_files %}
           <div class="empty-state">No files uploaded</div>
         {% endif %}
       </div>
@@ -800,7 +841,13 @@
 
     <!-- Variables Summary & Statistics -->
     <div class="info-card">
-      <h2 class="card-title">Variable Summary & Statistics</h2>
+      <h2 class="card-title">
+        {% if study.study_purpose == 'target' %}
+          Target Variables Summary & Statistics
+        {% else %}
+          Source Variables Summary & Statistics
+        {% endif %}
+      </h2>
       {% if study.variables.count > 0 %}
         <!-- Statistics Overview -->
         <div class="stats-grid">
@@ -895,26 +942,49 @@
         <div class="codebook-management">
           <h4>Codebook Management</h4>
           <div class="codebook-actions">
-            <button class="btn btn-outline" onclick="showReuploadModal()">
-              📄 Upload New Codebook
-            </button>
-            <button class="btn btn-outline" onclick="resetVariables()">
-              🔄 Reset All Variables
-            </button>
-            {% if study.source_codebook %}
-              <a href="{{ study.source_codebook.url }}" class="btn btn-outline" target="_blank">
-                📥 Download Current Codebook
+            {% if study.study_purpose == 'target' %}
+              <!-- Target Study Management -->
+              <button class="btn btn-outline" onclick="showReuploadModal()">
+                Upload New Target Codebook
+              </button>
+              <button class="btn btn-outline" onclick="showResetModal()">
+                Reset Target Variables
+              </button>
+            {% else %}
+              <!-- Source Study Management -->
+              <button class="btn btn-outline" onclick="showReuploadModal()">
+                Upload New Source Codebook
+              </button>
+              <button class="btn btn-outline" onclick="resetVariables()">
+                Reset All Variables
+              </button>
+            {% endif %}
+            {% if study.codebook %}
+              <a href="{{ study.codebook.url }}" class="btn btn-outline" target="_blank">
+                Download Current Codebook
               </a>
             {% endif %}
           </div>
         </div>
       {% else %}
         <div class="empty-state">
-          <div class="empty-icon">📊</div>
+          <div class="empty-icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14,2 14,8 20,8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+              <polyline points="10,9 9,9 8,9"></polyline>
+            </svg>
+          </div>
           <h3>No Variables Yet</h3>
           <p>
-            {% if study.source_codebook %}
-              Start the health data harmonisation workflow to extract variables from your codebook.
+            {% if study.codebook %}
+              {% if study.study_purpose == 'target' %}
+                Start the target variable definition workflow to extract variables from your codebook.
+              {% else %}
+                Start the health data harmonisation workflow to extract variables from your codebook.
+              {% endif %}
             {% else %}
               Upload a codebook to begin extracting and managing variables for your study.
             {% endif %}
@@ -929,21 +999,71 @@
         ← Back to Studies
       </a>
       
-      {% if study.source_codebook %}
-        {% if study.variables.count > 0 %}
-          <a href="#" class="btn btn-primary">
-            View Harmonisation Results →
-          </a>
+      {% if study.study_purpose == 'target' %}
+        <!-- Target Study Actions -->
+        {% if study.codebook %}
+          {% if study.variables.count > 0 %}
+            <!-- Target study with variables defined -->
+            <a href="{% url 'core:target_map_codebook' study.id %}" class="btn btn-primary">
+              View Target Variables →
+            </a>
+            <button class="btn btn-outline-secondary" onclick="showReuploadModal()">
+              📤 Re-upload Target Codebook
+            </button>
+            <button class="btn btn-outline-warning" onclick="showResetModal()">
+              🔄 Reset Target Variables
+            </button>
+          {% else %}
+            <!-- Target study with codebook but no variables selected -->
+            <a href="{% url 'core:target_map_codebook' study.id %}" class="btn btn-primary">
+              Define Target Variables →
+            </a>
+            <button class="btn btn-outline-secondary" onclick="showReuploadModal()">
+              📤 Re-upload Target Codebook
+            </button>
+          {% endif %}
         {% else %}
-          <a href="{% url 'health:map_codebook' study.id %}" class="btn btn-primary">
-            Start Health Data Harmonisation →
-          </a>
+          <!-- Target study with no codebook -->
+          <button class="btn btn-primary" onclick="showReuploadModal()">
+            📤 Upload Target Codebook →
+          </button>
         {% endif %}
       {% else %}
-        <a href="{% url 'core:upload' %}" class="btn btn-primary">
-          Upload Codebook First →
-        </a>
+        <!-- Source Study Actions -->
+        {% if study.codebook %}
+          {% if study.variables.count > 0 %}
+            <!-- Source study with variables defined -->
+            <a href="#" class="btn btn-primary">
+              🔄 View Harmonisation Results →
+            </a>
+            <button class="btn btn-outline-secondary" onclick="showReuploadModal()">
+              📤 Re-upload Source Codebook
+            </button>
+            <a href="{% url 'health:reset_variables' study.id %}" class="btn btn-outline-warning" 
+               onclick="return confirm('Are you sure you want to reset all variables? This action cannot be undone.')">
+              🔄 Reset Variables
+            </a>
+          {% else %}
+            <!-- Source study with codebook but no variables selected -->
+            <a href="{% url 'health:map_codebook' study.id %}" class="btn btn-primary">
+              🔬 Start Health Data Harmonisation →
+            </a>
+            <button class="btn btn-outline-secondary" onclick="showReuploadModal()">
+              📤 Re-upload Source Codebook
+            </button>
+          {% endif %}
+        {% else %}
+          <!-- Source study with no codebook -->
+          <button class="btn btn-primary" onclick="showReuploadModal()">
+            📤 Upload Source Codebook →
+          </button>
+        {% endif %}
       {% endif %}
+      
+      <!-- Delete Study Button -->
+      <button class="btn btn-danger" onclick="showDeleteModal()" style="margin-left: auto;">
+        🗑️ Delete Study
+      </button>
     </div>
   </div>
 
@@ -967,26 +1087,129 @@
   <div id="reuploadModal" class="modal">
     <div class="modal-content">
       <div class="modal-header">
-        <h3>Upload New Codebook</h3>
+        <h3>
+          {% if study.study_purpose == 'target' %}
+            Upload New Target Codebook
+          {% else %}
+            Upload New Source Codebook
+          {% endif %}
+        </h3>
         <span class="close" onclick="closeReuploadModal()">&times;</span>
       </div>
       <div class="modal-body">
         <div class="alert" style="background: #fff3cd; border-left-color: #ffc107; color: #856404; margin-bottom: 1rem;">
           <strong>Warning:</strong> Uploading a new codebook will reset all current variables and mappings. This action cannot be undone.
         </div>
-        <form method="post" enctype="multipart/form-data" action="{% url 'core:upload' %}">
+        <form id="reuploadForm" method="post" enctype="multipart/form-data" action="{% url 'core:upload' %}">
           {% csrf_token %}
           <input type="hidden" name="study_id" value="{{ study.id }}">
+          <input type="hidden" name="name" value="{{ study.name }}">
+          <input type="hidden" name="study_type" value="{{ study.study_type }}">
+          <input type="hidden" name="study_purpose" value="{{ study.study_purpose }}">
+          <input type="hidden" name="principal_investigator" value="{{ study.principal_investigator|default:'' }}">
+          <input type="hidden" name="sample_size" value="{{ study.sample_size|default:'' }}">
+          <input type="hidden" name="description" value="{{ study.description|default:'' }}">
+          {% if study.has_dates %}<input type="hidden" name="has_dates" value="on">{% endif %}
+          {% if study.has_locations %}<input type="hidden" name="has_locations" value="on">{% endif %}
+          {% if study.needs_geolocation %}<input type="hidden" name="needs_geolocation" value="on">{% endif %}
+          {% if study.needs_climate_linkage %}<input type="hidden" name="needs_climate_linkage" value="on">{% endif %}
+          {% if study.has_ethical_approval %}<input type="hidden" name="has_ethical_approval" value="on">{% endif %}
+          <input type="hidden" name="ethics_approval_number" value="{{ study.ethics_approval_number|default:'' }}">
+          <input type="hidden" name="geographic_scope" value="{{ study.geographic_scope|default:'' }}">
+          
           <div class="form-group">
-            <label for="newCodebook">Select New Codebook File:</label>
-            <input type="file" id="newCodebook" name="source_codebook" class="form-control" accept=".csv,.xlsx,.xls" required>
+            <label for="newCodebook">
+              {% if study.study_purpose == 'target' %}
+                Select New Target Codebook File:
+              {% else %}
+                Select New Source Codebook File:
+              {% endif %}
+            </label>
+            <input type="file" id="newCodebook" name="codebook" class="form-control" accept=".csv,.xlsx,.xls" required>
             <small class="form-text text-muted">Supported formats: CSV, Excel (.xlsx, .xls)</small>
+          </div>
+          
+          <div class="form-group">
+            <label for="codebook_format">Codebook Format:</label>
+            <select id="codebook_format" name="codebook_format" class="form-control" required>
+              <option value="">Select format...</option>
+              <option value="csv" {% if study.codebook_format == 'csv' %}selected{% endif %}>CSV</option>
+              <option value="excel" {% if study.codebook_format == 'excel' %}selected{% endif %}>Excel</option>
+            </select>
           </div>
         </form>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" onclick="closeReuploadModal()">Cancel</button>
-        <button type="button" class="btn btn-primary" onclick="submitReupload()">Upload & Reset</button>
+        <button type="button" class="btn btn-primary" onclick="submitReupload()">
+          {% if study.study_purpose == 'target' %}
+            Upload & Reset Target
+          {% else %}
+            Upload & Reset Source
+          {% endif %}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reset Variables Modal (for target studies) -->
+  {% if study.study_purpose == 'target' %}
+  <div id="resetModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Reset Target Variables</h3>
+        <span class="close" onclick="closeResetModal()">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div class="alert" style="background: #f8d7da; border-left-color: #dc3545; color: #721c24; margin-bottom: 1rem;">
+          <strong>Warning:</strong> This will permanently delete all {{ study.variables.count }} target variables and reset your target study. This action cannot be undone.
+        </div>
+        <p>Are you sure you want to reset all target variables? You will need to re-define your harmonization targets from the beginning.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeResetModal()">Cancel</button>
+        <button type="button" class="btn btn-danger" onclick="submitReset()">Reset Target Variables</button>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Delete Study Modal -->
+  <div id="deleteModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Delete Study</h3>
+        <span class="close" onclick="closeDeleteModal()">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div class="alert" style="background: #f8d7da; border-left-color: #dc3545; color: #721c24; margin-bottom: 1rem;">
+          <strong>⚠️ Danger Zone:</strong> This action cannot be undone!
+        </div>
+        <p><strong>You are about to permanently delete:</strong></p>
+        <ul style="margin: 1rem 0; padding-left: 2rem;">
+          <li><strong>Study:</strong> "{{ study.name }}"</li>
+          <li><strong>Type:</strong> {{ study.get_study_purpose_display }}</li>
+          {% if study.variables.count > 0 %}
+            <li><strong>Variables:</strong> {{ study.variables.count }} variables will be deleted</li>
+          {% endif %}
+          {% if study.codebook %}
+            <li><strong>Codebook:</strong> Uploaded codebook file will be permanently removed</li>
+          {% endif %}
+          {% if study.protocol_file %}
+            <li><strong>Protocol:</strong> Protocol file will be permanently removed</li>
+          {% endif %}
+          {% if study.additional_files %}
+            <li><strong>Additional Files:</strong> Additional files will be permanently removed</li>
+          {% endif %}
+        </ul>
+        <p><strong>Are you absolutely sure?</strong> Type the study name "<strong>{{ study.name }}</strong>" to confirm deletion:</p>
+        <input type="text" id="deleteConfirmation" class="form-control" placeholder="Type study name here..." style="margin-top: 1rem;">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeDeleteModal()">Cancel</button>
+        <button type="button" class="btn btn-danger" id="confirmDeleteBtn" onclick="submitDelete()" disabled>
+          🗑️ Delete Study Permanently
+        </button>
       </div>
     </div>
   </div>
@@ -1106,18 +1329,103 @@
     }
 
     function submitReupload() {
-      const form = document.querySelector('#reuploadModal form');
+      const form = document.getElementById('reuploadForm');
       const fileInput = document.getElementById('newCodebook');
+      const formatSelect = document.getElementById('codebook_format');
       
       if (!fileInput.files.length) {
         alert('Please select a codebook file first.');
         return;
       }
       
-      if (confirm('Are you sure you want to upload a new codebook? This will reset all current variables and cannot be undone.')) {
+      if (!formatSelect.value) {
+        alert('Please select the codebook format.');
+        return;
+      }
+      
+      const studyPurpose = '{{ study.study_purpose }}';
+      const confirmMessage = studyPurpose === 'target' 
+        ? 'Are you sure you want to upload a new target codebook? This will reset all current target variables and cannot be undone.'
+        : 'Are you sure you want to upload a new source codebook? This will reset all current variables and cannot be undone.';
+      
+      if (confirm(confirmMessage)) {
         form.submit();
       }
     }
+
+    // Reset variables modal functionality (target studies)
+    {% if study.study_purpose == 'target' %}
+    function showResetModal() {
+      document.getElementById('resetModal').style.display = 'block';
+    }
+
+    function closeResetModal() {
+      document.getElementById('resetModal').style.display = 'none';
+    }
+
+    function submitReset() {
+      // Create a form to submit the reset request
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = '{% url "core:target_reset_variables" study.id %}';
+      
+      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+      const csrfInput = document.createElement('input');
+      csrfInput.type = 'hidden';
+      csrfInput.name = 'csrfmiddlewaretoken';
+      csrfInput.value = csrfToken;
+      form.appendChild(csrfInput);
+      
+      document.body.appendChild(form);
+      form.submit();
+    }
+    {% endif %}
+
+    // Delete study modal functionality
+    function showDeleteModal() {
+      document.getElementById('deleteModal').style.display = 'block';
+      // Reset the confirmation input
+      document.getElementById('deleteConfirmation').value = '';
+      document.getElementById('confirmDeleteBtn').disabled = true;
+    }
+
+    function closeDeleteModal() {
+      document.getElementById('deleteModal').style.display = 'none';
+    }
+
+    function submitDelete() {
+      // Create a form to submit the delete request
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = '{% url "core:delete_study" study.id %}';
+      
+      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+      const csrfInput = document.createElement('input');
+      csrfInput.type = 'hidden';
+      csrfInput.name = 'csrfmiddlewaretoken';
+      csrfInput.value = csrfToken;
+      form.appendChild(csrfInput);
+      
+      document.body.appendChild(form);
+      form.submit();
+    }
+
+    // Add event listener for delete confirmation input
+    document.addEventListener('DOMContentLoaded', function() {
+      const deleteInput = document.getElementById('deleteConfirmation');
+      const confirmBtn = document.getElementById('confirmDeleteBtn');
+      const studyName = '{{ study.name|escapejs }}';
+      
+      if (deleteInput && confirmBtn) {
+        deleteInput.addEventListener('input', function() {
+          if (this.value === studyName) {
+            confirmBtn.disabled = false;
+          } else {
+            confirmBtn.disabled = true;
+          }
+        });
+      }
+    });
 
     // Reset variables functionality
     function resetVariables() {
@@ -1143,11 +1451,21 @@
     window.onclick = function(event) {
       const variableModal = document.getElementById('variableDetailModal');
       const reuploadModal = document.getElementById('reuploadModal');
+      const deleteModal = document.getElementById('deleteModal');
+      {% if study.study_purpose == 'target' %}
+      const resetModal = document.getElementById('resetModal');
+      {% endif %}
       
       if (event.target === variableModal) {
         closeVariableModal();
       } else if (event.target === reuploadModal) {
         closeReuploadModal();
+      } else if (event.target === deleteModal) {
+        closeDeleteModal();
+      {% if study.study_purpose == 'target' %}
+      } else if (event.target === resetModal) {
+        closeResetModal();
+      {% endif %}
       }
     }
   </script>

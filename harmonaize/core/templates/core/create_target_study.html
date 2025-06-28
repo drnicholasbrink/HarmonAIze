@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 {% load static crispy_forms_tags %}
 
-{% block title %}Upload Study - HarmonAIze{% endblock title %}
+{% block title %}Create Target Study - HarmonAIze{% endblock title %}
 
 {% block css %}
   {{ block.super }}
   <style>
     :root {
-      --primary-color: #007AFF;
+      --primary-color: #28a745;
       --secondary-color: #5AC8FA;
       --accent-color: #34C759;
       --background-color: #F2F2F7;
@@ -87,10 +87,6 @@
       margin-bottom: 2.5rem;
     }
 
-    .form-section:last-child {
-      margin-bottom: 0;
-    }
-
     .section-title {
       font-size: 1.5rem;
       font-weight: 600;
@@ -129,7 +125,7 @@
 
     .form-control:focus {
       border-color: var(--primary-color);
-      box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+      box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.1);
       outline: none;
     }
 
@@ -163,12 +159,12 @@
       font-weight: 600;
       color: white;
       transition: all 0.3s ease;
-      box-shadow: 0 4px 15px rgba(0, 122, 255, 0.3);
+      box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
     }
 
     .btn-primary:hover {
       transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(0, 122, 255, 0.4);
+      box-shadow: 0 6px 20px rgba(40, 167, 69, 0.4);
       color: white;
     }
 
@@ -183,7 +179,7 @@
 
     .file-upload-area:hover {
       border-color: var(--primary-color);
-      background-color: rgba(0, 122, 255, 0.05);
+      background-color: rgba(40, 167, 69, 0.05);
     }
 
     .file-upload-icon {
@@ -210,50 +206,14 @@
       margin-top: 1rem;
     }
 
-    .progress-indicator {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      margin-bottom: 2rem;
-    }
-
-    .step {
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      background: var(--primary-color);
-      color: white;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 600;
-      margin: 0 1rem;
-      position: relative;
-    }
-
-    .step.active {
-      background: var(--primary-color);
-      box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.2);
-    }
-
-    .step.inactive {
-      background: var(--border-color);
-      color: var(--text-secondary);
-    }
-
-    .step::after {
-      content: '';
-      position: absolute;
-      top: 50%;
-      left: 100%;
-      width: 2rem;
-      height: 2px;
-      background: var(--border-color);
-      transform: translateY(-50%);
-    }
-
-    .step:last-child::after {
-      display: none;
+    .info-badge {
+      background: rgba(40, 167, 69, 0.1);
+      color: var(--primary-color);
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      margin-bottom: 1.5rem;
+      border: 1px solid rgba(40, 167, 69, 0.2);
     }
 
     @media (max-width: 768px) {
@@ -277,39 +237,38 @@
   <!-- Hero Section -->
   <div class="hero-section">
     <div class="hero-content">
-      <h1 class="hero-title">Upload Study</h1>
+      <h1 class="hero-title">Create Target Study</h1>
       <p class="hero-subtitle">
-        Create your study and upload your codebook to begin the data harmonisation process.
+        Define harmonization targets by creating a target study with your desired variable specifications.
       </p>
-    </div>
-  </div>
-
-  <!-- Progress Indicator -->
-  <div class="container">
-    <div class="progress-indicator">
-      <div class="step active">1</div>
-      <div class="step inactive">2</div>
-      <div class="step inactive">3</div>
     </div>
   </div>
 
   <!-- Main Form -->
   <div class="form-container">
     <div class="form-card">
+      <div class="info-badge">
+        <strong>📋 Target Study:</strong> This will define the variables you want to harmonize your source data TO. 
+        These become the standard format that all your source studies will be transformed into.
+        <br><br>
+        <strong>⚠️ Important:</strong> You can only have <strong>one target study</strong> that defines your harmonization standards. 
+        If you need to make changes, you can edit your existing target study.
+      </div>
+
       <form method="post" enctype="multipart/form-data">
         {% csrf_token %}
         
         <!-- Study Information Section -->
         <div class="form-section">
-          <h2 class="section-title">Study Information</h2>
+          <h2 class="section-title">Target Study Information</h2>
           <p class="section-description">
-            Provide basic information about your research study. This helps us understand the context and requirements for data harmonisation.
+            Provide information about your harmonization target. This defines the standard format for your harmonized data.
           </p>
           
           <div class="row">
             <div class="col-md-8">
               <div class="form-group">
-                <label for="{{ form.name.id_for_label }}" class="form-label">Study Name</label>
+                <label for="{{ form.name.id_for_label }}" class="form-label">Target Study Name</label>
                 {{ form.name }}
                 {% if form.name.help_text %}
                   <small class="form-text text-muted">{{ form.name.help_text }}</small>
@@ -341,113 +300,70 @@
             </div>
             <div class="col-md-6">
               <div class="form-group">
-                <label for="{{ form.sample_size.id_for_label }}" class="form-label">Sample Size (Optional)</label>
+                <label for="{{ form.sample_size.id_for_label }}" class="form-label">Expected Sample Size (Optional)</label>
                 {{ form.sample_size }}
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Legal and Ethical Approval Section -->
+        <!-- Target Characteristics Section -->
         <div class="form-section">
-          <h2 class="section-title">Legal & Ethical Approval</h2>
+          <h2 class="section-title">Target Characteristics</h2>
           <p class="section-description">
-            Information about ethical approval and data use permissions for your study.
-          </p>
-          
-          <div class="form-group">
-            <div class="form-check">
-              {{ form.has_ethical_approval }}
-              <label for="{{ form.has_ethical_approval.id_for_label }}" class="form-check-label">
-                This study has ethical/IRB approval
-              </label>
-            </div>
-          </div>
-
-          <div class="row">
-            <div class="col-md-6">
-              <div class="form-group">
-                <label for="{{ form.ethics_approval_number.id_for_label }}" class="form-label">Ethics Approval Number (Optional)</label>
-                {{ form.ethics_approval_number }}
-              </div>
-            </div>
-            <div class="col-md-6">
-              <div class="form-group">
-                <label for="{{ form.geographic_scope.id_for_label }}" class="form-label">Geographic Scope (Optional)</label>
-                {{ form.geographic_scope }}
-                {% if form.geographic_scope.help_text %}
-                  <small class="form-text text-muted">{{ form.geographic_scope.help_text }}</small>
-                {% endif %}
-              </div>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="{{ form.data_use_permissions.id_for_label }}" class="form-label">Data Use Permissions</label>
-            <p class="section-description">Select all applicable data use permissions based on your study's ethical approval:</p>
-            <div class="checkbox-grid">
-              {{ form.data_use_permissions }}
-            </div>
-          </div>
-        </div>
-
-        <!-- Study Characteristics Section -->
-        <div class="form-section">
-          <h2 class="section-title">Study Characteristics</h2>
-          <p class="section-description">
-            Tell us about the nature of your data and what types of analysis you plan to conduct.
+            Specify the characteristics of your harmonized target format.
           </p>
           
           <div class="checkbox-grid">
             <div class="form-check">
               {{ form.has_dates }}
               <label for="{{ form.has_dates.id_for_label }}" class="form-check-label">
-                Study includes date/time variables
+                Include standardized date/time variables
               </label>
             </div>
             
             <div class="form-check">
               {{ form.has_locations }}
               <label for="{{ form.has_locations.id_for_label }}" class="form-check-label">
-                Study includes location data
+                Include standardized location variables
               </label>
             </div>
             
             <div class="form-check">
               {{ form.needs_geolocation }}
               <label for="{{ form.needs_geolocation.id_for_label }}" class="form-check-label">
-                Need to geolocate addresses/facilities
+                Include geolocation coordinates
               </label>
             </div>
             
             <div class="form-check">
               {{ form.needs_climate_linkage }}
               <label for="{{ form.needs_climate_linkage.id_for_label }}" class="form-check-label">
-                Want to link climate data
+                Include climate variables
               </label>
             </div>
           </div>
         </div>
 
-        <!-- File Upload Section -->
+        <!-- Target Codebook Upload Section -->
         <div class="form-section">
-          <h2 class="section-title">Source Materials</h2>
+          <h2 class="section-title">Target Codebook (Optional)</h2>
           <p class="section-description">
-            Upload your source codebook and any additional documentation that will help with data harmonisation.
+            Upload a codebook that defines your target variables, or define them manually later.
           </p>
           
           <div class="form-group">
-            <label for="{{ form.codebook.id_for_label }}" class="form-label">Source Codebook</label>
+            <label for="{{ form.codebook.id_for_label }}" class="form-label">Target Codebook File</label>
             <div class="file-upload-area">
               <div class="file-upload-icon">
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M3 3v18h18"></path>
-                  <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"></path>
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <circle cx="12" cy="12" r="3"></circle>
                 </svg>
               </div>
               <div class="file-upload-text">
-                <strong>Choose your source codebook file</strong><br>
-                or drag and drop it here
+                <strong>Choose your target codebook file</strong><br>
+                or drag and drop it here (optional)
               </div>
               {{ form.codebook }}
               <div class="supported-formats">
@@ -485,12 +401,12 @@
         <div class="form-section">
           <div class="d-grid">
             <button type="submit" class="btn btn-primary">
-              Create Study & Continue
+              Create Target Study & Continue
             </button>
           </div>
           <p class="text-center mt-3">
             <small class="text-muted">
-              After creating your study, you'll be able to review and map your variables.
+              After creating your target study, you'll be able to define and manage your target variables.
             </small>
           </p>
         </div>

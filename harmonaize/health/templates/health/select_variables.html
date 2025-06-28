@@ -677,17 +677,31 @@
           {% for message in messages %}
             {% if message.tags == 'error' %}
               <div class="alert alert-error">
-                <span class="error-icon">⚠️</span>
+                <span class="error-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
+                  </svg>
+                </span>
                 <span class="error-text">{{ message }}</span>
               </div>
             {% elif message.tags == 'success' %}
               <div class="alert alert-success">
-                <span class="success-icon">✅</span>
+                <span class="success-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20,6 9,17 4,12"></polyline>
+                  </svg>
+                </span>
                 <span class="success-text">{{ message }}</span>
               </div>
             {% elif message.tags == 'info' %}
               <div class="alert alert-info">
-                <span class="info-icon">ℹ️</span>
+                <span class="info-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="m9,12 l3,-3 l3,3"></path>
+                    <path d="m9,16 l3,-3 l3,3"></path>
+                  </svg>
+                </span>
                 <span class="info-text">{{ message }}</span>
               </div>
             {% endif %}
@@ -701,7 +715,11 @@
           <h4 class="error-title">Form Errors:</h4>
           {% for error in formset.non_form_errors %}
             <div class="alert alert-error">
-              <span class="error-icon">⚠️</span>
+              <span class="error-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
+                </svg>
+              </span>
               <span class="error-text">{{ error }}</span>
             </div>
           {% endfor %}
@@ -1076,7 +1094,11 @@
       const alertDiv = document.createElement('div');
       alertDiv.className = `alert alert-${type}`;
       alertDiv.innerHTML = `
-        <span class="${type}-icon">${type === 'success' ? '✅' : '⚠️'}</span>
+        <span class="${type}-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            ${type === 'success' ? '<polyline points="20,6 9,17 4,12"></polyline>' : '<path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>'}
+          </svg>
+        </span>
         <span class="${type}-text">${message}</span>
       `;
       

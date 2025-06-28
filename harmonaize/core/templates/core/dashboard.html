@@ -298,27 +298,46 @@
     <!-- Stats Overview -->
     <div class="dashboard-grid">
       <div class="stat-card">
-        <div class="stat-icon">📊</div>
-        <div class="stat-number">{{ total_studies }}</div>
-        <div class="stat-label">Total Studies</div>
+        <div class="stat-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 3v18h18"></path>
+            <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"></path>
+          </svg>
+        </div>
+        <div class="stat-number">{{ source_studies_count }}</div>
+        <div class="stat-label">Source Studies</div>
       </div>
       
       <div class="stat-card">
-        <div class="stat-icon">⚡</div>
+        <div class="stat-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+        </div>
+        <div class="stat-number">{{ target_studies_count }}</div>
+        <div class="stat-label">Target Studies</div>
+      </div>
+      
+      <div class="stat-card">
+        <div class="stat-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+          </svg>
+        </div>
+        <div class="stat-number">{{ total_variables }}</div>
+        <div class="stat-label">Total Variables</div>
+      </div>
+      
+      <div class="stat-card">
+        <div class="stat-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M23 6l-9.5 9.5-5-5L1 18"></path>
+            <path d="M17 6h6v6"></path>
+          </svg>
+        </div>
         <div class="stat-number">0</div>
         <div class="stat-label">Variables Harmonised</div>
-      </div>
-      
-      <div class="stat-card">
-        <div class="stat-icon">🌍</div>
-        <div class="stat-number">0</div>
-        <div class="stat-label">Climate Links</div>
-      </div>
-      
-      <div class="stat-card">
-        <div class="stat-icon">🎯</div>
-        <div class="stat-number">0</div>
-        <div class="stat-label">Completed Projects</div>
       </div>
     </div>
 
@@ -327,44 +346,106 @@
       <h2 class="section-title">Quick Actions</h2>
       <div class="quick-actions">
         <a href="{% url 'core:upload' %}" class="action-btn">
-          <span class="action-icon">🚀</span>
-          <div class="action-title">Start New Study</div>
-          <div class="action-description">Begin a new data harmonisation project</div>
+          <span class="action-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7,10 12,15 17,10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+          </span>
+          <div class="action-title">New Source Study</div>
+          <div class="action-description">Upload source data for harmonisation</div>
         </a>
         
+        {% if not target_study %}
+        <a href="{% url 'core:create_target_study' %}" class="action-btn">
+          <span class="action-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+          </span>
+          <div class="action-title">Create Target Study</div>
+          <div class="action-description">Define harmonisation targets</div>
+        </a>
+        {% else %}
+        <a href="{% url 'core:study_detail' target_study.pk %}" class="action-btn">
+          <span class="action-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+          </span>
+          <div class="action-title">View Target Study</div>
+          <div class="action-description">Manage your harmonisation targets</div>
+        </a>
+        {% endif %}
+        
         <a href="{% url 'core:study_list' %}" class="action-btn">
-          <span class="action-icon">📋</span>
+          <span class="action-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14,2 14,8 20,8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+              <polyline points="10,9 9,9 8,9"></polyline>
+            </svg>
+          </span>
           <div class="action-title">View All Studies</div>
           <div class="action-description">Manage your existing projects</div>
         </a>
         
         <a href="#" class="action-btn">
-          <span class="action-icon">📚</span>
+          <span class="action-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+            </svg>
+          </span>
           <div class="action-title">Documentation</div>
           <div class="action-description">Learn about data harmonisation</div>
-        </a>
-        
-        <a href="#" class="action-btn">
-          <span class="action-icon">🔧</span>
-          <div class="action-title">Settings</div>
-          <div class="action-description">Configure your preferences</div>
         </a>
       </div>
     </div>
 
-    <!-- Recent Studies -->
+    <!-- Target Study Section -->
+    {% if target_study %}
     <div class="section-card">
-      <h2 class="section-title">Recent Studies</h2>
-      {% if recent_studies %}
+      <h2 class="section-title">Target Study</h2>
+      <div class="study-item">
+        <div class="study-info">
+          <div class="study-name">
+            <a href="{% url 'core:study_detail' target_study.pk %}">{{ target_study.name }}</a>
+          </div>
+          <div class="study-meta">
+            Target Study • {{ target_study.variables.count }} variables • Updated {{ target_study.updated_at|date:"M j, Y" }}
+          </div>
+        </div>
+        <span class="study-status status-{{ target_study.status }}">
+          {{ target_study.get_status_display }}
+        </span>
+      </div>
+      <div style="text-align: center; margin-top: 1.5rem;">
+        <a href="{% url 'core:study_detail' target_study.pk %}" class="btn btn-primary">
+          Manage Target Study
+        </a>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Source Studies Section -->
+    <div class="section-card">
+      <h2 class="section-title">Source Studies</h2>
+      {% if source_studies %}
         <ul class="recent-studies">
-          {% for study in recent_studies %}
+          {% for study in source_studies %}
             <li class="study-item">
               <div class="study-info">
                 <div class="study-name">
                   <a href="{% url 'core:study_detail' study.pk %}">{{ study.name }}</a>
                 </div>
                 <div class="study-meta">
-                  {{ study.get_study_type_display }} • Updated {{ study.updated_at|date:"M j, Y" }}
+                  {{ study.get_study_type_display }} • {{ study.variables.count }} variables • Updated {{ study.updated_at|date:"M j, Y" }}
                 </div>
               </div>
               <span class="study-status status-{{ study.status }}">
@@ -374,20 +455,25 @@
           {% endfor %}
         </ul>
         
-        {% if total_studies > 5 %}
+        {% if source_studies_count > 5 %}
           <div style="text-align: center; margin-top: 1.5rem;">
-            <a href="{% url 'core:study_list' %}" class="btn btn-outline">
-              View All Studies ({{ total_studies }})
+            <a href="{% url 'core:study_list' %}?purpose=source" class="btn btn-outline">
+              View All Source Studies ({{ source_studies_count }})
             </a>
           </div>
         {% endif %}
         
       {% else %}
         <div class="empty-state">
-          <div class="empty-icon">📊</div>
-          <p>No studies yet. Get started by creating your first study!</p>
+          <div class="empty-icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 3v18h18"></path>
+              <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"></path>
+            </svg>
+          </div>
+          <p>No source studies yet. Upload your first dataset to get started!</p>
           <a href="{% url 'core:upload' %}" class="btn btn-primary">
-            Create Your First Study
+            Upload Source Data
           </a>
         </div>
       {% endif %}

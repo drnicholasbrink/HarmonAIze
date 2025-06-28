@@ -1,0 +1,473 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Select Target Variables - HarmonAIze{% endblock title %}
+
+{% block css %}
+  {{ block.super }}
+  <style>
+    :root {
+      --primary-color: #28a745;
+      --secondary-color: #20c997;
+      --background-color: #f8f9fa;
+      --card-background: #ffffff;
+      --text-primary: #212529;
+      --text-secondary: #6c757d;
+      --border-color: #dee2e6;
+      --success-color: #28a745;
+      --warning-color: #ffc107;
+      --shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    }
+
+    .hero-section {
+      background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+      color: white;
+      padding: 3rem 0;
+      margin-bottom: 2rem;
+    }
+
+    .content-card {
+      background: var(--card-background);
+      border-radius: 12px;
+      padding: 2rem;
+      box-shadow: var(--shadow);
+      margin-bottom: 2rem;
+    }
+
+    .variable-card {
+      background: var(--card-background);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 1rem;
+      transition: all 0.3s ease;
+    }
+
+    .variable-card:hover {
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      border-color: var(--primary-color);
+    }
+
+    .variable-card.selected {
+      border-color: var(--success-color);
+      background: rgba(40, 167, 69, 0.05);
+    }
+
+    .variable-header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 1rem;
+      gap: 1rem;
+    }
+
+    .variable-checkbox {
+      margin: 0;
+    }
+
+    .variable-name {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin: 0;
+    }
+
+    .variable-type-badge {
+      padding: 0.25rem 0.75rem;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      background: var(--primary-color);
+      color: white;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .form-group {
+      margin-bottom: 1rem;
+    }
+
+    .form-label {
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 0.5rem;
+      display: block;
+    }
+
+    .form-control, .form-select {
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 0.5rem;
+      font-size: 0.95rem;
+      width: 100%;
+    }
+
+    .form-control:focus, .form-select:focus {
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.1);
+      outline: none;
+    }
+
+    .selection-summary {
+      background: rgba(40, 167, 69, 0.1);
+      border: 1px solid rgba(40, 167, 69, 0.2);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 2rem;
+      position: sticky;
+      top: 20px;
+      z-index: 100;
+    }
+
+    .btn-primary {
+      background: var(--primary-color);
+      border: none;
+      padding: 0.75rem 2rem;
+      border-radius: 8px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    }
+
+    .btn-primary:hover {
+      background: #1e7e34;
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: var(--text-secondary);
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 600;
+      color: white;
+      text-decoration: none;
+    }
+
+    .btn-secondary:hover {
+      background: #545b62;
+      color: white;
+    }
+
+    .select-all-controls {
+      background: #f8f9fa;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 2rem;
+      border: 1px solid var(--border-color);
+    }
+
+    @media (max-width: 768px) {
+      .form-row {
+        grid-template-columns: 1fr;
+      }
+      
+      .variable-header {
+        flex-direction: column;
+        align-items: stretch;
+      }
+    }
+  </style>
+{% endblock css %}
+
+{% block content %}
+  <!-- Hero Section -->
+  <div class="hero-section">
+    <div class="container">
+      <div class="row">
+        <div class="col-lg-8 mx-auto text-center">
+          <h1 class="display-5 fw-bold mb-3">Select Target Variables</h1>
+          <p class="lead">
+            Review and select the target variables that will define your harmonization standards.
+          </p>
+          <div class="mt-3">
+            <span class="badge bg-light text-dark fs-6">
+              {{ variables_count }} Variables Found
+            </span>
+            <span class="badge bg-light text-dark fs-6 ms-2">
+              Target Study: {{ study.name }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <form method="post" id="target-variables-form">
+      {% csrf_token %}
+      {{ formset.management_form }}
+
+      <!-- Selection Summary (Sticky) -->
+      <div class="selection-summary">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h5 class="mb-1">
+              <i class="fas fa-check-circle me-2"></i>
+              Selection Summary
+            </h5>
+            <p class="mb-0 text-muted">
+              <span id="selected-count">0</span> of {{ variables_count }} target variables selected
+            </p>
+          </div>
+          <div>
+            <button type="submit" class="btn btn-primary" id="submit-btn" disabled>
+              <i class="fas fa-save me-2"></i>Save Target Variables
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Select All Controls -->
+      <div class="select-all-controls">
+        <div class="d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">Quick Actions</h5>
+          <div class="btn-group" role="group">
+            <button type="button" class="btn btn-outline-primary btn-sm" id="select-all-btn">
+              <i class="fas fa-check-square me-1"></i>Select All
+            </button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="deselect-all-btn">
+              <i class="fas fa-square me-1"></i>Deselect All
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Variables List -->
+      <div class="content-card">
+        <h2 class="section-title mb-4">
+          <i class="fas fa-list me-2"></i>Target Variables
+        </h2>
+        
+        {% for form in formset %}
+          <div class="variable-card" data-form-index="{{ forloop.counter0 }}">
+            <!-- Hidden fields -->
+            {% for field in form.hidden_fields %}
+              {{ field }}
+            {% endfor %}
+            
+            <div class="variable-header">
+              <div class="form-check">
+                {{ form.include }}
+                <label class="form-check-label variable-name" for="{{ form.include.id_for_label }}">
+                  {{ form.variable_name.value|default:"Unknown Variable" }}
+                </label>
+              </div>
+              <div class="ms-auto">
+                <span class="variable-type-badge">
+                  {{ form.variable_type.value|default:"string"|title }}
+                </span>
+              </div>
+            </div>
+
+            <div class="variable-form-fields" style="display: none;">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="{{ form.variable_name.id_for_label }}" class="form-label">
+                    Variable Name
+                  </label>
+                  {{ form.variable_name }}
+                </div>
+                <div class="form-group">
+                  <label for="{{ form.display_name.id_for_label }}" class="form-label">
+                    Display Name
+                  </label>
+                  {{ form.display_name }}
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="{{ form.description.id_for_label }}" class="form-label">
+                  Description
+                </label>
+                {{ form.description }}
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="{{ form.variable_type.id_for_label }}" class="form-label">
+                    Variable Type
+                  </label>
+                  {{ form.variable_type }}
+                </div>
+                <div class="form-group">
+                  <label for="{{ form.unit.id_for_label }}" class="form-label">
+                    Unit
+                  </label>
+                  {{ form.unit }}
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="{{ form.ontology_code.id_for_label }}" class="form-label">
+                  Ontology Code
+                </label>
+                {{ form.ontology_code }}
+              </div>
+            </div>
+
+            <!-- Variable preview info -->
+            <div class="variable-preview">
+              {% if form.description.value %}
+                <p class="text-muted mb-2">
+                  <i class="fas fa-info-circle me-1"></i>
+                  {{ form.description.value }}
+                </p>
+              {% endif %}
+              {% if form.unit.value %}
+                <small class="text-muted">
+                  <i class="fas fa-ruler me-1"></i>Unit: {{ form.unit.value }}
+                </small>
+              {% endif %}
+            </div>
+          </div>
+        {% empty %}
+          <div class="text-center py-5">
+            <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+            <h4>No Target Variables Found</h4>
+            <p class="text-muted">
+              No target variables were extracted from your codebook. 
+              Please check your column mapping and try again.
+            </p>
+            <a href="{% url 'core:target_map_codebook' study.id %}" class="btn btn-primary">
+              <i class="fas fa-arrow-left me-2"></i>Back to Column Mapping
+            </a>
+          </div>
+        {% endfor %}
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="content-card">
+        <div class="d-flex gap-3 justify-content-between">
+          <a href="{% url 'core:target_map_codebook' study.id %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Back to Mapping
+          </a>
+          
+          <div class="d-flex gap-3">
+            <button type="submit" class="btn btn-primary" id="submit-btn-bottom">
+              <i class="fas fa-save me-2"></i>Save Target Variables
+            </button>
+          </div>
+        </div>
+      </div>
+    </form>
+  </div>
+{% endblock content %}
+
+{% block inline_javascript %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('target-variables-form');
+    const checkboxes = form.querySelectorAll('input[type="checkbox"][name$="-include"]');
+    const selectedCountElement = document.getElementById('selected-count');
+    const submitButtons = document.querySelectorAll('#submit-btn, #submit-btn-bottom');
+    const selectAllBtn = document.getElementById('select-all-btn');
+    const deselectAllBtn = document.getElementById('deselect-all-btn');
+
+    function updateSelectedCount() {
+      const selectedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+      selectedCountElement.textContent = selectedCount;
+      
+      // Enable/disable submit buttons
+      submitButtons.forEach(btn => {
+        btn.disabled = selectedCount === 0;
+      });
+
+      // Update variable card styling and form field visibility
+      checkboxes.forEach(function(checkbox) {
+        const card = checkbox.closest('.variable-card');
+        const formFields = card.querySelector('.variable-form-fields');
+        
+        if (checkbox.checked) {
+          card.classList.add('selected');
+          if (formFields) formFields.style.display = 'block';
+        } else {
+          card.classList.remove('selected');
+          if (formFields) formFields.style.display = 'none';
+        }
+      });
+    }
+
+    // Initialize
+    updateSelectedCount();
+
+    // Add event listeners to checkboxes
+    checkboxes.forEach(function(checkbox) {
+      checkbox.addEventListener('change', updateSelectedCount);
+    });
+
+    // Select all functionality
+    selectAllBtn.addEventListener('click', function() {
+      checkboxes.forEach(function(checkbox) {
+        checkbox.checked = true;
+      });
+      updateSelectedCount();
+    });
+
+    // Deselect all functionality
+    deselectAllBtn.addEventListener('click', function() {
+      checkboxes.forEach(function(checkbox) {
+        checkbox.checked = false;
+      });
+      updateSelectedCount();
+    });
+
+    // Form validation
+    form.addEventListener('submit', function(e) {
+      const selectedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+      
+      if (selectedCount === 0) {
+        e.preventDefault();
+        alert('Please select at least one target variable to continue.');
+        return;
+      }
+
+      // Validate selected variables have required fields
+      let hasErrors = false;
+      checkboxes.forEach(function(checkbox) {
+        if (checkbox.checked) {
+          const card = checkbox.closest('.variable-card');
+          const variableNameField = card.querySelector('input[name$="-variable_name"]');
+          const displayNameField = card.querySelector('input[name$="-display_name"]');
+          const variableTypeField = card.querySelector('select[name$="-variable_type"]');
+          
+          if (!variableNameField.value.trim()) {
+            variableNameField.classList.add('is-invalid');
+            hasErrors = true;
+          } else {
+            variableNameField.classList.remove('is-invalid');
+          }
+          
+          if (!displayNameField.value.trim()) {
+            displayNameField.classList.add('is-invalid');
+            hasErrors = true;
+          } else {
+            displayNameField.classList.remove('is-invalid');
+          }
+          
+          if (!variableTypeField.value) {
+            variableTypeField.classList.add('is-invalid');
+            hasErrors = true;
+          } else {
+            variableTypeField.classList.remove('is-invalid');
+          }
+        }
+      });
+      
+      if (hasErrors) {
+        e.preventDefault();
+        alert('Please fill in all required fields for selected target variables.');
+      }
+    });
+
+    // Auto-expand first variable for example
+    if (checkboxes.length > 0) {
+      checkboxes[0].checked = true;
+      updateSelectedCount();
+    }
+  });
+</script>
+{% endblock inline_javascript %}

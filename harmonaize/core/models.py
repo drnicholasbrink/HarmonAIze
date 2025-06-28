@@ -66,7 +66,7 @@ class Attribute(models.Model):
     """
     Metadata for each variable/attribute.
     """
-    variable_name = models.CharField(max_length=200, unique=True)
+    variable_name = models.CharField(max_length=200)
     display_name = models.CharField(max_length=200, blank=True)
     description = models.TextField(blank=True)
     unit = models.CharField(max_length=50, blank=True)
@@ -90,6 +90,15 @@ class Attribute(models.Model):
             ('geolocation', 'Geolocation'),
         ],
     )
+    # Field to distinguish between source and target variables
+    source_type = models.CharField(
+        max_length=10,
+        choices=[
+            ('source', 'Source'),
+            ('target', 'Target'),
+        ],
+        default='source',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -99,6 +108,10 @@ class Attribute(models.Model):
     def clean(self):
         if self.variable_type in ['float', 'int'] and not self.unit:
             raise ValidationError("Unit required for numeric types.")
+            
+    class Meta:
+        # Ensure unique variable names within each source type
+        unique_together = ('variable_name', 'source_type')
 
 class Observation(models.Model):
     """
@@ -174,16 +187,23 @@ class Observation(models.Model):
 class Study(models.Model):
     """
     Represents a research study and its metadata.
+    Can be either a source study (with data to harmonize) or target study (defining harmonization targets).
     """
     
-    # Study type choices
-    STUDY_TYPE_CHOICES = [
+    # Study type choices (research design)
+    RESEARCH_TYPE_CHOICES = [
         ('clinical_trial', 'Clinical Trial'),
         ('cohort', 'Cohort Study'),
         ('registry', 'Registry'),
         ('cross_sectional', 'Cross-sectional Study'),
         ('case_control', 'Case-Control Study'),
         ('other', 'Other'),
+    ]
+    
+    # Study purpose choices (source vs target)
+    STUDY_TYPE_CHOICES = [
+        ('source', 'Source Study'),
+        ('target', 'Target Study'),
     ]
     
     # Data use ontology choices for legal/ethical approval
@@ -208,10 +228,18 @@ class Study(models.Model):
     principal_investigator = models.CharField(max_length=200, blank=True, help_text="Principal investigator name")
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='studies')
     
-    # Study type and classification
+    # Study purpose (source vs target)
+    study_purpose = models.CharField(
+        max_length=10,
+        choices=STUDY_TYPE_CHOICES,
+        default='source',
+        help_text="Whether this is a source study (data to harmonize) or target study (harmonization target)"
+    )
+    
+    # Research design type
     study_type = models.CharField(
         max_length=50,
-        choices=STUDY_TYPE_CHOICES,
+        choices=RESEARCH_TYPE_CHOICES,
         help_text="Type of research study"
     )
     
@@ -237,16 +265,16 @@ class Study(models.Model):
     needs_geolocation = models.BooleanField(default=False, help_text="Do you need to geolocate addresses/facilities?")
     needs_climate_linkage = models.BooleanField(default=False, help_text="Do you want to link climate data?")
     
-    # File uploads
-    source_codebook = models.FileField(
+    # File uploads - consolidated for both source and target studies
+    codebook = models.FileField(
         upload_to='studies/codebooks/',
         null=True, blank=True,
-        help_text="Upload your source codebook (CSV, Excel, SPSS, Stata, JSON, DB, etc.)"
+        help_text="Upload your codebook (CSV, Excel, SPSS, Stata, JSON, DB, etc.)"
     )
-    source_codebook_format = models.CharField(
+    codebook_format = models.CharField(
         max_length=20,
         blank=True,
-        help_text="Auto-detected format of the source codebook file"
+        help_text="Auto-detected format of the codebook file"
     )
     protocol_file = models.FileField(
         upload_to='studies/protocols/',
@@ -299,9 +327,9 @@ class Study(models.Model):
         return self.name
     
     def save(self, *args, **kwargs):
-        # Auto-detect file format from source codebook
-        if self.source_codebook and not self.source_codebook_format:
-            file_extension = self.source_codebook.name.split('.')[-1].lower()
+        # Auto-detect file format from codebook
+        if self.codebook and not self.codebook_format:
+            file_extension = self.codebook.name.split('.')[-1].lower()
             format_mapping = {
                 'csv': 'csv',
                 'xlsx': 'xlsx',
@@ -315,7 +343,8 @@ class Study(models.Model):
                 'xml': 'xml',
                 'txt': 'text',
             }
-            self.source_codebook_format = format_mapping.get(file_extension, 'unknown')
+            self.codebook_format = format_mapping.get(file_extension, 'unknown')
+        
         super().save(*args, **kwargs)
     
     def get_absolute_url(self):
@@ -325,7 +354,7 @@ class Study(models.Model):
     @property
     def variable_count(self):
         """Return the number of variables associated with this study."""
-        return self.variables.count()
+        return self.attributes.count()
     
     def get_data_use_permissions_display(self):
         """Return human-readable data use permissions."""

@@ -82,10 +82,21 @@
                   Harmonisation
                 </a>
                 <ul class="dropdown-menu" aria-labelledby="harmonisationDropdown">
-                  <li><a class="dropdown-item" href="{% url 'core:upload' %}">📤 Upload Study</a></li>
+                  <li><h6 class="dropdown-header">Source Studies</h6></li>
+                  <li><a class="dropdown-item" href="{% url 'core:upload' %}">Upload Source Study</a></li>
+                  <li><a class="dropdown-item" href="{% url 'core:study_list' %}">View Source Studies</a></li>
                   <li><hr class="dropdown-divider"></li>
-                  <li><a class="dropdown-item" href="{% url 'core:study_list' %}">📋 View Studies</a></li>
-                  <li><a class="dropdown-item" href="{% url 'core:dashboard' %}">📊 Dashboard</a></li>
+                  <li><h6 class="dropdown-header">Target Definition</h6></li>
+                  {% if has_target_study %}
+                    <li><a class="dropdown-item" href="{% url 'core:study_detail' user_target_study.pk %}">View Target Study</a></li>
+                    <li><a class="dropdown-item text-muted" href="#" onclick="alert('You already have a target study. You can only have one target study that defines your harmonization standards.'); return false;">
+                      <small>✓ Target study already exists</small>
+                    </a></li>
+                  {% else %}
+                    <li><a class="dropdown-item" href="{% url 'core:create_target_study' %}">Create Target Study</a></li>
+                  {% endif %}
+                  <li><hr class="dropdown-divider"></li>
+                  <li><a class="dropdown-item" href="{% url 'core:dashboard' %}">Dashboard</a></li>
                 </ul>
               </li>
               <li class="nav-item">
