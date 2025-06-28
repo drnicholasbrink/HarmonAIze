@@ -1,0 +1,393 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ study.name }} - HarmonAIze{% endblock title %}
+
+{% block css %}
+  {{ block.super }}
+  <style>
+    :root {
+      --primary-color: #007AFF;
+      --secondary-color: #5AC8FA;
+      --accent-color: #34C759;
+      --background-color: #F2F2F7;
+      --card-background: #FFFFFF;
+      --text-primary: #1C1C1E;
+      --text-secondary: #8E8E93;
+      --border-color: #C6C6C8;
+      --shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+      --border-radius: 12px;
+    }
+
+    body {
+      background-color: var(--background-color);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--text-primary);
+      line-height: 1.5;
+    }
+
+    .header-section {
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      color: white;
+      padding: 2rem 0;
+      margin: -1rem -15px 0 -15px;
+    }
+
+    .study-header {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 1rem;
+    }
+
+    .study-title {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    .study-meta {
+      opacity: 0.9;
+      font-size: 1rem;
+    }
+
+    .content-wrapper {
+      max-width: 1200px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+
+    .info-card {
+      background: var(--card-background);
+      border-radius: var(--border-radius);
+      padding: 2rem;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border-color);
+      margin-bottom: 2rem;
+    }
+
+    .card-title {
+      font-size: 1.3rem;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+      color: var(--text-primary);
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid var(--primary-color);
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .info-item {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .info-label {
+      font-weight: 600;
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      margin-bottom: 0.25rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .info-value {
+      color: var(--text-primary);
+      font-size: 1rem;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .status-draft {
+      background-color: rgba(255, 193, 7, 0.2);
+      color: #856404;
+    }
+
+    .status-processing {
+      background-color: rgba(0, 122, 255, 0.2);
+      color: #0056b3;
+    }
+
+    .status-completed {
+      background-color: rgba(52, 199, 89, 0.2);
+      color: #155724;
+    }
+
+    .characteristics-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+
+    .characteristic-tag {
+      background-color: var(--background-color);
+      color: var(--text-primary);
+      padding: 0.25rem 0.75rem;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      border: 1px solid var(--border-color);
+    }
+
+    .file-link {
+      color: var(--primary-color);
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .file-link:hover {
+      text-decoration: underline;
+    }
+
+    .action-buttons {
+      display: flex;
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+
+    .btn {
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.3s ease;
+      border: none;
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+      color: white;
+      box-shadow: 0 4px 15px rgba(0, 122, 255, 0.3);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 122, 255, 0.4);
+      color: white;
+      text-decoration: none;
+    }
+
+    .btn-secondary {
+      background: var(--card-background);
+      color: var(--text-primary);
+      border: 1px solid var(--border-color);
+    }
+
+    .btn-secondary:hover {
+      background: var(--background-color);
+      text-decoration: none;
+      color: var(--text-primary);
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-secondary);
+    }
+
+    @media (max-width: 768px) {
+      .action-buttons {
+        flex-direction: column;
+      }
+      
+      .info-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+{% endblock css %}
+
+{% block content %}
+  <!-- Header Section -->
+  <div class="header-section">
+    <div class="study-header">
+      <h1 class="study-title">{{ study.name }}</h1>
+      <div class="study-meta">
+        Created by {{ study.created_by.name|default:study.created_by.email }} on {{ study.created_at|date:"F j, Y" }}
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="content-wrapper">
+    
+    <!-- Study Overview -->
+    <div class="info-card">
+      <h2 class="card-title">Study Overview</h2>
+      <div class="info-grid">
+        <div class="info-item">
+          <div class="info-label">Study Type</div>
+          <div class="info-value">{{ study.get_study_type_display }}</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Status</div>
+          <div class="info-value">
+            <span class="status-badge status-{{ study.status }}">{{ study.get_status_display }}</span>
+          </div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Principal Investigator</div>
+          <div class="info-value">{{ study.principal_investigator|default:"Not specified" }}</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Sample Size</div>
+          <div class="info-value">{{ study.sample_size|default:"Not specified" }}</div>
+        </div>
+      </div>
+      
+      {% if study.description %}
+        <div style="margin-top: 1.5rem;">
+          <div class="info-label">Description</div>
+          <div class="info-value">{{ study.description }}</div>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Study Characteristics -->
+    <div class="info-card">
+      <h2 class="card-title">Study Characteristics</h2>
+      <div class="characteristics-list">
+        {% if study.has_dates %}
+          <span class="characteristic-tag">📅 Date/Time Variables</span>
+        {% endif %}
+        {% if study.has_locations %}
+          <span class="characteristic-tag">📍 Location Data</span>
+        {% endif %}
+        {% if study.needs_geolocation %}
+          <span class="characteristic-tag">🗺️ Geolocation Required</span>
+        {% endif %}
+        {% if study.needs_climate_linkage %}
+          <span class="characteristic-tag">🌍 Climate Linkage</span>
+        {% endif %}
+        {% if not study.has_dates and not study.has_locations and not study.needs_geolocation and not study.needs_climate_linkage %}
+          <div class="empty-state">No specific characteristics selected</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Legal & Ethical Information -->
+    <div class="info-card">
+      <h2 class="card-title">Legal & Ethical Approval</h2>
+      <div class="info-grid">
+        <div class="info-item">
+          <div class="info-label">Ethical Approval</div>
+          <div class="info-value">
+            {% if study.has_ethical_approval %}
+              ✅ Approved
+            {% else %}
+              ❌ Not approved
+            {% endif %}
+          </div>
+        </div>
+        {% if study.ethics_approval_number %}
+          <div class="info-item">
+            <div class="info-label">Approval Number</div>
+            <div class="info-value">{{ study.ethics_approval_number }}</div>
+          </div>
+        {% endif %}
+        {% if study.geographic_scope %}
+          <div class="info-item">
+            <div class="info-label">Geographic Scope</div>
+            <div class="info-value">{{ study.geographic_scope }}</div>
+          </div>
+        {% endif %}
+      </div>
+      
+      {% if study.data_use_permissions.count > 0 %}
+        <div style="margin-top: 1.5rem;">
+          <div class="info-label">Data Use Permissions</div>
+          <div class="characteristics-list">
+            {% for permission in study.data_use_permissions.all %}
+              <span class="characteristic-tag">{{ permission }}</span>
+            {% endfor %}
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Files -->
+    <div class="info-card">
+      <h2 class="card-title">Source Materials</h2>
+      <div class="info-grid">
+        {% if study.source_codebook %}
+          <div class="info-item">
+            <div class="info-label">Source Codebook</div>
+            <div class="info-value">
+              <a href="{{ study.source_codebook.url }}" class="file-link" target="_blank">
+                {{ study.source_codebook.name }} 
+                {% if study.source_codebook_format %}({{ study.source_codebook_format|upper }}){% endif %}
+              </a>
+            </div>
+          </div>
+        {% endif %}
+        
+        {% if study.protocol_file %}
+          <div class="info-item">
+            <div class="info-label">Protocol File</div>
+            <div class="info-value">
+              <a href="{{ study.protocol_file.url }}" class="file-link" target="_blank">
+                {{ study.protocol_file.name }}
+              </a>
+            </div>
+          </div>
+        {% endif %}
+        
+        {% if study.additional_files %}
+          <div class="info-item">
+            <div class="info-label">Additional Files</div>
+            <div class="info-value">
+              <a href="{{ study.additional_files.url }}" class="file-link" target="_blank">
+                {{ study.additional_files.name }}
+              </a>
+            </div>
+          </div>
+        {% endif %}
+        
+        {% if not study.source_codebook and not study.protocol_file and not study.additional_files %}
+          <div class="empty-state">No files uploaded</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Variables -->
+    <div class="info-card">
+      <h2 class="card-title">Variables</h2>
+      {% if study.variables.count > 0 %}
+        <div class="info-grid">
+          {% for variable in study.variables.all %}
+            <div class="info-item">
+              <div class="info-label">{{ variable.variable_name }}</div>
+              <div class="info-value">{{ variable.display_name|default:variable.variable_name }}</div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="empty-state">
+          No variables mapped yet. Upload a codebook to automatically extract variables.
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="action-buttons">
+      <a href="{% url 'core:study_list' %}" class="btn btn-secondary">
+        ← Back to Studies
+      </a>
+      <a href="#" class="btn btn-primary">
+        Continue Harmonisation →
+      </a>
+    </div>
+  </div>
+{% endblock content %}

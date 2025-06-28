@@ -88,6 +88,9 @@ THIRD_PARTY_APPS = [
 LOCAL_APPS = [
     "harmonaize.users",
     "core",
+    "health", 
+    "climate",
+    "geolocation",
     # Your stuff: custom apps go here
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps

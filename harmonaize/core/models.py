@@ -1,7 +1,10 @@
+from django.contrib.auth import get_user_model
 from django.db import models
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
 import ast
+
+User = get_user_model()
 
 class Patient(models.Model):
     """
@@ -167,3 +170,167 @@ class Observation(models.Model):
 
     class Meta:
         unique_together = ('patient', 'location', 'attribute', 'time')
+
+class Study(models.Model):
+    """
+    Represents a research study and its metadata.
+    """
+    
+    # Study type choices
+    STUDY_TYPE_CHOICES = [
+        ('clinical_trial', 'Clinical Trial'),
+        ('cohort', 'Cohort Study'),
+        ('registry', 'Registry'),
+        ('cross_sectional', 'Cross-sectional Study'),
+        ('case_control', 'Case-Control Study'),
+        ('other', 'Other'),
+    ]
+    
+    # Data use ontology choices for legal/ethical approval
+    DATA_USE_CHOICES = [
+        ('GRU', 'General Research Use'),
+        ('HMB', 'Health/Medical/Biomedical Research'),
+        ('DS', 'Disease-Specific Research'),
+        ('POA', 'Population Origins/Ancestry Research'),
+        ('RS', 'Research-Specific Restrictions'),
+        ('IRB', 'Ethics Approval Required'),
+        ('GS', 'Geographical Restrictions'),
+        ('MOR', 'Publication Moratorium'),
+        ('TS', 'Time Limit on Use'),
+        ('US', 'User-Specific Restriction'),
+        ('PS', 'Project-Specific Restriction'),
+        ('IS', 'Institution-Specific Restriction'),
+    ]
+    
+    # Basic study information
+    name = models.CharField(max_length=200, help_text="Name of the study")
+    description = models.TextField(blank=True, help_text="Brief description of the study")
+    principal_investigator = models.CharField(max_length=200, blank=True, help_text="Principal investigator name")
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='studies')
+    
+    # Study type and classification
+    study_type = models.CharField(
+        max_length=50,
+        choices=STUDY_TYPE_CHOICES,
+        help_text="Type of research study"
+    )
+    
+    # Legal and ethical approval
+    has_ethical_approval = models.BooleanField(
+        default=False, 
+        help_text="Does this study have ethical/IRB approval?"
+    )
+    data_use_permissions = models.JSONField(
+        default=list, 
+        blank=True,
+        help_text="Data use permissions based on Data Use Ontology"
+    )
+    ethics_approval_number = models.CharField(
+        max_length=100, 
+        blank=True,
+        help_text="Ethics committee/IRB approval number"
+    )
+    
+    # Study characteristics
+    has_dates = models.BooleanField(default=False, help_text="Does the study include date/time variables?")
+    has_locations = models.BooleanField(default=False, help_text="Does the study include location data?")
+    needs_geolocation = models.BooleanField(default=False, help_text="Do you need to geolocate addresses/facilities?")
+    needs_climate_linkage = models.BooleanField(default=False, help_text="Do you want to link climate data?")
+    
+    # File uploads
+    source_codebook = models.FileField(
+        upload_to='studies/codebooks/',
+        null=True, blank=True,
+        help_text="Upload your source codebook (CSV, Excel, SPSS, Stata, JSON, DB, etc.)"
+    )
+    source_codebook_format = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Auto-detected format of the source codebook file"
+    )
+    protocol_file = models.FileField(
+        upload_to='studies/protocols/',
+        null=True, blank=True,
+        help_text="Upload study protocol or additional documentation"
+    )
+    additional_files = models.FileField(
+        upload_to='studies/additional/',
+        null=True, blank=True,
+        help_text="Upload additional study documentation"
+    )
+    
+    # Study metadata (optional - can be extracted from protocol)
+    sample_size = models.PositiveIntegerField(null=True, blank=True, help_text="Approximate sample size (if known)")
+    study_period_start = models.DateField(null=True, blank=True, help_text="Study start date (optional)")
+    study_period_end = models.DateField(null=True, blank=True, help_text="Study end date (optional)")
+    geographic_scope = models.CharField(
+        max_length=200, blank=True,
+        help_text="Geographic scope (optional - e.g., 'Global', 'USA', 'Sub-Saharan Africa')"
+    )
+    
+    # Variables/attributes relationship
+    variables = models.ManyToManyField(
+        Attribute,
+        blank=True,
+        related_name='studies',
+        help_text="Variables/attributes included in this study"
+    )
+    
+    # Workflow status
+    STATUS_CHOICES = [
+        ('created', 'Created'),
+        ('codebook_uploaded', 'Source Codebook Uploaded'),
+        ('variables_extracted', 'Variables Extracted'),
+        ('variables_mapped', 'Variables Mapped'),
+        ('harmonized', 'Harmonized'),
+        ('completed', 'Completed'),
+    ]
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='created')
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name_plural = "Studies"
+    
+    def __str__(self):
+        return self.name
+    
+    def save(self, *args, **kwargs):
+        # Auto-detect file format from source codebook
+        if self.source_codebook and not self.source_codebook_format:
+            file_extension = self.source_codebook.name.split('.')[-1].lower()
+            format_mapping = {
+                'csv': 'csv',
+                'xlsx': 'xlsx',
+                'xls': 'excel',
+                'sav': 'spss',
+                'dta': 'stata',
+                'json': 'json',
+                'db': 'sqlite',
+                'sqlite': 'sqlite',
+                'sqlite3': 'sqlite',
+                'xml': 'xml',
+                'txt': 'text',
+            }
+            self.source_codebook_format = format_mapping.get(file_extension, 'unknown')
+        super().save(*args, **kwargs)
+    
+    def get_absolute_url(self):
+        from django.urls import reverse
+        return reverse('core:study_detail', kwargs={'pk': self.pk})
+    
+    @property
+    def variable_count(self):
+        """Return the number of variables associated with this study."""
+        return self.variables.count()
+    
+    def get_data_use_permissions_display(self):
+        """Return human-readable data use permissions."""
+        if not self.data_use_permissions:
+            return "Not specified"
+        
+        permission_map = dict(self.DATA_USE_CHOICES)
+        return [permission_map.get(perm, perm) for perm in self.data_use_permissions]

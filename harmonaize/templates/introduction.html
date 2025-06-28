@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}About - HarmonAIze{% endblock title %}
+{% block title %}Introduction - HarmonAIze{% endblock title %}
 
 {% block css %}
   {{ block.super }}
@@ -163,6 +163,27 @@
       margin: 3rem 0;
     }
 
+    .cta-button {
+      background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+      color: white;
+      border: none;
+      padding: 1rem 2rem;
+      border-radius: 25px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      text-decoration: none;
+      display: inline-block;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(0, 122, 255, 0.3);
+    }
+
+    .cta-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 122, 255, 0.4);
+      color: white;
+      text-decoration: none;
+    }
+
     .stats-container {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -222,7 +243,7 @@
     <div class="hero-content">
       <h1 class="hero-title">HarmonAIze</h1>
       <p class="hero-subtitle">
-        An open-source toolkit that streamlines climate and health data harmonisation, 
+        An open-source toolkit that streamlines climate and health data harmonization, 
         leveraging AI-assisted workflows for accelerated research insights.
       </p>
     </div>
@@ -242,58 +263,7 @@
         </div>
       </div>
 
-      <!-- Core Modules -->
-      <div class="row">
-        <div class="col-12">
-          <h2 class="section-title">Core Modules</h2>
-          <p class="section-subtitle">
-            Three specialized modules work together to provide comprehensive data harmonisation capabilities
-          </p>
-        </div>
-      </div>
-
-      <div class="feature-grid">
-        <div class="feature-card">
-          <div class="feature-icon">🩺</div>
-          <h3 class="feature-title">Health Module</h3>
-          <p class="feature-description">
-            Specialized tools for harmonising health variables across diverse datasets. 
-            Standardizes medical terminology, units, and coding systems while maintaining 
-            data integrity for cross-study comparisons.
-          </p>
-        </div>
-
-        <div class="feature-card">
-          <div class="feature-icon">🌍</div>
-          <h3 class="feature-title">Climate Module</h3>
-          <p class="feature-description">
-            Secure linkage and integration of climate data with health records. 
-            Provides access to curated environmental datasets while ensuring 
-            privacy-preserving connections between climate and health variables.
-          </p>
-        </div>
-
-        <div class="feature-card">
-          <div class="feature-icon">📍</div>
-          <h3 class="feature-title">Geolocation Module</h3>
-          <p class="feature-description">
-            Secure geolocation services for health facilities and addresses. 
-            Enables spatial analysis while protecting sensitive location data 
-            through privacy-preserving federated approaches to geocoding.
-          </p>
-        </div>
-      </div>
-
-      <!-- Platform Features -->
-      <div class="row">
-        <div class="col-12">
-          <h2 class="section-title">Platform Features</h2>
-          <p class="section-subtitle">
-            Advanced capabilities that power research acceleration and data integration
-          </p>
-        </div>
-      </div>
-
+      <!-- Features Grid -->
       <div class="feature-grid">
         <div class="feature-card">
           <div class="feature-icon">🔗</div>
@@ -314,10 +284,19 @@
         </div>
 
         <div class="feature-card">
+          <div class="feature-icon">🌍</div>
+          <h3 class="feature-title">Climate Alignment</h3>
+          <p class="feature-description">
+            Automatically align health data with curated climate data sources to enable 
+            comprehensive environmental health impact studies.
+          </p>
+        </div>
+
+        <div class="feature-card">
           <div class="feature-icon">🤖</div>
           <h3 class="feature-title">AI-Powered</h3>
           <p class="feature-description">
-            Leverage advanced AI algorithms to automate complex data harmonisation tasks, 
+            Leverage advanced AI algorithms to automate complex data harmonization tasks, 
             reducing manual effort and improving accuracy.
           </p>
         </div>
@@ -339,15 +318,6 @@
             reproducibility, and collaborative development.
           </p>
         </div>
-
-        <div class="feature-card">
-          <div class="feature-icon">🔬</div>
-          <h3 class="feature-title">Research-Ready</h3>
-          <p class="feature-description">
-            Purpose-built for academic and clinical research with tools designed 
-            specifically for reproducible science and evidence-based analysis.
-          </p>
-        </div>
       </div>
 
       <!-- Statistics Section -->
@@ -355,7 +325,7 @@
         <div class="col-12">
           <h2 class="section-title">Research Impact</h2>
           <p class="section-subtitle">
-            Empowering researchers worldwide with cutting-edge data harmonisation capabilities
+            Empowering researchers worldwide with cutting-edge data harmonization capabilities
           </p>
         </div>
       </div>
@@ -379,17 +349,17 @@
         </div>
       </div>
 
-      <!-- Mission Statement -->
+      <!-- Call to Action -->
       <div class="cta-section">
-        <h3 class="section-title" style="margin-bottom: 1rem; font-size: 2rem;">Our Mission</h3>
-        <p style="color: var(--text-secondary); margin-bottom: 0; font-size: 1.1rem; line-height: 1.6;">
-          We're building HarmonAIze to democratise climate-health research by providing researchers worldwide 
-          with powerful, accessible tools for data harmonisation. Our goal is to accelerate scientific 
-          discovery and enable evidence-based insights that can inform policy and improve global health outcomes.
+        <h3 class="section-title" style="margin-bottom: 1rem; font-size: 2rem;">Ready to Get Started?</h3>
+        <p style="color: var(--text-secondary); margin-bottom: 2rem; font-size: 1.1rem;">
+          Join the community of researchers using HarmonAIze to accelerate climate-health discoveries.
         </p>
+        <a href="{% url 'home' %}" class="cta-button">
+          Explore the Platform
+        </a>
       </div>
     </div>
   </div>
 {% endblock content %}
-
-
+{% endblock %}
