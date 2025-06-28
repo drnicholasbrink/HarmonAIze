@@ -25,6 +25,7 @@ urlpatterns = [
     path("accounts/", include("allauth.urls")),
     # Your stuff: custom urls includes go here
     path("app/", include("core.urls", namespace="core")),
+    path("health/", include("health.urls", namespace="health")),
     # ...
     # Media files
     *static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT),

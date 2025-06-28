@@ -197,6 +197,407 @@
       color: var(--text-secondary);
     }
 
+    .empty-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+
+    .empty-state h3 {
+      margin-bottom: 0.5rem;
+      color: var(--text-primary);
+    }
+
+    /* Enhanced Variables Section Styles */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .stat-item {
+      text-align: center;
+      padding: 1rem;
+      background: var(--background-color);
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+    }
+
+    .stat-number {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--primary-color);
+      margin-bottom: 0.25rem;
+    }
+
+    .stat-label {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .type-distribution {
+      margin: 2rem 0;
+    }
+
+    .type-distribution h4 {
+      margin-bottom: 1rem;
+      color: var(--text-primary);
+    }
+
+    .type-breakdown {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .type-item {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .type-badge {
+      padding: 0.25rem 0.75rem;
+      border-radius: 15px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      min-width: 80px;
+      text-align: center;
+    }
+
+    .type-float { background: #007AFF; color: white; }
+    .type-int { background: #5AC8FA; color: white; }
+    .type-string { background: #34C759; color: white; }
+    .type-categorical { background: #FF9500; color: white; }
+    .type-boolean { background: #FF6B6B; color: white; }
+    .type-datetime { background: #AF52DE; color: white; }
+
+    .type-count {
+      font-weight: 600;
+      min-width: 30px;
+    }
+
+    .type-bar {
+      flex: 1;
+      height: 8px;
+      background: var(--background-color);
+      border-radius: 4px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .type-fill {
+      height: 100%;
+      background: var(--primary-color);
+      border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+
+    .variable-controls {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      margin: 2rem 0;
+      flex-wrap: wrap;
+    }
+
+    .search-box {
+      flex: 1;
+      min-width: 250px;
+    }
+
+    .search-box input {
+      width: 100%;
+      padding: 0.75rem;
+      border: 2px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 1rem;
+    }
+
+    .search-box input:focus {
+      outline: none;
+      border-color: var(--primary-color);
+    }
+
+    .filter-buttons {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .filter-btn {
+      padding: 0.5rem 1rem;
+      border: 2px solid var(--border-color);
+      background: var(--card-background);
+      color: var(--text-primary);
+      border-radius: 20px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+
+    .filter-btn:hover,
+    .filter-btn.active {
+      background: var(--primary-color);
+      color: white;
+      border-color: var(--primary-color);
+    }
+
+    .variables-list {
+      display: grid;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+
+    .variable-card {
+      background: var(--card-background);
+      border: 2px solid var(--border-color);
+      border-radius: 8px;
+      padding: 1rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .variable-card:hover {
+      border-color: var(--primary-color);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow);
+    }
+
+    .variable-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 0.5rem;
+    }
+
+    .variable-name {
+      flex: 1;
+    }
+
+    .variable-name strong {
+      color: var(--text-primary);
+      font-size: 1.1rem;
+    }
+
+    .variable-name small {
+      display: block;
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      margin-top: 0.25rem;
+    }
+
+    .variable-badges {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .unit-badge {
+      background: var(--background-color);
+      color: var(--text-primary);
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      border: 1px solid var(--border-color);
+    }
+
+    .variable-description {
+      color: var(--text-secondary);
+      margin: 0.5rem 0;
+      font-size: 0.95rem;
+    }
+
+    .variable-meta {
+      display: flex;
+      gap: 1rem;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      margin-top: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .meta-item {
+      padding: 0.25rem 0.5rem;
+      background: var(--background-color);
+      border-radius: 4px;
+    }
+
+    .codebook-management {
+      margin-top: 2rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .codebook-management h4 {
+      margin-bottom: 1rem;
+      color: var(--text-primary);
+    }
+
+    .codebook-actions {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .btn-outline {
+      background: transparent;
+      border: 2px solid var(--primary-color);
+      color: var(--primary-color);
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 500;
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+
+    .btn-outline:hover {
+      background: var(--primary-color);
+      color: white;
+      text-decoration: none;
+    }
+
+    /* Modal Styles */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(5px);
+    }
+
+    .modal-content {
+      background-color: var(--card-background);
+      margin: 5% auto;
+      padding: 0;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 600px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+      animation: modalSlideIn 0.3s ease;
+    }
+
+    @keyframes modalSlideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-50px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1.5rem;
+      border-bottom: 1px solid var(--border-color);
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      color: white;
+      border-radius: 12px 12px 0 0;
+    }
+
+    .modal-header h3 {
+      margin: 0;
+      font-size: 1.3rem;
+    }
+
+    .close {
+      font-size: 1.5rem;
+      font-weight: bold;
+      cursor: pointer;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      transition: background-color 0.3s;
+    }
+
+    .close:hover {
+      background-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .modal-body {
+      padding: 1.5rem;
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 1rem;
+      padding: 1rem 1.5rem;
+      border-top: 1px solid var(--border-color);
+      background: var(--background-color);
+      border-radius: 0 0 12px 12px;
+    }
+
+    .form-group {
+      margin-bottom: 1rem;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .form-control {
+      width: 100%;
+      padding: 0.75rem;
+      border: 2px solid var(--border-color);
+      border-radius: 6px;
+      font-size: 1rem;
+      transition: border-color 0.3s;
+    }
+
+    .form-control:focus {
+      outline: none;
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+    }
+
+    /* Variable Detail Modal Content */
+    .variable-detail-content {
+      line-height: 1.6;
+    }
+
+    .detail-row {
+      margin-bottom: 1rem;
+      padding: 0.75rem;
+      background: var(--background-color);
+      border-radius: 6px;
+      border-left: 3px solid var(--primary-color);
+    }
+
+    .detail-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .detail-row strong {
+      color: var(--text-primary);
+      display: inline-block;
+      min-width: 120px;
+    }
+
+    /* Alert Styles */
+    .alert {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 1rem;
+      border-radius: 8px;
+      font-weight: 500;
+      border-left: 4px solid;
+    }
+
     @media (max-width: 768px) {
       .action-buttons {
         flex-direction: column;
@@ -204,6 +605,42 @@
       
       .info-grid {
         grid-template-columns: 1fr;
+      }
+      
+      .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      
+      .variable-controls {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      
+      .search-box {
+        min-width: auto;
+      }
+      
+      .filter-buttons {
+        justify-content: center;
+      }
+      
+      .variable-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+      }
+      
+      .variable-badges {
+        align-self: flex-start;
+      }
+      
+      .codebook-actions {
+        flex-direction: column;
+      }
+      
+      .modal-content {
+        width: 95%;
+        margin: 2% auto;
       }
     }
   </style>
@@ -361,21 +798,127 @@
       </div>
     </div>
 
-    <!-- Variables -->
+    <!-- Variables Summary & Statistics -->
     <div class="info-card">
-      <h2 class="card-title">Variables</h2>
+      <h2 class="card-title">Variable Summary & Statistics</h2>
       {% if study.variables.count > 0 %}
-        <div class="info-grid">
+        <!-- Statistics Overview -->
+        <div class="stats-grid">
+          <div class="stat-item">
+            <div class="stat-number">{{ study.variables.count }}</div>
+            <div class="stat-label">Total Variables</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-number">{{ variable_types|length }}</div>
+            <div class="stat-label">Data Types</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-number">{{ variables_with_units }}</div>
+            <div class="stat-label">With Units</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-number">{{ variables_with_codes }}</div>
+            <div class="stat-label">With Ontology Codes</div>
+          </div>
+        </div>
+
+        <!-- Variable Type Distribution -->
+        <div class="type-distribution">
+          <h4>Variable Type Distribution</h4>
+          <div class="type-breakdown">
+            {% for type_name, type_data in variable_types.items %}
+              <div class="type-item">
+                <span class="type-badge type-{{ type_name }}">{{ type_name|title }}</span>
+                <span class="type-count">{{ type_data.count }}</span>
+                <div class="type-bar">
+                  <div class="type-fill" style="width: {{ type_data.percentage }}%"></div>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Filter & Search -->
+        <div class="variable-controls">
+          <div class="search-box">
+            <input type="text" id="variableSearch" placeholder="Search variables..." class="form-control">
+          </div>
+          <div class="filter-buttons">
+            <button class="filter-btn active" onclick="filterVariables('all')">All</button>
+            {% for type_name, type_data in variable_types.items %}
+              <button class="filter-btn" onclick="filterVariables('{{ type_name }}')">{{ type_name|title }}</button>
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Variables List -->
+        <div class="variables-list" id="variablesList">
           {% for variable in study.variables.all %}
-            <div class="info-item">
-              <div class="info-label">{{ variable.variable_name }}</div>
-              <div class="info-value">{{ variable.display_name|default:variable.variable_name }}</div>
+            <div class="variable-card" 
+                 data-type="{{ variable.variable_type }}" 
+                 data-search="{{ variable.variable_name|lower }} {{ variable.display_name|lower }} {{ variable.description|lower }}"
+                 onclick="showVariableDetail({{ variable.id }})">
+              <div class="variable-header">
+                <div class="variable-name">
+                  <strong>{{ variable.display_name|default:variable.variable_name }}</strong>
+                  {% if variable.display_name and variable.variable_name != variable.display_name %}
+                    <small class="text-muted">{{ variable.variable_name }}</small>
+                  {% endif %}
+                </div>
+                <div class="variable-badges">
+                  <span class="type-badge type-{{ variable.variable_type }}">{{ variable.variable_type|title }}</span>
+                  {% if variable.unit %}
+                    <span class="unit-badge">{{ variable.unit }}</span>
+                  {% endif %}
+                </div>
+              </div>
+              
+              {% if variable.description %}
+                <div class="variable-description">{{ variable.description|truncatewords:20 }}</div>
+              {% endif %}
+              
+              <div class="variable-meta">
+                {% if variable.ontology_code %}
+                  <span class="meta-item">
+                    <strong>Code:</strong> {{ variable.ontology_code }}
+                  </span>
+                {% endif %}
+                <span class="meta-item">
+                  <strong>Created:</strong> {{ variable.created_at|date:"M j, Y" }}
+                </span>
+              </div>
             </div>
           {% endfor %}
         </div>
+
+        <!-- Codebook Management -->
+        <div class="codebook-management">
+          <h4>Codebook Management</h4>
+          <div class="codebook-actions">
+            <button class="btn btn-outline" onclick="showReuploadModal()">
+              📄 Upload New Codebook
+            </button>
+            <button class="btn btn-outline" onclick="resetVariables()">
+              🔄 Reset All Variables
+            </button>
+            {% if study.source_codebook %}
+              <a href="{{ study.source_codebook.url }}" class="btn btn-outline" target="_blank">
+                📥 Download Current Codebook
+              </a>
+            {% endif %}
+          </div>
+        </div>
       {% else %}
         <div class="empty-state">
-          No variables mapped yet. Upload a codebook to automatically extract variables.
+          <div class="empty-icon">📊</div>
+          <h3>No Variables Yet</h3>
+          <p>
+            {% if study.source_codebook %}
+              Start the health data harmonisation workflow to extract variables from your codebook.
+            {% else %}
+              Upload a codebook to begin extracting and managing variables for your study.
+            {% endif %}
+          </p>
         </div>
       {% endif %}
     </div>
@@ -385,9 +928,227 @@
       <a href="{% url 'core:study_list' %}" class="btn btn-secondary">
         ← Back to Studies
       </a>
-      <a href="#" class="btn btn-primary">
-        Continue Harmonisation →
-      </a>
+      
+      {% if study.source_codebook %}
+        {% if study.variables.count > 0 %}
+          <a href="#" class="btn btn-primary">
+            View Harmonisation Results →
+          </a>
+        {% else %}
+          <a href="{% url 'health:map_codebook' study.id %}" class="btn btn-primary">
+            Start Health Data Harmonisation →
+          </a>
+        {% endif %}
+      {% else %}
+        <a href="{% url 'core:upload' %}" class="btn btn-primary">
+          Upload Codebook First →
+        </a>
+      {% endif %}
     </div>
   </div>
+
+  <!-- Variable Detail Modal -->
+  <div id="variableDetailModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Variable Details</h3>
+        <span class="close" onclick="closeVariableModal()">&times;</span>
+      </div>
+      <div class="modal-body" id="variableDetailContent">
+        <!-- Content loaded dynamically -->
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeVariableModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reupload Codebook Modal -->
+  <div id="reuploadModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Upload New Codebook</h3>
+        <span class="close" onclick="closeReuploadModal()">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div class="alert" style="background: #fff3cd; border-left-color: #ffc107; color: #856404; margin-bottom: 1rem;">
+          <strong>Warning:</strong> Uploading a new codebook will reset all current variables and mappings. This action cannot be undone.
+        </div>
+        <form method="post" enctype="multipart/form-data" action="{% url 'core:upload' %}">
+          {% csrf_token %}
+          <input type="hidden" name="study_id" value="{{ study.id }}">
+          <div class="form-group">
+            <label for="newCodebook">Select New Codebook File:</label>
+            <input type="file" id="newCodebook" name="source_codebook" class="form-control" accept=".csv,.xlsx,.xls" required>
+            <small class="form-text text-muted">Supported formats: CSV, Excel (.xlsx, .xls)</small>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeReuploadModal()">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="submitReupload()">Upload & Reset</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Variable filtering and search functionality
+    function filterVariables(type) {
+      // Update active filter button
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      event.target.classList.add('active');
+      
+      // Filter variables
+      const variables = document.querySelectorAll('.variable-card');
+      const searchTerm = document.getElementById('variableSearch').value.toLowerCase();
+      
+      variables.forEach(variable => {
+        const variableType = variable.dataset.type;
+        const searchText = variable.dataset.search;
+        
+        const typeMatch = type === 'all' || variableType === type;
+        const searchMatch = !searchTerm || searchText.includes(searchTerm);
+        
+        if (typeMatch && searchMatch) {
+          variable.style.display = 'block';
+        } else {
+          variable.style.display = 'none';
+        }
+      });
+    }
+
+    // Search functionality
+    document.addEventListener('DOMContentLoaded', function() {
+      const searchInput = document.getElementById('variableSearch');
+      if (searchInput) {
+        searchInput.addEventListener('input', function() {
+          const searchTerm = this.value.toLowerCase();
+          const activeFilter = document.querySelector('.filter-btn.active').textContent.toLowerCase();
+          const variables = document.querySelectorAll('.variable-card');
+          
+          variables.forEach(variable => {
+            const variableType = variable.dataset.type;
+            const searchText = variable.dataset.search;
+            
+            const typeMatch = activeFilter === 'all' || variableType === activeFilter;
+            const searchMatch = !searchTerm || searchText.includes(searchTerm);
+            
+            if (typeMatch && searchMatch) {
+              variable.style.display = 'block';
+            } else {
+              variable.style.display = 'none';
+            }
+          });
+        });
+      }
+    });
+
+    // Variable detail modal functionality
+    function showVariableDetail(variableId) {
+      const modal = document.getElementById('variableDetailModal');
+      const content = document.getElementById('variableDetailContent');
+      
+      // Find the variable data from the DOM
+      const variableCard = document.querySelector(`[onclick="showVariableDetail(${variableId})"]`);
+      if (!variableCard) return;
+      
+      const variableName = variableCard.querySelector('.variable-name strong').textContent;
+      const variableType = variableCard.dataset.type;
+      const description = variableCard.querySelector('.variable-description')?.textContent || 'No description available';
+      
+      // Extract additional metadata
+      const metaItems = variableCard.querySelectorAll('.meta-item');
+      let ontologyCode = '';
+      let createdDate = '';
+      
+      metaItems.forEach(item => {
+        const text = item.textContent;
+        if (text.includes('Code:')) {
+          ontologyCode = text.replace('Code:', '').trim();
+        } else if (text.includes('Created:')) {
+          createdDate = text.replace('Created:', '').trim();
+        }
+      });
+      
+      const unit = variableCard.querySelector('.unit-badge')?.textContent || '';
+      
+      content.innerHTML = `
+        <div class="variable-detail-content">
+          <div class="detail-row">
+            <strong>Variable Name:</strong> ${variableName}
+          </div>
+          <div class="detail-row">
+            <strong>Type:</strong> <span class="type-badge type-${variableType}">${variableType.charAt(0).toUpperCase() + variableType.slice(1)}</span>
+          </div>
+          ${unit ? `<div class="detail-row"><strong>Unit:</strong> ${unit}</div>` : ''}
+          ${description !== 'No description available' ? `<div class="detail-row"><strong>Description:</strong> ${description}</div>` : ''}
+          ${ontologyCode ? `<div class="detail-row"><strong>Ontology Code:</strong> ${ontologyCode}</div>` : ''}
+          ${createdDate ? `<div class="detail-row"><strong>Created:</strong> ${createdDate}</div>` : ''}
+        </div>
+      `;
+      
+      modal.style.display = 'block';
+    }
+
+    function closeVariableModal() {
+      document.getElementById('variableDetailModal').style.display = 'none';
+    }
+
+    // Reupload modal functionality
+    function showReuploadModal() {
+      document.getElementById('reuploadModal').style.display = 'block';
+    }
+
+    function closeReuploadModal() {
+      document.getElementById('reuploadModal').style.display = 'none';
+    }
+
+    function submitReupload() {
+      const form = document.querySelector('#reuploadModal form');
+      const fileInput = document.getElementById('newCodebook');
+      
+      if (!fileInput.files.length) {
+        alert('Please select a codebook file first.');
+        return;
+      }
+      
+      if (confirm('Are you sure you want to upload a new codebook? This will reset all current variables and cannot be undone.')) {
+        form.submit();
+      }
+    }
+
+    // Reset variables functionality
+    function resetVariables() {
+      if (confirm('Are you sure you want to reset all variables? This action cannot be undone.')) {
+        // Create a form to submit the reset request
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '{% url "health:reset_variables" study.id %}';
+        
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = 'csrfmiddlewaretoken';
+        csrfInput.value = csrfToken;
+        form.appendChild(csrfInput);
+        
+        document.body.appendChild(form);
+        form.submit();
+      }
+    }
+
+    // Close modals when clicking outside
+    window.onclick = function(event) {
+      const variableModal = document.getElementById('variableDetailModal');
+      const reuploadModal = document.getElementById('reuploadModal');
+      
+      if (event.target === variableModal) {
+        closeVariableModal();
+      } else if (event.target === reuploadModal) {
+        closeReuploadModal();
+      }
+    }
+  </script>
 {% endblock content %}
