@@ -1,9 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-import pandas as pd
 from core.models import Study, Attribute
-from core.utils import detect_file_format
 
 
 @login_required
@@ -11,135 +9,60 @@ def map_codebook(request, study_id):
     """
     Map codebook columns to health attribute schema.
     This is the first step in the harmonisation process.
+    Uses unified codebook processing utility.
     """
-    study = get_object_or_404(Study, id=study_id, created_by=request.user)
+    study = get_object_or_404(Study, id=study_id, created_by=request.user, study_purpose='source')
     
-    if not study.source_codebook:
-        messages.error(request, 'No codebook file found for this study.')
-        return redirect('core:study_detail', pk=study.pk)
+    from core.utils import process_codebook_mapping
+    result = process_codebook_mapping(request, study, codebook_type='source')
     
-    try:
-        # Analyze the codebook file structure
-        file_path = study.source_codebook.path
-        detected_format = detect_file_format(file_path)
-        
-        # Read first few rows to show user the structure
-        if detected_format == 'csv':
-            df = pd.read_csv(file_path, nrows=5)
-        elif detected_format in ['excel', 'xlsx']:
-            df = pd.read_excel(file_path, nrows=5)
-        else:
-            messages.error(request, f'Unsupported file format: {detected_format}')
-            return redirect('core:study_detail', pk=study.pk)
-        
-        # Update study with detected format
-        study.source_codebook_format = detected_format
-        study.save()
-        
-        if request.method == 'POST':
-            # User has mapped the columns, store mapping and proceed
-            column_mapping = {
-                'variable_name': request.POST.get('variable_name_column'),
-                'display_name': request.POST.get('display_name_column'),
-                'description': request.POST.get('description_column'),
-                'variable_type': request.POST.get('variable_type_column'),
-                'unit': request.POST.get('unit_column'),
-            }
-            
-            # Validate that at least variable_name is mapped
-            if not column_mapping['variable_name']:
-                messages.error(request, 'Variable name column mapping is required.')
-                return render(request, 'health/map_codebook.html', {
-                    'study': study,
-                    'columns': df.columns.tolist(),
-                    'sample_data': df.to_dict('records'),
-                    'detected_format': detected_format,
-                    'page_title': f'Map Codebook - {study.name}'
-                })
-            
-            # Store mapping in session and proceed to variable extraction
-            request.session[f'column_mapping_{study.id}'] = column_mapping
-            messages.success(request, 'Column mapping saved! Proceeding to extract variables.')
-            return redirect('health:extract_variables', study_id=study.id)
-        
-        # Show column mapping interface
-        context = {
-            'study': study,
-            'columns': df.columns.tolist(),
-            'sample_data': df.to_dict('records'),
-            'detected_format': detected_format,
-            'page_title': f'Map Codebook - {study.name}'
-        }
-        
-        return render(request, 'health/map_codebook.html', context)
-        
-    except Exception as e:
-        messages.error(
-            request,
-            f'Error analyzing codebook: {str(e)}. Please check your file format and try again.'
-        )
-        return redirect('core:study_detail', pk=study.pk)
+    # If result is a redirect, return it
+    if hasattr(result, 'status_code'):
+        return result
+    
+    # If result is a context dictionary, render the template
+    if isinstance(result, dict):
+        return render(request, 'health/map_codebook.html', result)
+    
+    # This shouldn't happen, but provide a fallback
+    messages.error(request, 'Unexpected error processing source codebook mapping.')
+    return redirect('core:study_detail', pk=study.pk)
 
 
 @login_required 
 def extract_variables(request, study_id):
     """
     Extract variables from codebook using the column mapping.
+    Uses unified codebook processing utility.
     Placeholder for LLM integration to enhance variable metadata.
     """
-    study = get_object_or_404(Study, id=study_id, created_by=request.user)
+    study = get_object_or_404(Study, id=study_id, created_by=request.user, study_purpose='source')
     
-    # Get column mapping from session
-    column_mapping = request.session.get(f'column_mapping_{study.id}')
-    if not column_mapping:
-        messages.error(request, 'No column mapping found. Please map your codebook columns first.')
-        return redirect('health:map_codebook', study_id=study.id)
+    from core.utils import process_codebook_extraction
+    result = process_codebook_extraction(request, study, codebook_type='source')
     
-    try:
-        # Extract variables using the column mapping
-        from core.utils import extract_variables_from_codebook
-        
-        file_path = study.source_codebook.path
-        variables_data = extract_variables_from_codebook(file_path, column_mapping)
-        
-        # TODO: LLM Integration placeholder
-        # This is where we would enhance variable metadata using AI:
-        # - Improve display names for health-specific context
-        # - Generate descriptions for missing health variables
-        # - Suggest appropriate health categories (vital signs, demographics, etc.)
-        # - Recommend variable types based on health data standards
-        # - Add SNOMED-CT, LOINC, or other health ontology codes
-        # 
-        # Example integration points:
-        # variables_data = enhance_health_variables_with_llm(
-        #     variables_data, 
-        #     study_context=study,
-        #     health_standards=['SNOMED-CT', 'LOINC', 'ICD-10']
-        # )
-        
-        messages.info(
-            request,
-            'TODO: LLM integration will be added here to enhance variable metadata '
-            'with health-specific knowledge and ontology mappings.'
-        )
-        
-        # Store extracted variables in session
-        request.session[f'variables_data_{study.id}'] = variables_data
-        
-        messages.success(
-            request,
-            f'Successfully extracted {len(variables_data)} variables from your codebook! '
-            'Review and select which variables to include in your study.'
-        )
-        
-        return redirect('health:select_variables', study_id=study.id)
-        
-    except Exception as e:
-        messages.error(
-            request,
-            f'Error extracting variables: {str(e)}. Please check your column mapping.'
-        )
-        return redirect('health:map_codebook', study_id=study.id)
+    # TODO: LLM Integration placeholder
+    # This is where we would enhance variable metadata using AI:
+    # - Improve display names for health-specific context
+    # - Generate descriptions for missing health variables
+    # - Suggest appropriate health categories (vital signs, demographics, etc.)
+    # - Recommend variable types based on health data standards
+    # - Add SNOMED-CT, LOINC, or other health ontology codes
+    # 
+    # Example integration points:
+    # variables_data = enhance_health_variables_with_llm(
+    #     variables_data, 
+    #     study_context=study,
+    #     health_standards=['SNOMED-CT', 'LOINC', 'ICD-10']
+    # )
+    
+    messages.info(
+        request,
+        'TODO: LLM integration will be added here to enhance variable metadata '
+        'with health-specific knowledge and ontology mappings.'
+    )
+    
+    return result
 
 
 @login_required
@@ -147,7 +70,7 @@ def select_variables(request, study_id):
     """
     Let user select which extracted variables to include in the study.
     """
-    study = get_object_or_404(Study, id=study_id, created_by=request.user)
+    study = get_object_or_404(Study, id=study_id, created_by=request.user, study_purpose='source')
     
     # Get variables data from session
     variables_data = request.session.get(f'variables_data_{study.id}')
@@ -181,6 +104,7 @@ def select_variables(request, study_id):
                     try:
                         attribute, created = Attribute.objects.get_or_create(
                             variable_name=var_data['variable_name'],
+                            source_type='source',  # Explicitly set source_type for health variables
                             defaults={
                                 'display_name': var_data.get('display_name', var_data['variable_name']),
                                 'description': var_data.get('description', ''),
@@ -263,7 +187,7 @@ def reset_variables(request, study_id):
     """
     Reset all variables for a study and clear related session data.
     """
-    study = get_object_or_404(Study, id=study_id, created_by=request.user)
+    study = get_object_or_404(Study, id=study_id, created_by=request.user, study_purpose='source')
     
     if request.method == 'POST':
         # Clear all variables associated with the study

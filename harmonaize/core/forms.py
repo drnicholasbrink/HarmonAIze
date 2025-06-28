@@ -1,6 +1,6 @@
 from django import forms
 from django.core.exceptions import ValidationError
-from .models import Study
+from .models import Study, Attribute
 
 
 class StudyCreationForm(forms.ModelForm):
@@ -30,7 +30,7 @@ class StudyCreationForm(forms.ModelForm):
             'has_locations',
             'needs_geolocation',
             'needs_climate_linkage',
-            'source_codebook',
+            'codebook',
             'protocol_file',
             'additional_files',
             'sample_size',
@@ -76,7 +76,7 @@ class StudyCreationForm(forms.ModelForm):
                 'class': 'form-control',
                 'placeholder': 'e.g., Global, USA, Sub-Saharan Africa (optional)'
             }),
-            'source_codebook': forms.FileInput(attrs={
+            'codebook': forms.FileInput(attrs={
                 'class': 'form-control',
                 'accept': '.csv,.xlsx,.xls,.sav,.dta,.json,.db,.sqlite,.sqlite3,.xml,.txt'
             }),
@@ -114,7 +114,7 @@ class StudyCreationForm(forms.ModelForm):
             'has_locations': 'Does your study include location data (addresses, facilities, etc.)?',
             'needs_geolocation': 'Do you need to convert addresses to coordinates?',
             'needs_climate_linkage': 'Do you want to link your health data with climate variables?',
-            'source_codebook': 'Upload your source codebook in any supported format (CSV, Excel, SPSS, Stata, JSON, DB, etc.)',
+            'codebook': 'Upload your codebook in any supported format (CSV, Excel, SPSS, Stata, JSON, DB, etc.)',
             'protocol_file': 'Upload your study protocol or documentation (optional)',
             'additional_files': 'Upload any additional study files (optional)',
         }
@@ -127,9 +127,9 @@ class StudyCreationForm(forms.ModelForm):
         if 'data_use_permissions' in self.initial and self.initial['data_use_permissions']:
             self.fields['data_use_permissions'].initial = self.initial['data_use_permissions']
 
-    def clean_source_codebook(self):
+    def clean_codebook(self):
         """Validate the uploaded codebook file."""
-        codebook = self.cleaned_data.get('source_codebook')
+        codebook = self.cleaned_data.get('codebook')
         if codebook:
             # Check file size (limit to 100MB)
             if codebook.size > 100 * 1024 * 1024:
@@ -386,3 +386,96 @@ def VariableConfirmationFormSetFactory(*args, **kwargs):
         formset_kwargs['variables_data'] = variables_data
     
     return FormSetClass(*args, **formset_kwargs)
+
+
+class TargetCodebookForm(forms.ModelForm):
+    """
+    Form for uploading target codebook files.
+    """
+    
+    class Meta:
+        model = Study
+        fields = ['codebook']
+        
+        widgets = {
+            'codebook': forms.FileInput(attrs={
+                'class': 'form-control',
+                'accept': '.csv,.xlsx,.xls',
+                'help_text': 'Upload a CSV or Excel file containing your target variables'
+            })
+        }
+    
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+        
+        self.fields['codebook'].label = "Target Codebook File"
+        self.fields['codebook'].help_text = (
+            "Upload a CSV or Excel file containing the target variables you want to harmonize to. "
+            "The file should contain columns for variable names, descriptions, types, and units."
+        )
+
+
+class TargetVariableForm(forms.ModelForm):
+    """
+    Form for creating/editing individual target variables.
+    """
+    
+    class Meta:
+        model = Attribute
+        fields = [
+            'variable_name',
+            'display_name', 
+            'description',
+            'variable_type',
+            'unit',
+            'ontology_code'
+        ]
+        
+        widgets = {
+            'variable_name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'e.g., target_age_years'
+            }),
+            'display_name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'e.g., Age (Years)'
+            }),
+            'description': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': 'Detailed description of the target variable'
+            }),
+            'variable_type': forms.Select(attrs={
+                'class': 'form-control'
+            }),
+            'unit': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'e.g., years, kg, cm'
+            }),
+            'ontology_code': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'e.g., LOINC:21612-7'
+            }),
+        }
+    
+    def __init__(self, *args, **kwargs):
+        self.study = kwargs.pop('study', None)
+        super().__init__(*args, **kwargs)
+        
+        # Set help text
+        self.fields['variable_name'].help_text = "Unique identifier for the target variable"
+        self.fields['display_name'].help_text = "Human-readable name for display"
+        self.fields['description'].help_text = "Detailed description of what this variable represents"
+        self.fields['variable_type'].help_text = "The type/category of this variable"
+        self.fields['unit'].help_text = "Unit of measurement (if applicable)"
+        self.fields['ontology_code'].help_text = "Standard ontology code (e.g., LOINC, SNOMED)"
+    
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        instance.source_type = 'target'  # Ensure this is marked as a target variable
+        if self.study:
+            instance.study = self.study
+        if commit:
+            instance.save()
+        return instance

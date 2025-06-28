@@ -7,7 +7,7 @@ class StudyAdmin(admin.ModelAdmin):
     list_display = ['name', 'created_by', 'study_type', 'status', 'created_at']
     list_filter = ['status', 'study_type', 'has_ethical_approval', 'has_dates', 'has_locations', 'needs_geolocation', 'needs_climate_linkage', 'created_at']
     search_fields = ['name', 'description', 'principal_investigator']
-    readonly_fields = ['created_at', 'updated_at', 'source_codebook_format']
+    readonly_fields = ['created_at', 'updated_at', 'codebook_format']
     
     fieldsets = (
         ('Basic Information', {
@@ -20,7 +20,7 @@ class StudyAdmin(admin.ModelAdmin):
             'fields': ('has_dates', 'has_locations', 'needs_geolocation', 'needs_climate_linkage')
         }),
         ('Files', {
-            'fields': ('source_codebook', 'source_codebook_format', 'protocol_file', 'additional_files')
+            'fields': ('codebook', 'codebook_format', 'protocol_file', 'additional_files')
         }),
         ('Metadata', {
             'fields': ('sample_size', 'study_period_start', 'study_period_end', 'geographic_scope')

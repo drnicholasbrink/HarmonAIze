@@ -8,6 +8,8 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 import logging
+from django.shortcuts import redirect
+from django.contrib import messages
 
 logger = logging.getLogger(__name__)
 
@@ -35,139 +37,7 @@ def detect_file_format(file_path: str) -> str:
     return format_mapping.get(extension, 'unknown')
 
 
-def process_csv_codebook(file_path: str) -> List[Dict[str, Any]]:
-    """
-    Process CSV codebook file and extract variable information.
-    Assumes common CSV codebook structures.
-    """
-    try:
-        df = pd.read_csv(file_path)
-        variables = []
-        
-        # Common column name variations
-        name_cols = ['variable', 'variable_name', 'var_name', 'name', 'field']
-        label_cols = ['label', 'description', 'variable_label', 'desc']
-        type_cols = ['type', 'data_type', 'variable_type', 'format']
-        unit_cols = ['unit', 'units', 'measurement_unit']
-        
-        # Find actual column names
-        name_col = next((col for col in name_cols if col in df.columns), df.columns[0])
-        label_col = next((col for col in label_cols if col in df.columns), None)
-        type_col = next((col for col in type_cols if col in df.columns), None)
-        unit_col = next((col for col in unit_cols if col in df.columns), None)
-        
-        for _, row in df.iterrows():
-            var_name = str(row[name_col]).strip()
-            if not var_name or var_name.lower() in ['nan', 'none', '']:
-                continue
-                
-            variable = {
-                'variable_name': var_name,
-                'display_name': str(row[label_col]).strip() if label_col and pd.notna(row[label_col]) else var_name,
-                'description': str(row[label_col]).strip() if label_col and pd.notna(row[label_col]) else '',
-                'variable_type': infer_variable_type(str(row[type_col]) if type_col and pd.notna(row[type_col]) else ''),
-                'unit': str(row[unit_col]).strip() if unit_col and pd.notna(row[unit_col]) else '',
-                'ontology_code': '',
-            }
-            variables.append(variable)
-            
-        return variables
-        
-    except Exception as e:
-        logger.error(f"Error processing CSV codebook: {str(e)}")
-        raise
 
-
-def process_excel_codebook(file_path: str) -> List[Dict[str, Any]]:
-    """
-    Process Excel codebook file and extract variable information.
-    """
-    try:
-        # Try to read the first sheet
-        df = pd.read_excel(file_path, sheet_name=0)
-        
-        # Use similar logic as CSV processing
-        return process_dataframe_codebook(df)
-        
-    except Exception as e:
-        logger.error(f"Error processing Excel codebook: {str(e)}")
-        raise
-
-
-def process_json_codebook(file_path: str) -> List[Dict[str, Any]]:
-    """
-    Process JSON codebook file and extract variable information.
-    """
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        
-        variables = []
-        
-        # Handle different JSON structures
-        if isinstance(data, list):
-            # Array of variable objects
-            for item in data:
-                if isinstance(item, dict):
-                    variables.append(normalize_variable_dict(item))
-        elif isinstance(data, dict):
-            if 'variables' in data:
-                # Nested structure with variables key
-                for var_data in data['variables']:
-                    variables.append(normalize_variable_dict(var_data))
-            else:
-                # Flat structure - each key is a variable
-                for var_name, var_data in data.items():
-                    if isinstance(var_data, dict):
-                        var_info = normalize_variable_dict(var_data)
-                        var_info['variable_name'] = var_name
-                        variables.append(var_info)
-        
-        return variables
-        
-    except Exception as e:
-        logger.error(f"Error processing JSON codebook: {str(e)}")
-        raise
-
-
-def process_sqlite_codebook(file_path: str) -> List[Dict[str, Any]]:
-    """
-    Process SQLite database file and extract table schema as variables.
-    """
-    try:
-        conn = sqlite3.connect(file_path)
-        cursor = conn.cursor()
-        
-        # Get all table names
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-        tables = cursor.fetchall()
-        
-        variables = []
-        
-        for table_name, in tables:
-            # Get column information for each table
-            cursor.execute(f"PRAGMA table_info({table_name});")
-            columns = cursor.fetchall()
-            
-            for col_info in columns:
-                cid, name, data_type, not_null, default_value, pk = col_info
-                
-                variable = {
-                    'variable_name': f"{table_name}.{name}",
-                    'display_name': name.replace('_', ' ').title(),
-                    'description': f"Column {name} from table {table_name}",
-                    'variable_type': sqlite_type_to_variable_type(data_type),
-                    'unit': '',
-                    'ontology_code': '',
-                }
-                variables.append(variable)
-        
-        conn.close()
-        return variables
-        
-    except Exception as e:
-        logger.error(f"Error processing SQLite codebook: {str(e)}")
-        raise
 
 
 def process_dataframe_codebook(df: pd.DataFrame) -> List[Dict[str, Any]]:
@@ -404,6 +274,149 @@ def extract_variables_from_codebook(file_path: str, column_mapping: Dict[str, st
     except Exception as e:
         logger.error(f"Error extracting variables from codebook: {str(e)}")
         raise
+
+
+def process_codebook_mapping(request, study, codebook_type='source'):
+    """
+    Unified function to handle codebook column mapping for both source and target studies.
+    
+    Args:
+        request: Django request object
+        study: Study instance
+        codebook_type: 'source' or 'target'
+    
+    Returns:
+        Tuple of (df, detected_format, context) or redirect response
+    """
+    if not study.codebook:
+        messages.error(request, f'No codebook file found for this {codebook_type} study.')
+        return redirect('core:study_detail', pk=study.pk)
+    
+    try:
+        # Analyze the codebook file structure
+        file_path = study.codebook.path
+        detected_format = detect_file_format(file_path)
+        
+        # Read first few rows to show user the structure
+        if detected_format == 'csv':
+            df = pd.read_csv(file_path, nrows=5)
+        elif detected_format in ['excel', 'xlsx']:
+            df = pd.read_excel(file_path, nrows=5)
+        else:
+            messages.error(request, f'Unsupported file format: {detected_format}')
+            return redirect('core:study_detail', pk=study.pk)
+        
+        # Update study with detected format
+        study.codebook_format = detected_format
+        study.save()
+        
+        if request.method == 'POST':
+            # User has mapped the columns, store mapping and proceed
+            column_mapping = {
+                'variable_name': request.POST.get('variable_name_column'),
+                'display_name': request.POST.get('display_name_column'),
+                'description': request.POST.get('description_column'),
+                'variable_type': request.POST.get('variable_type_column'),
+                'unit': request.POST.get('unit_column'),
+            }
+            
+            # Validate that at least variable_name is mapped
+            if not column_mapping['variable_name']:
+                messages.error(request, 'Variable name column mapping is required.')
+                context = {
+                    'study': study,
+                    'columns': df.columns.tolist(),
+                    'sample_data': df.to_dict('records'),
+                    'detected_format': detected_format,
+                    'page_title': f'Map {codebook_type.title()} Codebook - {study.name}',
+                    'study_type': codebook_type,
+                }
+                return context
+            
+            # Store mapping in session and proceed to variable extraction
+            session_key = f'{codebook_type}_column_mapping_{study.id}' if codebook_type == 'target' else f'column_mapping_{study.id}'
+            request.session[session_key] = column_mapping
+            messages.success(request, f'Column mapping saved! Proceeding to extract {codebook_type} variables.')
+            
+            # Return extraction URL based on type
+            if codebook_type == 'target':
+                return redirect('core:target_extract_variables', study_id=study.id)
+            else:
+                return redirect('health:extract_variables', study_id=study.id)
+        
+        # Show column mapping interface
+        context = {
+            'study': study,
+            'columns': df.columns.tolist(),
+            'sample_data': df.to_dict('records'),
+            'detected_format': detected_format,
+            'page_title': f'Map {codebook_type.title()} Codebook - {study.name}',
+            'study_type': codebook_type,
+        }
+        
+        return context
+        
+    except Exception as e:
+        messages.error(
+            request,
+            f'Error analyzing {codebook_type} codebook: {str(e)}. Please check your file format and try again.'
+        )
+        return redirect('core:study_detail', pk=study.pk)
+
+
+def process_codebook_extraction(request, study, codebook_type='source'):
+    """
+    Unified function to handle variable extraction for both source and target studies.
+    
+    Args:
+        request: Django request object
+        study: Study instance
+        codebook_type: 'source' or 'target'
+    
+    Returns:
+        Redirect response
+    """
+    # Get column mapping from session
+    session_key = f'{codebook_type}_column_mapping_{study.id}' if codebook_type == 'target' else f'column_mapping_{study.id}'
+    column_mapping = request.session.get(session_key)
+    
+    if not column_mapping:
+        messages.error(request, f'No column mapping found. Please map your {codebook_type} codebook columns first.')
+        if codebook_type == 'target':
+            return redirect('core:target_map_codebook', study_id=study.id)
+        else:
+            return redirect('health:map_codebook', study_id=study.id)
+    
+    try:
+        # Extract variables using the column mapping
+        file_path = study.codebook.path
+        variables_data = extract_variables_from_codebook(file_path, column_mapping)
+        
+        # Store extracted variables in session
+        session_variables_key = f'{codebook_type}_variables_data_{study.id}' if codebook_type == 'target' else f'variables_data_{study.id}'
+        request.session[session_variables_key] = variables_data
+        
+        messages.success(
+            request,
+            f'Successfully extracted {len(variables_data)} {codebook_type} variables from your codebook! '
+            f'Review and select which variables to include {"as harmonization targets" if codebook_type == "target" else "in your study"}.'
+        )
+        
+        # Return selection URL based on type
+        if codebook_type == 'target':
+            return redirect('core:target_select_variables', study_id=study.id)
+        else:
+            return redirect('health:select_variables', study_id=study.id)
+        
+    except Exception as e:
+        messages.error(
+            request,
+            f'Error extracting {codebook_type} variables: {str(e)}. Please check your column mapping.'
+        )
+        if codebook_type == 'target':
+            return redirect('core:target_map_codebook', study_id=study.id)
+        else:
+            return redirect('health:map_codebook', study_id=study.id)
 
 
 def _get_column_value(row, column_name: Optional[str], available_columns: List[str], default_value: str = '') -> str:

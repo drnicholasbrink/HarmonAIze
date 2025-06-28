@@ -196,6 +196,7 @@ TEMPLATES = [
                 "django.template.context_processors.tz",
                 "django.contrib.messages.context_processors.messages",
                 "harmonaize.users.context_processors.allauth_settings",
+                "core.context_processors.target_study_context",
             ],
         },
     },
