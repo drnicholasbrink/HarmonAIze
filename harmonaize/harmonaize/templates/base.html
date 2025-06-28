@@ -38,9 +38,8 @@
 
 
 <!-- Bootstrap JS -->
-<script defer
-        src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/js/bootstrap.min.js"
-        integrity="sha512-1/RvZTcCDEUjY/CypiMz+iqqtaoQfAITmNSJY17Myp4Ms5mdxPS5UV7iOfdZoxcGhzFbOm6sntTKJppjvuhg4g=="
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/js/bootstrap.bundle.min.js"
+        integrity="sha512-i9cEfJwUwViEPFKdC1enz4ZRGBj8YQo6QByFTF92YXHi7waCqyexvRD75S5NVTsSiTv7rKWqG9Y5eFxmRsOn0A=="
         crossorigin="anonymous"
         referrerpolicy="no-referrer"></script>
 <!-- Your stuff: Third-party javascript libraries go here -->
@@ -49,7 +48,7 @@
 <!-- place project specific Javascript in this file -->
 
   
-  <script defer src="{% static 'js/project.js' %}"></script>
+  <script src="{% static 'js/project.js' %}"></script>
 
 
 {% endblock javascript %}
@@ -70,7 +69,7 @@
         </button>
         <a class="navbar-brand" href="{% url 'home' %}">HarmonAIze</a>
         <div class="collapse navbar-collapse" id="navbarSupportedContent">
-          <ul class="navbar-nav mr-auto">
+          <ul class="navbar-nav me-auto">
             <li class="nav-item active">
               <a class="nav-link" href="{% url 'home' %}">Home <span class="visually-hidden">(current)</span></a>
             </li>
@@ -78,6 +77,17 @@
               <a class="nav-link" href="{% url 'about' %}">About</a>
             </li>
             {% if request.user.is_authenticated %}
+              <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" href="#" id="harmonisationDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                  Harmonisation
+                </a>
+                <ul class="dropdown-menu" aria-labelledby="harmonisationDropdown">
+                  <li><a class="dropdown-item" href="{% url 'core:upload' %}">📤 Upload Study</a></li>
+                  <li><hr class="dropdown-divider"></li>
+                  <li><a class="dropdown-item" href="{% url 'core:study_list' %}">📋 View Studies</a></li>
+                  <li><a class="dropdown-item" href="{% url 'core:dashboard' %}">📊 Dashboard</a></li>
+                </ul>
+              </li>
               <li class="nav-item">
                 <a class="nav-link"
                    href="{% url 'users:detail' request.user.pk %}">{% translate "My Profile" %}</a>
