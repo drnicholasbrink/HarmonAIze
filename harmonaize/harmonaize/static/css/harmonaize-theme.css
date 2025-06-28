@@ -1,0 +1,32 @@
+/* HarmonAIze Master Theme File - Import all theme components */
+
+/* Import all theme components in order of dependency */
+@import url('harmonaize-core.css');
+@import url('harmonaize-components.css');
+@import url('harmonaize-layout.css');
+@import url('harmonaize-utilities.css');
+
+/* 
+  HarmonAIze Theme System
+  
+  This is the master theme file that imports all the centralized CSS theme files.
+  Include this single file in your templates to get the complete HarmonAIze theme.
+  
+  Components included:
+  1. harmonaize-core.css - CSS variables, base styles, typography
+  2. harmonaize-components.css - Reusable UI components (buttons, cards, forms, etc.)
+  3. harmonaize-layout.css - Page layouts and structural components
+  4. harmonaize-utilities.css - Helper classes and responsive design
+  
+  Usage in templates:
+  {% load static %}
+  <link href="{% static 'css/harmonaize-theme.css' %}" rel="stylesheet">
+  
+  Design Philosophy:
+  - Cupertino design principles
+  - Clean, professional appearance
+  - Consistent spacing and typography
+  - Professional color palette
+  - Accessibility-focused
+  - Mobile-responsive
+*/
