@@ -687,9 +687,9 @@
           <div class="info-label">Study Purpose</div>
           <div class="info-value">
             {% if study.study_purpose == 'target' %}
-              Target (Harmonization Standard)
+              Target (Harmonisation Standard)
             {% else %}
-              Source (Data to Harmonize)
+              Source (Data to Harmonise)
             {% endif %}
           </div>
         </div>
@@ -1005,7 +1005,7 @@
         {% if study.codebook %}
           {% if study.variables.count > 0 %}
             <!-- Source study with variables defined -->
-            <a href="#" class="btn btn-primary">
+            <a href="#" class="btn btn-primary" onclick="showUpcomingFeature('Harmonisation Results'); return false;">
               {% include 'components/svg_icon.html' with icon='refresh' size='16' class='inline-icon' %} View Harmonisation Results →
             </a>
             <button class="btn btn-outline-secondary" onclick="showReuploadModal()">
@@ -1136,7 +1136,7 @@
         <div class="alert" style="background: #f8d7da; border-left-color: #dc3545; color: #721c24; margin-bottom: 1rem;">
           <strong>Warning:</strong> This will permanently delete all {{ study.variables.count }} target variables and reset your target study. This action cannot be undone.
         </div>
-        <p>Are you sure you want to reset all target variables? You will need to re-define your harmonization targets from the beginning.</p>
+        <p>Are you sure you want to reset all target variables? You will need to re-define your harmonisation targets from the beginning.</p>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" onclick="closeResetModal()">Cancel</button>

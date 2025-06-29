@@ -110,7 +110,7 @@ class StudyCreationForm(forms.ModelForm):
             'study_type': 'Select the type of research study',
             'has_ethical_approval': 'Check if your study has received ethical/IRB approval',
             'ethics_approval_number': 'Enter the approval number if you have ethical approval',
-            'has_dates': 'Does your study include date/time variables that need harmonization?',
+            'has_dates': 'Does your study include date/time variables that need harmonisation?',
             'has_locations': 'Does your study include location data (addresses, facilities, etc.)?',
             'needs_geolocation': 'Do you need to convert addresses to coordinates?',
             'needs_climate_linkage': 'Do you want to link your health data with climate variables?',

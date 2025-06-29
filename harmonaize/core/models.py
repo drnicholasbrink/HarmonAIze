@@ -187,7 +187,7 @@ class Observation(models.Model):
 class Study(models.Model):
     """
     Represents a research study and its metadata.
-    Can be either a source study (with data to harmonize) or target study (defining harmonization targets).
+    Can be either a source study (with data to harmonise) or target study (defining harmonisation targets).
     """
     
     # Study type choices (research design)
@@ -233,7 +233,7 @@ class Study(models.Model):
         max_length=10,
         choices=STUDY_TYPE_CHOICES,
         default='source',
-        help_text="Whether this is a source study (data to harmonize) or target study (harmonization target)"
+        help_text="Whether this is a source study (data to harmonise) or target study (harmonisation target)"
     )
     
     # Research design type
@@ -310,7 +310,7 @@ class Study(models.Model):
         ('codebook_uploaded', 'Source Codebook Uploaded'),
         ('variables_extracted', 'Variables Extracted'),
         ('variables_mapped', 'Variables Mapped'),
-        ('harmonized', 'Harmonized'),
+        ('harmonised', 'Harmonised'),
         ('completed', 'Completed'),
     ]
     status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='created')

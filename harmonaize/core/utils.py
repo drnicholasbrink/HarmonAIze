@@ -258,7 +258,7 @@ def process_codebook_mapping(request, study, codebook_type='source'):
         return redirect('core:study_detail', pk=study.pk)
     
     try:
-        # Analyze the codebook file structure
+        # Analyse the codebook file structure
         file_path = study.codebook.path
         detected_format = detect_file_format(file_path)
         
@@ -324,7 +324,7 @@ def process_codebook_mapping(request, study, codebook_type='source'):
     except Exception as e:
         messages.error(
             request,
-            f'Error analyzing {codebook_type} codebook: {str(e)}. Please check your file format and try again.'
+            f'Error analysing {codebook_type} codebook: {str(e)}. Please check your file format and try again.'
         )
         return redirect('core:study_detail', pk=study.pk)
 
@@ -364,7 +364,7 @@ def process_codebook_extraction(request, study, codebook_type='source'):
         messages.success(
             request,
             f'Successfully extracted {len(variables_data)} {codebook_type} variables from your codebook! '
-            f'Review and select which variables to include {"as harmonization targets" if codebook_type == "target" else "in your study"}.'
+            f'Review and select which variables to include {"as harmonisation targets" if codebook_type == "target" else "in your study"}.'
         )
         
         # Return selection URL based on type

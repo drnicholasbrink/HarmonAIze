@@ -1,6 +1,6 @@
 # HarmonAIze
 
-An open-source toolkit that streamlines the process of harmonizing and integrating climate and health data. Designed for research teams in resource-constrained settings, it leverages AI-assisted workflows to map, clean, and unify heterogeneous datasets, all while preserving privacy through federated approaches. By aligning health data with curated climate data sources, HarmonAIze accelerates climate–health research and enables faster, more accurate analyses of environmental impacts on health outcomes.
+An open-source toolkit that streamlines the process of harmonising and integrating climate and health data. Designed for research teams in resource-constrained settings, it leverages AI-assisted workflows to map, clean, and unify heterogeneous datasets, all while preserving privacy through federated approaches. By aligning health data with curated climate data sources, HarmonAIze accelerates climate–health research and enables faster, more accurate analyses of environmental impacts on health outcomes.
 
 [![Built with Cookiecutter Django](https://img.shields.io/badge/built%20with-Cookiecutter%20Django-ff69b4.svg?logo=cookiecutter)](https://github.com/cookiecutter/cookiecutter-django/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
@@ -138,7 +138,7 @@ harmonaize/
 ```
 
 #### Development Workflow
-1. **Analyze Impact**: Before any change, identify all affected components
+1. **Analyse Impact**: Before any change, identify all affected components
 2. **Plan Dependencies**: Map out what needs updating (views, URLs, templates, tests)
 3. **Implement Systematically**: Make changes in logical order
 4. **Test Thoroughly**: Verify functionality in Docker environment
@@ -183,14 +183,14 @@ harmonaize/
 - Add management commands if needed
 - Consider performance implications
 
-#### 🧪 Testing Requirements
+#### Testing Requirements
 - Write tests for all new functionality
-- Update existing tests when changing behavior
+- Update existing tests when changing behaviour
 - Test error conditions and edge cases
 - Verify responsive design on different screen sizes
 - Test with realistic data volumes
 
-#### 📚 Documentation Standards
+#### Documentation Standards
 - Update README if adding new setup steps
 - Document new environment variables
 - Add docstrings to new functions and classes
@@ -203,7 +203,7 @@ harmonaize/
 - Keep functions focused and single-purpose
 - Add type hints where appropriate
 - Remove unused imports and code
-- Optimize database queries (avoid N+1 problems)
+- Optimise database queries (avoid N+1 problems)
 
 ### Before Making Changes
 1. **Read the codebase** to understand existing patterns

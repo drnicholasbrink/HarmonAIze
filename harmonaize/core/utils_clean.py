@@ -222,7 +222,7 @@ def process_codebook_extraction(request, study, codebook_type='source'):
         messages.success(
             request,
             f'Successfully extracted {len(variables_data)} {codebook_type} variables from your codebook! '
-            f'Review and select which variables to include {"as harmonization targets" if codebook_type == "target" else "in your study"}.'
+            f'Review and select which variables to include {"as harmonisation targets" if codebook_type == "target" else "in your study"}.'
         )
         
         # Return selection URL based on type
