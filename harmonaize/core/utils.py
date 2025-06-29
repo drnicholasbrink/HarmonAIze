@@ -164,41 +164,6 @@ def sqlite_type_to_variable_type(sqlite_type: str) -> str:
         return 'string'
 
 
-def process_codebook(file_path: str, file_format: str = None) -> Tuple[List[Dict[str, Any]], str]:
-    """
-    Main function to process a codebook file and extract variable information.
-    
-    Returns:
-        Tuple of (variables_list, detected_format)
-    """
-    if not file_format:
-        file_format = detect_file_format(file_path)
-    
-    try:
-        if file_format == 'csv':
-            variables = process_csv_codebook(file_path)
-        elif file_format == 'excel':
-            variables = process_excel_codebook(file_path)
-        elif file_format == 'json':
-            variables = process_json_codebook(file_path)
-        elif file_format == 'sqlite':
-            variables = process_sqlite_codebook(file_path)
-        else:
-            # For unknown formats, try to read as CSV first
-            try:
-                variables = process_csv_codebook(file_path)
-                file_format = 'csv'
-            except:
-                raise ValueError(f"Unsupported file format: {file_format}")
-        
-        logger.info(f"Successfully processed {len(variables)} variables from {file_format} codebook")
-        return variables, file_format
-        
-    except Exception as e:
-        logger.error(f"Error processing codebook: {str(e)}")
-        raise
-
-
 def validate_variables(variables: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Validate and clean extracted variables.
