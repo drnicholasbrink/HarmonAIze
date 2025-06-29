@@ -90,7 +90,7 @@
                   {% if has_target_study %}
                     <li><a class="dropdown-item" href="{% url 'core:study_detail' user_target_study.pk %}">View Target Study</a></li>
                     <li><a class="dropdown-item text-muted" href="#" onclick="alert('You already have a target study. You can only have one target study that defines your harmonization standards.'); return false;">
-                      <small>✓ Target study already exists</small>
+                      <small>{% include 'components/svg_icon.html' with icon='check' size='14' class='inline-icon' %} Target study already exists</small>
                     </a></li>
                   {% else %}
                     <li><a class="dropdown-item" href="{% url 'core:create_target_study' %}">Create Target Study</a></li>

@@ -404,16 +404,16 @@
               </span>
               
               {% if study.has_dates %}
-                <span class="tag">📅 Dates</span>
+                <span class="tag">{% include 'components/svg_icon.html' with icon='calendar' size='14' class='inline-icon' %} Dates</span>
               {% endif %}
               {% if study.has_locations %}
-                <span class="tag">📍 Locations</span>
+                <span class="tag">{% include 'components/svg_icon.html' with icon='map-pin' size='14' class='inline-icon' %} Locations</span>
               {% endif %}
               {% if study.needs_geolocation %}
-                <span class="tag">🗺️ Geolocation</span>
+                <span class="tag">{% include 'components/svg_icon.html' with icon='map' size='14' class='inline-icon' %} Geolocation</span>
               {% endif %}
               {% if study.needs_climate_linkage %}
-                <span class="tag">🌍 Climate</span>
+                <span class="tag">{% include 'components/svg_icon.html' with icon='globe' size='14' class='inline-icon' %} Climate</span>
               {% endif %}
             </div>
             
