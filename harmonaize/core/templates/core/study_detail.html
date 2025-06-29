@@ -878,7 +878,7 @@
                 <span class="type-badge type-{{ type_name }}">{{ type_name|title }}</span>
                 <span class="type-count">{{ type_data.count }}</span>
                 <div class="type-bar">
-                  <div class="type-fill" style="width: {{ type_data.percentage }}%"></div>
+                  <div class="type-fill" style="width: {{ type_data.percentage|floatformat:1 }}%"></div>
                 </div>
               </div>
             {% endfor %}
@@ -938,34 +938,6 @@
           {% endfor %}
         </div>
 
-        <!-- Codebook Management -->
-        <div class="codebook-management">
-          <h4>Codebook Management</h4>
-          <div class="codebook-actions">
-            {% if study.study_purpose == 'target' %}
-              <!-- Target Study Management -->
-              <button class="btn btn-outline" onclick="showReuploadModal()">
-                Upload New Target Codebook
-              </button>
-              <button class="btn btn-outline" onclick="showResetModal()">
-                Reset Target Variables
-              </button>
-            {% else %}
-              <!-- Source Study Management -->
-              <button class="btn btn-outline" onclick="showReuploadModal()">
-                Upload New Source Codebook
-              </button>
-              <button class="btn btn-outline" onclick="resetVariables()">
-                Reset All Variables
-              </button>
-            {% endif %}
-            {% if study.codebook %}
-              <a href="{{ study.codebook.url }}" class="btn btn-outline" target="_blank">
-                Download Current Codebook
-              </a>
-            {% endif %}
-          </div>
-        </div>
       {% else %}
         <div class="empty-state">
           <div class="empty-icon">
@@ -1008,10 +980,10 @@
               View Target Variables →
             </a>
             <button class="btn btn-outline-secondary" onclick="showReuploadModal()">
-              📤 Re-upload Target Codebook
+              {% include 'components/svg_icon.html' with icon='upload' size='16' class='inline-icon' %} Re-upload Target Codebook
             </button>
             <button class="btn btn-outline-warning" onclick="showResetModal()">
-              🔄 Reset Target Variables
+              {% include 'components/svg_icon.html' with icon='refresh' size='16' class='inline-icon' %} Reset Target Variables
             </button>
           {% else %}
             <!-- Target study with codebook but no variables selected -->
@@ -1019,13 +991,13 @@
               Define Target Variables →
             </a>
             <button class="btn btn-outline-secondary" onclick="showReuploadModal()">
-              📤 Re-upload Target Codebook
+              {% include 'components/svg_icon.html' with icon='upload' size='16' class='inline-icon' %} Re-upload Target Codebook
             </button>
           {% endif %}
         {% else %}
           <!-- Target study with no codebook -->
           <button class="btn btn-primary" onclick="showReuploadModal()">
-            📤 Upload Target Codebook →
+            {% include 'components/svg_icon.html' with icon='upload' size='16' class='inline-icon' %} Upload Target Codebook →
           </button>
         {% endif %}
       {% else %}
@@ -1034,35 +1006,35 @@
           {% if study.variables.count > 0 %}
             <!-- Source study with variables defined -->
             <a href="#" class="btn btn-primary">
-              🔄 View Harmonisation Results →
+              {% include 'components/svg_icon.html' with icon='refresh' size='16' class='inline-icon' %} View Harmonisation Results →
             </a>
             <button class="btn btn-outline-secondary" onclick="showReuploadModal()">
-              📤 Re-upload Source Codebook
+              {% include 'components/svg_icon.html' with icon='upload' size='16' class='inline-icon' %} Re-upload Source Codebook
             </button>
             <a href="{% url 'health:reset_variables' study.id %}" class="btn btn-outline-warning" 
                onclick="return confirm('Are you sure you want to reset all variables? This action cannot be undone.')">
-              🔄 Reset Variables
+              {% include 'components/svg_icon.html' with icon='refresh' size='16' class='inline-icon' %} Reset Variables
             </a>
           {% else %}
             <!-- Source study with codebook but no variables selected -->
             <a href="{% url 'health:map_codebook' study.id %}" class="btn btn-primary">
-              🔬 Start Health Data Harmonisation →
+              {% include 'components/svg_icon.html' with icon='microscope' size='16' class='inline-icon' %} Start Health Data Harmonisation →
             </a>
             <button class="btn btn-outline-secondary" onclick="showReuploadModal()">
-              📤 Re-upload Source Codebook
+              {% include 'components/svg_icon.html' with icon='upload' size='16' class='inline-icon' %} Re-upload Source Codebook
             </button>
           {% endif %}
         {% else %}
           <!-- Source study with no codebook -->
           <button class="btn btn-primary" onclick="showReuploadModal()">
-            📤 Upload Source Codebook →
+            {% include 'components/svg_icon.html' with icon='upload' size='16' class='inline-icon' %} Upload Source Codebook →
           </button>
         {% endif %}
       {% endif %}
       
       <!-- Delete Study Button -->
       <button class="btn btn-danger" onclick="showDeleteModal()" style="margin-left: auto;">
-        🗑️ Delete Study
+        {% include 'components/svg_icon.html' with icon='trash' size='16' class='inline-icon' %} Delete Study
       </button>
     </div>
   </div>
@@ -1215,13 +1187,39 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" onclick="closeDeleteModal()">Cancel</button>
         <button type="button" class="btn btn-danger" id="confirmDeleteBtn" onclick="submitDelete()" disabled>
-          🗑️ Delete Study Permanently
+          {% include 'components/svg_icon.html' with icon='trash' size='16' class='inline-icon' %} Delete Study Permanently
         </button>
       </div>
     </div>
   </div>
 
+  <!-- Django Data for JavaScript -->
+  <script type="application/json" id="django-data">
+    {
+      "study": {
+        "id": {{ study.id }},
+        "name": "{{ study.name|escapejs }}",
+        "purpose": "{{ study.study_purpose }}",
+        "variableCount": {{ study.variables.count }}
+      },
+      "urls": {
+        "deleteStudy": "{% url 'core:delete_study' study.id %}",
+        "resetVariables": "{% url 'health:reset_variables' study.id %}"
+        {% if study.study_purpose == 'target' %}
+        ,"targetResetVariables": "{% url 'core:target_reset_variables' study.id %}"
+        {% endif %}
+      },
+      "isTargetStudy": {% if study.study_purpose == 'target' %}true{% else %}false{% endif %}
+    }
+  </script>
+
   <script>
+    // Get Django data from JSON script
+    const djangoData = JSON.parse(document.getElementById('django-data').textContent);
+    const studyData = djangoData.study;
+    const urls = djangoData.urls;
+    const isTargetStudy = djangoData.isTargetStudy;
+
     // Variable filtering and search functionality
     function filterVariables(type) {
       // Update active filter button
@@ -1350,8 +1348,7 @@
         return;
       }
       
-      const studyPurpose = '{{ study.study_purpose }}';
-      const confirmMessage = studyPurpose === 'target' 
+      const confirmMessage = isTargetStudy 
         ? 'Are you sure you want to upload a new target codebook? This will reset all current target variables and cannot be undone.'
         : 'Are you sure you want to upload a new source codebook? This will reset all current variables and cannot be undone.';
       
@@ -1361,20 +1358,23 @@
     }
 
     // Reset variables modal functionality (target studies)
-    {% if study.study_purpose == 'target' %}
     function showResetModal() {
-      document.getElementById('resetModal').style.display = 'block';
+      if (isTargetStudy) {
+        document.getElementById('resetModal').style.display = 'block';
+      }
     }
 
     function closeResetModal() {
-      document.getElementById('resetModal').style.display = 'none';
+      if (isTargetStudy) {
+        document.getElementById('resetModal').style.display = 'none';
+      }
     }
 
     function submitReset() {
       // Create a form to submit the reset request
       const form = document.createElement('form');
       form.method = 'POST';
-      form.action = '{% url "core:target_reset_variables" study.id %}';
+      form.action = urls.targetResetVariables;
       
       const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
       const csrfInput = document.createElement('input');
@@ -1386,7 +1386,6 @@
       document.body.appendChild(form);
       form.submit();
     }
-    {% endif %}
 
     // Delete study modal functionality
     function showDeleteModal() {
@@ -1404,7 +1403,7 @@
       // Create a form to submit the delete request
       const form = document.createElement('form');
       form.method = 'POST';
-      form.action = '{% url "core:delete_study" study.id %}';
+      form.action = urls.deleteStudy;
       
       const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
       const csrfInput = document.createElement('input');
@@ -1421,7 +1420,7 @@
     document.addEventListener('DOMContentLoaded', function() {
       const deleteInput = document.getElementById('deleteConfirmation');
       const confirmBtn = document.getElementById('confirmDeleteBtn');
-      const studyName = '{{ study.name|escapejs }}';
+      const studyName = studyData.name;
       
       if (deleteInput && confirmBtn) {
         deleteInput.addEventListener('input', function() {
@@ -1440,7 +1439,7 @@
         // Create a form to submit the reset request
         const form = document.createElement('form');
         form.method = 'POST';
-        form.action = '{% url "health:reset_variables" study.id %}';
+        form.action = urls.resetVariables;
         
         const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
         const csrfInput = document.createElement('input');
@@ -1459,9 +1458,7 @@
       const variableModal = document.getElementById('variableDetailModal');
       const reuploadModal = document.getElementById('reuploadModal');
       const deleteModal = document.getElementById('deleteModal');
-      {% if study.study_purpose == 'target' %}
-      const resetModal = document.getElementById('resetModal');
-      {% endif %}
+      const resetModal = isTargetStudy ? document.getElementById('resetModal') : null;
       
       if (event.target === variableModal) {
         closeVariableModal();
@@ -1469,10 +1466,8 @@
         closeReuploadModal();
       } else if (event.target === deleteModal) {
         closeDeleteModal();
-      {% if study.study_purpose == 'target' %}
-      } else if (event.target === resetModal) {
+      } else if (resetModal && event.target === resetModal) {
         closeResetModal();
-      {% endif %}
       }
     }
   </script>
