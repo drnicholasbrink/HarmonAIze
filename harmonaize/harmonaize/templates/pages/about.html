@@ -122,6 +122,12 @@
       color: white;
     }
 
+    .feature-icon svg {
+      width: 32px;
+      height: 32px;
+      stroke: currentColor;
+    }
+
     .feature-title {
       font-size: 1.4rem;
       font-weight: 600;
@@ -254,7 +260,9 @@
 
       <div class="feature-grid">
         <div class="feature-card">
-          <div class="feature-icon">🩺</div>
+          <div class="feature-icon">
+            {% include 'components/svg_icon.html' with icon='hospital' size='32' color='white' %}
+          </div>
           <h3 class="feature-title">Health Module</h3>
           <p class="feature-description">
             Specialized tools for harmonising health variables across diverse datasets. 
@@ -264,7 +272,9 @@
         </div>
 
         <div class="feature-card">
-          <div class="feature-icon">🌍</div>
+          <div class="feature-icon">
+            {% include 'components/svg_icon.html' with icon='globe' size='32' color='white' %}
+          </div>
           <h3 class="feature-title">Climate Module</h3>
           <p class="feature-description">
             Secure linkage and integration of climate data with health records. 
@@ -274,7 +284,9 @@
         </div>
 
         <div class="feature-card">
-          <div class="feature-icon">📍</div>
+          <div class="feature-icon">
+            {% include 'components/svg_icon.html' with icon='map-pin' size='32' color='white' %}
+          </div>
           <h3 class="feature-title">Geolocation Module</h3>
           <p class="feature-description">
             Secure geolocation services for health facilities and addresses. 
@@ -296,7 +308,9 @@
 
       <div class="feature-grid">
         <div class="feature-card">
-          <div class="feature-icon">🔗</div>
+          <div class="feature-icon">
+            {% include 'components/svg_icon.html' with icon='link' size='32' color='white' %}
+          </div>
           <h3 class="feature-title">Data Integration</h3>
           <p class="feature-description">
             Seamlessly map, clean, and unify heterogeneous datasets from multiple sources 
@@ -305,7 +319,9 @@
         </div>
 
         <div class="feature-card">
-          <div class="feature-icon">🛡️</div>
+          <div class="feature-icon">
+            {% include 'components/svg_icon.html' with icon='shield' size='32' color='white' %}
+          </div>
           <h3 class="feature-title">Privacy-First</h3>
           <p class="feature-description">
             Built with federated approaches that maintain data privacy and security, 
@@ -314,7 +330,9 @@
         </div>
 
         <div class="feature-card">
-          <div class="feature-icon">🤖</div>
+          <div class="feature-icon">
+            {% include 'components/svg_icon.html' with icon='robot' size='32' color='white' %}
+          </div>
           <h3 class="feature-title">AI-Powered</h3>
           <p class="feature-description">
             Leverage advanced AI algorithms to automate complex data harmonisation tasks, 
@@ -323,7 +341,9 @@
         </div>
 
         <div class="feature-card">
-          <div class="feature-icon">⚡</div>
+          <div class="feature-icon">
+            {% include 'components/svg_icon.html' with icon='zap' size='32' color='white' %}
+          </div>
           <h3 class="feature-title">Accelerated Research</h3>
           <p class="feature-description">
             Dramatically reduce the time from data collection to insights, enabling 
@@ -332,7 +352,9 @@
         </div>
 
         <div class="feature-card">
-          <div class="feature-icon">🔓</div>
+          <div class="feature-icon">
+            {% include 'components/svg_icon.html' with icon='unlock' size='32' color='white' %}
+          </div>
           <h3 class="feature-title">Open Source</h3>
           <p class="feature-description">
             Completely open-source and community-driven, ensuring transparency, 
@@ -341,7 +363,9 @@
         </div>
 
         <div class="feature-card">
-          <div class="feature-icon">🔬</div>
+          <div class="feature-icon">
+            {% include 'components/svg_icon.html' with icon='microscope' size='32' color='white' %}
+          </div>
           <h3 class="feature-title">Research-Ready</h3>
           <p class="feature-description">
             Purpose-built for academic and clinical research with tools designed 
