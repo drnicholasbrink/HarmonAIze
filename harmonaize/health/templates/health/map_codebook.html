@@ -307,7 +307,7 @@
 
     <!-- File Preview -->
     <div class="card">
-      <h2 class="card-title">📋 Codebook Preview</h2>
+      <h2 class="card-title">{% include 'components/svg_icon.html' with icon='clipboard' size='20' class='inline-icon' %} Codebook Preview</h2>
       <p class="text-muted">First few rows of your health data codebook:</p>
       
       <div style="overflow-x: auto;">
@@ -343,7 +343,7 @@
       {% csrf_token %}
       
       <div class="card">
-        <h2 class="card-title">🔗 Map Columns to Health Attributes</h2>
+        <h2 class="card-title">{% include 'components/svg_icon.html' with icon='link' size='20' class='inline-icon' %} Map Columns to Health Attributes</h2>
         
         <div class="mapping-grid">
           
@@ -423,7 +423,7 @@
 
         <!-- TODO: LLM Integration Notice -->
         <div class="health-info-box" style="margin-top: 2rem;">
-          <h4>🤖 AI Enhancement (Coming Soon)</h4>
+          <h4>{% include 'components/svg_icon.html' with icon='robot' size='18' class='inline-icon' %} AI Enhancement (Coming Soon)</h4>
           <p>
             <strong>TODO:</strong> LLM integration will be added here to automatically enhance your health data mapping with:
           </p>
@@ -431,7 +431,7 @@
             <li>Automatic health variable categorisation</li>
             <li>Ontology code suggestions</li>
             <li>Health data validation and quality checks</li>
-            <li>Standardized health terminology mapping</li>
+            <li>Standardised health terminology mapping</li>
           </ul>
         </div>
       </div>

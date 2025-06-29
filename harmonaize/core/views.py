@@ -210,7 +210,7 @@ def study_dashboard(request):
 @login_required
 def create_target_study(request):
     """
-    Create a new target study for defining harmonization targets.
+    Create a new target study for defining harmonisation targets.
     Only one target study is allowed per user.
     """
     # Check if user already has a target study
@@ -223,7 +223,7 @@ def create_target_study(request):
         messages.info(
             request,
             f'You already have a target study: "{existing_target_study.name}". '
-            f'You can only have one target study that defines your harmonization standards.'
+            f'You can only have one target study that defines your harmonisation standards.'
         )
         return redirect('core:study_detail', pk=existing_target_study.pk)
     
@@ -242,7 +242,7 @@ def create_target_study(request):
             messages.success(
                 request,
                 f'Target study "{study.name}" created successfully! '
-                f'This will define your harmonization standards. You can now proceed to define your target variables.'
+                f'This will define your harmonisation standards. You can now proceed to define your target variables.'
             )
             
             # If codebook was uploaded, proceed to mapping
@@ -374,7 +374,7 @@ def target_select_variables(request, study_id):
                 messages.success(
                     request,
                     f'Successfully added {len(included_variables)} target variables to your study! '
-                    f'Your harmonization targets are now defined.'
+                    f'Your harmonisation targets are now defined.'
                 )
                 
                 return redirect('core:study_detail', pk=study.pk)
