@@ -353,6 +353,13 @@ def target_select_variables(request, study_id):
                         created_attributes.append(attribute)
                     except Exception as e:
                         messages.error(request, f'Error creating target variable {var_data["variable_name"]}: {str(e)}')
+                        context = {
+                            'study': study,
+                            'formset': formset,
+                            'variables_count': len(variables_data),
+                            'page_title': f'Select Target Variables - {study.name}',
+                            'study_type': 'target',
+                        }
                         return render(request, 'core/target_select_variables.html', context)
                 
                 # Associate variables with the study

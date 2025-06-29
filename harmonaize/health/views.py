@@ -117,6 +117,12 @@ def select_variables(request, study_id):
                         created_attributes.append(attribute)
                     except Exception as e:
                         messages.error(request, f'Error creating variable {var_data["variable_name"]}: {str(e)}')
+                        context = {
+                            'study': study,
+                            'formset': formset,
+                            'variables_count': len(variables_data),
+                            'page_title': f'Select Health Variables - {study.name}'
+                        }
                         return render(request, 'health/select_variables.html', context)
                 
                 # Associate variables with the study
