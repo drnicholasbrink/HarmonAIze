@@ -1,1 +1,4 @@
+# Ignore the local settings file
 local.settings.json
+
+# Ignore only the OSM file

@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Location Validation - Geolocation System</title>
+    <script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .mapboxgl-popup-content {
+            padding: 16px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+        
+        .source-marker {
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .source-marker:hover {
+            transform: scale(1.3);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+        }
+        
+        .confidence-meter {
+            background: linear-gradient(90deg, #ef4444 0%, #f59e0b 50%, #10b981 100%);
+            height: 8px;
+            border-radius: 4px;
+        }
+        
+        .source-card {
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border-radius: 16px;
+        }
+        
+        .source-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+        
+        .recommended-card {
+            border: 3px solid #22c55e;
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+            box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.1);
+        }
+        
+        .loading-spinner {
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .pulse-ring {
+            animation: pulse-ring 2s infinite;
+        }
+
+        @keyframes pulse-ring {
+            0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+        }
+
+        .sidebar-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .confidence-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-gray-50 to-blue-50 h-screen overflow-hidden">
+    <div class="h-screen flex flex-col">
+        <!-- Enhanced Header -->
+        <header class="bg-white shadow-lg border-b-2 border-blue-100 h-16 flex-shrink-0">
+            <div class="h-full px-6 flex justify-between items-center">
+                <div class="flex items-center space-x-4">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                            <span class="text-white text-sm font-bold">📍</span>
+                        </div>
+                        <h1 class="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                            AI Location Validation
+                        </h1>
+                    </div>
+                    
+                    {% if current_location %}
+                    <div class="flex items-center space-x-2">
+                        <span class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+                            {{ current_location.name }}
+                        </span>
+                        <span class="confidence-badge text-white px-3 py-1 rounded-full text-sm font-bold">
+                            {{ current_location.confidence|floatformat:0 }}% AI
+                        </span>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <div class="flex items-center space-x-3">
+                    {% if navigation.has_prev %}
+                    <a href="{% url 'geolocation:validation_map' %}?location_id={{ navigation.prev_location_id }}" 
+                       class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:scale-105">
+                        ← Previous
+                    </a>
+                    {% endif %}
+                    
+                    <div class="bg-gray-100 px-3 py-2 rounded-lg">
+                        <span class="text-sm font-medium text-gray-600">{{ navigation.current_index }} of {{ navigation.total_pending }}</span>
+                    </div>
+                    
+                    {% if navigation.has_next %}
+                    <a href="{% url 'geolocation:validation_map' %}?location_id={{ navigation.next_location_id }}" 
+                       class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:scale-105">
+                        Next →
+                    </a>
+                    {% endif %}
+                    
+                    <a href="{% url 'geolocation:dashboard' %}" class="text-gray-600 hover:text-gray-900 text-sm font-medium ml-4 transition-colors">
+                        Dashboard
+                    </a>
+                </div>
+            </div>
+        </header>
+
+        <div class="flex-1 flex overflow-hidden">
+            <!-- Enhanced Sidebar -->
+            <div class="w-96 bg-white border-r-2 border-gray-100 flex flex-col overflow-hidden shadow-lg">
+                {% if current_location %}
+                <!-- Enhanced Location Header -->
+                <div class="sidebar-header p-6 text-white flex-shrink-0">
+                    <h2 class="text-xl font-bold mb-3">{{ current_location.name }}</h2>
+                    
+                    <!-- Enhanced AI Confidence Display -->
+                    <div class="bg-white/20 rounded-xl p-4 backdrop-blur-sm">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-sm font-medium">AI Confidence Score</span>
+                            <span class="text-lg font-bold">{{ current_location.confidence|floatformat:0 }}%</span>
+                        </div>
+                        <div class="confidence-meter rounded-full overflow-hidden mb-2">
+                            <div class="h-full {% if current_location.confidence >= 80 %}bg-green-400{% elif current_location.confidence >= 60 %}bg-yellow-400{% else %}bg-red-400{% endif %} rounded-full transition-all duration-500" 
+                                 style="width: {{ current_location.confidence }}%"></div>
+                        </div>
+                        <p class="text-xs opacity-90">{{ current_location.accuracy_description }}</p>
+                    </div>
+                    
+                    <!-- AI Recommendation Badge -->
+                    {% if current_location.recommended_source %}
+                    <div class="mt-4 bg-green-100 border-2 border-green-300 rounded-xl p-3">
+                        <div class="flex items-center text-sm">
+                            <span class="text-green-600 mr-2 text-lg">🤖</span>
+                            <span class="text-green-800 font-bold">AI Recommends: {{ current_location.recommended_source }}</span>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Enhanced Source Selection -->
+                <div class="flex-1 overflow-y-auto p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-bold text-gray-900">Choose Best Coordinate</h3>
+                        <span class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+                            {{ current_location.coordinates|length }} Sources
+                        </span>
+                    </div>
+                    
+                    {% for coord in current_location.coordinates %}
+                    <div class="source-card {% if coord.source == current_location.recommended_source %}recommended-card pulse-ring{% else %}border-2 border-gray-200 bg-white{% endif %} p-4 mb-4" 
+                         onclick="zoomToSource('{{ coord.source_key }}', {{ coord.lat }}, {{ coord.lng }})">
+                        
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-4 h-4 rounded-full shadow-md" style="background-color: {{ coord.color }}"></div>
+                                <div>
+                                    <span class="font-bold text-gray-900">{{ coord.source }}</span>
+                                    {% if coord.source == current_location.recommended_source %}
+                                    <span class="ml-2 bg-green-200 text-green-800 text-xs px-2 py-1 rounded-full font-bold">
+                                        🏆 AI Choice
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <button onclick="event.stopPropagation(); selectSource('{{ coord.source_key }}', {{ coord.lat }}, {{ coord.lng }})"
+                                    class="{% if coord.source == current_location.recommended_source %}bg-green-600 hover:bg-green-700{% else %}bg-blue-600 hover:bg-blue-700{% endif %} text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:scale-105">
+                                {% if coord.source == current_location.recommended_source %}✅ Use AI Pick{% else %}📍 Use This{% endif %}
+                            </button>
+                        </div>
+                        
+                        <!-- Coordinate Details -->
+                        <div class="space-y-2 mb-3">
+                            <div class="bg-gray-50 rounded-lg p-2">
+                                <div class="text-xs text-gray-500 mb-1">Coordinates</div>
+                                <div class="font-mono text-sm text-gray-800">{{ coord.lat|floatformat:5 }}, {{ coord.lng|floatformat:5 }}</div>
+                            </div>
+                            
+                            {% if coord.reverse_address != 'Not checked' and coord.reverse_address != 'Reverse geocoding failed' %}
+                            <div class="bg-gray-50 rounded-lg p-2">
+                                <div class="text-xs text-gray-500 mb-1">Reverse Lookup</div>
+                                <div class="text-sm {% if coord.name_similarity >= 80 %}text-green-600{% elif coord.name_similarity >= 50 %}text-yellow-600{% else %}text-gray-600{% endif %}">
+                                    {% if coord.name_similarity >= 80 %}✅{% elif coord.name_similarity >= 50 %}⚠️{% else %}❓{% endif %}
+                                    {{ coord.reverse_address|truncatechars:40 }}
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Enhanced Confidence Visualization -->
+                        <div class="space-y-2">
+                            <div class="flex items-center justify-between text-xs text-gray-600">
+                                <span>Confidence Score</span>
+                                <span class="font-bold">{{ coord.overall_confidence|floatformat:0 }}%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div class="{% if coord.overall_confidence >= 80 %}bg-green-500{% elif coord.overall_confidence >= 60 %}bg-yellow-500{% else %}bg-red-500{% endif %} h-2 rounded-full transition-all duration-500" 
+                                     style="width: {{ coord.overall_confidence }}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Enhanced Action Buttons -->
+                <div class="p-6 border-t border-gray-100 flex-shrink-0 space-y-3 bg-gray-50">
+                    {% if current_location.confidence >= 70 %}
+                    <button onclick="approveAIRecommendation()" 
+                            class="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-6 py-3 rounded-xl font-bold text-lg transition-all duration-200 hover:scale-105 shadow-lg">
+                        ✅ Accept AI Recommendation
+                    </button>
+                    {% endif %}
+                    
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="toggleManualEntry()" 
+                                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 hover:scale-105">
+                            📍 Manual Entry
+                        </button>
+                        <button onclick="toggleRejectForm()"
+                                class="bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 hover:scale-105">
+                            ❌ Reject Location
+                        </button>
+                    </div>
+                    
+                    <!-- Enhanced Manual Entry Form -->
+                    <div id="manualEntry" class="hidden space-y-3 p-4 bg-white rounded-xl border-2 border-blue-200">
+                        <h4 class="font-bold text-gray-900 mb-2">🔧 Manual Coordinate Entry</h4>
+                        <input type="number" id="manualLat" placeholder="Latitude (e.g., -26.2041)" step="any" 
+                               class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg text-sm focus:border-blue-500 focus:outline-none">
+                        <input type="number" id="manualLng" placeholder="Longitude (e.g., 28.0473)" step="any"
+                               class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg text-sm focus:border-blue-500 focus:outline-none">
+                        <button onclick="saveManualCoordinates()"
+                                class="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200">
+                            💾 Save Coordinates
+                        </button>
+                    </div>
+                    
+                    <!-- Enhanced Reject Form -->
+                    <div id="rejectForm" class="hidden space-y-3 p-4 bg-white rounded-xl border-2 border-red-200">
+                        <h4 class="font-bold text-gray-900 mb-2">❌ Reject Location</h4>
+                        <textarea id="rejectNotes" placeholder="Please provide a reason for rejection..." rows="3"
+                                  class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg text-sm focus:border-red-500 focus:outline-none"></textarea>
+                        <button onclick="rejectLocation()"
+                                class="w-full bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200">
+                            🗑️ Confirm Rejection
+                        </button>
+                    </div>
+                </div>
+                {% else %}
+                <!-- Enhanced No Location State -->
+                <div class="flex-1 flex items-center justify-center p-8">
+                    <div class="text-center">
+                        <div class="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <span class="text-4xl">🎉</span>
+                        </div>
+                        <h3 class="text-2xl font-bold text-gray-900 mb-2">All Caught Up!</h3>
+                        <p class="text-gray-600 mb-6">No locations currently need validation</p>
+                        <a href="{% url 'geolocation:dashboard' %}" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-medium transition-all duration-200 hover:scale-105">
+                            📊 Return to Dashboard
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Enhanced Map Container -->
+            <div class="flex-1 relative">
+                <div id="map" class="w-full h-full"></div>
+                
+                <!-- Enhanced Map Info Panel -->
+                <div class="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-xl shadow-lg p-4 text-sm border border-gray-200">
+                    {% if current_location %}
+                    <div class="space-y-2">
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600">Data Sources:</span>
+                            <span class="font-bold text-gray-900">{{ current_location.coordinates|length }}/4</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600">Quality Rating:</span>
+                            <span class="font-bold {% if current_location.confidence >= 80 %}text-green-600{% elif current_location.confidence >= 60 %}text-yellow-600{% else %}text-red-600{% endif %}">
+                                {% if current_location.confidence >= 80 %}🟢 Excellent
+                                {% elif current_location.confidence >= 60 %}🟡 Good
+                                {% else %}🔴 Needs Review{% endif %}
+                            </span>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Enhanced Legend -->
+                <div class="absolute bottom-4 right-4 bg-white/90 backdrop-blur-sm rounded-xl shadow-lg p-4 text-sm border border-gray-200">
+                    <h4 class="font-bold text-gray-900 mb-3">📍 Data Sources</h4>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 rounded-full bg-blue-600 shadow-sm"></div>
+                            <span class="text-gray-700">HDX</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 rounded-full bg-green-600 shadow-sm"></div>
+                            <span class="text-gray-700">ArcGIS</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 rounded-full bg-red-600 shadow-sm"></div>
+                            <span class="text-gray-700">Google</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 rounded-full bg-orange-600 shadow-sm"></div>
+                            <span class="text-gray-700">OSM</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Enhanced Progress Indicator -->
+                <div class="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm rounded-xl shadow-lg p-3 text-sm border border-gray-200">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-20 bg-gray-200 rounded-full h-2">
+                            <div class="bg-blue-600 h-2 rounded-full transition-all duration-500" 
+                                 style="width: {% widthratio navigation.current_index navigation.total_pending 100 %}%"></div>
+                        </div>
+                        <span class="font-bold text-gray-900">{{ navigation.current_index }}/{{ navigation.total_pending }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Enhanced Messages Container -->
+    <div id="messageContainer" class="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 space-y-2"></div>
+
+    <!-- Enhanced Loading Overlay -->
+    <div id="loadingOverlay" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-xl p-6 flex items-center space-x-4 shadow-2xl">
+            <div class="loading-spinner"></div>
+            <span class="text-gray-700 font-medium">Processing your request...</span>
+        </div>
+    </div>
+
+    <script>
+        // Initialize enhanced map
+        mapboxgl.accessToken = '{{ mapbox_token }}';
+        const map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/satellite-streets-v11',
+            center: [25, -15],
+            zoom: 5
+        });
+
+        const locationsData = {{ locations_data|safe }};
+        let currentLocationData = {% if current_location %}{{ current_location|safe }}{% else %}null{% endif %};
+        let markers = [];
+
+        // Enhanced marker creation
+        function addMarkersToMap() {
+            if (!currentLocationData || !currentLocationData.coordinates) return;
+
+            const coordinates = currentLocationData.coordinates;
+            const bounds = new mapboxgl.LngLatBounds();
+
+            coordinates.forEach((coord, index) => {
+                // Create enhanced marker
+                const el = document.createElement('div');
+                el.className = 'source-marker';
+                
+                // Enhanced styling based on AI recommendation
+                if (coord.source === currentLocationData.recommended_source) {
+                    el.style.backgroundColor = coord.color;
+                    el.style.width = '18px';
+                    el.style.height = '18px';
+                    el.style.border = '4px solid #22c55e';
+                    el.style.boxShadow = '0 0 0 4px rgba(34, 197, 94, 0.3), 0 4px 12px rgba(0,0,0,0.3)';
+                } else {
+                    el.style.backgroundColor = coord.color;
+                    el.style.width = '14px';
+                    el.style.height = '14px';
+                    el.style.border = '3px solid white';
+                }
+                
+                el.style.borderRadius = '50%';
+                
+                // Click to zoom with smooth animation
+                el.addEventListener('click', () => {
+                    zoomToSource(coord.source_key, coord.lat, coord.lng);
+                });
+
+                // Enhanced popup
+                const isRecommended = coord.source === currentLocationData.recommended_source;
+                const popupHTML = `
+                    <div class="text-sm">
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="font-bold text-lg">${coord.source}</span>
+                            ${isRecommended ? '<span class="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-bold">🏆 AI Pick</span>' : ''}
+                        </div>
+                        <div class="space-y-2 mb-3">
+                            <div class="bg-gray-50 rounded p-2">
+                                <div class="text-xs text-gray-500">Coordinates</div>
+                                <div class="font-mono text-sm">${coord.lat.toFixed(5)}, ${coord.lng.toFixed(5)}</div>
+                            </div>
+                            <div class="bg-gray-50 rounded p-2">
+                                <div class="text-xs text-gray-500">Confidence</div>
+                                <div class="font-bold">${Math.round(coord.overall_confidence)}%</div>
+                            </div>
+                        </div>
+                        <button onclick="selectSource('${coord.source_key}', ${coord.lat}, ${coord.lng})" 
+                                class="${isRecommended ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'} text-white px-4 py-2 rounded-lg text-sm w-full font-medium transition-all duration-200">
+                            ${isRecommended ? '✅ Use AI Recommendation' : '📍 Use This Source'}
+                        </button>
+                    </div>
+                `;
+
+                const popup = new mapboxgl.Popup({ 
+                    offset: 20,
+                    closeButton: true,
+                    closeOnClick: false
+                }).setHTML(popupHTML);
+                
+                const marker = new mapboxgl.Marker(el)
+                    .setLngLat([coord.lng, coord.lat])
+                    .setPopup(popup)
+                    .addTo(map);
+                
+                markers.push(marker);
+                bounds.extend([coord.lng, coord.lat]);
+            });
+
+            // Enhanced map fitting
+            if (coordinates.length > 1) {
+                map.fitBounds(bounds, { 
+                    padding: 60,
+                    maxZoom: 16
+                });
+            } else if (coordinates.length === 1) {
+                map.flyTo({
+                    center: [coordinates[0].lng, coordinates[0].lat],
+                    zoom: 14,
+                    duration: 1500
+                });
+            }
+        }
+
+        // Enhanced zoom function
+        function zoomToSource(sourceKey, lat, lng) {
+            map.flyTo({
+                center: [lng, lat],
+                zoom: 18,
+                duration: 1500,
+                essential: true
+            });
+        }
+
+        // Initialize map
+        map.on('load', function() {
+            addMarkersToMap();
+        });
+
+        // Enhanced validation functions
+        function selectSource(source, lat, lng) {
+            if (!currentLocationData) return;
+            showLoading(true);
+            
+            fetch('{% url "geolocation:validation_api" %}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    action: 'use_source',
+                    geocoding_result_id: currentLocationData.id,
+                    source: source
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                showLoading(false);
+                if (data.success) {
+                    showMessage('✅ ' + data.message, 'success');
+                    setTimeout(() => {
+                        {% if navigation.has_next %}
+                        window.location.href = '{% url "geolocation:validation_map" %}?location_id={{ navigation.next_location_id }}';
+                        {% else %}
+                        window.location.href = '{% url "geolocation:dashboard" %}';
+                        {% endif %}
+                    }, 2000);
+                } else {
+                    showMessage('❌ ' + (data.error || 'Failed to save selection'), 'error');
+                }
+            })
+            .catch(error => {
+                showLoading(false);
+                showMessage('❌ An error occurred while saving', 'error');
+            });
+        }
+
+        function approveAIRecommendation() {
+            if (!currentLocationData) return;
+            showLoading(true);
+            
+            fetch('{% url "geolocation:validation_api" %}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    action: 'approve_suggestion',
+                    geocoding_result_id: currentLocationData.id
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                showLoading(false);
+                if (data.success) {
+                    showMessage('🎉 ' + data.message, 'success');
+                    setTimeout(() => {
+                        {% if navigation.has_next %}
+                        window.location.href = '{% url "geolocation:validation_map" %}?location_id={{ navigation.next_location_id }}';
+                        {% else %}
+                        window.location.href = '{% url "geolocation:dashboard" %}';
+                        {% endif %}
+                    }, 2000);
+                } else {
+                    showMessage('❌ ' + (data.error || 'Failed to approve recommendation'), 'error');
+                }
+            })
+            .catch(error => {
+                showLoading(false);
+                showMessage('❌ An error occurred during approval', 'error');
+            });
+        }
+
+        function toggleManualEntry() {
+            const form = document.getElementById('manualEntry');
+            form.classList.toggle('hidden');
+        }
+
+        function saveManualCoordinates() {
+            const lat = parseFloat(document.getElementById('manualLat').value);
+            const lng = parseFloat(document.getElementById('manualLng').value);
+
+            if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+                showMessage('❌ Please enter valid coordinates (lat: -90 to 90, lng: -180 to 180)', 'error');
+                return;
+            }
+
+            showLoading(true);
+            fetch('{% url "geolocation:validation_api" %}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    action: 'manual_coordinates',
+                    geocoding_result_id: currentLocationData.id,
+                    lat: lat,
+                    lng: lng,
+                    notes: 'Manual coordinate entry'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                showLoading(false);
+                if (data.success) {
+                    showMessage('✅ ' + data.message, 'success');
+                    setTimeout(() => {
+                        {% if navigation.has_next %}
+                        window.location.href = '{% url "geolocation:validation_map" %}?location_id={{ navigation.next_location_id }}';
+                        {% else %}
+                        window.location.href = '{% url "geolocation:dashboard" %}';
+                        {% endif %}
+                    }, 2000);
+                } else {
+                    showMessage('❌ ' + (data.error || 'Failed to save coordinates'), 'error');
+                }
+            })
+            .catch(error => {
+                showLoading(false);
+                showMessage('❌ An error occurred while saving', 'error');
+            });
+        }
+
+        function toggleRejectForm() {
+            const form = document.getElementById('rejectForm');
+            form.classList.toggle('hidden');
+        }
+
+        function rejectLocation() {
+            const notes = document.getElementById('rejectNotes').value;
+            if (!notes.trim()) {
+                showMessage('❌ Please provide a reason for rejection', 'error');
+                return;
+            }
+
+            showLoading(true);
+            fetch('{% url "geolocation:validation_api" %}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    action: 'reject',
+                    geocoding_result_id: currentLocationData.id,
+                    notes: notes
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                showLoading(false);
+                if (data.success) {
+                    showMessage('✅ ' + data.message, 'success');
+                    setTimeout(() => {
+                        {% if navigation.has_next %}
+                        window.location.href = '{% url "geolocation:validation_map" %}?location_id={{ navigation.next_location_id }}';
+                        {% else %}
+                        window.location.href = '{% url "geolocation:dashboard" %}';
+                        {% endif %}
+                    }, 2000);
+                } else {
+                    showMessage('❌ ' + (data.error || 'Failed to reject location'), 'error');
+                }
+            })
+            .catch(error => {
+                showLoading(false);
+                showMessage('❌ An error occurred during rejection', 'error');
+            });
+        }
+
+        function showMessage(message, type) {
+            const container = document.getElementById('messageContainer');
+            const colors = {
+                'success': 'bg-green-100 text-green-800 border-green-300',
+                'error': 'bg-red-100 text-red-800 border-red-300',
+                'info': 'bg-blue-100 text-blue-800 border-blue-300'
+            };
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `${colors[type]} border-2 px-6 py-4 rounded-xl shadow-lg backdrop-blur-sm max-w-md`;
+            messageDiv.innerHTML = `
+                <div class="flex items-center text-sm font-medium">
+                    <span>${message}</span>
+                </div>
+            `;
+            
+            // Add entrance animation
+            messageDiv.style.opacity = '0';
+            messageDiv.style.transform = 'translateY(-20px)';
+            container.appendChild(messageDiv);
+            
+            // Trigger animation
+            setTimeout(() => {
+                messageDiv.style.opacity = '1';
+                messageDiv.style.transform = 'translateY(0)';
+                messageDiv.style.transition = 'all 0.3s ease';
+            }, 10);
+            
+            // Remove after delay
+            setTimeout(() => {
+                messageDiv.style.opacity = '0';
+                messageDiv.style.transform = 'translateY(-20px)';
+                setTimeout(() => messageDiv.remove(), 300);
+            }, 5000);
+        }
+
+        function showLoading(show) {
+            const overlay = document.getElementById('loadingOverlay');
+            if (show) {
+                overlay.classList.remove('hidden');
+            } else {
+                overlay.classList.add('hidden');
+            }
+        }
+
+        // Enhanced keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowLeft' && {{ navigation.has_prev|yesno:"true,false" }}) {
+                window.location.href = '{% url "geolocation:validation_map" %}?location_id={{ navigation.prev_location_id }}';
+            } else if (e.key === 'ArrowRight' && {{ navigation.has_next|yesno:"true,false" }}) {
+                window.location.href = '{% url "geolocation:validation_map" %}?location_id={{ navigation.next_location_id }}';
+            } else if (e.key === 'Enter' && currentLocationData && currentLocationData.confidence >= 70) {
+                approveAIRecommendation();
+            } else if (e.key === 'Escape') {
+                // Close any open forms
+                document.getElementById('manualEntry').classList.add('hidden');
+                document.getElementById('rejectForm').classList.add('hidden');
+            }
+        });
+
+        // Add some helpful tooltips and user guidance
+        document.addEventListener('DOMContentLoaded', function() {
+            // Show a helpful message on first load
+            setTimeout(() => {
+                if (currentLocationData && currentLocationData.coordinates.length > 0) {
+                    showMessage('💡 Click on map markers or source cards to explore. Use keyboard arrows to navigate.', 'info');
+                }
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

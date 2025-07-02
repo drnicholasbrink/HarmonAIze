@@ -1,9 +1,9 @@
-version: '3.8'
-
 volumes:
   harmonaize_local_postgres_data: {}
   harmonaize_local_postgres_data_backups: {}
   harmonaize_local_redis_data: {}
+  nominatim_data: {}
+  nominatim_flatnode: {}
 
 services:
   django: &django
@@ -21,7 +21,6 @@ services:
     env_file:
       - ./.envs/.local/.django
       - ./.envs/.local/.postgres
-
     ports:
       - '8000:8000'
     command: /start
@@ -49,10 +48,8 @@ services:
   redis:
     image: docker.io/redis:6
     container_name: harmonaize_local_redis
-    
     volumes:
       - harmonaize_local_redis_data:/data
-    
 
   celeryworker:
     <<: *django
@@ -83,3 +80,56 @@ services:
     ports:
       - '5555:5555'
     command: /start-flower
+
+  # Zimbabwe Nominatim - Optimized for testing
+  nominatim:
+    image: mediagis/nominatim:4.4
+    container_name: harmonaize_local_nominatim
+    environment:
+      - NOMINATIM_PASSWORD=harmonaize_secure_pass_2024
+      - PBF_PATH=/nominatim-import/zimbabwe-latest.osm.pbf
+      - UPDATE_MODE=import
+      
+      # Use 'street' for balanced coverage (health facilities included)
+      - IMPORT_STYLE=street
+      
+      # Disable unnecessary imports for faster setup
+      - IMPORT_WIKIPEDIA=false
+      - IMPORT_US_POSTCODES=false
+      - IMPORT_GB_POSTCODES=false
+      - IMPORT_TIGER_ADDRESSES=false
+      
+      # Enable full geocoding (not just reverse)
+      - REVERSE_ONLY=false
+      - FREEZE=false
+      
+      # Optimized for smaller dataset
+      - THREADS=4
+      - GUNICORN_WORKERS=2
+      
+      # Memory settings for Zimbabwe (much smaller than Africa)
+      - POSTGRES_SHARED_BUFFERS=1GB
+      - POSTGRES_MAINTENANCE_WORK_MEM=2GB
+      - POSTGRES_AUTOVACUUM_WORK_MEM=1GB
+      - POSTGRES_WORK_MEM=256MB
+      - POSTGRES_EFFECTIVE_CACHE_SIZE=4GB
+      - POSTGRES_SYNCHRONOUS_COMMIT=off
+      - POSTGRES_MAX_WAL_SIZE=1GB
+      - POSTGRES_CHECKPOINT_TIMEOUT=10min
+      - POSTGRES_CHECKPOINT_COMPLETION_TARGET=0.9
+      - POSTGRES_WAL_BUFFERS=32MB
+      - POSTGRES_RANDOM_PAGE_COST=1.1
+      
+    ports:
+      - "8080:8080"
+    volumes:
+      - nominatim_data:/var/lib/postgresql/14/main
+      - nominatim_flatnode:/nominatim/flatnode
+      - C:/Users/ruten/Desktop/osm_africa:/nominatim-import:ro
+    shm_size: '2gb'
+    deploy:
+      resources:
+        limits:
+          memory: 6G
+        reservations:
+          memory: 2G

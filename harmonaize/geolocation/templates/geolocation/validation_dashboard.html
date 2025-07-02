@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GeoValidator Dashboard - Location Intelligence Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .loading-spinner {
+            border: 2px solid #f3f4f6;
+            border-top: 2px solid #3b82f6;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .stat-card {
+            transition: all 0.3s ease;
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        }
+
+        .action-card {
+            transition: all 0.3s ease;
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+        }
+        
+        .action-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        }
+
+        .pulse-glow {
+            animation: pulse-glow 2s infinite;
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
+            50% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-gray-50 to-blue-50 min-h-screen">
+    <div class="min-h-screen">
+        <!-- Enhanced Header -->
+        <header class="bg-white/80 backdrop-blur-sm shadow-lg border-b border-gray-200">
+            <div class="max-w-7xl mx-auto px-6 py-6">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center space-x-4">
+                        <div class="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+                            <span class="text-white text-xl font-bold">🗺️</span>
+                        </div>
+                        <div>
+                            <h1 class="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                                GeoValidator
+                            </h1>
+                            <p class="text-gray-600 font-medium">AI-Powered Location Intelligence & Validation Platform</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <div class="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
+                            🟢 System Active
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="max-w-7xl mx-auto px-6 py-8">
+            
+            <!-- Enhanced Status Overview -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <!-- Total Location Names -->
+                <div class="stat-card rounded-2xl shadow-lg p-6 border border-gray-100">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <div class="flex items-center mb-2">
+                                <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center mr-3 shadow-md">
+                                    <span class="text-white text-lg">📝</span>
+                                </div>
+                                <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wide">Location Names Imported</h3>
+                            </div>
+                            <div id="totalLocations" class="text-3xl font-bold text-gray-900 mb-1">-</div>
+                            <div class="text-sm text-gray-500">From Research Documents</div>
+                        </div>
+                        <div class="text-blue-400 text-2xl">📊</div>
+                    </div>
+                </div>
+
+                <!-- Awaiting Geocoding -->
+                <div class="stat-card rounded-2xl shadow-lg p-6 border border-gray-100">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <div class="flex items-center mb-2">
+                                <div class="w-10 h-10 bg-gradient-to-br from-orange-500 to-red-500 rounded-lg flex items-center justify-center mr-3 shadow-md">
+                                    <span class="text-white text-lg">📍</span>
+                                </div>
+                                <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wide">Awaiting Geocoding</h3>
+                            </div>
+                            <div id="awaitingGeocoding" class="text-3xl font-bold text-orange-600 mb-1">-</div>
+                            <div class="text-sm text-gray-500">Need Coordinate Lookup</div>
+                        </div>
+                        <div class="text-orange-400 text-2xl">🔍</div>
+                    </div>
+                </div>
+
+                <!-- Pending Human Review -->
+                <div class="stat-card rounded-2xl shadow-lg p-6 border border-gray-100">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <div class="flex items-center mb-2">
+                                <div class="w-10 h-10 bg-gradient-to-br from-yellow-500 to-amber-500 rounded-lg flex items-center justify-center mr-3 shadow-md">
+                                    <span class="text-white text-lg">⏳</span>
+                                </div>
+                                <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wide">Pending Human Review</h3>
+                            </div>
+                            <div id="pendingReview" class="text-3xl font-bold text-yellow-600 mb-1">-</div>
+                            <div class="text-sm text-gray-500">AI Found Coordinates</div>
+                        </div>
+                        <div class="text-yellow-400 text-2xl">🧠</div>
+                    </div>
+                </div>
+
+                <!-- Validated & Complete -->
+                <div class="stat-card rounded-2xl shadow-lg p-6 border border-gray-100">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <div class="flex items-center mb-2">
+                                <div class="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg flex items-center justify-center mr-3 shadow-md">
+                                    <span class="text-white text-lg">✅</span>
+                                </div>
+                                <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wide">Validated & Complete</h3>
+                            </div>
+                            <div id="validatedComplete" class="text-3xl font-bold text-green-600 mb-1">-</div>
+                            <div class="text-sm text-gray-500">Ready for Analysis</div>
+                        </div>
+                        <div class="text-green-400 text-2xl">🚀</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Cards Section -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                
+                <!-- Step 1: Find Coordinates -->
+                <div class="action-card rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+                    <div class="bg-gradient-to-r from-blue-500 to-purple-600 p-6 text-white">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                                <span class="text-2xl">🌍</span>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold">Step 1: Find Coordinates</h3>
+                                <p class="text-blue-100">Search multiple databases for precise location data</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="p-6">
+                        <div class="space-y-4">
+                            <!-- Data Sources Info -->
+                            <div class="bg-gray-50 rounded-xl p-4">
+                                <h4 class="font-semibold text-gray-700 mb-2">📡 Data Sources</h4>
+                                <div class="grid grid-cols-2 gap-2 text-sm text-gray-600">
+                                    <div class="flex items-center space-x-2">
+                                        <div class="w-3 h-3 bg-red-500 rounded-full"></div>
+                                        <span>Google Maps</span>
+                                    </div>
+                                    <div class="flex items-center space-x-2">
+                                        <div class="w-3 h-3 bg-green-500 rounded-full"></div>
+                                        <span>ArcGIS</span>
+                                    </div>
+                                    <div class="flex items-center space-x-2">
+                                        <div class="w-3 h-3 bg-orange-500 rounded-full"></div>
+                                        <span>OpenStreetMap</span>
+                                    </div>
+                                    <div class="flex items-center space-x-2">
+                                        <div class="w-3 h-3 bg-blue-500 rounded-full"></div>
+                                        <span>HDX Health Facilities</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Processing Options -->
+                            <div class="bg-gray-50 rounded-xl p-4">
+                                <div class="flex items-center justify-between mb-3">
+                                    <label class="text-sm font-semibold text-gray-700">⚙️ Processing Options</label>
+                                    <div class="flex items-center space-x-2">
+                                        <input type="checkbox" id="forceGeocode" class="rounded text-blue-600">
+                                        <label for="forceGeocode" class="text-sm text-gray-600 font-medium">Re-process All</label>
+                                    </div>
+                                </div>
+                                <p class="text-xs text-gray-500">System will skip locations that already have coordinates unless you check "Re-process All"</p>
+                            </div>
+                            
+                            <!-- Action Button -->
+                            <button onclick="runGeocoding()" id="geocodingBtn"
+                                    class="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 py-4 rounded-xl font-bold text-lg transition-all duration-300 transform hover:scale-105 shadow-lg">
+                                <span class="flex items-center justify-center space-x-2">
+                                    <span>🚀</span>
+                                    <span>Start Coordinate Search</span>
+                                </span>
+                            </button>
+                            
+                            <!-- Progress Display -->
+                            <div id="geocodingProgress" class="hidden">
+                                <div class="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 rounded-xl p-6">
+                                    <div class="flex items-center space-x-4">
+                                        <div class="loading-spinner border-blue-500"></div>
+                                        <div class="flex-1">
+                                            <div class="text-lg font-bold text-blue-800 mb-1">Searching for Coordinates...</div>
+                                            <div id="geocodingStatus" class="text-sm text-blue-600">Querying multiple location databases</div>
+                                            <div class="w-full bg-blue-200 rounded-full h-2 mt-2">
+                                                <div id="geocodingProgressBar" class="bg-blue-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Results Display -->
+                            <div id="geocodingResults" class="hidden bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 border-2 border-green-200">
+                                <h4 class="text-lg font-bold text-green-800 mb-4 flex items-center">
+                                    <span class="mr-2">📊</span>
+                                    Search Results
+                                </h4>
+                                <div id="geocodingStats" class="text-sm text-green-700"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Validate Quality -->
+                <div class="action-card rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+                    <div class="bg-gradient-to-r from-purple-500 to-pink-600 p-6 text-white">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                                <span class="text-2xl">🎯</span>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold">Step 2: Validate Quality</h3>
+                                <p class="text-purple-100">AI analysis and human review for accuracy</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="p-6">
+                        <div class="space-y-4">
+                            <!-- AI Validation Info -->
+                            <div class="bg-gray-50 rounded-xl p-4">
+                                <h4 class="font-semibold text-gray-700 mb-2">🤖 AI Quality Checks</h4>
+                                <ul class="text-sm text-gray-600 space-y-1">
+                                    <li>• Compare coordinates from different sources</li>
+                                    <li>• Reverse geocoding to verify location names</li>
+                                    <li>• Distance analysis and confidence scoring</li>
+                                    <li>• Automatic validation for high-confidence matches</li>
+                                </ul>
+                            </div>
+                            
+                            <!-- Action Buttons -->
+                            <div class="space-y-3">
+                                <button onclick="runSmartValidation()" id="aiAnalysisBtn"
+                                        class="w-full px-6 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:from-purple-700 hover:to-pink-700 transition-all duration-300 font-bold text-lg transform hover:scale-105 shadow-lg">
+                                    <span class="flex items-center justify-center space-x-2">
+                                        <span>🧠</span>
+                                        <span>Run AI Quality Analysis</span>
+                                    </span>
+                                </button>
+                                
+                                <a href="{% url 'geolocation:validation_map' %}" 
+                                   class="block w-full px-6 py-4 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-xl hover:from-emerald-700 hover:to-green-700 transition-all duration-300 text-center font-bold text-lg transform hover:scale-105 shadow-lg">
+                                    <span class="flex items-center justify-center space-x-2">
+                                        <span>🗺️</span>
+                                        <span>Manual Validation Interface</span>
+                                    </span>
+                                </a>
+                                
+                                <button onclick="autoValidateHighConfidence()" id="autoValidateBtn"
+                                        class="w-full px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-xl hover:from-cyan-600 hover:to-blue-600 transition-all duration-300 font-semibold transform hover:scale-105 shadow-md">
+                                    <span class="flex items-center justify-center space-x-2">
+                                        <span>⚡</span>
+                                        <span>Auto-approve High Confidence (≥80%)</span>
+                                    </span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Enhanced Validation Queue -->
+            <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+                <div class="bg-gradient-to-r from-gray-800 to-gray-900 p-6 text-white">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                                <span class="text-xl">👁️</span>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold">Locations Requiring Human Review</h3>
+                                <p class="text-gray-300">AI found coordinates but needs your verification</p>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-2xl font-bold" id="queueCount">-</div>
+                            <div class="text-xs text-gray-300">in queue</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Location Details</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">AI Confidence</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Status</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Data Sources</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="validationQueueTable" class="bg-white divide-y divide-gray-200">
+                            <!-- Content will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Enhanced Messages -->
+    <div id="messageContainer" class="fixed top-6 right-6 z-50 space-y-2"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            refreshStats();
+            // Refresh stats every 30 seconds
+            setInterval(refreshStats, 30000);
+        });
+
+        function refreshStats() {
+            fetch('{% url "geolocation:geocoding_api" %}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action: 'get_geocoding_stats'})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const stats = data.stats;
+                    
+                    // Update the stats with clearer terminology
+                    document.getElementById('totalLocations').textContent = stats.total_locations;
+                    document.getElementById('awaitingGeocoding').textContent = stats.need_geocoding;
+                    
+                    // Pending validation = locations with geocoding results but no validation
+                    const pendingValidation = stats.pending_validation || 0;
+                    document.getElementById('pendingReview').textContent = pendingValidation;
+                    
+                    // Validated locations
+                    const validatedComplete = stats.geocoded_locations;
+                    document.getElementById('validatedComplete').textContent = validatedComplete;
+                    
+                    // Update queue count
+                    document.getElementById('queueCount').textContent = pendingValidation;
+                    
+                    // Update the validation queue table
+                    updateValidationQueueTable(pendingValidation);
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching stats:', error);
+                showMessage('⚠️ Unable to refresh statistics. Please check your connection.', 'error');
+            });
+        }
+
+        function updateValidationQueueTable(pendingCount) {
+            const tableBody = document.getElementById('validationQueueTable');
+            
+            if (pendingCount === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="px-6 py-12 text-center">
+                            <div class="flex flex-col items-center space-y-4">
+                                <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center">
+                                    <span class="text-4xl">🎉</span>
+                                </div>
+                                <div>
+                                    <div class="text-xl font-bold text-gray-900 mb-2">All Caught Up!</div>
+                                    <div class="text-gray-600">No locations currently need human review</div>
+                                    <div class="text-sm text-gray-500 mt-1">Great work on maintaining data quality!</div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            } else {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="px-6 py-8 text-center">
+                            <div class="flex flex-col items-center space-y-4">
+                                <div class="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center">
+                                    <span class="text-3xl">📋</span>
+                                </div>
+                                <div>
+                                    <div class="text-lg font-bold text-gray-900 mb-2">${pendingCount} Locations Need Review</div>
+                                    <div class="text-gray-600 mb-4">AI has found coordinates but needs human verification</div>
+                                    <a href="{% url 'geolocation:validation_map' %}" 
+                                       class="inline-flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors duration-200 transform hover:scale-105">
+                                        <span class="mr-2">🗺️</span>
+                                        Start Manual Review
+                                    </a>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        function runGeocoding() {
+            const force = document.getElementById('forceGeocode').checked;
+            const btn = document.getElementById('geocodingBtn');
+            
+            document.getElementById('geocodingProgress').classList.remove('hidden');
+            document.getElementById('geocodingResults').classList.add('hidden');
+            btn.disabled = true;
+            btn.innerHTML = '<div class="flex items-center justify-center space-x-2"><div class="loading-spinner border-white"></div><span>Processing...</span></div>';
+            document.getElementById('geocodingStatus').textContent = 'Initializing coordinate search...';
+            
+            // Simulate progress updates
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress += Math.random() * 15;
+                if (progress > 90) progress = 90;
+                document.getElementById('geocodingProgressBar').style.width = progress + '%';
+            }, 500);
+            
+            fetch('{% url "geolocation:geocoding_api" %}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action: 'run_geocoding', force: force})
+            })
+            .then(response => response.json())
+            .then(data => {
+                clearInterval(progressInterval);
+                document.getElementById('geocodingProgressBar').style.width = '100%';
+                
+                setTimeout(() => {
+                    document.getElementById('geocodingProgress').classList.add('hidden');
+                    btn.disabled = false;
+                    btn.innerHTML = '<span class="flex items-center justify-center space-x-2"><span>🚀</span><span>Start Coordinate Search</span></span>';
+                    
+                    if (data.success) {
+                        const stats = data.stats;
+                        document.getElementById('geocodingResults').classList.remove('hidden');
+                        document.getElementById('geocodingStats').innerHTML = `
+                            <div class="grid grid-cols-2 gap-4 text-sm">
+                                <div class="bg-white rounded-lg p-3 border border-green-200">
+                                    <div class="flex items-center space-x-2">
+                                        <span class="text-green-600 text-lg">✅</span>
+                                        <div>
+                                            <div class="font-bold text-green-800">${stats.successful}</div>
+                                            <div class="text-green-600">Found Coordinates</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="bg-white rounded-lg p-3 border border-red-200">
+                                    <div class="flex items-center space-x-2">
+                                        <span class="text-red-600 text-lg">❌</span>
+                                        <div>
+                                            <div class="font-bold text-red-800">${stats.failed}</div>
+                                            <div class="text-red-600">No Results</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="bg-white rounded-lg p-3 border border-blue-200">
+                                    <div class="flex items-center space-x-2">
+                                        <span class="text-blue-600 text-lg">📋</span>
+                                        <div>
+                                            <div class="font-bold text-blue-800">${stats.used_validated}</div>
+                                            <div class="text-blue-600">From Cache</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="bg-white rounded-lg p-3 border border-purple-200">
+                                    <div class="flex items-center space-x-2">
+                                        <span class="text-purple-600 text-lg">🔍</span>
+                                        <div>
+                                            <div class="font-bold text-purple-800">${stats.successful - stats.used_validated}</div>
+                                            <div class="text-purple-600">New Searches</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        showMessage('🎉 Coordinate search completed successfully!', 'success');
+                        refreshStats();
+                    } else {
+                        showMessage('❌ Search failed: ' + (data.error || 'Unknown error occurred'), 'error');
+                    }
+                }, 1000);
+            })
+            .catch(error => {
+                clearInterval(progressInterval);
+                document.getElementById('geocodingProgress').classList.add('hidden');
+                btn.disabled = false;
+                btn.innerHTML = '<span class="flex items-center justify-center space-x-2"><span>🚀</span><span>Start Coordinate Search</span></span>';
+                showMessage('❌ Connection error during coordinate search', 'error');
+            });
+        }
+
+        function runSmartValidation() {
+            const btn = document.getElementById('aiAnalysisBtn');
+            
+            if (confirm('🤖 Run AI quality analysis on all pending locations?\n\nThis will analyze coordinate accuracy and create confidence scores.')) {
+                btn.disabled = true;
+                btn.innerHTML = '<div class="flex items-center justify-center space-x-2"><div class="loading-spinner border-white"></div><span>Analyzing...</span></div>';
+                showMessage('🤖 AI analysis started - this may take a moment...', 'info');
+                
+                fetch('{% url "geolocation:bulk_validation_actions" %}', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action: 'run_smart_validation_batch'})
+                })
+                .then(response => response.json())
+                .then(data => {
+                    btn.disabled = false;
+                    btn.innerHTML = '<span class="flex items-center justify-center space-x-2"><span>🧠</span><span>Run AI Quality Analysis</span></span>';
+                    
+                    if (data.success) {
+                        showMessage('🎉 AI analysis completed: ' + data.message, 'success');
+                        setTimeout(() => location.reload(), 2000);
+                    } else {
+                        showMessage('❌ AI analysis failed: ' + (data.error || 'Processing error occurred'), 'error');
+                    }
+                })
+                .catch(error => {
+                    btn.disabled = false;
+                    btn.innerHTML = '<span class="flex items-center justify-center space-x-2"><span>🧠</span><span>Run AI Quality Analysis</span></span>';
+                    showMessage('❌ Connection error during AI analysis', 'error');
+                });
+            }
+        }
+
+        function autoValidateHighConfidence() {
+            const btn = document.getElementById('autoValidateBtn');
+            
+            if (confirm('⚡ Automatically approve all high-confidence locations (≥80%)?\n\nThis will mark them as validated without manual review.')) {
+                btn.disabled = true;
+                btn.innerHTML = '<div class="flex items-center justify-center space-x-2"><div class="loading-spinner border-white"></div><span>Processing...</span></div>';
+                showMessage('⚡ Auto-validation in progress...', 'info');
+                
+                fetch('{% url "geolocation:bulk_validation_actions" %}', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action: 'auto_validate_high_confidence'})
+                })
+                .then(response => response.json())
+                .then(data => {
+                    btn.disabled = false;
+                    btn.innerHTML = '<span class="flex items-center justify-center space-x-2"><span>⚡</span><span>Auto-approve High Confidence (≥80%)</span></span>';
+                    
+                    if (data.success) {
+                        showMessage('🎉 Auto-validation completed: ' + data.message, 'success');
+                        setTimeout(() => location.reload(), 2000);
+                    } else {
+                        showMessage('❌ Auto-validation failed: ' + (data.error || 'Processing error occurred'), 'error');
+                    }
+                })
+                .catch(error => {
+                    btn.disabled = false;
+                    btn.innerHTML = '<span class="flex items-center justify-center space-x-2"><span>⚡</span><span>Auto-approve High Confidence (≥80%)</span></span>';
+                    showMessage('❌ Connection error during auto-validation', 'error');
+                });
+            }
+        }
+
+        function showMessage(message, type) {
+            const container = document.getElementById('messageContainer');
+            const alertClasses = {
+                'success': 'bg-green-100 text-green-800 border-green-300 shadow-green-200',
+                'error': 'bg-red-100 text-red-800 border-red-300 shadow-red-200',
+                'info': 'bg-blue-100 text-blue-800 border-blue-300 shadow-blue-200'
+            };
+            const icons = {
+                'success': '✅',
+                'error': '❌', 
+                'info': 'ℹ️'
+            };
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `${alertClasses[type]} border-2 px-6 py-4 rounded-xl shadow-lg backdrop-blur-sm max-w-sm transform transition-all duration-300 hover:scale-105`;
+            messageDiv.innerHTML = `
+                <div class="flex items-center space-x-3">
+                    <span class="text-xl">${icons[type]}</span>
+                    <div class="font-medium">${message}</div>
+                </div>
+            `;
+            
+            // Add entrance animation
+            messageDiv.style.opacity = '0';
+            messageDiv.style.transform = 'translateX(100px)';
+            container.appendChild(messageDiv);
+            
+            // Trigger entrance animation
+            setTimeout(() => {
+                messageDiv.style.opacity = '1';
+                messageDiv.style.transform = 'translateX(0)';
+            }, 10);
+            
+            // Remove after delay
+            setTimeout(() => {
+                messageDiv.style.opacity = '0';
+                messageDiv.style.transform = 'translateX(100px)';
+                setTimeout(() => messageDiv.remove(), 300);
+            }, 6000);
+        }
+    </script>
+</body>
+</html>
