@@ -425,6 +425,45 @@ To only view one app's ERD, specify with app flag:
 
     $ docker-compose -f docker-compose.local.yml run --rm django python manage.py graph_models core health -o erd.png 
 
+### Generating Entity-Relationship Diagrams (ERDs)
+
+To generate ERDs for your Django models using `django-extensions` and `pygraphviz`, use the following commands. All output files will be saved in the `erd/` directory at the project root.
+
+#### 1. Generate an overall ERD for all apps
+
+```bash
+docker-compose -f docker-compose.local.yml run --rm django python manage.py graph_models -a -g -o erd/overall.png
+```
+- `-a` : Include all applications
+- `-g` : Group models by app
+- `-o` : Output file (format inferred from extension)
+
+#### 2. Generate an ERD for a specific app (e.g. core)
+
+```bash
+docker-compose -f docker-compose.local.yml run --rm django python manage.py graph_models core -g -o erd/core.png
+```
+
+#### 3. Generate ERDs for all main apps (core, health, climate, geolocation)
+
+```bash
+# Core app
+docker-compose -f docker-compose.local.yml run --rm django python manage.py graph_models core -g -o erd/core.png
+# Health app
+docker-compose -f docker-compose.local.yml run --rm django python manage.py graph_models health -g -o erd/health.png
+# Climate app
+docker-compose -f docker-compose.local.yml run --rm django python manage.py graph_models climate -g -o erd/climate.png
+# Geolocation app
+docker-compose -f docker-compose.local.yml run --rm django python manage.py graph_models geolocation -g -o erd/geolocation.png
+```
+
+You can open the resulting PNG files in the `erd/` directory to view the diagrams. For other formats, change the file extension (e.g. `erd/overall.svg`).
+
+> **Tip:** For more options, run:
+> ```bash
+> docker-compose -f docker-compose.local.yml run --rm django python manage.py graph_models --help
+> ```
+
 ### Type Checks
 
 Running type checks with mypy:
