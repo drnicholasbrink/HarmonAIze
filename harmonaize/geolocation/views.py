@@ -865,7 +865,7 @@ def handle_use_source(validation, data):
                     'final_lat': final_lat,
                     'final_long': final_lng,
                     'country': '',
-                    'source': f'user_selected_{source}'
+                    'source': f'{source}'
                 }
             )
             
