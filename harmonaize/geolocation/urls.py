@@ -23,4 +23,6 @@ urlpatterns = [
     
     # Validation queue API for real data display
     path('api/validation-queue/', views.validation_queue_api, name='validation_queue_api'),
+    # Add this to your urlpatterns:
+    path('validated-map/', views.validated_locations_map, name='validated_locations_map'),
 ]

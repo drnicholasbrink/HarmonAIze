@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Validated Locations Map - GeoValidator</title>
+    <script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        .mapboxgl-popup-content {
+            padding: 16px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+        
+        .validated-marker {
+            border-radius: 50%;
+            border: 3px solid #22c55e;
+            background-color: #10b981;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .validated-marker:hover {
+            transform: scale(1.2);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+        }
+
+        .download-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .loading-spinner {
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid #10b981;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .map-layer-control {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .layer-button {
+            transition: all 0.3s ease;
+            border-radius: 8px;
+        }
+
+        .layer-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .layer-button.active {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-green-50 to-blue-50 h-screen overflow-hidden">
+    <div class="h-screen flex flex-col">
+        <!-- Enhanced Header -->
+        <header class="bg-white shadow-lg border-b-2 border-green-100 h-16 flex-shrink-0">
+            <div class="h-full px-6 flex justify-between items-center">
+                <div class="flex items-center space-x-4">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
+                            <span class="text-white text-sm font-bold">✅</span>
+                        </div>
+                        <h1 class="text-xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                            Validated Locations Map
+                        </h1>
+                    </div>
+                    
+                    <div class="flex items-center space-x-2">
+                        <span class="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
+                            {{ total_locations }} Validated Locations
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="flex items-center space-x-3">
+                    <a href="{% url 'geolocation:validation_dashboard' %}" 
+                       class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:scale-105">
+                        ← Back to Dashboard
+                    </a>
+                </div>
+            </div>
+        </header>
+
+        <!-- Map Container -->
+        <div class="flex-1 relative">
+            <div id="map" class="w-full h-full"></div>
+            
+            <!-- Map Layer Control -->
+            <div class="absolute top-4 left-4 map-layer-control p-4 text-sm">
+                <h4 class="font-bold text-gray-900 mb-3">🗺️ Map Layers</h4>
+                <div class="grid grid-cols-1 gap-2">
+                    <button onclick="changeMapLayer('satellite')" 
+                            class="layer-button px-3 py-2 text-left text-gray-700 hover:bg-gray-100 active" 
+                            id="satellite-btn">
+                        🛰️ Satellite
+                    </button>
+                    <button onclick="changeMapLayer('streets')" 
+                            class="layer-button px-3 py-2 text-left text-gray-700 hover:bg-gray-100" 
+                            id="streets-btn">
+                        🗺️ Streets
+                    </button>
+                    <button onclick="changeMapLayer('terrain')" 
+                            class="layer-button px-3 py-2 text-left text-gray-700 hover:bg-gray-100" 
+                            id="terrain-btn">
+                        🏔️ Terrain
+                    </button>
+                    <button onclick="changeMapLayer('outdoors')" 
+                            class="layer-button px-3 py-2 text-left text-gray-700 hover:bg-gray-100" 
+                            id="outdoors-btn">
+                        🌲 Outdoors
+                    </button>
+                </div>
+            </div>
+
+            <!-- Download Panel -->
+            <div class="absolute top-4 right-4 download-panel p-4 text-sm">
+                <h4 class="font-bold text-gray-900 mb-3">📥 Download Map</h4>
+                <div class="space-y-2">
+                    <button onclick="downloadMap('pdf')" 
+                            class="w-full bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center justify-center space-x-2">
+                        <span>📄</span>
+                        <span>Download PDF</span>
+                    </button>
+                    <button onclick="downloadMap('png')" 
+                            class="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center justify-center space-x-2">
+                        <span>🖼️</span>
+                        <span>Download PNG</span>
+                    </button>
+                    <button onclick="downloadMap('svg')" 
+                            class="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center justify-center space-x-2">
+                        <span>🎨</span>
+                        <span>Download SVG</span>
+                    </button>
+                </div>
+                
+                <!-- Download Progress -->
+                <div id="downloadProgress" class="hidden mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <div class="flex items-center space-x-2">
+                        <div class="loading-spinner"></div>
+                        <span class="text-sm text-blue-800">Generating download...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Map Info Panel -->
+            <div class="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm rounded-xl shadow-lg p-4 text-sm border border-gray-200">
+                <div class="space-y-2">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-4 h-4 bg-green-500 rounded-full border-2 border-green-300"></div>
+                        <span class="font-medium text-gray-700">Validated Locations</span>
+                    </div>
+                    <div class="text-xs text-gray-500">
+                        Total: {{ total_locations }} locations with confirmed coordinates
+                    </div>
+                </div>
+            </div>
+
+            <!-- Statistics Panel -->
+            <div class="absolute bottom-4 right-4 bg-white/90 backdrop-blur-sm rounded-xl shadow-lg p-4 text-sm border border-gray-200">
+                <h4 class="font-bold text-gray-900 mb-2">📊 Statistics</h4>
+                <div class="space-y-1 text-xs">
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Validated:</span>
+                        <span class="font-bold text-green-600">{{ total_locations }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Map Zoom:</span>
+                        <span class="font-bold text-gray-900" id="currentZoom">-</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Map Center:</span>
+                        <span class="font-bold text-gray-900" id="currentCenter">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Messages Container -->
+    <div id="messageContainer" class="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 space-y-2"></div>
+
+    <script>
+        // Initialize map
+        mapboxgl.accessToken = '{{ mapbox_token }}';
+        const map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/satellite-streets-v11',
+            center: [25, -15],
+            zoom: 5
+        });
+
+        const locationsData = {{ locations_data|safe }};
+        let markers = [];
+        let currentMapStyle = 'satellite';
+
+        // Map layer styles
+        const mapStyles = {
+            'satellite': 'mapbox://styles/mapbox/satellite-streets-v11',
+            'streets': 'mapbox://styles/mapbox/streets-v11',
+            'terrain': 'mapbox://styles/mapbox/outdoors-v11',
+            'outdoors': 'mapbox://styles/mapbox/outdoors-v11'
+        };
+
+        // Map layer switching
+        function changeMapLayer(layerType) {
+            if (layerType === currentMapStyle) return;
+            
+            // Update button states
+            document.querySelectorAll('.layer-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.getElementById(`${layerType}-btn`).classList.add('active');
+            
+            // Change map style
+            map.setStyle(mapStyles[layerType]);
+            currentMapStyle = layerType;
+            
+            // Re-add markers after style change
+            map.on('styledata', function() {
+                setTimeout(() => {
+                    addMarkersToMap();
+                }, 100);
+            });
+        }
+
+        // Add markers to map
+        function addMarkersToMap() {
+            // Clear existing markers
+            markers.forEach(marker => marker.remove());
+            markers = [];
+
+            if (locationsData.length === 0) {
+                showMessage('No validated locations found', 'info');
+                return;
+            }
+
+            const bounds = new mapboxgl.LngLatBounds();
+
+            locationsData.forEach((location, index) => {
+                // Create marker
+                const el = document.createElement('div');
+                el.className = 'validated-marker';
+                el.style.width = '16px';
+                el.style.height = '16px';
+
+                // Enhanced popup
+                const popupHTML = `
+                    <div class="text-sm">
+                        <div class="font-bold text-lg mb-2 text-green-800">${location.name}</div>
+                        <div class="space-y-2 mb-3">
+                            <div class="bg-green-50 rounded p-2">
+                                <div class="text-xs text-green-600 font-medium">✅ Validated Coordinates</div>
+                                <div class="font-mono text-sm text-gray-800">${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}</div>
+                            </div>
+                            <div class="bg-gray-50 rounded p-2">
+                                <div class="text-xs text-gray-500">Status</div>
+                                <div class="text-sm font-medium text-green-600">Ready for Analysis</div>
+                            </div>
+                        </div>
+                        <button onclick="zoomToLocation(${location.lat}, ${location.lng})" 
+                                class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm w-full font-medium transition-all duration-200">
+                            🔍 Zoom to Location
+                        </button>
+                    </div>
+                `;
+
+                const popup = new mapboxgl.Popup({ 
+                    offset: 15,
+                    closeButton: true,
+                    closeOnClick: false
+                }).setHTML(popupHTML);
+                
+                const marker = new mapboxgl.Marker(el)
+                    .setLngLat([location.lng, location.lat])
+                    .setPopup(popup)
+                    .addTo(map);
+                
+                markers.push(marker);
+                bounds.extend([location.lng, location.lat]);
+            });
+
+            // Fit map to show all markers
+            if (locationsData.length > 1) {
+                map.fitBounds(bounds, { 
+                    padding: 60,
+                    maxZoom: 16
+                });
+            } else if (locationsData.length === 1) {
+                map.flyTo({
+                    center: [locationsData[0].lng, locationsData[0].lat],
+                    zoom: 14,
+                    duration: 1500
+                });
+            }
+        }
+
+        // Zoom to specific location
+        function zoomToLocation(lat, lng) {
+            map.flyTo({
+                center: [lng, lat],
+                zoom: 16,
+                duration: 1500,
+                essential: true
+            });
+        }
+
+        // Download functionality
+        function downloadMap(format) {
+            const downloadProgress = document.getElementById('downloadProgress');
+            downloadProgress.classList.remove('hidden');
+            
+            if (format === 'pdf') {
+                downloadMapAsPDF();
+            } else if (format === 'png') {
+                downloadMapAsPNG();
+            } else if (format === 'svg') {
+                downloadMapAsSVG();
+            }
+        }
+
+        function downloadMapAsPDF() {
+            const { jsPDF } = window.jspdf;
+            
+            html2canvas(document.getElementById('map'), {
+                useCORS: true,
+                scale: 2,
+                width: document.getElementById('map').offsetWidth,
+                height: document.getElementById('map').offsetHeight
+            }).then(canvas => {
+                const imgData = canvas.toDataURL('image/png');
+                const pdf = new jsPDF('l', 'mm', 'a4');
+                
+                // Add title
+                pdf.setFontSize(20);
+                pdf.text('Validated Locations Map', 20, 20);
+                
+                // Add map image
+                const imgWidth = 250;
+                const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                pdf.addImage(imgData, 'PNG', 20, 30, imgWidth, imgHeight);
+                
+                // Add footer
+                pdf.setFontSize(12);
+                pdf.text(`Generated: ${new Date().toLocaleDateString()}`, 20, imgHeight + 40);
+                pdf.text(`Total Validated Locations: {{ total_locations }}`, 20, imgHeight + 50);
+                
+                pdf.save('validated-locations-map.pdf');
+                document.getElementById('downloadProgress').classList.add('hidden');
+                showMessage('✅ PDF downloaded successfully!', 'success');
+            });
+        }
+
+        function downloadMapAsPNG() {
+            html2canvas(document.getElementById('map'), {
+                useCORS: true,
+                scale: 2,
+                width: document.getElementById('map').offsetWidth,
+                height: document.getElementById('map').offsetHeight
+            }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = 'validated-locations-map.png';
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+                document.getElementById('downloadProgress').classList.add('hidden');
+                showMessage('✅ PNG downloaded successfully!', 'success');
+            });
+        }
+
+        function downloadMapAsSVG() {
+            // Create SVG representation
+            const svg = createSVGMap();
+            const blob = new Blob([svg], { type: 'image/svg+xml' });
+            const url = URL.createObjectURL(blob);
+            
+            const link = document.createElement('a');
+            link.download = 'validated-locations-map.svg';
+            link.href = url;
+            link.click();
+            
+            URL.revokeObjectURL(url);
+            document.getElementById('downloadProgress').classList.add('hidden');
+            showMessage('✅ SVG downloaded successfully!', 'success');
+        }
+
+        function createSVGMap() {
+            const width = 800;
+            const height = 600;
+            
+            let svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">`;
+            svg += `<rect width="${width}" height="${height}" fill="#f0f9ff"/>`;
+            svg += `<text x="20" y="30" font-family="Arial" font-size="20" font-weight="bold" fill="#059669">Validated Locations Map</text>`;
+            
+            // Add markers (simplified representation)
+            locationsData.forEach((location, index) => {
+                const x = 50 + (index * 60);
+                const y = 100 + (index % 8) * 60;
+                
+                svg += `<circle cx="${x}" cy="${y}" r="8" fill="#10b981" stroke="#22c55e" stroke-width="2"/>`;
+                svg += `<text x="${x}" y="${y + 25}" font-family="Arial" font-size="10" text-anchor="middle" fill="#374151">${location.name}</text>`;
+            });
+            
+            svg += `<text x="20" y="${height - 20}" font-family="Arial" font-size="12" fill="#6b7280">Generated: ${new Date().toLocaleDateString()} | Total: {{ total_locations }} locations</text>`;
+            svg += '</svg>';
+            
+            return svg;
+        }
+
+        // Update map info
+        function updateMapInfo() {
+            const zoom = map.getZoom().toFixed(1);
+            const center = map.getCenter();
+            
+            document.getElementById('currentZoom').textContent = zoom;
+            document.getElementById('currentCenter').textContent = `${center.lat.toFixed(3)}, ${center.lng.toFixed(3)}`;
+        }
+
+        // Initialize map
+        map.on('load', function() {
+            addMarkersToMap();
+            updateMapInfo();
+        });
+
+        map.on('zoom', updateMapInfo);
+        map.on('move', updateMapInfo);
+
+        function showMessage(message, type) {
+            const container = document.getElementById('messageContainer');
+            const colors = {
+                'success': 'bg-green-100 text-green-800 border-green-300',
+                'error': 'bg-red-100 text-red-800 border-red-300',
+                'info': 'bg-blue-100 text-blue-800 border-blue-300'
+            };
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `${colors[type]} border-2 px-6 py-4 rounded-xl shadow-lg backdrop-blur-sm max-w-md`;
+            messageDiv.innerHTML = `
+                <div class="flex items-center text-sm font-medium">
+                    <span>${message}</span>
+                </div>
+            `;
+            
+            // Add entrance animation
+            messageDiv.style.opacity = '0';
+            messageDiv.style.transform = 'translateY(-20px)';
+            container.appendChild(messageDiv);
+            
+            // Trigger animation
+            setTimeout(() => {
+                messageDiv.style.opacity = '1';
+                messageDiv.style.transform = 'translateY(0)';
+                messageDiv.style.transition = 'all 0.3s ease';
+            }, 10);
+            
+            // Remove after delay
+            setTimeout(() => {
+                messageDiv.style.opacity = '0';
+                messageDiv.style.transform = 'translateY(-20px)';
+                setTimeout(() => messageDiv.remove(), 300);
+            }, 5000);
+        }
+
+        // Show initial message
+        setTimeout(() => {
+            if (locationsData.length > 0) {
+                showMessage(`🗺️ Showing ${locationsData.length} validated locations. Click markers for details.`, 'info');
+            }
+        }, 1000);
+    </script>
+</body>
+</html>

@@ -255,63 +255,70 @@
                     </div>
                 </div>
 
-                <!-- Step 2: Validate Quality -->
-                <div class="action-card rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-                    <div class="bg-gradient-to-r from-purple-500 to-pink-600 p-6 text-white">
-                        <div class="flex items-center space-x-3">
-                            <div class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
-                                <span class="text-2xl">🎯</span>
-                            </div>
-                            <div>
-                                <h3 class="text-xl font-bold">Step 2: Validate Quality</h3>
-                                <p class="text-purple-100">AI analysis and human review for accuracy</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="p-6">
-                        <div class="space-y-4">
-                            <!-- AI Validation Info -->
-                            <div class="bg-gray-50 rounded-xl p-4">
-                                <h4 class="font-semibold text-gray-700 mb-2">🤖 AI Quality Checks</h4>
-                                <ul class="text-sm text-gray-600 space-y-1">
-                                    <li>• Compare coordinates from different sources</li>
-                                    <li>• Reverse geocoding to verify location names</li>
-                                    <li>• Distance analysis and confidence scoring</li>
-                                    <li>• Automatic validation for high-confidence matches</li>
-                                </ul>
-                            </div>
-                            
-                            <!-- Action Buttons -->
-                            <div class="space-y-3">
-                                <button onclick="runSmartValidation()" id="aiAnalysisBtn"
-                                        class="w-full px-6 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:from-purple-700 hover:to-pink-700 transition-all duration-300 font-bold text-lg transform hover:scale-105 shadow-lg">
-                                    <span class="flex items-center justify-center space-x-2">
-                                        <span>🧠</span>
-                                        <span>Run AI Quality Analysis</span>
-                                    </span>
-                                </button>
-                                
-                                <a href="{% url 'geolocation:validation_map' %}" 
-                                   class="block w-full px-6 py-4 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-xl hover:from-emerald-700 hover:to-green-700 transition-all duration-300 text-center font-bold text-lg transform hover:scale-105 shadow-lg">
-                                    <span class="flex items-center justify-center space-x-2">
-                                        <span>🗺️</span>
-                                        <span>Manual Validation Interface</span>
-                                    </span>
-                                </a>
-                                
-                                <button onclick="autoValidateHighConfidence()" id="autoValidateBtn"
-                                        class="w-full px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-xl hover:from-cyan-600 hover:to-blue-600 transition-all duration-300 font-semibold transform hover:scale-105 shadow-md">
-                                    <span class="flex items-center justify-center space-x-2">
-                                        <span>⚡</span>
-                                        <span>Auto-approve High Confidence (≥80%)</span>
-                                    </span>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+              <!-- Step 2: Validate Quality -->
+<div class="action-card rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+    <div class="bg-gradient-to-r from-purple-500 to-pink-600 p-6 text-white">
+        <div class="flex items-center space-x-3">
+            <div class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                <span class="text-2xl">🎯</span>
             </div>
+            <div>
+                <h3 class="text-xl font-bold">Step 2: Validate Quality</h3>
+                <p class="text-purple-100">AI analysis and human review for accuracy</p>
+            </div>
+        </div>
+    </div>
+    <div class="p-6">
+        <div class="space-y-4">
+            <!-- AI Validation Info -->
+            <div class="bg-gray-50 rounded-xl p-4">
+                <h4 class="font-semibold text-gray-700 mb-2">🤖 AI Quality Checks</h4>
+                <ul class="text-sm text-gray-600 space-y-1">
+                    <li>• Compare coordinates from different sources</li>
+                    <li>• Reverse geocoding to verify location names</li>
+                    <li>• Distance analysis and confidence scoring</li>
+                    <li>• Automatic validation for high-confidence matches</li>
+                </ul>
+            </div>
+            
+            <!-- Action Buttons -->
+            <div class="space-y-3">
+                <button onclick="runSmartValidation()" id="aiAnalysisBtn"
+                        class="w-full px-6 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:from-purple-700 hover:to-pink-700 transition-all duration-300 font-bold text-lg transform hover:scale-105 shadow-lg">
+                    <span class="flex items-center justify-center space-x-2">
+                        <span>🧠</span>
+                        <span>Run AI Quality Analysis</span>
+                    </span>
+                </button>
+                
+                <a href="{% url 'geolocation:validation_map' %}" 
+                   class="block w-full px-6 py-4 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-xl hover:from-emerald-700 hover:to-green-700 transition-all duration-300 text-center font-bold text-lg transform hover:scale-105 shadow-lg">
+                    <span class="flex items-center justify-center space-x-2">
+                        <span>🗺️</span>
+                        <span>Manual Validation Interface</span>
+                    </span>
+                </a>
+                
+                <button onclick="autoValidateHighConfidence()" id="autoValidateBtn"
+                        class="w-full px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-xl hover:from-cyan-600 hover:to-blue-600 transition-all duration-300 font-semibold transform hover:scale-105 shadow-md">
+                    <span class="flex items-center justify-center space-x-2">
+                        <span>⚡</span>
+                        <span>Auto-approve High Confidence (≥80%)</span>
+                    </span>
+                </button>
 
+                <!-- ADD THIS NEW BUTTON HERE -->
+                <a href="{% url 'geolocation:validated_locations_map' %}" 
+                   class="block w-full px-6 py-3 bg-gradient-to-r from-teal-600 to-green-600 text-white rounded-xl hover:from-teal-700 hover:to-green-700 transition-all duration-300 text-center font-semibold transform hover:scale-105 shadow-md">
+                    <span class="flex items-center justify-center space-x-2">
+                        <span>🗺️</span>
+                        <span>View Validated Locations Map</span>
+                    </span>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
             <!-- NEW: Comprehensive Location Status Table -->
             <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
                 <div class="bg-gradient-to-r from-gray-800 to-gray-900 p-6 text-white">
@@ -332,21 +339,25 @@
                         </div>
                     </div>
                 </div>
-                
-                <!-- Status Legend -->
+                                
+                                <!-- Status Legend -->
                 <div class="bg-gray-50 p-4 border-b border-gray-200">
                     <div class="flex flex-wrap gap-4 text-sm">
                         <div class="flex items-center space-x-2">
                             <span class="status-badge status-awaiting">📍 Awaiting Geocoding</span>
-                            <span class="text-gray-600">- No coordinates found</span>
+                            <span class="text-gray-600">- No coordinates found yet</span>
                         </div>
                         <div class="flex items-center space-x-2">
-                            <span class="status-badge status-geocoded">🔍 Geocoded</span>
-                            <span class="text-gray-600">- Coordinates found, awaiting validation</span>
+                            <span class="status-badge status-geocoded">🔍 Awaiting AI Analysis</span>
+                            <span class="text-gray-600">- Coordinates found, awaiting AI analysis</span>
                         </div>
                         <div class="flex items-center space-x-2">
-                            <span class="status-badge status-needs_review">⚠️ Needs Review</span>
-                            <span class="text-gray-600">- AI analysis complete, human review needed</span>
+                            <span class="status-badge status-needs_review">⚠️ Quick Review</span>
+                            <span class="text-gray-600">- Good quality (≥60%), quick human review</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <span class="status-badge status-pending">🔍 Detailed Review</span>
+                            <span class="text-gray-600">- Lower quality (<60%), detailed investigation needed</span>
                         </div>
                         <div class="flex items-center space-x-2">
                             <span class="status-badge status-validated">✅ Validated</span>
@@ -354,7 +365,6 @@
                         </div>
                     </div>
                 </div>
-
                 <div class="overflow-x-auto">
                     <table class="min-w-full">
                         <thead class="bg-gray-50">
