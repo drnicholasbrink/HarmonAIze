@@ -17,7 +17,7 @@ from geolocation.management.commands.geocode_locations import Command as Geocode
 
 
 def validation_map(request):
-    """Enhanced map view showing one location at a time for validation with AI analysis."""
+    """Enhanced map view with FIXED confidence scores and source colors."""
     
     # Get locations that need validation (one at a time)
     location_id = request.GET.get('location_id')
@@ -49,8 +49,16 @@ def validation_map(request):
     for result in results:
         print(f"DEBUG: Processing {result.location_name}")
         
-        # Extract coordinates from all sources
+        # Extract coordinates from all sources with FIXED COLORS
         coordinates = []
+        
+        # FIXED SOURCE COLORS - ArcGIS is now purple, Green is reserved for AI recommendation
+        source_colors = {
+            'hdx': '#3b82f6',      # Blue
+            'arcgis': '#8b5cf6',   # Purple (changed from green)
+            'google': '#dc2626',   # Red
+            'nominatim': '#f59e0b' # Orange
+        }
         
         # Check each source and add enhanced information
         if result.hdx_success and result.hdx_lat and result.hdx_lng:
@@ -59,7 +67,7 @@ def validation_map(request):
                 'source_key': 'hdx',
                 'lat': result.hdx_lat,
                 'lng': result.hdx_lng,
-                'color': '#2563eb'  # Blue
+                'color': source_colors['hdx']
             })
             
         if result.arcgis_success and result.arcgis_lat and result.arcgis_lng:
@@ -68,7 +76,7 @@ def validation_map(request):
                 'source_key': 'arcgis', 
                 'lat': result.arcgis_lat,
                 'lng': result.arcgis_lng,
-                'color': '#059669'  # Green
+                'color': source_colors['arcgis']  # Now purple instead of green
             })
             
         if result.google_success and result.google_lat and result.google_lng:
@@ -77,7 +85,7 @@ def validation_map(request):
                 'source_key': 'google',
                 'lat': result.google_lat,
                 'lng': result.google_lng, 
-                'color': '#dc2626'  # Red
+                'color': source_colors['google']
             })
             
         if result.nominatim_success and result.nominatim_lat and result.nominatim_lng:
@@ -86,7 +94,7 @@ def validation_map(request):
                 'source_key': 'nominatim',
                 'lat': result.nominatim_lat,
                 'lng': result.nominatim_lng,
-                'color': '#d97706'  # Orange
+                'color': source_colors['nominatim']
             })
         
         if coordinates:  # Only add if we have coordinates
@@ -101,7 +109,7 @@ def validation_map(request):
             reverse_geocoding = metadata.get('reverse_geocoding_results', {})
             recommendation = metadata.get('recommendation', {})
             
-            # Add reverse geocoding info and confidence to each coordinate
+            # FIXED CONFIDENCE CALCULATION - Add reverse geocoding info and confidence to each coordinate
             for coord in coordinates:
                 source_key = coord['source_key']
                 
@@ -122,9 +130,21 @@ def validation_map(request):
                         'place_type': 'unknown'
                     })
                 
-                # Calculate individual source confidence (no source weights - equal treatment)
-                reverse_score = coord['name_similarity'] * 0.7 + coord['reverse_confidence'] * 0.3
-                coord['overall_confidence'] = reverse_score * 100  # Pure reverse geocoding confidence
+                # FIXED individual source confidence calculation
+                if validation and validation.validation_metadata:
+                    # If we have AI analysis, use it
+                    reverse_score = coord['name_similarity'] * 0.7 + coord['reverse_confidence'] * 0.3
+                    coord['overall_confidence'] = reverse_score * 100
+                else:
+                    # Fallback calculation if no AI analysis
+                    if coord['name_similarity'] > 0:
+                        coord['overall_confidence'] = coord['name_similarity'] * 100
+                    else:
+                        # Basic confidence based on data availability
+                        base_confidence = 50  # Base confidence for having coordinates
+                        if coord['reverse_address'] != 'Not checked' and coord['reverse_address'] != 'No address found':
+                            base_confidence += 20  # Bonus for reverse geocoding
+                        coord['overall_confidence'] = base_confidence
                 
                 # Add user-friendly confidence description
                 if coord['overall_confidence'] >= 90:
@@ -141,8 +161,11 @@ def validation_map(request):
             # Sort coordinates by confidence (highest first)
             coordinates.sort(key=lambda x: x['overall_confidence'], reverse=True)
             
-            # Determine recommended source (highest confidence)
-            recommended_source = coordinates[0]['source'] if coordinates else None
+            # Determine recommended source (highest confidence or from AI analysis)
+            if analysis.get('recommended_source'):
+                recommended_source = analysis.get('recommended_source').upper()
+            else:
+                recommended_source = coordinates[0]['source'] if coordinates else None
             
             # Convert variance to user-friendly language
             variance = result.coordinate_variance or 0
@@ -240,25 +263,41 @@ def get_navigation_info(current_location_id):
 
 
 def get_validation_stats():
-    """Get enhanced validation statistics for the dashboard."""
-    total_geocoding_results = GeocodingResult.objects.count()
-    total_validations = ValidationResult.objects.count()
+    """Get CORRECTED validation statistics for the dashboard."""
+    # Core Location statistics
+    total_locations = Location.objects.count()
+    locations_with_coords = Location.objects.filter(
+        latitude__isnull=False, 
+        longitude__isnull=False
+    ).count()
+    locations_without_coords = Location.objects.filter(
+        latitude__isnull=True, 
+        longitude__isnull=True
+    ).count()
     
-    # Calculate pending validation
+    # Geocoding results statistics
+    total_geocoding_results = GeocodingResult.objects.count()
+    
+    # Pending validation: locations with geocoding results but no validation
     pending_validation = GeocodingResult.objects.filter(
         validation__isnull=True
-    ).count() + ValidationResult.objects.filter(
+    ).exclude(validation_status='rejected').count()
+    
+    # Add locations that have validation but still need review
+    pending_validation += ValidationResult.objects.filter(
         validation_status__in=['needs_review', 'pending']
     ).count()
     
     return {
-        'total_locations': total_geocoding_results,
+        'total_locations': total_locations,
+        'awaiting_geocoding': locations_without_coords,  # Locations without coordinates
+        'pending_validation': pending_validation,  # Geocoded but awaiting validation
+        'validated_complete': locations_with_coords,  # Locations with coordinates (validated)
         'high_confidence': ValidationResult.objects.filter(confidence_score__gte=0.8).count(),
         'medium_confidence': ValidationResult.objects.filter(
             confidence_score__gte=0.6, confidence_score__lt=0.8
         ).count(),
         'low_confidence': ValidationResult.objects.filter(confidence_score__lt=0.6).count(),
-        'pending_validation': pending_validation,
         'needs_review': ValidationResult.objects.filter(
             validation_status='needs_review'
         ).count(),
@@ -303,6 +342,109 @@ class ValidationDashboardView(TemplateView):
         })
         
         return context
+
+
+@csrf_exempt
+def location_status_api(request):
+    """API endpoint to get comprehensive location status for dashboard table."""
+    if request.method == 'GET':
+        try:
+            # Get all locations from core app with their status
+            locations_data = []
+            
+            # Get all locations
+            locations = Location.objects.all().order_by('name')
+            
+            for location in locations:
+                # Determine status
+                if location.latitude is not None and location.longitude is not None:
+                    status = 'validated'
+                    status_display = '✅ Validated & Complete'
+                    status_color = 'green'
+                    confidence = 100  # Validated locations have 100% confidence
+                else:
+                    # Check if geocoding results exist
+                    geocoding_result = GeocodingResult.objects.filter(
+                        location_name__iexact=location.name
+                    ).first()
+                    
+                    if geocoding_result:
+                        if hasattr(geocoding_result, 'validation'):
+                            validation = geocoding_result.validation
+                            if validation.validation_status == 'needs_review':
+                                status = 'needs_review'
+                                status_display = '⚠️ Needs Human Review'
+                                status_color = 'yellow'
+                                confidence = int(validation.confidence_score * 100)
+                            elif validation.validation_status == 'pending':
+                                status = 'pending'
+                                status_display = '🚨 Manual Review Required'
+                                status_color = 'orange'
+                                confidence = int(validation.confidence_score * 100)
+                            else:
+                                status = 'geocoded'
+                                status_display = '🔍 Geocoded - Awaiting Validation'
+                                status_color = 'blue'
+                                confidence = 50
+                        else:
+                            status = 'geocoded'
+                            status_display = '🔍 Geocoded - Awaiting Validation'
+                            status_color = 'blue'
+                            confidence = 50
+                    else:
+                        status = 'awaiting_geocoding'
+                        status_display = '📍 Awaiting Geocoding'
+                        status_color = 'red'
+                        confidence = 0
+                
+                # Get available sources if geocoded
+                sources = []
+                if geocoding_result:
+                    if geocoding_result.hdx_success:
+                        sources.append('HDX')
+                    if geocoding_result.arcgis_success:
+                        sources.append('ArcGIS')
+                    if geocoding_result.google_success:
+                        sources.append('Google')
+                    if geocoding_result.nominatim_success:
+                        sources.append('OSM')
+                
+                locations_data.append({
+                    'id': location.id,
+                    'name': location.name,
+                    'status': status,
+                    'status_display': status_display,
+                    'status_color': status_color,
+                    'confidence': confidence,
+                    'sources': sources,
+                    'coordinates': {
+                        'lat': location.latitude,
+                        'lng': location.longitude
+                    } if location.latitude and location.longitude else None,
+                    'geocoding_result_id': geocoding_result.id if geocoding_result else None
+                })
+            
+            return JsonResponse({
+                'success': True,
+                'locations': locations_data,
+                'summary': {
+                    'total': len(locations_data),
+                    'awaiting_geocoding': len([l for l in locations_data if l['status'] == 'awaiting_geocoding']),
+                    'geocoded': len([l for l in locations_data if l['status'] == 'geocoded']),
+                    'needs_review': len([l for l in locations_data if l['status'] == 'needs_review']),
+                    'pending': len([l for l in locations_data if l['status'] == 'pending']),
+                    'validated': len([l for l in locations_data if l['status'] == 'validated'])
+                }
+            })
+            
+        except Exception as e:
+            print(f"Error fetching location status: {str(e)}")
+            return JsonResponse({
+                'success': False,
+                'error': f'Failed to fetch location status: {str(e)}'
+            }, status=500)
+    
+    return JsonResponse({'error': 'Only GET requests are allowed'}, status=405)
 
 
 @csrf_exempt
@@ -449,7 +591,7 @@ def validation_api(request):
 
 @csrf_exempt
 def geocoding_api(request):
-    """API endpoint for running geocoding from the interface with enhanced error handling."""
+    """API endpoint for running geocoding from the interface with CLEARER statistics."""
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
@@ -471,26 +613,33 @@ def geocoding_api(request):
                 if not locations.exists():
                     return JsonResponse({
                         'success': True,
-                        'message': 'All location names already have coordinates',
-                        'stats': {'processed': 0, 'successful': 0, 'failed': 0, 'used_validated': 0}
+                        'message': 'All locations already have coordinates',
+                        'stats': {
+                            'processed': 0, 
+                            'found_coordinates': 0, 
+                            'no_results': 0, 
+                            'from_cache': 0,
+                            'new_searches': 0
+                        }
                     })
                 
                 # Process locations
-                successful = 0
-                failed = 0
-                used_validated = 0
+                found_coordinates = 0
+                no_results = 0
+                from_cache = 0
+                new_searches = 0
                 
                 for location in locations:
                     try:
-                        # Check validated dataset first
+                        # Check validated dataset first (cache)
                         validated_result = geocode_cmd.check_validated_dataset(location)
                         if validated_result:
                             with transaction.atomic():
                                 location.latitude = validated_result.final_lat
                                 location.longitude = validated_result.final_long
                                 location.save()
-                            used_validated += 1
-                            successful += 1
+                            from_cache += 1
+                            found_coordinates += 1
                             continue
                         
                         # Check if results already exist
@@ -500,58 +649,47 @@ def geocoding_api(request):
                             ).first()
                             
                             if existing_result and existing_result.has_any_results:
-                                successful += 1
+                                found_coordinates += 1
                                 continue
                         
-                        # Perform geocoding
+                        # Perform new geocoding search
                         success = geocode_cmd.geocode_location(location)
                         if success:
-                            successful += 1
+                            new_searches += 1
+                            found_coordinates += 1
                         else:
-                            failed += 1
+                            no_results += 1
                             
                     except Exception as e:
                         print(f"Error geocoding {location.name}: {e}")
-                        failed += 1
+                        no_results += 1
+                
+                processed = found_coordinates + no_results
                 
                 return JsonResponse({
                     'success': True,
-                    'message': f'Coordinate search completed: {successful} locations processed successfully, {failed} could not find coordinates',
+                    'message': f'Coordinate search completed: {found_coordinates} locations now have coordinates, {no_results} locations could not be geocoded',
                     'stats': {
-                        'processed': successful + failed,
-                        'successful': successful,
-                        'failed': failed,
-                        'used_validated': used_validated
+                        'processed': processed,
+                        'found_coordinates': found_coordinates,  # Successfully found coordinates
+                        'no_results': no_results,  # Failed to find coordinates
+                        'from_cache': from_cache,  # Retrieved from validated dataset
+                        'new_searches': new_searches  # New API calls made
                     }
                 })
             
             elif action == 'get_geocoding_stats':
-                # Get current statistics
-                total_locations = Location.objects.count()
-                geocoded_locations = Location.objects.filter(
-                    latitude__isnull=False, 
-                    longitude__isnull=False
-                ).count()
-                need_geocoding = total_locations - geocoded_locations
-                
-                geocoding_results = GeocodingResult.objects.count()
-                
-                # Pending validation calculation
-                pending_validation = GeocodingResult.objects.filter(
-                    validation__isnull=True
-                ).count() + ValidationResult.objects.filter(
-                    validation_status__in=['needs_review', 'pending']
-                ).count()
+                # Get CORRECTED current statistics
+                stats = get_validation_stats()
                 
                 return JsonResponse({
                     'success': True,
                     'stats': {
-                        'total_locations': total_locations,
-                        'geocoded_locations': geocoded_locations,
-                        'need_geocoding': need_geocoding,
-                        'geocoding_results': geocoding_results,
-                        'pending_validation': pending_validation,
-                        'completion_rate': (geocoded_locations / total_locations * 100) if total_locations > 0 else 0
+                        'total_locations': stats['total_locations'],
+                        'awaiting_geocoding': stats['awaiting_geocoding'],  # Locations without coordinates
+                        'pending_validation': stats['pending_validation'],  # Geocoded but awaiting validation
+                        'validated_complete': stats['validated_complete'],  # Locations with coordinates
+                        'completion_rate': (stats['validated_complete'] / stats['total_locations'] * 100) if stats['total_locations'] > 0 else 0
                     }
                 })
             else:

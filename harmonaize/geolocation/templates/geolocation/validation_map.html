@@ -81,6 +81,31 @@
         .confidence-badge {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         }
+
+        /* Map Layer Control Styles */
+        .map-layer-control {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .layer-button {
+            transition: all 0.3s ease;
+            border-radius: 8px;
+        }
+
+        .layer-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .layer-button.active {
+            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
     </style>
 </head>
 <body class="bg-gradient-to-br from-gray-50 to-blue-50 h-screen overflow-hidden">
@@ -129,7 +154,7 @@
                     </a>
                     {% endif %}
                     
-                    <a href="{% url 'geolocation:dashboard' %}" class="text-gray-600 hover:text-gray-900 text-sm font-medium ml-4 transition-colors">
+                    <a href="{% url 'geolocation:validation_dashboard' %}" class="text-gray-600 hover:text-gray-900 text-sm font-medium ml-4 transition-colors">
                         Dashboard
                     </a>
                 </div>
@@ -285,7 +310,7 @@
                         </div>
                         <h3 class="text-2xl font-bold text-gray-900 mb-2">All Caught Up!</h3>
                         <p class="text-gray-600 mb-6">No locations currently need validation</p>
-                        <a href="{% url 'geolocation:dashboard' %}" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-medium transition-all duration-200 hover:scale-105">
+                       <a href="{% url 'geolocation:validation_dashboard' %}" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-medium transition-all duration-200 hover:scale-105"></a>
                             📊 Return to Dashboard
                         </a>
                     </div>
@@ -296,6 +321,33 @@
             <!-- Enhanced Map Container -->
             <div class="flex-1 relative">
                 <div id="map" class="w-full h-full"></div>
+                
+                <!-- NEW: Map Layer Control -->
+                <div class="absolute top-4 left-4 map-layer-control p-4 text-sm">
+                    <h4 class="font-bold text-gray-900 mb-3">🗺️ Map Layers</h4>
+                    <div class="grid grid-cols-1 gap-2">
+                        <button onclick="changeMapLayer('satellite')" 
+                                class="layer-button px-3 py-2 text-left text-gray-700 hover:bg-gray-100 active" 
+                                id="satellite-btn">
+                            🛰️ Satellite
+                        </button>
+                        <button onclick="changeMapLayer('streets')" 
+                                class="layer-button px-3 py-2 text-left text-gray-700 hover:bg-gray-100" 
+                                id="streets-btn">
+                            🗺️ Streets
+                        </button>
+                        <button onclick="changeMapLayer('terrain')" 
+                                class="layer-button px-3 py-2 text-left text-gray-700 hover:bg-gray-100" 
+                                id="terrain-btn">
+                            🏔️ Terrain
+                        </button>
+                        <button onclick="changeMapLayer('outdoors')" 
+                                class="layer-button px-3 py-2 text-left text-gray-700 hover:bg-gray-100" 
+                                id="outdoors-btn">
+                            🌲 Outdoors
+                        </button>
+                    </div>
+                </div>
                 
                 <!-- Enhanced Map Info Panel -->
                 <div class="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-xl shadow-lg p-4 text-sm border border-gray-200">
@@ -322,11 +374,11 @@
                     <h4 class="font-bold text-gray-900 mb-3">📍 Data Sources</h4>
                     <div class="grid grid-cols-2 gap-2">
                         <div class="flex items-center space-x-2">
-                            <div class="w-3 h-3 rounded-full bg-blue-600 shadow-sm"></div>
+                            <div class="w-3 h-3 rounded-full bg-blue-500 shadow-sm"></div>
                             <span class="text-gray-700">HDX</span>
                         </div>
                         <div class="flex items-center space-x-2">
-                            <div class="w-3 h-3 rounded-full bg-green-600 shadow-sm"></div>
+                            <div class="w-3 h-3 rounded-full bg-purple-500 shadow-sm"></div>
                             <span class="text-gray-700">ArcGIS</span>
                         </div>
                         <div class="flex items-center space-x-2">
@@ -334,8 +386,14 @@
                             <span class="text-gray-700">Google</span>
                         </div>
                         <div class="flex items-center space-x-2">
-                            <div class="w-3 h-3 rounded-full bg-purple-600 shadow-sm"></div>
-                            <span class="text-gray-700">OSM</span>
+                            <div class="w-3 h-3 rounded-full bg-orange-500 shadow-sm"></div>
+                            <span class="text-gray-700">OpenStreetMap</span>
+                        </div>
+                    </div>
+                    <div class="mt-3 pt-3 border-t border-gray-200">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 rounded-full bg-green-500 shadow-sm border-2 border-green-300"></div>
+                            <span class="text-gray-700 font-medium">AI Recommendation</span>
                         </div>
                     </div>
                 </div>
@@ -378,9 +436,45 @@
         const locationsData = {{ locations_data|safe }};
         let currentLocationData = {% if current_location %}{{ current_location|safe }}{% else %}null{% endif %};
         let markers = [];
+        let currentMapStyle = 'satellite';
+
+        // Map layer styles
+        const mapStyles = {
+            'satellite': 'mapbox://styles/mapbox/satellite-streets-v11',
+            'streets': 'mapbox://styles/mapbox/streets-v11',
+            'terrain': 'mapbox://styles/mapbox/outdoors-v11',
+            'outdoors': 'mapbox://styles/mapbox/outdoors-v11'
+        };
+
+        // Enhanced map layer switching
+        function changeMapLayer(layerType) {
+            if (layerType === currentMapStyle) return;
+            
+            // Update button states
+            document.querySelectorAll('.layer-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.getElementById(`${layerType}-btn`).classList.add('active');
+            
+            // Change map style
+            map.setStyle(mapStyles[layerType]);
+            currentMapStyle = layerType;
+            
+            // Re-add markers after style change
+            map.on('styledata', function() {
+                // Small delay to ensure style is fully loaded
+                setTimeout(() => {
+                    addMarkersToMap();
+                }, 100);
+            });
+        }
 
         // Enhanced marker creation
         function addMarkersToMap() {
+            // Clear existing markers
+            markers.forEach(marker => marker.remove());
+            markers = [];
+
             if (!currentLocationData || !currentLocationData.coordinates) return;
 
             const coordinates = currentLocationData.coordinates;
@@ -505,7 +599,7 @@
                         {% if navigation.has_next %}
                         window.location.href = '{% url "geolocation:validation_map" %}?location_id={{ navigation.next_location_id }}';
                         {% else %}
-                        window.location.href = '{% url "geolocation:dashboard" %}';
+                        window.location.href = '{% url "geolocation:validation_dashboard" %}';
                         {% endif %}
                     }, 2000);
                 } else {
@@ -539,7 +633,7 @@
                         {% if navigation.has_next %}
                         window.location.href = '{% url "geolocation:validation_map" %}?location_id={{ navigation.next_location_id }}';
                         {% else %}
-                        window.location.href = '{% url "geolocation:dashboard" %}';
+                        window.location.href = '{% url "geolocation:validation_dashboard" %}';
                         {% endif %}
                     }, 2000);
                 } else {
@@ -587,7 +681,7 @@
                         {% if navigation.has_next %}
                         window.location.href = '{% url "geolocation:validation_map" %}?location_id={{ navigation.next_location_id }}';
                         {% else %}
-                        window.location.href = '{% url "geolocation:dashboard" %}';
+                        window.location.href = '{% url "geolocation:validation_dashboard" %}';
                         {% endif %}
                     }, 2000);
                 } else {
@@ -631,7 +725,7 @@
                         {% if navigation.has_next %}
                         window.location.href = '{% url "geolocation:validation_map" %}?location_id={{ navigation.next_location_id }}';
                         {% else %}
-                        window.location.href = '{% url "geolocation:dashboard" %}';
+                        window.location.href = '{% url "geolocation:validation_dashboard" %}';
                         {% endif %}
                     }, 2000);
                 } else {
