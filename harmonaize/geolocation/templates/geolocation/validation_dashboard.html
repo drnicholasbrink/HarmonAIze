@@ -63,6 +63,7 @@
         .status-needs_review { background-color: #fef3c7; color: #92400e; }
         .status-pending { background-color: #fed7aa; color: #9a3412; }
         .status-validated { background-color: #dcfce7; color: #166534; }
+        .status-rejected { background-color: #fee2e2; color: #991b1b; }
     </style>
 </head>
 <body class="bg-gradient-to-br from-gray-50 to-blue-50 min-h-screen">
@@ -94,7 +95,7 @@
         <!-- Main Content -->
         <main class="max-w-7xl mx-auto px-6 py-8">
             
-            <!-- CORRECTED Status Overview -->
+            <!-- Status Overview -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                 <!-- Total Location Names -->
                 <div class="stat-card rounded-2xl shadow-lg p-6 border border-gray-100">
@@ -243,7 +244,7 @@
                                 </div>
                             </div>
                             
-                            <!-- UPDATED Results Display -->
+                            <!-- Results Display -->
                             <div id="geocodingResults" class="hidden bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 border-2 border-green-200">
                                 <h4 class="text-lg font-bold text-green-800 mb-4 flex items-center">
                                     <span class="mr-2">📊</span>
@@ -255,72 +256,73 @@
                     </div>
                 </div>
 
-              <!-- Step 2: Validate Quality -->
-<div class="action-card rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-    <div class="bg-gradient-to-r from-purple-500 to-pink-600 p-6 text-white">
-        <div class="flex items-center space-x-3">
-            <div class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
-                <span class="text-2xl">🎯</span>
-            </div>
-            <div>
-                <h3 class="text-xl font-bold">Step 2: Validate Quality</h3>
-                <p class="text-purple-100">AI analysis and human review for accuracy</p>
-            </div>
-        </div>
-    </div>
-    <div class="p-6">
-        <div class="space-y-4">
-            <!-- AI Validation Info -->
-            <div class="bg-gray-50 rounded-xl p-4">
-                <h4 class="font-semibold text-gray-700 mb-2">🤖 AI Quality Checks</h4>
-                <ul class="text-sm text-gray-600 space-y-1">
-                    <li>• Compare coordinates from different sources</li>
-                    <li>• Reverse geocoding to verify location names</li>
-                    <li>• Distance analysis and confidence scoring</li>
-                    <li>• Automatic validation for high-confidence matches</li>
-                </ul>
-            </div>
-            
-            <!-- Action Buttons -->
-            <div class="space-y-3">
-                <button onclick="runSmartValidation()" id="aiAnalysisBtn"
-                        class="w-full px-6 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:from-purple-700 hover:to-pink-700 transition-all duration-300 font-bold text-lg transform hover:scale-105 shadow-lg">
-                    <span class="flex items-center justify-center space-x-2">
-                        <span>🧠</span>
-                        <span>Run AI Quality Analysis</span>
-                    </span>
-                </button>
-                
-                <a href="{% url 'geolocation:validation_map' %}" 
-                   class="block w-full px-6 py-4 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-xl hover:from-emerald-700 hover:to-green-700 transition-all duration-300 text-center font-bold text-lg transform hover:scale-105 shadow-lg">
-                    <span class="flex items-center justify-center space-x-2">
-                        <span>🗺️</span>
-                        <span>Manual Validation Interface</span>
-                    </span>
-                </a>
-                
-                <button onclick="autoValidateHighConfidence()" id="autoValidateBtn"
-                        class="w-full px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-xl hover:from-cyan-600 hover:to-blue-600 transition-all duration-300 font-semibold transform hover:scale-105 shadow-md">
-                    <span class="flex items-center justify-center space-x-2">
-                        <span>⚡</span>
-                        <span>Auto-approve High Confidence (≥80%)</span>
-                    </span>
-                </button>
+                <!-- Step 2: Validate Quality -->
+                <div class="action-card rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+                    <div class="bg-gradient-to-r from-purple-500 to-pink-600 p-6 text-white">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                                <span class="text-2xl">🎯</span>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold">Step 2: Validate Quality</h3>
+                                <p class="text-purple-100">AI analysis and human review for accuracy</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="p-6">
+                        <div class="space-y-4">
+                            <!-- AI Validation Info -->
+                            <div class="bg-gray-50 rounded-xl p-4">
+                                <h4 class="font-semibold text-gray-700 mb-2">🤖 AI Quality Checks</h4>
+                                <ul class="text-sm text-gray-600 space-y-1">
+                                    <li>• Compare coordinates from different sources</li>
+                                    <li>• Reverse geocoding to verify location names</li>
+                                    <li>• Distance analysis and confidence scoring</li>
+                                    <li>• Automatic validation for high-confidence matches</li>
+                                </ul>
+                            </div>
+                            
+                            <!-- Action Buttons -->
+                            <div class="space-y-3">
+                                <button onclick="runSmartValidation()" id="aiAnalysisBtn"
+                                        class="w-full px-6 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:from-purple-700 hover:to-pink-700 transition-all duration-300 font-bold text-lg transform hover:scale-105 shadow-lg">
+                                    <span class="flex items-center justify-center space-x-2">
+                                        <span>🧠</span>
+                                        <span>Run AI Quality Analysis</span>
+                                    </span>
+                                </button>
+                                
+                                <a href="{% url 'geolocation:validation_map' %}" 
+                                   class="block w-full px-6 py-4 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-xl hover:from-emerald-700 hover:to-green-700 transition-all duration-300 text-center font-bold text-lg transform hover:scale-105 shadow-lg">
+                                    <span class="flex items-center justify-center space-x-2">
+                                        <span>🗺️</span>
+                                        <span>Manual Validation Interface</span>
+                                    </span>
+                                </a>
+                                
+                                <button onclick="autoValidateHighConfidence()" id="autoValidateBtn"
+                                        class="w-full px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-xl hover:from-cyan-600 hover:to-blue-600 transition-all duration-300 font-semibold transform hover:scale-105 shadow-md">
+                                    <span class="flex items-center justify-center space-x-2">
+                                        <span>⚡</span>
+                                        <span>Auto-approve High Confidence (≥80%)</span>
+                                    </span>
+                                </button>
 
-                <!-- ADD THIS NEW BUTTON HERE -->
-                <a href="{% url 'geolocation:validated_locations_map' %}" 
-                   class="block w-full px-6 py-3 bg-gradient-to-r from-teal-600 to-green-600 text-white rounded-xl hover:from-teal-700 hover:to-green-700 transition-all duration-300 text-center font-semibold transform hover:scale-105 shadow-md">
-                    <span class="flex items-center justify-center space-x-2">
-                        <span>🗺️</span>
-                        <span>View Validated Locations Map</span>
-                    </span>
-                </a>
+                                <a href="{% url 'geolocation:validated_locations_map' %}" 
+                                   class="block w-full px-6 py-3 bg-gradient-to-r from-teal-600 to-green-600 text-white rounded-xl hover:from-teal-700 hover:to-green-700 transition-all duration-300 text-center font-semibold transform hover:scale-105 shadow-md">
+                                    <span class="flex items-center justify-center space-x-2">
+                                        <span>🗺️</span>
+                                        <span>View Validated Locations Map</span>
+                                    </span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </div>
-    </div>
-</div>
-            <!-- NEW: Comprehensive Location Status Table -->
-            <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+
+            <!-- Comprehensive Location Status Table -->
+            <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-100 overflow-hidden w-full">
                 <div class="bg-gradient-to-r from-gray-800 to-gray-900 p-6 text-white">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center space-x-3">
@@ -340,7 +342,7 @@
                     </div>
                 </div>
                                 
-                                <!-- Status Legend -->
+                <!-- Status Legend -->
                 <div class="bg-gray-50 p-4 border-b border-gray-200">
                     <div class="flex flex-wrap gap-4 text-sm">
                         <div class="flex items-center space-x-2">
@@ -365,20 +367,30 @@
                         </div>
                     </div>
                 </div>
-                <div class="overflow-x-auto">
-                    <table class="min-w-full">
+                
+                <!-- Full-width table container -->
+                <div class="w-full overflow-x-auto">
+                    <table class="min-w-full table-auto">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Location Name</th>
-                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Status</th>
-                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Confidence</th>
-                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Data Sources</th>
-                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Coordinates</th>
-                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Actions</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider w-1/4">Location Name</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider w-1/6">Status</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider w-1/8">Confidence</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider w-1/6">Data Sources</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider w-1/5">Coordinates</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider w-1/8">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="locationStatusTable" class="bg-white divide-y divide-gray-200">
                             <!-- Content will be populated by JavaScript -->
+                            <tr>
+                                <td colspan="6" class="px-6 py-12 text-center text-gray-500">
+                                    <div class="flex items-center justify-center space-x-2">
+                                        <div class="loading-spinner"></div>
+                                        <span>Loading location status...</span>
+                                    </div>
+                                </td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
@@ -390,12 +402,194 @@
     <div id="messageContainer" class="fixed top-6 right-6 z-50 space-y-2"></div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            refreshStats();
-            refreshLocationStatus();
-            // Refresh stats every 30 seconds
-            setInterval(refreshStats, 30000);
-        });
+        // Enhanced location status table update function
+        function updateLocationStatusTable(locations) {
+            const tableBody = document.getElementById('locationStatusTable');
+            
+            if (!tableBody) {
+                console.error('Table body not found');
+                return;
+            }
+            
+            if (locations.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="px-6 py-12 text-center text-gray-500">
+                            <div class="flex flex-col items-center space-y-2">
+                                <span class="text-4xl">📍</span>
+                                <span>No locations found. Import some location data to get started.</span>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            // Clear existing content
+            tableBody.innerHTML = '';
+
+            // Build table rows
+            locations.forEach(location => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50 transition-colors';
+                
+                // Status colors for better visibility
+                const statusColors = {
+                    'awaiting_geocoding': 'bg-red-100 text-red-800',
+                    'geocoded': 'bg-blue-100 text-blue-800',
+                    'needs_review': 'bg-yellow-100 text-yellow-800',
+                    'pending': 'bg-orange-100 text-orange-800',
+                    'validated': 'bg-green-100 text-green-800',
+                    'rejected': 'bg-red-100 text-red-800'
+                };
+
+                // Confidence bar color
+                const confidenceColor = location.confidence >= 80 ? 'bg-green-500' :
+                                      location.confidence >= 60 ? 'bg-yellow-500' : 'bg-red-500';
+
+                // Source badges
+                const sourceBadges = location.sources.map(source => 
+                    `<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mr-1">${source}</span>`
+                ).join('');
+
+                // Coordinates display
+                const coordinatesDisplay = location.coordinates ? 
+                    `<span class="font-mono text-sm">${location.coordinates.lat.toFixed(5)}, ${location.coordinates.lng.toFixed(5)}</span>` : 
+                    '<span class="text-gray-400">No coordinates</span>';
+
+                // Action button
+                let actionButton = '';
+                if (location.status === 'needs_review' || location.status === 'pending') {
+                    actionButton = `<a href="{% url 'geolocation:validation_map' %}?location_id=${location.geocoding_result_id}" 
+                                      class="inline-flex items-center px-3 py-1 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors">
+                                        🔍 Review
+                                    </a>`;
+                } else if (location.status === 'validated') {
+                    actionButton = `<span class="inline-flex items-center px-3 py-1 text-sm font-medium text-green-600 bg-green-50 rounded-lg">
+                                      ✅ Complete
+                                    </span>`;
+                } else {
+                    actionButton = `<span class="text-gray-400">-</span>`;
+                }
+
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="flex items-center">
+                            <div class="w-3 h-3 ${statusColors[location.status] || 'bg-gray-200'} rounded-full mr-3"></div>
+                            <div class="text-sm font-medium text-gray-900">${location.name}</div>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColors[location.status] || 'bg-gray-100 text-gray-800'}">
+                            ${location.status_display}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="flex items-center">
+                            <div class="w-16 bg-gray-200 rounded-full h-2 mr-2">
+                                <div class="h-2 rounded-full transition-all duration-300 ${confidenceColor}" style="width: ${location.confidence}%"></div>
+                            </div>
+                            <span class="text-sm text-gray-600">${location.confidence}%</span>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="flex flex-wrap gap-1">
+                            ${sourceBadges}
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        ${coordinatesDisplay}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        ${actionButton}
+                    </td>
+                `;
+
+                tableBody.appendChild(row);
+            });
+        }
+
+        // Enhanced refresh function that updates after validation
+        function refreshLocationStatus() {
+            const refreshButton = document.querySelector('button[onclick="refreshLocationStatus()"]');
+            if (refreshButton) {
+                refreshButton.innerHTML = '🔄 Refreshing...';
+                refreshButton.disabled = true;
+            }
+
+            fetch('{% url "geolocation:location_status_api" %}', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    updateLocationStatusTable(data.locations);
+                    
+                    // Update summary statistics
+                    if (data.summary) {
+                        showMessage(`📊 Status updated: ${data.summary.validated} validated, ${data.summary.awaiting_geocoding} awaiting geocoding, ${data.summary.needs_review} need review`, 'info');
+                    }
+                } else {
+                    showMessage('❌ Failed to load location status: ' + (data.error || 'Unknown error'), 'error');
+                    
+                    // Show error state in table
+                    const tableBody = document.getElementById('locationStatusTable');
+                    if (tableBody) {
+                        tableBody.innerHTML = `
+                            <tr>
+                                <td colspan="6" class="px-6 py-12 text-center text-red-500">
+                                    <div class="flex flex-col items-center space-y-2">
+                                        <span class="text-4xl">❌</span>
+                                        <span>Failed to load location status</span>
+                                        <button onclick="refreshLocationStatus()" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+                                            Try Again
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        `;
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching location status:', error);
+                showMessage('⚠️ Connection error while refreshing location status', 'error');
+                
+                // Show connection error state
+                const tableBody = document.getElementById('locationStatusTable');
+                if (tableBody) {
+                    tableBody.innerHTML = `
+                        <tr>
+                            <td colspan="6" class="px-6 py-12 text-center text-orange-500">
+                                <div class="flex flex-col items-center space-y-2">
+                                    <span class="text-4xl">⚠️</span>
+                                    <span>Connection error - please check your internet connection</span>
+                                    <button onclick="refreshLocationStatus()" class="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors">
+                                        Retry
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                }
+            })
+            .finally(() => {
+                // Reset refresh button
+                if (refreshButton) {
+                    refreshButton.innerHTML = '🔄 Refresh';
+                    refreshButton.disabled = false;
+                }
+            });
+        }
 
         function refreshStats() {
             fetch('{% url "geolocation:geocoding_api" %}', {
@@ -408,7 +602,7 @@
                 if (data.success) {
                     const stats = data.stats;
                     
-                    // Update CORRECTED stats
+                    // Update statistics
                     document.getElementById('totalLocations').textContent = stats.total_locations;
                     document.getElementById('awaitingGeocoding').textContent = stats.awaiting_geocoding;
                     document.getElementById('pendingValidation').textContent = stats.pending_validation;
@@ -421,84 +615,93 @@
             });
         }
 
-        function refreshLocationStatus() {
-            fetch('{% url "geolocation:location_status_api" %}', {
-                method: 'GET',
-                headers: {'Content-Type': 'application/json'}
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    updateLocationStatusTable(data.locations);
-                } else {
-                    showMessage('❌ Failed to load location status', 'error');
-                }
-            })
-            .catch(error => {
-                console.error('Error fetching location status:', error);
-                showMessage('⚠️ Unable to refresh location status', 'error');
-            });
+        // Auto-refresh after validation actions
+        function autoRefreshAfterValidation() {
+            // Refresh stats and table after validation
+            setTimeout(() => {
+                refreshStats();
+                refreshLocationStatus();
+            }, 1000);
         }
 
-        function updateLocationStatusTable(locations) {
-            const tableBody = document.getElementById('locationStatusTable');
+        // Enhanced validation functions with auto-refresh
+        function runSmartValidation() {
+            const btn = document.getElementById('aiAnalysisBtn');
             
-            if (locations.length === 0) {
-                tableBody.innerHTML = `
-                    <tr>
-                        <td colspan="6" class="px-6 py-12 text-center text-gray-500">
-                            No locations found. Import some location data to get started.
-                        </td>
-                    </tr>
-                `;
-                return;
+            if (confirm('🤖 Run AI quality analysis on all pending locations?\n\nThis will analyze coordinate accuracy and create confidence scores.')) {
+                btn.disabled = true;
+                btn.innerHTML = '<div class="flex items-center justify-center space-x-2"><div class="loading-spinner border-white"></div><span>Analyzing...</span></div>';
+                showMessage('🤖 AI analysis started - this may take a moment...', 'info');
+                
+                fetch('{% url "geolocation:bulk_validation_actions" %}', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action: 'run_smart_validation_batch'})
+                })
+                .then(response => response.json())
+                .then(data => {
+                    btn.disabled = false;
+                    btn.innerHTML = '<span class="flex items-center justify-center space-x-2"><span>🧠</span><span>Run AI Quality Analysis</span></span>';
+                    
+                    if (data.success) {
+                        showMessage('🎉 AI analysis completed: ' + data.message, 'success');
+                        // Always refresh after AI analysis
+                        setTimeout(() => {
+                            refreshStats();
+                            refreshLocationStatus();
+                            showMessage('📊 Dashboard updated with AI analysis results', 'info');
+                        }, 2000);
+                    } else {
+                        showMessage('❌ AI analysis failed: ' + (data.error || 'Processing error occurred'), 'error');
+                    }
+                })
+                .catch(error => {
+                    btn.disabled = false;
+                    btn.innerHTML = '<span class="flex items-center justify-center space-x-2"><span>🧠</span><span>Run AI Quality Analysis</span></span>';
+                    showMessage('❌ Connection error during AI analysis', 'error');
+                });
             }
-
-            tableBody.innerHTML = locations.map(location => `
-                <tr class="hover:bg-gray-50 transition-colors">
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <div class="text-sm font-medium text-gray-900">${location.name}</div>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <span class="status-badge status-${location.status}">${location.status_display}</span>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <div class="flex items-center">
-                            <div class="w-16 bg-gray-200 rounded-full h-2 mr-2">
-                                <div class="h-2 rounded-full transition-all duration-300 ${
-                                    location.confidence >= 80 ? 'bg-green-500' :
-                                    location.confidence >= 60 ? 'bg-yellow-500' : 'bg-red-500'
-                                }" style="width: ${location.confidence}%"></div>
-                            </div>
-                            <span class="text-sm text-gray-600">${location.confidence}%</span>
-                        </div>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <div class="flex flex-wrap gap-1">
-                            ${location.sources.map(source => `<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">${source}</span>`).join('')}
-                        </div>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        ${location.coordinates ? 
-                            `<span class="font-mono">${location.coordinates.lat.toFixed(5)}, ${location.coordinates.lng.toFixed(5)}</span>` : 
-                            '<span class="text-gray-400">No coordinates</span>'
-                        }
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        ${location.status === 'needs_review' || location.status === 'pending' ? 
-                            `<a href="{% url 'geolocation:validation_map' %}?location_id=${location.geocoding_result_id}" 
-                               class="text-blue-600 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded-lg transition-colors">
-                                🔍 Review
-                            </a>` :
-                            location.status === 'validated' ?
-                            `<span class="text-green-600 bg-green-50 px-3 py-1 rounded-lg">✅ Complete</span>` :
-                            `<span class="text-gray-400">-</span>`
-                        }
-                    </td>
-                </tr>
-            `).join('');
         }
 
+        function autoValidateHighConfidence() {
+            const btn = document.getElementById('autoValidateBtn');
+            
+            if (confirm('⚡ Automatically approve all high-confidence locations (≥80%)?\n\nThis will mark them as validated without manual review.')) {
+                btn.disabled = true;
+                btn.innerHTML = '<div class="flex items-center justify-center space-x-2"><div class="loading-spinner border-white"></div><span>Processing...</span></div>';
+                showMessage('⚡ Auto-validation in progress...', 'info');
+                
+                fetch('{% url "geolocation:bulk_validation_actions" %}', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action: 'auto_validate_high_confidence'})
+                })
+                .then(response => response.json())
+                .then(data => {
+                    btn.disabled = false;
+                    btn.innerHTML = '<span class="flex items-center justify-center space-x-2"><span>⚡</span><span>Auto-approve High Confidence (≥80%)</span></span>';
+                    
+                    if (data.success) {
+                        showMessage('🎉 Auto-validation completed: ' + data.message, 'success');
+                        // Always refresh after auto-validation
+                        setTimeout(() => {
+                            refreshStats();
+                            refreshLocationStatus();
+                            showMessage('📊 Dashboard updated with auto-validation results', 'info');
+                        }, 2000);
+                    } else {
+                        showMessage('❌ Auto-validation failed: ' + (data.error || 'Processing error occurred'), 'error');
+                    }
+                })
+                .catch(error => {
+                    btn.disabled = false;
+                    btn.innerHTML = '<span class="flex items-center justify-center space-x-2"><span>⚡</span><span>Auto-approve High Confidence (≥80%)</span></span>';
+                    showMessage('❌ Connection error during auto-validation', 'error');
+                });
+            }
+        }
+
+        // Enhanced geocoding with proper refresh
         function runGeocoding() {
             const force = document.getElementById('forceGeocode').checked;
             const btn = document.getElementById('geocodingBtn');
@@ -536,7 +739,7 @@
                         const stats = data.stats;
                         document.getElementById('geocodingResults').classList.remove('hidden');
                         
-                        // UPDATED results display with clearer explanations
+                        // Display results
                         document.getElementById('geocodingStats').innerHTML = `
                             <div class="grid grid-cols-2 gap-4 text-sm">
                                 <div class="bg-white rounded-lg p-3 border border-green-200">
@@ -582,8 +785,13 @@
                             </div>
                         `;
                         showMessage('🎉 Coordinate search completed successfully!', 'success');
-                        refreshStats();
-                        refreshLocationStatus();
+                        
+                        // Always refresh after geocoding
+                        setTimeout(() => {
+                            refreshStats();
+                            refreshLocationStatus();
+                            showMessage('📊 Dashboard updated with geocoding results', 'info');
+                        }, 2000);
                     } else {
                         showMessage('❌ Search failed: ' + (data.error || 'Unknown error occurred'), 'error');
                     }
@@ -596,78 +804,6 @@
                 btn.innerHTML = '<span class="flex items-center justify-center space-x-2"><span>🚀</span><span>Start Coordinate Search</span></span>';
                 showMessage('❌ Connection error during coordinate search', 'error');
             });
-        }
-
-        function runSmartValidation() {
-            const btn = document.getElementById('aiAnalysisBtn');
-            
-            if (confirm('🤖 Run AI quality analysis on all pending locations?\n\nThis will analyze coordinate accuracy and create confidence scores.')) {
-                btn.disabled = true;
-                btn.innerHTML = '<div class="flex items-center justify-center space-x-2"><div class="loading-spinner border-white"></div><span>Analyzing...</span></div>';
-                showMessage('🤖 AI analysis started - this may take a moment...', 'info');
-                
-                fetch('{% url "geolocation:bulk_validation_actions" %}', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({action: 'run_smart_validation_batch'})
-                })
-                .then(response => response.json())
-                .then(data => {
-                    btn.disabled = false;
-                    btn.innerHTML = '<span class="flex items-center justify-center space-x-2"><span>🧠</span><span>Run AI Quality Analysis</span></span>';
-                    
-                    if (data.success) {
-                        showMessage('🎉 AI analysis completed: ' + data.message, 'success');
-                        setTimeout(() => {
-                            refreshStats();
-                            refreshLocationStatus();
-                        }, 2000);
-                    } else {
-                        showMessage('❌ AI analysis failed: ' + (data.error || 'Processing error occurred'), 'error');
-                    }
-                })
-                .catch(error => {
-                    btn.disabled = false;
-                    btn.innerHTML = '<span class="flex items-center justify-center space-x-2"><span>🧠</span><span>Run AI Quality Analysis</span></span>';
-                    showMessage('❌ Connection error during AI analysis', 'error');
-                });
-            }
-        }
-
-        function autoValidateHighConfidence() {
-            const btn = document.getElementById('autoValidateBtn');
-            
-            if (confirm('⚡ Automatically approve all high-confidence locations (≥80%)?\n\nThis will mark them as validated without manual review.')) {
-                btn.disabled = true;
-                btn.innerHTML = '<div class="flex items-center justify-center space-x-2"><div class="loading-spinner border-white"></div><span>Processing...</span></div>';
-                showMessage('⚡ Auto-validation in progress...', 'info');
-                
-                fetch('{% url "geolocation:bulk_validation_actions" %}', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({action: 'auto_validate_high_confidence'})
-                })
-                .then(response => response.json())
-                .then(data => {
-                    btn.disabled = false;
-                    btn.innerHTML = '<span class="flex items-center justify-center space-x-2"><span>⚡</span><span>Auto-approve High Confidence (≥80%)</span></span>';
-                    
-                    if (data.success) {
-                        showMessage('🎉 Auto-validation completed: ' + data.message, 'success');
-                        setTimeout(() => {
-                            refreshStats();
-                            refreshLocationStatus();
-                        }, 2000);
-                    } else {
-                        showMessage('❌ Auto-validation failed: ' + (data.error || 'Processing error occurred'), 'error');
-                    }
-                })
-                .catch(error => {
-                    btn.disabled = false;
-                    btn.innerHTML = '<span class="flex items-center justify-center space-x-2"><span>⚡</span><span>Auto-approve High Confidence (≥80%)</span></span>';
-                    showMessage('❌ Connection error during auto-validation', 'error');
-                });
-            }
         }
 
         function showMessage(message, type) {
@@ -710,6 +846,21 @@
                 setTimeout(() => messageDiv.remove(), 300);
             }, 6000);
         }
+
+        // Initialize dashboard with proper refresh intervals
+        document.addEventListener('DOMContentLoaded', function() {
+            refreshStats();
+            refreshLocationStatus();
+            
+            // More frequent refresh for active dashboards
+            setInterval(refreshStats, 15000); // Every 15 seconds
+            setInterval(refreshLocationStatus, 30000); // Every 30 seconds
+            
+            // Show initial status
+            setTimeout(() => {
+                showMessage('📊 Dashboard loaded - data refreshes automatically', 'info');
+            }, 1000);
+        });
     </script>
 </body>
 </html>

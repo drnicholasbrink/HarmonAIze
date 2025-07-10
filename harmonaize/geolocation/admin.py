@@ -35,12 +35,18 @@ class ValidationDatasetAdmin(admin.ModelAdmin):
     )
     
     def view_on_map(self, obj):
-        if obj.final_lat and obj.final_long:
-            return format_html(
-                '<a href="https://www.google.com/maps/@{},{},15z" target="_blank">📍 View on Map</a>',
-                obj.final_lat, obj.final_long
-            )
-        return "No coordinates"
+        """Safe map link generation for ValidationDataset."""
+        try:
+            if obj.final_lat and obj.final_long:
+                lat_str = "{:.5f}".format(float(obj.final_lat))
+                lng_str = "{:.5f}".format(float(obj.final_long))
+                return format_html(
+                    '<a href="https://www.google.com/maps/@{},{},15z" target="_blank">📍 View on Map</a>',
+                    lat_str, lng_str
+                )
+            return "No coordinates"
+        except (ValueError, TypeError):
+            return "Invalid coordinates"
     view_on_map.short_description = "Map Link"
 
 
@@ -72,12 +78,18 @@ class HDXHealthFacilityAdmin(admin.ModelAdmin):
     )
     
     def view_on_map(self, obj):
-        if obj.hdx_latitude and obj.hdx_longitude:
-            return format_html(
-                '<a href="https://www.google.com/maps/@{},{},15z" target="_blank">📍 View on Map</a>',
-                obj.hdx_latitude, obj.hdx_longitude
-            )
-        return "No coordinates"
+        """Safe map link generation for HDXHealthFacility."""
+        try:
+            if obj.hdx_latitude and obj.hdx_longitude:
+                lat_str = "{:.5f}".format(float(obj.hdx_latitude))
+                lng_str = "{:.5f}".format(float(obj.hdx_longitude))
+                return format_html(
+                    '<a href="https://www.google.com/maps/@{},{},15z" target="_blank">📍 View on Map</a>',
+                    lat_str, lng_str
+                )
+            return "No coordinates"
+        except (ValueError, TypeError):
+            return "Invalid coordinates"
     view_on_map.short_description = "Map Link"
 
 
@@ -125,37 +137,58 @@ class GeocodingResultAdmin(admin.ModelAdmin):
     )
     
     def successful_sources_display(self, obj):
-        sources = obj.successful_apis
-        if sources:
-            colors = {
-                'hdx': '#2563eb',
-                'arcgis': '#059669', 
-                'google': '#dc2626',
-                'nominatim': '#d97706'
-            }
-            badges = []
-            for source in sources:
-                color = colors.get(source, '#6b7280')
-                badges.append(f'<span style="background-color: {color}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px;">{source.upper()}</span>')
-            return mark_safe(''.join(badges))
-        return "None"
+        """Safe display of successful sources."""
+        try:
+            sources = obj.successful_apis
+            if sources:
+                colors = {
+                    'hdx': '#2563eb',
+                    'arcgis': '#8b5cf6',  # Purple instead of green
+                    'google': '#dc2626',
+                    'nominatim': '#d97706'
+                }
+                badges = []
+                for source in sources:
+                    color = colors.get(source, '#6b7280')
+                    badge_html = '<span style="background-color: {}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px;">{}</span>'.format(
+                        color, str(source).upper()
+                    )
+                    badges.append(badge_html)
+                return mark_safe(''.join(badges))
+            return "None"
+        except Exception as e:
+            return "Error loading sources"
     successful_sources_display.short_description = "Successful Sources"
     
     def results_summary_display(self, obj):
-        summary = obj.results_summary
-        if summary:
-            display = []
-            for source, coords in summary.items():
-                display.append(f"{source.upper()}: {coords['lat']:.5f}, {coords['lng']:.5f}")
-            return mark_safe('<br>'.join(display))
-        return "No results"
+        """Safe display of coordinates summary."""
+        try:
+            summary = obj.results_summary
+            if summary:
+                display = []
+                for source, coords in summary.items():
+                    if coords and 'lat' in coords and 'lng' in coords:
+                        coord_str = "{}: {:.5f}, {:.5f}".format(
+                            str(source).upper(), 
+                            float(coords['lat']), 
+                            float(coords['lng'])
+                        )
+                        display.append(coord_str)
+                return mark_safe('<br>'.join(display))
+            return "No results"
+        except Exception as e:
+            return "Error loading coordinates"
     results_summary_display.short_description = "Coordinates Summary"
     
     def view_validation(self, obj):
-        if hasattr(obj, 'validation'):
-            validation_url = reverse('admin:geolocation_validationresult_change', args=[obj.validation.id])
-            return format_html('<a href="{}">📊 View Validation</a>', validation_url)
-        return "No validation"
+        """Safe validation link."""
+        try:
+            if hasattr(obj, 'validation'):
+                validation_url = reverse('admin:geolocation_validationresult_change', args=[obj.validation.id])
+                return format_html('<a href="{}">📊 View Validation</a>', validation_url)
+            return "No validation"
+        except Exception as e:
+            return "Error loading validation"
     view_validation.short_description = "Validation"
 
 
@@ -202,41 +235,65 @@ class ValidationResultAdmin(admin.ModelAdmin):
     )
     
     def confidence_level_display(self, obj):
-        level = obj.confidence_level
-        score = obj.confidence_score * 100
-        colors = {
-            'High': '#22c55e',
-            'Medium': '#f59e0b', 
-            'Low': '#ef4444'
-        }
-        color = colors.get(level, '#6b7280')
-        return format_html(
-            '<span style="background-color: {}; color: white; padding: 4px 8px; border-radius: 6px; font-weight: bold;">{} ({:.0f}%)</span>',
-            color, level, score
-        )
+        """Safe display of confidence level without f-string formatting on SafeString."""
+        try:
+            level = obj.confidence_level
+            score = obj.confidence_score * 100
+            colors = {
+                'High': '#22c55e',
+                'Medium': '#f59e0b', 
+                'Low': '#ef4444'
+            }
+            color = colors.get(level, '#6b7280')
+            
+            # Use .format() method instead of f-strings to avoid SafeString issues
+            return format_html(
+                '<span style="background-color: {}; color: white; padding: 4px 8px; border-radius: 6px; font-weight: bold;">{} ({:.0f}%)</span>',
+                color, level, score
+            )
+        except Exception as e:
+            return "Error loading confidence"
     confidence_level_display.short_description = "Confidence Level"
     
     def metadata_summary(self, obj):
-        if obj.validation_metadata:
-            summary = obj.validation_metadata.get('user_friendly_summary', 'No summary available')
-            return format_html('<div style="max-width: 400px;">{}</div>', summary)
-        return "No metadata"
+        """Safe display of metadata summary."""
+        try:
+            if obj.validation_metadata:
+                summary = obj.validation_metadata.get('user_friendly_summary', 'No summary available')
+                # Ensure summary is a string before formatting
+                summary_str = str(summary)
+                return format_html('<div style="max-width: 400px;">{}</div>', summary_str)
+            return "No metadata"
+        except Exception as e:
+            return "Error loading metadata"
     metadata_summary.short_description = "AI Analysis Summary"
     
     def view_geocoding_result(self, obj):
-        geocoding_url = reverse('admin:geolocation_geocodingresult_change', args=[obj.geocoding_result.id])
-        return format_html('<a href="{}">🔍 View Geocoding Result</a>', geocoding_url)
+        """Safe link to geocoding result."""
+        try:
+            geocoding_url = reverse('admin:geolocation_geocodingresult_change', args=[obj.geocoding_result.id])
+            return format_html('<a href="{}">🔍 View Geocoding Result</a>', geocoding_url)
+        except Exception as e:
+            return "Error loading link"
     view_geocoding_result.short_description = "Geocoding Result"
     
     def view_on_map(self, obj):
-        coords = obj.final_coordinates
-        if coords:
-            lat, lng = coords
-            return format_html(
-                '<a href="https://www.google.com/maps/@{},{},15z" target="_blank">📍 View on Map</a>',
-                lat, lng
-            )
-        return "No coordinates"
+        """Safe map link generation."""
+        try:
+            coords = obj.final_coordinates
+            if coords:
+                lat, lng = coords
+                # Ensure coordinates are properly formatted as numbers
+                lat_str = "{:.5f}".format(float(lat))
+                lng_str = "{:.5f}".format(float(lng))
+                map_url = "https://www.google.com/maps/@{},{},15z".format(lat_str, lng_str)
+                return format_html(
+                    '<a href="{}" target="_blank">📍 View on Map</a>',
+                    map_url
+                )
+            return "No coordinates"
+        except Exception as e:
+            return "Coordinate error"
     view_on_map.short_description = "Map Link"
 
 
