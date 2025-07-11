@@ -125,7 +125,7 @@ services:
     volumes:
       - nominatim_data:/var/lib/postgresql/14/main
       - nominatim_flatnode:/nominatim/flatnode
-      - C:/Users/ruten/Desktop/osm_africa:/nominatim-import:ro
+      - C:/Users/ruten/Desktop/osm_africa:/nominatim-import:ro #point to local directory with PBF file
     shm_size: '2gb'
     deploy:
       resources:

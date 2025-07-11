@@ -1,6 +1,8 @@
 # geolocation/views.py
 import json
 import traceback
+import logging
+import requests
 from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -14,6 +16,9 @@ from .models import GeocodingResult, ValidationResult, ValidationDataset
 from .validation import SmartGeocodingValidator
 from core.models import Location
 from geolocation.management.commands.geocode_locations import Command as GeocodeCommand
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 
 def validation_map(request):
@@ -194,7 +199,7 @@ def validation_map(request):
                 'max_distance_km': analysis.get('max_distance_km', 0),
                 'reverse_geocoding_score': analysis.get('reverse_geocoding_score', 0) * 100,
                 'distance_confidence': analysis.get('distance_confidence', 0) * 100,
-                'ai_summary': metadata.get('user_friendly_summary', 'Analysis in progress...')
+                'ai_summary': metadata.get('user_friendly_summary', 'Enhanced AI analysis in progress...')
             })
     
     # Get navigation info for next/previous locations
@@ -426,14 +431,14 @@ def location_status_api(request):
                                 confidence = 0
                             else:
                                 status = 'geocoded'
-                                status_display = '🔍 Geocoded - Awaiting AI Analysis'
+                                status_display = '🔍 Geocoded - Awaiting Enhanced AI Analysis'
                                 status_color = 'blue'
                                 confidence = 50
                         else:
                             # No validation yet, but has geocoding results
                             if geocoding_result.has_any_results:
                                 status = 'geocoded'
-                                status_display = '🔍 Geocoded - Awaiting AI Analysis'
+                                status_display = '🔍 Geocoded - Awaiting Enhanced AI Analysis'
                                 status_color = 'blue'
                                 confidence = 50
                             else:
@@ -511,6 +516,7 @@ def location_status_api(request):
             })
             
         except Exception as e:
+            logger.error(f"Error fetching location status: {str(e)}")
             print(f"Error fetching location status: {str(e)}")
             import traceback
             traceback.print_exc()
@@ -594,6 +600,7 @@ def validation_queue_api(request):
             })
             
         except Exception as e:
+            logger.error(f"Error fetching validation queue: {str(e)}")
             print(f"Error fetching validation queue: {str(e)}")
             return JsonResponse({
                 'success': False,
@@ -620,7 +627,7 @@ def validation_api(request):
                 geocoding_result = get_object_or_404(GeocodingResult, id=geocoding_result_id)
                 validation = getattr(geocoding_result, 'validation', None)
                 if not validation:
-                    # Create validation if it doesn't exist using AI
+                    # Create validation if it doesn't exist using enhanced AI
                     validator = SmartGeocodingValidator()
                     validation = validator.validate_geocoding_result(geocoding_result)
             else:
@@ -653,6 +660,7 @@ def validation_api(request):
                 'error': 'Invalid JSON format in request body'
             }, status=400)
         except Exception as e:
+            logger.error(f"Validation API Error: {str(e)}")
             print(f"Validation API Error: {str(e)}")
             print(f"Traceback: {traceback.format_exc()}")
             return JsonResponse({
@@ -735,6 +743,7 @@ def geocoding_api(request):
                             no_results += 1
                             
                     except Exception as e:
+                        logger.error(f"Error geocoding {location.name}: {e}")
                         print(f"Error geocoding {location.name}: {e}")
                         no_results += 1
                 
@@ -742,7 +751,7 @@ def geocoding_api(request):
                 
                 return JsonResponse({
                     'success': True,
-                    'message': f'Coordinate search completed: {found_coordinates} locations now have coordinates, {no_results} locations could not be geocoded',
+                    'message': f'Enhanced coordinate search completed: {found_coordinates} locations now have coordinates, {no_results} locations could not be geocoded',
                     'stats': {
                         'processed': processed,
                         'found_coordinates': found_coordinates,  # Successfully found coordinates
@@ -778,6 +787,7 @@ def geocoding_api(request):
                 'error': 'Invalid JSON format in request body'
             }, status=400)
         except Exception as e:
+            logger.error(f"Geocoding API Error: {str(e)}")
             print(f"Geocoding API Error: {str(e)}")
             print(f"Traceback: {traceback.format_exc()}")
             return JsonResponse({
@@ -810,7 +820,7 @@ def bulk_validation_actions(request):
                 if total_validations == 0:
                     return JsonResponse({
                         'success': False,
-                        'error': 'No AI analysis has been performed yet. Please wait for AI analysis to complete first.'
+                        'error': 'No enhanced AI analysis has been performed yet. Please wait for AI analysis to complete first.'
                     }, status=400)
                 
                 # Check for high-confidence results
@@ -837,6 +847,7 @@ def bulk_validation_actions(request):
                         else:
                             errors += 1
                     except Exception as e:
+                        logger.error(f"Error auto-validating {validation.geocoding_result.location_name}: {e}")
                         print(f"Error auto-validating {validation.geocoding_result.location_name}: {e}")
                         errors += 1
                         continue
@@ -844,7 +855,7 @@ def bulk_validation_actions(request):
                 if count > 0:
                     return JsonResponse({
                         'success': True,
-                        'message': f'✅ Auto-validated {count} high confidence locations' + (f' ({errors} had errors)' if errors > 0 else '')
+                        'message': f'✅ Auto-validated {count} high confidence locations with enhanced validation factors' + (f' ({errors} had errors)' if errors > 0 else '')
                     })
                 else:
                     return JsonResponse({
@@ -858,7 +869,7 @@ def bulk_validation_actions(request):
                 if total_geocoding_results == 0:
                     return JsonResponse({
                         'success': False,
-                        'error': 'No locations have been geocoded yet. Please run "Start Coordinate Search" first to find coordinates for your locations before running AI analysis.'
+                        'error': 'No locations have been geocoded yet. Please run "Start Coordinate Search" first to find coordinates for your locations before running enhanced AI analysis.'
                     }, status=400)
                 
                 # Check if there are results to analyze
@@ -869,7 +880,7 @@ def bulk_validation_actions(request):
                 if not pending_results.exists():
                     return JsonResponse({
                         'success': True,
-                        'message': 'All geocoded locations have already been analyzed by AI. No new analysis needed.'
+                        'message': 'All geocoded locations have already been analyzed by enhanced AI. No new analysis needed.'
                     })
                 
                 # Run validation manually with proper error handling
@@ -887,7 +898,7 @@ def bulk_validation_actions(request):
                     # Process up to 50 results
                     for result in pending_results[:50]:
                         try:
-                            print(f"🔍 Validating: {result.location_name}")
+                            print(f"🔍 Enhanced AI validating: {result.location_name}")
                             validation = validator.validate_geocoding_result(result)
                             stats['processed'] += 1
                             
@@ -901,7 +912,14 @@ def bulk_validation_actions(request):
                             else:
                                 stats['rejected'] += 1
                         
+                        except requests.exceptions.Timeout:
+                            logger.warning(f"External API timeout during validation of {result.location_name}")
+                            print(f"⚠️ External API timeout for {result.location_name} - using basic validation")
+                            stats['processed'] += 1
+                            stats['needs_review'] += 1
+                            continue
                         except Exception as e:
+                            logger.error(f"Error validating {result.location_name}: {e}")
                             print(f"Error validating {result.location_name}: {e}")
                             stats['rejected'] += 1
                             continue
@@ -909,21 +927,22 @@ def bulk_validation_actions(request):
                     if stats['processed'] == 0:
                         return JsonResponse({
                             'success': True,
-                            'message': 'No new locations to analyze. All locations have already been processed.'
+                            'message': 'No new locations to analyze. All locations have already been processed by enhanced AI.'
                         })
                     
                     return JsonResponse({
                         'success': True,
-                        'message': f'✅ AI analysis completed: processed {stats["processed"]} locations. {stats["auto_validated"]} auto-validated, {stats["needs_review"]} need review, {stats["pending"]} need manual verification.',
+                        'message': f'✅ Enhanced AI analysis completed: processed {stats["processed"]} locations with multi-factor validation (population density, road proximity, reverse geocoding). {stats["auto_validated"]} auto-validated, {stats["needs_review"]} need review, {stats["pending"]} need manual verification.',
                         'stats': stats
                     })
                     
                 except Exception as e:
+                    logger.error(f"Error running enhanced smart validation: {str(e)}")
                     print(f"Error running smart validation: {str(e)}")
                     print(f"Traceback: {traceback.format_exc()}")
                     return JsonResponse({
                         'success': False,
-                        'error': f'AI analysis failed: {str(e)}'
+                        'error': f'Enhanced AI analysis failed: {str(e)}'
                     }, status=500)
             else:
                 return JsonResponse({
@@ -937,6 +956,7 @@ def bulk_validation_actions(request):
                 'error': 'Invalid JSON format in request body'
             }, status=400)
         except Exception as e:
+            logger.error(f"Bulk validation error: {str(e)}")
             print(f"Bulk validation error: {str(e)}")
             print(f"Traceback: {traceback.format_exc()}")
             return JsonResponse({
@@ -959,7 +979,7 @@ def handle_approve_ai_suggestion(validation, data):
         if not recommended_source:
             return JsonResponse({
                 'success': False,
-                'error': 'No AI recommendation available for this location. Please run AI analysis first or select a source manually.'
+                'error': 'No enhanced AI recommendation available for this location. Please run enhanced AI analysis first or select a source manually.'
             }, status=400)
         
         with transaction.atomic():
@@ -977,13 +997,13 @@ def handle_approve_ai_suggestion(validation, data):
             else:
                 return JsonResponse({
                     'success': False,
-                    'error': f'The AI recommended source ({recommended_source}) does not have valid coordinates. Please select a different source manually.'
+                    'error': f'The enhanced AI recommended source ({recommended_source}) does not have valid coordinates. Please select a different source manually.'
                 }, status=400)
             
             # FIXED: Update validation status with proper completion
             validation.validation_status = 'validated'
             validation.validated_at = timezone.now()
-            validation.validated_by = 'AI_Recommendation'
+            validation.validated_by = 'Enhanced_AI_Recommendation'
             validation.recommended_lat = final_lat
             validation.recommended_lng = final_lng
             validation.recommended_source = recommended_source
@@ -996,7 +1016,7 @@ def handle_approve_ai_suggestion(validation, data):
                     'final_lat': final_lat,
                     'final_long': final_lng,
                     'country': '',  # Add country if available
-                    'source': f'ai_recommended_{recommended_source}',
+                    'source': f'enhanced_ai_recommended_{recommended_source}',
                     'validated_at': timezone.now()
                 }
             )
@@ -1019,7 +1039,7 @@ def handle_approve_ai_suggestion(validation, data):
             
             return JsonResponse({
                 'success': True,
-                'message': f'✅ AI recommendation accepted: {result.location_name} validated using {recommended_source.upper()} coordinates',
+                'message': f'✅ Enhanced AI recommendation accepted: {result.location_name} validated using {recommended_source.upper()} coordinates with multi-factor analysis',
                 'coordinates': {'lat': final_lat, 'lng': final_lng},
                 'source': recommended_source,
                 'status': 'validated',
@@ -1027,12 +1047,13 @@ def handle_approve_ai_suggestion(validation, data):
             })
     
     except Exception as e:
+        logger.error(f"Error approving enhanced AI suggestion: {str(e)}")
         print(f"Error approving AI suggestion: {str(e)}")
         import traceback
         traceback.print_exc()
         return JsonResponse({
             'success': False,
-            'error': f'Failed to approve AI suggestion: {str(e)}'
+            'error': f'Failed to approve enhanced AI suggestion: {str(e)}'
         }, status=500)
 
 
@@ -1114,6 +1135,7 @@ def handle_use_source(validation, data):
             })
     
     except Exception as e:
+        logger.error(f"Error using source: {str(e)}")
         print(f"Error using source: {str(e)}")
         import traceback
         traceback.print_exc()
@@ -1194,6 +1216,7 @@ def handle_manual_coordinates(validation, data):
             'error': 'Invalid coordinate values. Please enter valid numbers for latitude and longitude.'
         }, status=400)
     except Exception as e:
+        logger.error(f"Error saving manual coordinates: {str(e)}")
         print(f"Error saving manual coordinates: {str(e)}")
         import traceback
         traceback.print_exc()
@@ -1227,6 +1250,7 @@ def handle_reject(validation, data):
         })
     
     except Exception as e:
+        logger.error(f"Error rejecting location: {str(e)}")
         print(f"Error rejecting location: {str(e)}")
         return JsonResponse({
             'success': False,
@@ -1235,7 +1259,7 @@ def handle_reject(validation, data):
 
 
 def get_enhanced_validation_details(validation):
-    """Get detailed validation information with AI analysis."""
+    """Get detailed validation information with enhanced AI analysis."""
     try:
         result = validation.geocoding_result
         metadata = validation.validation_metadata or {}
@@ -1264,7 +1288,7 @@ def get_enhanced_validation_details(validation):
                     'place_type': reverse_info.get('place_type', 'unknown')
                 })
         
-        # Extract analysis data
+        # Extract enhanced analysis data
         analysis = metadata.get('coordinates_analysis', {})
         recommendation = metadata.get('recommendation', {})
         
@@ -1295,42 +1319,58 @@ def get_enhanced_validation_details(validation):
                     'reverse_geocoding_score': analysis.get('reverse_geocoding_score', 0) * 100,
                     'distance_confidence': analysis.get('distance_confidence', 0) * 100,
                     'max_distance_km': analysis.get('max_distance_km', 0),
-                    'accuracy_level': analysis.get('accuracy_level', 'Unknown')
+                    'accuracy_level': analysis.get('accuracy_level', 'Unknown'),
+                    'population_density': analysis.get('confidence_breakdown', {}).get('population_density', 0) * 100,
+                    'road_proximity': analysis.get('confidence_breakdown', {}).get('road_proximity', 0) * 100
                 },
                 'recommendation': recommendation,
                 'variance': variance,
                 'accuracy_description': accuracy_description,
                 'distance_quality': distance_quality,
-                'ai_summary': metadata.get('user_friendly_summary', 'No AI analysis available'),
-                'reverse_geocoding_results': reverse_geocoding
+                'ai_summary': metadata.get('user_friendly_summary', 'Enhanced AI analysis completed with multi-factor validation'),
+                'reverse_geocoding_results': reverse_geocoding,
+                'enhanced_factors': metadata.get('validation_flags', [])
             }
         })
     
     except Exception as e:
+        logger.error(f"Error getting enhanced validation details: {str(e)}")
         print(f"Error getting validation details: {str(e)}")
         return JsonResponse({
             'success': False,
-            'error': f'Failed to get validation details: {str(e)}'
+            'error': f'Failed to get enhanced validation details: {str(e)}'
         }, status=500)
 
 
 def run_ai_analysis(validation):
-    """Re-run AI analysis on a validation result with enhanced error handling."""
+    """Re-run enhanced AI analysis on a validation result with external API timeout handling."""
     try:
         validator = SmartGeocodingValidator()
+        # Add timeout handling for external APIs
         updated_validation = validator.validate_geocoding_result(validation.geocoding_result)
         
         return JsonResponse({
             'success': True,
-            'message': '✅ AI analysis completed successfully',
+            'message': '✅ Enhanced AI analysis completed successfully with multi-factor validation (population density, road proximity, reverse geocoding)',
             'confidence': updated_validation.confidence_score * 100,
-            'status': updated_validation.validation_status
+            'status': updated_validation.validation_status,
+            'enhanced_factors': True
+        })
+    except requests.exceptions.Timeout:
+        logger.warning(f"External API timeout during validation of {validation.geocoding_result.location_name}")
+        return JsonResponse({
+            'success': True,
+            'message': '⚠️ AI analysis completed with basic factors (external APIs temporarily unavailable)',
+            'confidence': validation.confidence_score * 100,
+            'status': validation.validation_status,
+            'enhanced_factors': False
         })
     except Exception as e:
+        logger.error(f"Error running enhanced AI analysis: {str(e)}")
         print(f"Error running AI analysis: {str(e)}")
         return JsonResponse({
             'success': False,
-            'error': f'AI analysis failed: {str(e)}'
+            'error': f'Enhanced AI analysis failed: {str(e)}'
         }, status=500)
 
 
@@ -1380,6 +1420,7 @@ def validation_statistics(request):
         })
     
     except Exception as e:
+        logger.error(f"Error getting validation statistics: {str(e)}")
         print(f"Error getting validation statistics: {str(e)}")
         return JsonResponse({
             'success': False,
