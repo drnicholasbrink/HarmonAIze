@@ -179,7 +179,7 @@
     <div class="container">
       <div class="row">
         <div class="col-lg-8 mx-auto text-center">
-          <h1 class="display-5 fw-bold mb-3">Select Target Variables</h1>
+          <h1 class="display-5 fw-bold mb-3">Select Target Database Variables</h1>
           <p class="lead">
             Review and select the target variables that will define your harmonisation standards.
           </p>
@@ -188,7 +188,7 @@
               {{ variables_count }} Variables Found
             </span>
             <span class="badge bg-light text-dark fs-6 ms-2">
-              Target Study: {{ study.name }}
+              Target Database: {{ study.name }}
             </span>
           </div>
         </div>
@@ -210,12 +210,12 @@
               Selection Summary
             </h5>
             <p class="mb-0 text-muted">
-              <span id="selected-count">0</span> of {{ variables_count }} target variables selected
+              <span id="selected-count">0</span> of {{ variables_count }} target database variables selected
             </p>
           </div>
           <div>
             <button type="submit" class="btn btn-primary" id="submit-btn" disabled>
-              <i class="fas fa-save me-2"></i>Save Target Variables
+              <i class="fas fa-save me-2"></i>Save Target Database Variables
             </button>
           </div>
         </div>
@@ -239,7 +239,7 @@
       <!-- Variables List -->
       <div class="content-card">
         <h2 class="section-title mb-4">
-          <i class="fas fa-list me-2"></i>Target Variables
+          <i class="fas fa-list me-2"></i>Target Database Variables
         </h2>
         
         {% for form in formset %}
@@ -327,7 +327,7 @@
         {% empty %}
           <div class="text-center py-5">
             <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
-            <h4>No Target Variables Found</h4>
+            <h4>No Target Database Variables Found</h4>
             <p class="text-muted">
               No target variables were extracted from your codebook. 
               Please check your column mapping and try again.
@@ -348,7 +348,7 @@
           
           <div class="d-flex gap-3">
             <button type="submit" class="btn btn-primary" id="submit-btn-bottom">
-              <i class="fas fa-save me-2"></i>Save Target Variables
+              <i class="fas fa-save me-2"></i>Save Target Database Variables
             </button>
           </div>
         </div>
@@ -421,7 +421,7 @@
       
       if (selectedCount === 0) {
         e.preventDefault();
-        alert('Please select at least one target variable to continue.');
+        alert('Please select at least one target database variable to continue.');
         return;
       }
 
@@ -459,7 +459,7 @@
       
       if (hasErrors) {
         e.preventDefault();
-        alert('Please fill in all required fields for selected target variables.');
+        alert('Please fill in all required fields for selected target database variables.');
       }
     });
 

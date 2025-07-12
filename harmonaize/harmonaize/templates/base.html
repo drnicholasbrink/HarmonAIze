@@ -12,7 +12,7 @@
   </title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description"
-        content="an open-source toolkit that streamlines the process of harmonising and integrating climate and health data. Designed for research teams in resource-constrained settings, it leverages AI-assisted workflows to map, clean, and unify heterogeneous datasets, all while preserving privacy through federated approaches. By aligning health data with curated climate data sources, HarmonAIze accelerates climate–health research and enables faster, more accurate analyses of environmental impacts on health outcomes." />
+        content="an open-source toolkit that streamlines the process of harmonizing and integrating climate and health data. Designed for research teams in resource-constrained settings, it leverages AI-assisted workflows to map, clean, and unify heterogeneous datasets, all while preserving privacy through federated approaches. By aligning health data with curated climate data sources, HarmonAIze accelerates climate–health research and enables faster, more accurate analyses of environmental impacts on health outcomes." />
   <meta name="author"
         content="HarmonAIze Consortium" />
   <link rel="icon" href="{% static 'images/favicons/favicon.ico' %}" />
@@ -23,12 +23,12 @@
           integrity="sha512-SbiR/eusphKoMVVXysTKG/7VseWii+Y3FdHrt0EpKgpToZeemhqHeZeLWLhJutz/2ut2Vw1uQEj2MbRF+TVBUA=="
           crossorigin="anonymous"
           referrerpolicy="no-referrer" />
-    
-    <!-- HarmonAIze Theme System -->
-    <link href="{% static 'css/harmonaize-theme.css' %}" rel="stylesheet" />
-    
-    <!-- Legacy project CSS for compatibility -->
-    <link href="{% static 'css/project.css' %}" rel="stylesheet" />
+<!-- Your stuff: Third-party CSS libraries go here -->
+<!-- This file stores project-specific CSS -->
+
+  
+  <link href="{% static 'css/project.css' %}" rel="stylesheet" />
+
 
 {% endblock css %}
 <!-- Le javascript
@@ -38,8 +38,9 @@
 
 
 <!-- Bootstrap JS -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/js/bootstrap.bundle.min.js"
-        integrity="sha512-i9cEfJwUwViEPFKdC1enz4ZRGBj8YQo6QByFTF92YXHi7waCqyexvRD75S5NVTsSiTv7rKWqG9Y5eFxmRsOn0A=="
+<script defer
+        src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/js/bootstrap.min.js"
+        integrity="sha512-1/RvZTcCDEUjY/CypiMz+iqqtaoQfAITmNSJY17Myp4Ms5mdxPS5UV7iOfdZoxcGhzFbOm6sntTKJppjvuhg4g=="
         crossorigin="anonymous"
         referrerpolicy="no-referrer"></script>
 <!-- Your stuff: Third-party javascript libraries go here -->
@@ -48,7 +49,7 @@
 <!-- place project specific Javascript in this file -->
 
   
-  <script src="{% static 'js/project.js' %}"></script>
+  <script defer src="{% static 'js/project.js' %}"></script>
 
 
 {% endblock javascript %}
@@ -77,27 +78,10 @@
               <a class="nav-link" href="{% url 'about' %}">About</a>
             </li>
             {% if request.user.is_authenticated %}
-              <li class="nav-item dropdown">
-                <a class="nav-link dropdown-toggle" href="#" id="harmonisationDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                  Harmonisation
+              <li class="nav-item">
+                <a class="nav-link fw-bold" href="{% url 'core:dashboard' %}">
+                  {% include 'components/svg_icon.html' with icon='dashboard' size='16' class='inline-icon' %} Dashboard
                 </a>
-                <ul class="dropdown-menu" aria-labelledby="harmonisationDropdown">
-                  <li><h6 class="dropdown-header">Source Studies</h6></li>
-                  <li><a class="dropdown-item" href="{% url 'core:upload' %}">Upload Source Study</a></li>
-                  <li><a class="dropdown-item" href="{% url 'core:study_list' %}">View Source Studies</a></li>
-                  <li><hr class="dropdown-divider"></li>
-                  <li><h6 class="dropdown-header">Target Definition</h6></li>
-                  {% if has_target_study %}
-                    <li><a class="dropdown-item" href="{% url 'core:study_detail' user_target_study.pk %}">View Target Study</a></li>
-                    <li><a class="dropdown-item text-muted" href="#" onclick="alert('You already have a target study. You can only have one target study that defines your harmonisation standards.'); return false;">
-                      <small>{% include 'components/svg_icon.html' with icon='check' size='14' class='inline-icon' %} Target study already exists</small>
-                    </a></li>
-                  {% else %}
-                    <li><a class="dropdown-item" href="{% url 'core:create_target_study' %}">Create Target Study</a></li>
-                  {% endif %}
-                  <li><hr class="dropdown-divider"></li>
-                  <li><a class="dropdown-item" href="{% url 'core:dashboard' %}">Dashboard</a></li>
-                </ul>
               </li>
               <li class="nav-item">
                 <a class="nav-link"

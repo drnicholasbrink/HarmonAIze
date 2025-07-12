@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Patient, Location, TimeDimension, Attribute, Observation, Study
+from .models import Patient, Location, TimeDimension, Attribute, Observation, Study, Project
 
 
 @admin.register(Study)
@@ -47,7 +47,8 @@ class PatientAdmin(admin.ModelAdmin):
 
 @admin.register(Location)
 class LocationAdmin(admin.ModelAdmin):
-    list_display = ['name', 'latitude', 'longitude', 'created_at']
+    list_display = ['name', 'latitude', 'longitude', 'created_at'
+]
     search_fields = ['name']
     readonly_fields = ['created_at', 'updated_at']
 
@@ -72,3 +73,36 @@ class ObservationAdmin(admin.ModelAdmin):
     list_filter = ['attribute__category', 'attribute__variable_type', 'created_at']
     search_fields = ['attribute__variable_name', 'patient__unique_id', 'location__name']
     readonly_fields = ['created_at', 'updated_at']
+
+
+@admin.register(Project)
+class ProjectAdmin(admin.ModelAdmin):
+    list_display = ['name', 'created_by', 'study_count', 'created_at', 'updated_at']
+    list_filter = ['created_at', 'updated_at', 'created_by']
+    search_fields = ['name', 'description']
+    readonly_fields = ['created_at', 'updated_at', 'study_count', 'harmonisation_progress']
+    
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('name', 'description', 'created_by')
+        }),
+        ('Progress & Statistics', {
+            'fields': ('study_count', 'harmonisation_progress'),
+            'classes': ('collapse',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def study_count(self, obj):
+        """Display the number of studies in this project"""
+        return obj.study_count
+    study_count.short_description = 'Studies'
+    
+    def harmonisation_progress(self, obj):
+        """Display harmonisation progress as a percentage"""
+        progress = obj.harmonisation_progress
+        return f"{progress:.1f}%" if progress is not None else "N/A"
+    harmonisation_progress.short_description = 'Progress'
