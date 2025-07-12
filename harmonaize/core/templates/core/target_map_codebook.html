@@ -151,16 +151,16 @@
     <div class="container">
       <div class="row">
         <div class="col-lg-8 mx-auto text-center">
-          <h1 class="display-5 fw-bold mb-3">Map Target Codebook</h1>
+          <h1 class="display-5 fw-bold mb-3">Map Target Database Codebook</h1>
           <p class="lead">
-            Help us understand your target codebook structure by mapping columns to our target variable schema.
+            Help us understand your target database structure by mapping columns to our target variable schema.
           </p>
           <div class="mt-3">
             <span class="badge bg-light text-dark fs-6">
               📁 {{ detected_format|upper }} Format Detected
             </span>
             <span class="badge bg-light text-dark fs-6 ms-2">
-              Target Study: {{ study.name }}
+              Target Database: {{ study.name }}
             </span>
           </div>
         </div>
@@ -171,18 +171,18 @@
   <div class="container">
     <!-- Information Alert -->
     <div class="info-alert">
-      <h5><i class="fas fa-info-circle me-2"></i>Target Codebook Mapping</h5>
+      <h5><i class="fas fa-info-circle me-2"></i>Target Database Codebook Mapping</h5>
       <p class="mb-0">
-        We've detected your target codebook structure. Please map the columns to our target variable schema. 
-        This will help us extract and standardize your harmonization targets correctly.
+        We've detected your target database codebook structure. Please map the columns to our target variable schema. 
+        This will help us extract and standardise your harmonisation targets correctly.
       </p>
     </div>
 
     <!-- Sample Data Preview -->
     <div class="content-card">
-      <h2 class="section-title">Preview of Your Target Codebook</h2>
+      <h2 class="section-title">Preview of Your Target Database Codebook</h2>
       <p class="text-muted mb-3">
-        Here are the first few rows of your target codebook file. Use this to understand your data structure.
+        Here are the first few rows of your target database codebook file. Use this to understand your data structure.
       </p>
       
       <div class="table-responsive">
@@ -215,9 +215,9 @@
 
     <!-- Column Mapping Form -->
     <div class="content-card">
-      <h2 class="section-title">🔗 Map Target Codebook Columns</h2>
+      <h2 class="section-title">🔗 Map Target Database Codebook Columns</h2>
       <p class="text-muted mb-4">
-        Map your target codebook columns to our target variable schema. Required fields are marked with 
+        Map your target database codebook columns to our target variable schema. Required fields are marked with 
         <span class="required-field">*</span>.
       </p>
 
@@ -294,7 +294,7 @@
             <i class="fas fa-arrow-right me-2"></i>Continue to Target Variable Extraction
           </button>
           <a href="{% url 'core:study_detail' study.pk %}" class="btn btn-secondary">
-            <i class="fas fa-arrow-left me-2"></i>Back to Study
+            <i class="fas fa-arrow-left me-2"></i>Back to Database
           </a>
         </div>
       </form>

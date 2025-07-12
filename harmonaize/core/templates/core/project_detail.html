@@ -318,7 +318,7 @@
     </div>
     <div class="stat-card">
       <div class="stat-number">{{ target_studies.count }}</div>
-      <div class="stat-label">Target Studies</div>
+      <div class="stat-label">Target Databases</div>
     </div>
     <div class="stat-card">
       <div class="stat-number">{{ total_studies }}</div>
@@ -380,13 +380,13 @@
         {% endif %}
       </div>
 
-      <!-- Target Studies -->
+      <!-- Target Databases -->
       <div class="card" style="margin-top: 2rem;">
         <h3>
           <svg class="icon" viewBox="0 0 24 24">
             <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
           </svg>
-          Target Studies ({{ target_studies.count }})
+          Target Databases ({{ target_studies.count }})
         </h3>
         
         {% if target_studies %}
@@ -406,7 +406,7 @@
                     <svg class="icon" viewBox="0 0 24 24">
                       <path d="M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5Z"/>
                     </svg>
-                    View Study
+                    View Database
                   </a>
                   {% if study.study_type == 'target' %}
                     <a href="{% url 'core:target_map_codebook' study.pk %}" class="btn btn-outline-secondary">
@@ -425,12 +425,12 @@
             <svg class="empty-icon" viewBox="0 0 24 24">
               <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
             </svg>
-            <p>No target studies in this project yet.</p>
+            <p>No target databases in this project yet.</p>
             <a href="{% url 'core:create_target_study' %}" class="btn btn-primary">
               <svg class="icon" viewBox="0 0 24 24">
-                <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"/>
+                <path d="M19,13H13V19H11V13H5V11H19V13Z"/>
               </svg>
-              Create Target Study
+              Create Target Database
             </a>
           </div>
         {% endif %}
@@ -485,7 +485,7 @@
             <svg class="icon" viewBox="0 0 24 24">
               <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
             </svg>
-            Create Target Study
+            Create Target Database
           </a>
         </div>
       </div>
