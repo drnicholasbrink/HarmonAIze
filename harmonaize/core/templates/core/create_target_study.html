@@ -281,6 +281,14 @@
             Provide information about your harmonisation target. This defines the standard format for your harmonised data.
           </p>
           
+          <div class="form-group">
+            <label for="{{ form.project.id_for_label }}" class="form-label">Project</label>
+            {{ form.project }}
+            {% if form.project.help_text %}
+              <small class="form-text text-muted">{{ form.project.help_text }}</small>
+            {% endif %}
+          </div>
+          
           <div class="row">
             <div class="col-md-8">
               <div class="form-group">

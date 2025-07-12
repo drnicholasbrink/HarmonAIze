@@ -7,6 +7,11 @@ urlpatterns = [
     # Dashboard and main views
     path('dashboard/', views.study_dashboard, name='dashboard'),
     
+    # Project management
+    path('projects/', views.ProjectListView.as_view(), name='project_list'),
+    path('projects/create/', views.create_project, name='create_project'),
+    path('projects/<int:pk>/', views.ProjectDetailView.as_view(), name='project_detail'),
+    
     # Study workflow - simple upload and view
     path('upload/', views.upload_study, name='upload'),
     path('studies/', views.StudyListView.as_view(), name='study_list'),
