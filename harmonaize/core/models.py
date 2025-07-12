@@ -2,9 +2,76 @@ from django.contrib.auth import get_user_model
 from django.db import models
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.urls import reverse
 import ast
 
 User = get_user_model()
+
+
+class Project(models.Model):
+    """
+    Represents a research project that contains multiple studies.
+    A project serves as the top-level organisational unit for harmonisation work.
+    """
+    # Basic project information
+    name = models.CharField(max_length=200, help_text="Name of the project")
+    description = models.TextField(
+        blank=True, help_text="Detailed description of the project"
+    )
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="projects",
+    )
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name_plural = "Projects"
+
+    def __str__(self):
+        return self.name
+
+    def get_absolute_url(self):
+        from django.urls import reverse
+
+        return reverse("core:project_detail", kwargs={"pk": self.pk})
+
+    @property
+    def study_count(self):
+        """Return the number of studies in this project."""
+        return self.studies.count()
+
+    @property
+    def source_study_count(self):
+        """Return the number of source studies in this project."""
+        return self.studies.filter(study_purpose="source").count()
+
+    @property
+    def target_study_count(self):
+        """Return the number of target studies in this project."""
+        return self.studies.filter(study_purpose="target").count()
+
+    @property
+    def total_variable_count(self):
+        """Return the total number of variables across all studies in this project."""
+        return sum(study.variable_count for study in self.studies.all())
+
+    @property
+    def harmonisation_progress(self):
+        """Calculate harmonisation progress as percentage of completed studies."""
+        total_studies = self.study_count
+        if total_studies == 0:
+            return 0
+
+        completed_studies = self.studies.filter(
+            status__in=["harmonised", "completed"],
+        ).count()
+
+        return round((completed_studies / total_studies) * 100)
 
 class Patient(models.Model):
     """
@@ -227,6 +294,14 @@ class Study(models.Model):
     description = models.TextField(blank=True, help_text="Brief description of the study")
     principal_investigator = models.CharField(max_length=200, blank=True, help_text="Principal investigator name")
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='studies')
+    
+    # Project relationship
+    project = models.ForeignKey(
+        'Project', 
+        on_delete=models.CASCADE, 
+        related_name='studies',
+        help_text="Project that this study belongs to"
+    )
     
     # Study purpose (source vs target)
     study_purpose = models.CharField(

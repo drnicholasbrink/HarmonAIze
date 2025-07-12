@@ -5,8 +5,8 @@ from django.urls import reverse
 from django.views.generic import ListView, DetailView
 from django.contrib.auth.mixins import LoginRequiredMixin
 import pandas as pd
-from .models import Study
-from .forms import StudyCreationForm
+from .models import Study, Project
+from .forms import StudyCreationForm, ProjectCreationForm
 
 
 @login_required
@@ -189,6 +189,10 @@ def study_dashboard(request):
     recent_source_studies = source_studies.order_by('-created_at')[:5]
     target_study = target_studies.first()  # There should only be one
     
+    # Get project information
+    all_projects = Project.objects.filter(created_by=request.user)
+    recent_projects = all_projects.order_by('-created_at')[:3]
+    
     # Calculate total variables across all studies
     total_variables = 0
     for study in all_studies:
@@ -202,9 +206,106 @@ def study_dashboard(request):
         'has_target_study': target_studies.exists(),
         'total_studies': all_studies.count(),
         'total_variables': total_variables,
+        'total_projects': all_projects.count(),
+        'recent_projects': recent_projects,
     }
     
     return render(request, 'core/dashboard.html', context)
+
+# Project Views
+@login_required
+def create_project(request):
+    """
+    Create a new project to organise studies.
+    """
+    if request.method == 'POST':
+        form = ProjectCreationForm(request.POST, user=request.user)
+        if form.is_valid():
+            project = form.save()
+            
+            messages.success(
+                request,
+                f'Project "{project.name}" created successfully! '
+                f'You can now add studies to this project.'
+            )
+            
+            return redirect('core:project_detail', pk=project.pk)
+        else:
+            messages.error(request, 'Please correct the errors below.')
+    else:
+        form = ProjectCreationForm(user=request.user)
+    
+    context = {
+        'form': form,
+        'page_title': 'Create New Project',
+    }
+    
+    return render(request, 'core/create_project.html', context)
+
+
+class ProjectDetailView(LoginRequiredMixin, DetailView):
+    """
+    Detail view for a specific project showing its studies and progress.
+    """
+    model = Project
+    template_name = 'core/project_detail.html'
+    context_object_name = 'project'
+    
+    def get_queryset(self):
+        return Project.objects.filter(created_by=self.request.user)
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        project = self.object
+        
+        # Get project studies using the correct relationship
+        source_studies = project.studies.filter(study_purpose='source').order_by('-created_at')
+        target_studies = project.studies.filter(study_purpose='target').order_by('-created_at')
+        
+        # Calculate project statistics
+        total_variables = 0
+        for study in source_studies:
+            total_variables += study.variables.count()
+        for study in target_studies:
+            total_variables += study.variables.count()
+        
+        context.update({
+            'source_studies': source_studies,
+            'target_studies': target_studies,
+            'source_studies_count': source_studies.count(),
+            'target_studies_count': target_studies.count(),
+            'total_variables': total_variables,
+            'has_target_study': target_studies.exists(),
+        })
+        
+        return context
+
+
+class ProjectListView(LoginRequiredMixin, ListView):
+    """
+    List view for user's projects.
+    """
+    model = Project
+    template_name = 'core/project_list.html'
+    context_object_name = 'projects'
+    paginate_by = 10
+    
+    def get_queryset(self):
+        return Project.objects.filter(created_by=self.request.user).order_by('-created_at')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Calculate aggregate statistics
+        total_projects = self.get_queryset().count()
+        total_studies = Study.objects.filter(created_by=self.request.user).count()
+        
+        context.update({
+            'total_projects': total_projects,
+            'total_studies': total_studies,
+        })
+        
+        return context
 
 # Target Codebook Views - Following the same pattern as health views
 @login_required

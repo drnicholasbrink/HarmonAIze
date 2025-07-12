@@ -1,6 +1,6 @@
 from django import forms
 from django.core.exceptions import ValidationError
-from .models import Study, Attribute
+from .models import Study, Attribute, Project
 
 
 class StudyCreationForm(forms.ModelForm):
@@ -19,6 +19,7 @@ class StudyCreationForm(forms.ModelForm):
     class Meta:
         model = Study
         fields = [
+            'project',
             'name',
             'description',
             'principal_investigator',
@@ -40,6 +41,9 @@ class StudyCreationForm(forms.ModelForm):
         ]
         
         widgets = {
+            'project': forms.Select(attrs={
+                'class': 'form-select'
+            }),
             'name': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'Enter study name'
@@ -106,6 +110,7 @@ class StudyCreationForm(forms.ModelForm):
         }
         
         help_texts = {
+            'project': 'Select the project this study belongs to',
             'name': 'A descriptive name for your research study',
             'study_type': 'Select the type of research study',
             'has_ethical_approval': 'Check if your study has received ethical/IRB approval',
@@ -122,6 +127,10 @@ class StudyCreationForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
+        
+        # Filter projects by user
+        if self.user:
+            self.fields['project'].queryset = Project.objects.filter(created_by=self.user)
         
         # Make data use permissions field render properly
         if 'data_use_permissions' in self.initial and self.initial['data_use_permissions']:
@@ -411,7 +420,7 @@ class TargetCodebookForm(forms.ModelForm):
         
         self.fields['codebook'].label = "Target Codebook File"
         self.fields['codebook'].help_text = (
-            "Upload a CSV or Excel file containing the target variables you want to harmonize to. "
+            "Upload a CSV or Excel file containing the target variables you want to harmonise to. "
             "The file should contain columns for variable names, descriptions, types, and units."
         )
 
@@ -479,3 +488,46 @@ class TargetVariableForm(forms.ModelForm):
         if commit:
             instance.save()
         return instance
+
+
+class ProjectCreationForm(forms.ModelForm):
+    """
+    Form for creating a new project.
+    """
+    
+    class Meta:
+        model = Project
+        fields = [
+            'name',
+            'description',
+        ]
+        
+        widgets = {
+            'name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Enter project name',
+                'required': True
+            }),
+            'description': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': 'Brief description of the project (optional)'
+            }),
+        }
+        
+        help_texts = {
+            'name': 'A descriptive name for your harmonization project',
+            'description': 'Describe the goals and scope of this project',
+        }
+
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+        
+    def save(self, commit=True):
+        project = super().save(commit=False)
+        if self.user:
+            project.created_by = self.user
+        if commit:
+            project.save()
+        return project
