@@ -187,7 +187,7 @@ def study_dashboard(request):
     target_studies = all_studies.filter(study_purpose='target')
     
     recent_source_studies = source_studies.order_by('-created_at')[:5]
-    target_study = target_studies.first()  # There should only be one
+    recent_target_studies = target_studies.order_by('-created_at')[:3]  # Show multiple target databases
     
     # Get project information
     all_projects = Project.objects.filter(created_by=request.user)
@@ -202,7 +202,7 @@ def study_dashboard(request):
         'source_studies': recent_source_studies,
         'source_studies_count': source_studies.count(),
         'target_studies_count': target_studies.count(),
-        'target_study': target_study,
+        'target_studies': recent_target_studies,
         'has_target_study': target_studies.exists(),
         'total_studies': all_studies.count(),
         'total_variables': total_variables,
@@ -311,23 +311,9 @@ class ProjectListView(LoginRequiredMixin, ListView):
 @login_required
 def create_target_study(request):
     """
-    Create a new target study for defining harmonisation targets.
-    Only one target study is allowed per user.
+    Create a new target database for defining harmonisation targets.
+    Multiple target databases are allowed per user.
     """
-    # Check if user already has a target study
-    existing_target_study = Study.objects.filter(
-        created_by=request.user,
-        study_purpose='target'
-    ).first()
-    
-    if existing_target_study:
-        messages.info(
-            request,
-            f'You already have a target study: "{existing_target_study.name}". '
-            f'You can only have one target study that defines your harmonisation standards.'
-        )
-        return redirect('core:study_detail', pk=existing_target_study.pk)
-    
     if request.method == 'POST':
         form = StudyCreationForm(request.POST, request.FILES, user=request.user)
         if form.is_valid():
@@ -342,7 +328,7 @@ def create_target_study(request):
             
             messages.success(
                 request,
-                f'Target study "{study.name}" created successfully! '
+                f'Target database "{study.name}" created successfully! '
                 f'This will define your harmonisation standards. You can now proceed to define your target variables.'
             )
             
@@ -358,7 +344,7 @@ def create_target_study(request):
     
     context = {
         'form': form,
-        'page_title': 'Create Target Study',
+        'page_title': 'Create Target Database',
         'study_type': 'target',
     }
     
@@ -368,7 +354,7 @@ def create_target_study(request):
 @login_required
 def target_map_codebook(request, study_id):
     """
-    Map target codebook columns to attribute schema.
+    Map target database codebook columns to attribute schema.
     Uses unified codebook processing utility.
     """
     study = get_object_or_404(Study, id=study_id, created_by=request.user, study_purpose='target')
@@ -385,14 +371,14 @@ def target_map_codebook(request, study_id):
         return render(request, 'core/target_map_codebook.html', result)
     
     # This shouldn't happen, but provide a fallback
-    messages.error(request, 'Unexpected error processing target codebook mapping.')
+    messages.error(request, 'Unexpected error processing target database codebook mapping.')
     return redirect('core:study_detail', pk=study.pk)
 
 
 @login_required 
 def target_extract_variables(request, study_id):
     """
-    Extract target variables from codebook using the column mapping.
+    Extract target database variables from codebook using the column mapping.
     Uses unified codebook processing utility.
     """
     study = get_object_or_404(Study, id=study_id, created_by=request.user, study_purpose='target')
@@ -404,14 +390,14 @@ def target_extract_variables(request, study_id):
 @login_required
 def target_select_variables(request, study_id):
     """
-    Let user select which extracted target variables to include in the study.
+    Let user select which extracted target database variables to include in the study.
     """
     study = get_object_or_404(Study, id=study_id, created_by=request.user, study_purpose='target')
     
     # Get variables data from session
     variables_data = request.session.get(f'target_variables_data_{study.id}')
     if not variables_data:
-        messages.error(request, 'No target variable data found. Please extract variables first.')
+        messages.error(request, 'No target database variable data found. Please extract variables first.')
         return redirect('core:target_extract_variables', study_id=study.id)
     
     # Handle form submission (user selecting variables)
@@ -432,9 +418,9 @@ def target_select_variables(request, study_id):
             included_variables = formset.get_included_variables()
             
             if not included_variables:
-                messages.error(request, 'You must include at least one target variable in your study.')
+                messages.error(request, 'You must include at least one target database variable in your database.')
             else:
-                # Create Attribute objects for included target variables
+                # Create Attribute objects for included target database variables
                 created_attributes = []
                 
                 for var_data in included_variables:
@@ -453,12 +439,12 @@ def target_select_variables(request, study_id):
                         )
                         created_attributes.append(attribute)
                     except Exception as e:
-                        messages.error(request, f'Error creating target variable {var_data["variable_name"]}: {str(e)}')
+                        messages.error(request, f'Error creating target database variable {var_data["variable_name"]}: {str(e)}')
                         context = {
                             'study': study,
                             'formset': formset,
                             'variables_count': len(variables_data),
-                            'page_title': f'Select Target Variables - {study.name}',
+                            'page_title': f'Select Target Database Variables - {study.name}',
                             'study_type': 'target',
                         }
                         return render(request, 'core/target_select_variables.html', context)
@@ -474,7 +460,7 @@ def target_select_variables(request, study_id):
                 
                 messages.success(
                     request,
-                    f'Successfully added {len(included_variables)} target variables to your study! '
+                    f'Successfully added {len(included_variables)} target database variables to your database! '
                     f'Your harmonisation targets are now defined.'
                 )
                 
@@ -520,7 +506,7 @@ def target_select_variables(request, study_id):
         'study': study,
         'formset': formset,
         'variables_count': len(variables_data),
-        'page_title': f'Select Target Variables - {study.name}',
+        'page_title': f'Select Target Database Variables - {study.name}',
         'study_type': 'target',
     }
     
@@ -530,7 +516,7 @@ def target_select_variables(request, study_id):
 @login_required
 def target_reset_variables(request, study_id):
     """
-    Reset all target variables for a study and clear related session data.
+    Reset all target database variables for a study and clear related session data.
     """
     study = get_object_or_404(Study, id=study_id, created_by=request.user, study_purpose='target')
     
@@ -549,8 +535,8 @@ def target_reset_variables(request, study_id):
         
         messages.success(
             request,
-            f'Successfully reset {variables_count} target variables. '
-            f'You can now restart the target definition workflow.'
+            f'Successfully reset {variables_count} target database variables. '
+            f'You can now restart the target database definition workflow.'
         )
         
         return redirect('core:study_detail', pk=study.pk)

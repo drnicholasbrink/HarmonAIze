@@ -531,7 +531,7 @@
               </svg>
             </div>
             <h3 class="flow-card-title">Upload Source Data</h3>
-            <p class="flow-card-description">Add new datasets to harmonise against your target database</p>
+            <p class="flow-card-description">Add new datasets to harmonise against your target databases</p>
             <a href="{% url 'core:upload' %}" class="btn btn-primary flow-btn">
               Upload Study
             </a>
@@ -548,10 +548,10 @@
                 <circle cx="12" cy="12" r="3"></circle>
               </svg>
             </div>
-            <h3 class="flow-card-title">Manage Target Database</h3>
+            <h3 class="flow-card-title">Manage Target Databases</h3>
             <p class="flow-card-description">Review and update your harmonisation standards</p>
-            <a href="{% url 'core:study_detail' target_study.pk %}" class="btn btn-primary flow-btn">
-              View Target Database
+            <a href="{% url 'core:study_list' %}?purpose=target" class="btn btn-primary flow-btn">
+              View Target Databases
             </a>
           </div>
         </div>
@@ -599,7 +599,7 @@
         </div>
         {% endif %}
         
-        {% if total_projects > 0 and not target_study %}
+        {% if total_projects > 0 %}
         <a href="{% url 'core:create_target_study' %}" class="action-btn">
           <span class="action-icon">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -609,17 +609,6 @@
           </span>
           <div class="action-title">Create Target Database</div>
           <div class="action-description">Define harmonisation targets</div>
-        </a>
-        {% elif target_study %}
-        <a href="{% url 'core:study_detail' target_study.pk %}" class="action-btn">
-          <span class="action-icon">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="10"></circle>
-              <circle cx="12" cy="12" r="3"></circle>
-            </svg>
-          </span>
-          <div class="action-title">View Target Database</div>
-          <div class="action-description">Manage your harmonisation targets</div>
         </a>
         {% else %}
         <div class="action-btn" style="opacity: 0.5; cursor: not-allowed;" title="Create a project first">
@@ -632,6 +621,19 @@
           <div class="action-title">Create Target Database</div>
           <div class="action-description">Create a project first</div>
         </div>
+        {% endif %}
+        
+        {% if target_studies_count > 0 %}
+        <a href="{% url 'core:study_list' %}?purpose=target" class="action-btn">
+          <span class="action-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+          </span>
+          <div class="action-title">View Target Databases</div>
+          <div class="action-description">Manage your harmonisation targets</div>
+        </a>
         {% endif %}
         
         <a href="{% url 'core:project_list' %}" class="action-btn">
@@ -702,7 +704,7 @@
           </svg>
         </div>
         <div class="stat-number">{{ target_studies_count }}</div>
-        <div class="stat-label">Target Database</div>
+        <div class="stat-label">Target Databases</div>
       </div>
       
       <div class="stat-card">
@@ -748,26 +750,39 @@
     </div>
     {% endif %}
 
-    <!-- Target Database Section -->
-    {% if target_study %}
+    <!-- Target Databases Section -->
+    {% if target_studies %}
     <div class="section-card">
-      <h2 class="section-title">Target Database</h2>
-      <div class="study-item">
-        <div class="study-info">
-          <div class="study-name">
-            <a href="{% url 'core:study_detail' target_study.pk %}">{{ target_study.name }}</a>
-          </div>
-          <div class="study-meta">
-            Target Database • {{ target_study.variables.count }} variables • Updated {{ target_study.updated_at|date:"M j, Y" }}
-          </div>
+      <h2 class="section-title">Target Databases</h2>
+      <ul class="recent-studies">
+        {% for study in target_studies %}
+          <li class="study-item">
+            <div class="study-info">
+              <div class="study-name">
+                <a href="{% url 'core:study_detail' study.pk %}">{{ study.name }}</a>
+              </div>
+              <div class="study-meta">
+                Target Database • {{ study.variables.count }} variables • Updated {{ study.updated_at|date:"M j, Y" }}
+              </div>
+            </div>
+            <span class="study-status status-{{ study.status }}">
+              {{ study.get_status_display }}
+            </span>
+          </li>
+        {% endfor %}
+      </ul>
+      
+      {% if target_studies_count > 3 %}
+        <div style="text-align: center; margin-top: 1.5rem;">
+          <a href="{% url 'core:study_list' %}?purpose=target" class="btn btn-outline">
+            View All Target Databases ({{ target_studies_count }})
+          </a>
         </div>
-        <span class="study-status status-{{ target_study.status }}">
-          {{ target_study.get_status_display }}
-        </span>
-      </div>
+      {% endif %}
+      
       <div style="text-align: center; margin-top: 1.5rem;">
-        <a href="{% url 'core:study_detail' target_study.pk %}" class="btn btn-primary">
-          Manage Target Database
+        <a href="{% url 'core:create_target_study' %}" class="btn btn-primary">
+          Create New Target Database
         </a>
       </div>
     </div>
