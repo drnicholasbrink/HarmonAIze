@@ -16,7 +16,7 @@ class Command(BaseCommand):
         parser.add_argument(
             '--batch-size',
             type=int,
-            default=50,
+            default=200,
             help='Number of locations to process in this batch'
         )
         parser.add_argument(
