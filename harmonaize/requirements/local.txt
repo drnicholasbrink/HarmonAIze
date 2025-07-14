@@ -55,4 +55,8 @@ pytest-django==4.10.0  # https://github.com/pytest-dev/pytest-django
 fido2>=1.2.0,<2.0.0  # Required for django-allauth MFA using webauthn_json_mapping
 
 #erd 
-pygraphviz==1.7  # https://pygraphviz.github.io/
+#pygraphviz==1.7  # https://pygraphviz.github.io/ failing to install on RS machine..commented out to proceed with other requirements
+
+#geocolation
+fuzzywuzzy == 0.18.0
+python-levenshtein ==  0.27.1

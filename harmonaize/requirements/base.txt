@@ -28,8 +28,12 @@ drf-spectacular==0.28.0  # https://github.com/tfranzel/drf-spectacular
 
 #pygraphviz for ERD
 graphviz==0.17
-pygraphviz==1.7  # https://pygraphviz.github.io/
+#pygraphviz==1.7  # https://pygraphviz.github.io/ failing to install on RS machine..commented out to proceed with other requirements
 
 # Data processing
 pandas==2.2.3  # https://github.com/pandas-dev/pandas
 openpyxl==3.1.5  # https://openpyxl.readthedocs.io/
+
+#geocolation
+fuzzywuzzy == 0.18.0
+python-levenshtein ==  0.27.1
