@@ -1,4 +1,3 @@
-# geolocation/management/commands/import_hdx_data.py
 # Command to import HDX Health Facilities data
 
 import csv
