@@ -70,7 +70,7 @@
         </button>
         <a class="navbar-brand" href="{% url 'home' %}">HarmonAIze</a>
         <div class="collapse navbar-collapse" id="navbarSupportedContent">
-          <ul class="navbar-nav mr-auto">
+          <ul class="navbar-nav me-auto">
             <li class="nav-item active">
               <a class="nav-link" href="{% url 'home' %}">Home <span class="visually-hidden">(current)</span></a>
             </li>
@@ -78,6 +78,11 @@
               <a class="nav-link" href="{% url 'about' %}">About</a>
             </li>
             {% if request.user.is_authenticated %}
+              <li class="nav-item">
+                <a class="nav-link fw-bold" href="{% url 'core:dashboard' %}">
+                  {% include 'components/svg_icon.html' with icon='dashboard' size='16' class='inline-icon' %} Dashboard
+                </a>
+              </li>
               <li class="nav-item">
                 <a class="nav-link"
                    href="{% url 'users:detail' request.user.pk %}">{% translate "My Profile" %}</a>
@@ -136,6 +141,11 @@
       });
     </script>
     {% endcomment %}
+    <script>
+      function showUpcomingFeature(featureName) {
+        alert('🚧 ' + featureName + ' - Feature Coming Soon!\n\nThis feature is currently under development and will be available in a future release.');
+      }
+    </script>
   {% endblock inline_javascript %}
 </body>
 </html>

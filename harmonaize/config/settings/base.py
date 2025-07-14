@@ -88,8 +88,9 @@ THIRD_PARTY_APPS = [
 LOCAL_APPS = [
     "harmonaize.users",
     "core",
-    "geolocation"
-
+    "health", 
+    "climate",
+    "geolocation",
     # Your stuff: custom apps go here
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps
@@ -195,6 +196,7 @@ TEMPLATES = [
                 "django.template.context_processors.tz",
                 "django.contrib.messages.context_processors.messages",
                 "harmonaize.users.context_processors.allauth_settings",
+                "core.context_processors.target_study_context",
             ],
         },
     },
@@ -247,7 +249,7 @@ DJANGO_ADMIN_FORCE_ALLAUTH = env.bool("DJANGO_ADMIN_FORCE_ALLAUTH", default=Fals
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#logging
 # See https://docs.djangoproject.com/en/dev/topics/logging for
-# more details on how to customize your logging configuration.
+# more details on how to customise your logging configuration.
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -287,7 +289,7 @@ CELERY_RESULT_EXTENDED = True
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#result-backend-always-retry
 # https://github.com/celery/celery/pull/6122
 CELERY_RESULT_BACKEND_ALWAYS_RETRY = True
-# https://docs.celeryq.dev/en/stable/userguide/configuration.html#result-backend-max-retries
+# https://docs.djangoproject.com/en/stable/userguide/configuration.html#result-backend-max-retries
 CELERY_RESULT_BACKEND_MAX_RETRIES = 10
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#std:setting-accept_content
 CELERY_ACCEPT_CONTENT = ["json"]

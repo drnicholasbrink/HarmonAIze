@@ -53,3 +53,6 @@ django-extensions==3.2.3  # https://github.com/django-extensions/django-extensio
 django-coverage-plugin==3.1.0  # https://github.com/nedbat/django_coverage_plugin
 pytest-django==4.10.0  # https://github.com/pytest-dev/pytest-django
 fido2>=1.2.0,<2.0.0  # Required for django-allauth MFA using webauthn_json_mapping
+
+#erd 
+pygraphviz==1.7  # https://pygraphviz.github.io/

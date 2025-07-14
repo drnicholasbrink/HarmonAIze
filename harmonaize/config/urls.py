@@ -24,7 +24,9 @@ urlpatterns = [
     path("users/", include("harmonaize.users.urls", namespace="users")),
     path("accounts/", include("allauth.urls")),
     # Your stuff: custom urls includes go here
-    path("", include("geolocation.urls")),
+    path("app/", include("core.urls", namespace="core")),
+    path("health/", include("health.urls", namespace="health")),
+    path("geolocation/", include("geolocation.urls")),
     # Media files
     *static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT),
 ]
