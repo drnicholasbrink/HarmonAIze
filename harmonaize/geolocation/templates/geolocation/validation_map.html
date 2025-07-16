@@ -688,7 +688,7 @@
           
           <a href="{% url 'geolocation:validation_dashboard' %}" 
              class="btn btn-primary">
-            Dashboard
+            Geolocation Dashboard
           </a>
         </div>
       </div>
@@ -781,7 +781,7 @@
             <div class="coordinate-label">Reverse Lookup</div>
             <div style="color: {% if coord.name_similarity >= 80 %}#28a745{% elif coord.name_similarity >= 50 %}#ffc107{% else %}#6c757d{% endif %};">
               {% if coord.name_similarity >= 80 %}✅{% elif coord.name_similarity >= 50 %}⚠️{% else %}❓{% endif %}
-              {{ coord.reverse_address|truncatechars:40 }}
+              {{ coord.reverse_address|truncatechars:50 }}
             </div>
           </div>
           {% endif %}

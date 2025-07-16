@@ -385,8 +385,8 @@
 {% block content %}
   <div class="hero-section">
     <div class="hero-content">
-      <h1 class="hero-title">Geolocation Validation Dashboard</h1>
-      <p class="hero-subtitle">Individual source scoring and validation platform for HarmonAIze</p>
+      <h1 class="hero-title">Geolocation Dashboard</h1>
+      <p class="hero-subtitle">From Location Names to Coordinates — Validating Place, Illuminating Climate-Health Insights </p>
     </div>
   </div>
 
@@ -399,7 +399,7 @@
         </div>
         <div class="stat-number" id="totalLocations">-</div>
         <div class="stat-label">Total Location Names</div>
-        <div class="stat-description">From research documents</div>
+        <div class="stat-description">From study documents</div>
       </div>
 
       <div class="stat-card">
@@ -408,7 +408,7 @@
         </div>
         <div class="stat-number" id="awaitingGeocoding" style="color: #dc3545;">-</div>
         <div class="stat-label">Awaiting Geocoding</div>
-        <div class="stat-description">No coordinates found</div>
+        <div class="stat-description">No coordinates values yet</div>
       </div>
 
       <div class="stat-card">
@@ -426,7 +426,7 @@
         </div>
         <div class="stat-number" id="validatedComplete" style="color: var(--accent-color);">-</div>
         <div class="stat-label">Validated & Complete</div>
-        <div class="stat-description">Ready for analysis</div>
+        <div class="stat-description">Ready for climate integration</div>
       </div>
     </div>
 
@@ -443,7 +443,6 @@
             <li>• OpenStreetMap database search</li>
             <li>• ArcGIS World Geocoding Service</li>
             <li>• HDX Health Facilities database</li>
-            <li>• Intelligent coordinate matching</li>
           </ul>
           
           <div class="progress-container" id="geocodingProgress">
@@ -468,22 +467,21 @@
 
       <div class="action-card">
         <div class="action-header" style="background: linear-gradient(135deg, var(--accent-color) 0%, #2ecc71 100%);">
-          <h3>{% include 'components/svg_icon.html' with icon='shield' size='24' class='inline-icon' %} Step 2: Individual Source Scoring</h3>
+          <h3>{% include 'components/svg_icon.html' with icon='shield' size='24' class='inline-icon' %} Step 2: Auto Validation</h3>
           <p>Smart validation with reverse geocoding and distance analysis</p>
         </div>
         <div class="action-content">
           <ul class="feature-list">
-            <li>• Individual source confidence scoring</li>
-            <li>• Reverse geocoding name matching</li>
-            <li>• Distance penalty calculations</li>
-            <li>• Source-specific validation</li>
+            <li>• Auto coordinates validation </li>
+            <li>• Reverse geocoding analysis</li>
+            <li>• Distance proximity analysis</li>
             <li>• Best source recommendation</li>
           </ul>
           
           <div style="display: flex; flex-direction: column; gap: 1rem;">
             <button onclick="runSmartValidation()" id="aiAnalysisBtn" class="btn btn-secondary">
               {% include 'components/svg_icon.html' with icon='brain' size='16' class='inline-icon' %}
-              Run Individual Source Scoring
+              Run Auto-validation
             </button>
             
             <a href="{% url 'geolocation:validation_map' %}" class="btn btn-tertiary">
@@ -525,8 +523,8 @@
             <span style="color: var(--text-secondary);">- No coordinates found yet</span>
           </div>
           <div style="display: flex; align-items: center; gap: 0.5rem;">
-            <span class="status-badge status-geocoded">🔍 Awaiting Source Scoring</span>
-            <span style="color: var(--text-secondary);">- Coordinates found, awaiting individual scoring</span>
+            <span class="status-badge status-geocoded">🔍 Awaiting Validation</span>
+            <span style="color: var(--text-secondary);">- Coordinates found, awaiting Validation</span>
           </div>
           <div style="display: flex; align-items: center; gap: 0.5rem;">
             <span class="status-badge status-needs_review">⚠️ Quick Review</span>
@@ -538,7 +536,7 @@
           </div>
           <div style="display: flex; align-items: center; gap: 0.5rem;">
             <span class="status-badge status-validated">✅ Validated</span>
-            <span style="color: var(--text-secondary);">- Complete and ready for analysis</span>
+            <span style="color: var(--text-secondary);">- Complete and ready for climate linkage</span>
           </div>
         </div>
       </div>
@@ -672,10 +670,10 @@
           updateLocationStatusTable(data.locations);
           
           if (data.summary) {
-            showMessage(`📊 Status updated: ${data.summary.validated} validated, ${data.summary.awaiting_geocoding} awaiting geocoding, ${data.summary.needs_review} need review`, 'info');
+            showMessage(``, 'info');
           }
         } else {
-          showMessage('❌ Failed to load location status: ' + (data.error || 'Unknown error'), 'error');
+          showMessage('Failed to load location status: ' + (data.error || 'Unknown error'), 'error');
           
           const tableBody = document.getElementById('locationStatusTable');
           if (tableBody) {
@@ -683,7 +681,7 @@
               <tr>
                 <td colspan="6" style="text-align: center; padding: 2rem;">
                   <div style="color: #dc3545;">
-                    <div style="font-size: 2rem; margin-bottom: 1rem;">❌</div>
+                    <div style="font-size: 2rem; margin-bottom: 1rem;"></div>
                     <span>Failed to load location status</span>
                     <br><br>
                     <button onclick="refreshLocationStatus()" class="btn btn-primary" style="width: auto; padding: 0.5rem 1rem;">
@@ -698,7 +696,7 @@
       })
       .catch(error => {
         console.error('Error fetching location status:', error);
-        showMessage('⚠️ Connection error while refreshing location status', 'error');
+        showMessage('Connection error while refreshing location status', 'error');
         
         const tableBody = document.getElementById('locationStatusTable');
         if (tableBody) {
@@ -706,7 +704,7 @@
             <tr>
               <td colspan="6" style="text-align: center; padding: 2rem;">
                 <div style="color: #ffc107;">
-                  <div style="font-size: 2rem; margin-bottom: 1rem;">⚠️</div>
+                  <div style="font-size: 2rem; margin-bottom: 1rem;"></div>
                   <span>Connection error - please check your internet connection</span>
                   <br><br>
                   <button onclick="refreshLocationStatus()" class="btn btn-primary" style="width: auto; padding: 0.5rem 1rem;">
@@ -749,7 +747,7 @@
       })
       .catch(error => {
         console.error('Error fetching stats:', error);
-        showMessage('⚠️ Unable to refresh statistics. Please check your connection.', 'error');
+        showMessage('Unable to refresh statistics. Please check your connection.', 'error');
       });
     }
 
@@ -785,13 +783,13 @@
           btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span>🔍</span><span>Start Coordinate Search</span></span>';
           
           if (data.success) {
-            showMessage('🎉 Coordinate search completed successfully!', 'success');
+            showMessage(' Coordinate search completed successfully!', 'success');
             setTimeout(() => {
               refreshStats();
               refreshLocationStatus();
             }, 1000);
           } else {
-            showMessage('❌ Search failed: ' + (data.error || 'Unknown error occurred'), 'error');
+            showMessage('Coordinate Search failed: ' + (data.error || 'Unknown error occurred'), 'error');
           }
         }, 1000);
       })
@@ -800,17 +798,17 @@
         document.getElementById('geocodingProgress').style.display = 'none';
         btn.disabled = false;
         btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span>🔍</span><span>Start Coordinate Search</span></span>';
-        showMessage('❌ Connection error during coordinate search', 'error');
+        showMessage('Connection error during coordinate search', 'error');
       });
     }
 
     function runSmartValidation() {
       const btn = document.getElementById('aiAnalysisBtn');
       
-      if (confirm('🤖 Run individual source scoring analysis on all pending locations?\n\nThis will analyze coordinate accuracy with reverse geocoding and distance penalty validation.')) {
+      if (confirm('🤖 Run auto-validation on all pending locations?\n\nThis will analyze coordinate accuracy with reverse geocoding and distance proximity validation.')) {
         btn.disabled = true;
         btn.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><div class="loading-spinner" style="width: 16px; height: 16px; border-width: 2px;"></div><span>Analyzing...</span></div>';
-        showMessage('🤖 Individual source scoring analysis started - analyzing reverse geocoding and distance penalties...', 'info');
+        showMessage('🤖 Auto-validation started - analyzing reverse geocoding and distance proximities...', 'info');
         
         fetch('{% url "geolocation:bulk_validation_actions" %}', {
           method: 'POST',
@@ -823,20 +821,20 @@
           btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span>🧠</span><span>Run Individual Source Scoring</span></span>';
           
           if (data.success) {
-            showMessage('🎉 Individual source scoring analysis completed: ' + data.message, 'success');
+            showMessage(' Auto-validation completed');
             setTimeout(() => {
               refreshStats();
               refreshLocationStatus();
-              showMessage('📊 Dashboard updated with individual source scoring results', 'info');
+              showMessage('Dashboard updated with validation results', 'info');
             }, 2000);
           } else {
-            showMessage('❌ Individual source scoring analysis failed: ' + (data.error || 'Processing error occurred'), 'error');
+            showMessage('Auto-validation failed: ' + (data.error || 'Processing error occurred'), 'error');
           }
         })
         .catch(error => {
           btn.disabled = false;
           btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span>🧠</span><span>Run Individual Source Scoring</span></span>';
-          showMessage('❌ Connection error during individual source scoring analysis', 'error');
+          showMessage(' Connection error during Auto-validation', 'error');
         });
       }
     }
@@ -860,11 +858,11 @@
           btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span>⚡</span><span>Auto-approve High Confidence (≥80%)</span></span>';
           
           if (data.success) {
-            showMessage('🎉 Auto-validation completed: ' + data.message, 'success');
+            showMessage('Auto-validation completed: ' + data.message, 'success');
             setTimeout(() => {
               refreshStats();
               refreshLocationStatus();
-              showMessage('📊 Dashboard updated with auto-validation results', 'info');
+              showMessage('', 'info');
             }, 2000);
           } else {
             showMessage('❌ Auto-validation failed: ' + (data.error || 'Processing error occurred'), 'error');
@@ -922,12 +920,12 @@
       refreshLocationStatus();
       
       // Set up auto-refresh intervals
-      setInterval(refreshStats, 30000); // Every 30 seconds
-      setInterval(refreshLocationStatus, 45000); // Every 45 seconds
+      setInterval(refreshStats, 10000); // Every 30 seconds
+      setInterval(refreshLocationStatus, 15000); // Every 45 seconds
       
       // Show initial welcome message
       setTimeout(() => {
-        showMessage('📊 Dashboard loaded successfully - data refreshes automatically', 'info');
+        showMessage('Welcome to the Geolocation Dashboard', 'info');
       }, 1000);
     });
   </script>

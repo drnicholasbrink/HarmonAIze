@@ -650,9 +650,9 @@
       <div>
         <h1 class="hero-title">
           {% include 'components/svg_icon.html' with icon='map-pin' size='24' class='inline-icon' %}
-          Individual Source Scoring Validation
+          Validated Locations Map
         </h1>
-        <p class="hero-subtitle">Smart geospatial validation for HarmonAIze</p>
+        <p class="hero-subtitle">Ground-Truth for Impact — Explore Validated Sites in Context.</p>
       </div>
       
       <div class="hero-nav">
@@ -688,7 +688,7 @@
           
           <a href="{% url 'geolocation:validation_dashboard' %}" 
              class="btn btn-primary">
-            Dashboard
+            Geolocation Dashboard
           </a>
         </div>
       </div>
@@ -869,12 +869,12 @@
         <button onclick="changeMapLayer('streets')" class="layer-button" id="streets-btn">
           🗺️ Streets
         </button>
-        <button onclick="changeMapLayer('terrain')" class="layer-button" id="terrain-btn">
+        <!--button onclick="changeMapLayer('terrain')" class="layer-button" id="terrain-btn">
           🏔️ Terrain
         </button>
         <button onclick="changeMapLayer('outdoors')" class="layer-button" id="outdoors-btn">
           🌲 Outdoors
-        </button>
+        </button-->
       </div>
       
       <!-- Map Legend -->
