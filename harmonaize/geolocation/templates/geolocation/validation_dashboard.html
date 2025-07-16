@@ -386,7 +386,7 @@
   <div class="hero-section">
     <div class="hero-content">
       <h1 class="hero-title">Geolocation Validation Dashboard</h1>
-      <p class="hero-subtitle">AI-powered location intelligence and validation platform for HarmonAIze</p>
+      <p class="hero-subtitle">Individual source scoring and validation platform for HarmonAIze</p>
     </div>
   </div>
 
@@ -468,22 +468,22 @@
 
       <div class="action-card">
         <div class="action-header" style="background: linear-gradient(135deg, var(--accent-color) 0%, #2ecc71 100%);">
-          <h3>{% include 'components/svg_icon.html' with icon='shield' size='24' class='inline-icon' %} Step 2: Validate Quality</h3>
-          <p>AI-powered validation and human review</p>
+          <h3>{% include 'components/svg_icon.html' with icon='shield' size='24' class='inline-icon' %} Step 2: Individual Source Scoring</h3>
+          <p>Smart validation with reverse geocoding and distance analysis</p>
         </div>
         <div class="action-content">
           <ul class="feature-list">
-            <li>• Multi-source coordinate comparison</li>
-            <li>• Reverse geocoding verification</li>
-            <li>• Population density validation</li>
-            <li>• Distance analysis and scoring</li>
-            <li>• Confidence level assessment</li>
+            <li>• Individual source confidence scoring</li>
+            <li>• Reverse geocoding name matching</li>
+            <li>• Distance penalty calculations</li>
+            <li>• Source-specific validation</li>
+            <li>• Best source recommendation</li>
           </ul>
           
           <div style="display: flex; flex-direction: column; gap: 1rem;">
             <button onclick="runSmartValidation()" id="aiAnalysisBtn" class="btn btn-secondary">
               {% include 'components/svg_icon.html' with icon='brain' size='16' class='inline-icon' %}
-              Run AI Quality Analysis
+              Run Individual Source Scoring
             </button>
             
             <a href="{% url 'geolocation:validation_map' %}" class="btn btn-tertiary">
@@ -525,8 +525,8 @@
             <span style="color: var(--text-secondary);">- No coordinates found yet</span>
           </div>
           <div style="display: flex; align-items: center; gap: 0.5rem;">
-            <span class="status-badge status-geocoded">🔍 Awaiting Validation Analysis</span>
-            <span style="color: var(--text-secondary);">- Coordinates found, awaiting validation analysis</span>
+            <span class="status-badge status-geocoded">🔍 Awaiting Source Scoring</span>
+            <span style="color: var(--text-secondary);">- Coordinates found, awaiting individual scoring</span>
           </div>
           <div style="display: flex; align-items: center; gap: 0.5rem;">
             <span class="status-badge status-needs_review">⚠️ Quick Review</span>
@@ -807,10 +807,10 @@
     function runSmartValidation() {
       const btn = document.getElementById('aiAnalysisBtn');
       
-      if (confirm('🤖 Run AI quality analysis on all pending locations?\n\nThis will analyze coordinate accuracy with multi-factor validation including population density, road proximity, and reverse geocoding.')) {
+      if (confirm('🤖 Run individual source scoring analysis on all pending locations?\n\nThis will analyze coordinate accuracy with reverse geocoding and distance penalty validation.')) {
         btn.disabled = true;
         btn.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><div class="loading-spinner" style="width: 16px; height: 16px; border-width: 2px;"></div><span>Analyzing...</span></div>';
-        showMessage('🤖 AI analysis started - analyzing population density, road accessibility, and coordinate accuracy...', 'info');
+        showMessage('🤖 Individual source scoring analysis started - analyzing reverse geocoding and distance penalties...', 'info');
         
         fetch('{% url "geolocation:bulk_validation_actions" %}', {
           method: 'POST',
@@ -820,23 +820,23 @@
         .then(response => response.json())
         .then(data => {
           btn.disabled = false;
-          btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span>🧠</span><span>Run AI Quality Analysis</span></span>';
+          btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span>🧠</span><span>Run Individual Source Scoring</span></span>';
           
           if (data.success) {
-            showMessage('🎉 AI analysis completed: ' + data.message, 'success');
+            showMessage('🎉 Individual source scoring analysis completed: ' + data.message, 'success');
             setTimeout(() => {
               refreshStats();
               refreshLocationStatus();
-              showMessage('📊 Dashboard updated with AI analysis results', 'info');
+              showMessage('📊 Dashboard updated with individual source scoring results', 'info');
             }, 2000);
           } else {
-            showMessage('❌ AI analysis failed: ' + (data.error || 'Processing error occurred'), 'error');
+            showMessage('❌ Individual source scoring analysis failed: ' + (data.error || 'Processing error occurred'), 'error');
           }
         })
         .catch(error => {
           btn.disabled = false;
-          btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span>🧠</span><span>Run AI Quality Analysis</span></span>';
-          showMessage('❌ Connection error during AI analysis', 'error');
+          btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span>🧠</span><span>Run Individual Source Scoring</span></span>';
+          showMessage('❌ Connection error during individual source scoring analysis', 'error');
         });
       }
     }
@@ -844,10 +844,10 @@
     function autoValidateHighConfidence() {
       const btn = document.getElementById('autoValidateBtn');
       
-      if (confirm('⚡ Automatically approve all high-confidence locations (≥80%) validated with enhanced multi-factor analysis?\n\nThis will mark them as validated without manual review.')) {
+      if (confirm('⚡ Automatically approve all high-confidence locations (≥80%) validated with individual source scoring?\n\nThis will mark them as validated without manual review.')) {
         btn.disabled = true;
         btn.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><div class="loading-spinner" style="width: 12px; height: 12px; border-width: 2px;"></div><span>Processing...</span></div>';
-        showMessage('⚡ Auto-validation in progress with enhanced confidence factors...', 'info');
+        showMessage('⚡ Auto-validation in progress with individual source scoring confidence factors...', 'info');
         
         fetch('{% url "geolocation:bulk_validation_actions" %}', {
           method: 'POST',

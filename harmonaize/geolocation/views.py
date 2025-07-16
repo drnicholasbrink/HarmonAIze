@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 def validation_map(request):
-    """Enhanced map view with FIXED confidence scores and source colors."""
+    """Enhanced map view with individual source scoring and source colors."""
     
     # Get locations that need validation (one at a time)
     location_id = request.GET.get('location_id')
@@ -105,16 +105,33 @@ def validation_map(request):
         if coordinates:  # Only add if we have coordinates
             # Get validation data if exists
             validation = getattr(result, 'validation', None)
-            confidence = validation.confidence_score if validation else 0.5
             status = validation.validation_status if validation else 'pending'
             
             # Extract enhanced analysis data
             metadata = validation.validation_metadata if validation else {}
-            analysis = metadata.get('coordinates_analysis', {})
+            individual_scores = metadata.get('individual_scores', {})
             reverse_geocoding = metadata.get('reverse_geocoding_results', {})
             recommendation = metadata.get('recommendation', {})
             
-            # FIXED CONFIDENCE CALCULATION - Add reverse geocoding info and confidence to each coordinate
+            # FIXED: Use best individual source score, not aggregate
+            best_source = metadata.get('best_source')
+            print(f"DEBUG: Location={result.location_name}, best_source={best_source}")
+            print(f"DEBUG: individual_scores keys={list(individual_scores.keys()) if individual_scores else 'None'}")
+            
+            if best_source and individual_scores.get(best_source):
+                best_source_data = individual_scores[best_source]
+                confidence = best_source_data.get('individual_confidence', 0.5) * 100
+                print(f"DEBUG: Using individual confidence for {best_source}: {confidence}%")
+                print(f"DEBUG: Best source data: {best_source_data}")
+            elif validation:
+                # Fallback to validation confidence if no individual scoring
+                confidence = validation.confidence_score * 100
+                print(f"DEBUG: Using validation confidence: {confidence}%")
+            else:
+                confidence = 50  # Default if no individual scoring available
+                print(f"DEBUG: Using default confidence: {confidence}%")
+            
+            # UPDATED: Add individual source scoring info to each coordinate
             for coord in coordinates:
                 source_key = coord['source_key']
                 
@@ -135,21 +152,35 @@ def validation_map(request):
                         'place_type': 'unknown'
                     })
                 
-                # FIXED individual source confidence calculation
-                if validation and validation.validation_metadata:
-                    # If we have AI analysis, use it
-                    reverse_score = coord['name_similarity'] * 0.7 + coord['reverse_confidence'] * 0.3
-                    coord['overall_confidence'] = reverse_score * 100
+                # UPDATED: Get individual source confidence from new validation structure
+                if source_key in individual_scores:
+                    source_score = individual_scores[source_key]
+                    # Get the raw scores
+                    reverse_score = source_score.get('reverse_geocoding_score', 0.0)
+                    distance_score = source_score.get('distance_penalty_score', 0.0)
+                    individual_confidence = source_score.get('individual_confidence', 0.0)
+                    
+                    # Store for display
+                    coord['reverse_geocoding_score'] = reverse_score * 100
+                    coord['distance_penalty_score'] = distance_score * 100
+                    coord['individual_confidence'] = individual_confidence * 100
+                    
+                    # FIXED: Verify the calculation matches the expected formula
+                    calculated_score = (reverse_score * 0.65) + (distance_score * 0.35)
+                    print(f"DEBUG {source_key}: Reverse={reverse_score:.2f}, Distance={distance_score:.2f}, Individual={individual_confidence:.2f}, Calculated={calculated_score:.2f}")
+                    
                 else:
-                    # Fallback calculation if no AI analysis
-                    if coord['name_similarity'] > 0:
-                        coord['overall_confidence'] = coord['name_similarity'] * 100
-                    else:
-                        # Basic confidence based on data availability
-                        base_confidence = 50  # Base confidence for having coordinates
-                        if coord['reverse_address'] != 'Not checked' and coord['reverse_address'] != 'No address found':
-                            base_confidence += 20  # Bonus for reverse geocoding
-                        coord['overall_confidence'] = base_confidence
+                    # Fallback calculation if no individual scoring
+                    reverse_score = coord['name_similarity']
+                    distance_score = 0.5  # Default distance score
+                    calculated_score = (reverse_score * 0.65) + (distance_score * 0.35)
+                    
+                    coord['reverse_geocoding_score'] = reverse_score * 100
+                    coord['distance_penalty_score'] = distance_score * 100
+                    coord['individual_confidence'] = calculated_score * 100
+                
+                # Update overall_confidence to use individual_confidence
+                coord['overall_confidence'] = coord['individual_confidence']
                 
                 # Add user-friendly confidence description
                 if coord['overall_confidence'] >= 90:
@@ -166,40 +197,40 @@ def validation_map(request):
             # Sort coordinates by confidence (highest first)
             coordinates.sort(key=lambda x: x['overall_confidence'], reverse=True)
             
-            # Determine recommended source (highest confidence or from AI analysis)
-            if analysis.get('recommended_source'):
-                recommended_source = analysis.get('recommended_source').upper()
+            # Determine recommended source (best individual source or from AI analysis)
+            if metadata.get('best_source'):
+                recommended_source = metadata.get('best_source').upper()
             else:
                 recommended_source = coordinates[0]['source'] if coordinates else None
             
             # Convert variance to user-friendly language
             variance = result.coordinate_variance or 0
-            if variance < 0.001:
-                accuracy_description = "Excellent precision - all sources agree closely"
-            elif variance < 0.01:
-                accuracy_description = "Good precision - sources mostly agree"
-            elif variance < 0.1:
-                accuracy_description = "Moderate precision - some variation between sources"
+            if variance < 0.5:
+                accuracy_description = "Excellent agreement - all sources very close"
+            elif variance < 1.0:
+                accuracy_description = "Very good agreement - sources mostly aligned"
+            elif variance < 2.0:
+                accuracy_description = "Good agreement - minor variations between sources"
+            elif variance < 5.0:
+                accuracy_description = "Moderate agreement - some differences between sources"
             else:
-                accuracy_description = "Variable precision - significant differences between sources"
+                accuracy_description = "Variable agreement - significant differences between sources"
             
-            # Enhanced location data
+            # Enhanced location data with individual source scoring
             locations_data.append({
                 'id': result.id,
                 'name': result.location_name,
-                'confidence': confidence * 100,  # Convert to percentage for display
+                'confidence': confidence,  # Now uses best individual source score
                 'status': status,
                 'coordinates': coordinates,
                 'recommendation': recommendation,
-                'analysis': analysis,
+                'individual_scores': individual_scores,
                 'reverse_geocoding': reverse_geocoding,
                 'recommended_source': recommended_source,
                 'variance': variance,
                 'accuracy_description': accuracy_description,
-                'max_distance_km': analysis.get('max_distance_km', 0),
-                'reverse_geocoding_score': analysis.get('reverse_geocoding_score', 0) * 100,
-                'distance_confidence': analysis.get('distance_confidence', 0) * 100,
-                'ai_summary': metadata.get('user_friendly_summary', 'Enhanced AI analysis in progress...')
+                'max_distance_km': metadata.get('cluster_analysis', {}).get('max_distance_km', 0),
+                'ai_summary': metadata.get('user_friendly_summary', 'Individual source scoring analysis completed...')
             })
     
     # Get navigation info for next/previous locations
@@ -418,12 +449,24 @@ def location_status_api(request):
                                 status = 'needs_review'
                                 status_display = '⚠️ Good Quality - Quick Review'
                                 status_color = 'yellow'
-                                confidence = int(validation.confidence_score * 100)
+                                # FIXED: Use best individual source confidence, not aggregate
+                                best_source = validation.validation_metadata.get('best_source') if validation.validation_metadata else None
+                                individual_scores = validation.validation_metadata.get('individual_scores', {}) if validation.validation_metadata else {}
+                                if best_source and individual_scores.get(best_source):
+                                    confidence = int(individual_scores[best_source].get('individual_confidence', 0.5) * 100)
+                                else:
+                                    confidence = int(validation.confidence_score * 100)
                             elif validation.validation_status == 'pending':
                                 status = 'pending'
                                 status_display = '🔍 Lower Quality - Detailed Review'
                                 status_color = 'orange'
-                                confidence = int(validation.confidence_score * 100)
+                                # FIXED: Use best individual source confidence, not aggregate
+                                best_source = validation.validation_metadata.get('best_source') if validation.validation_metadata else None
+                                individual_scores = validation.validation_metadata.get('individual_scores', {}) if validation.validation_metadata else {}
+                                if best_source and individual_scores.get(best_source):
+                                    confidence = int(individual_scores[best_source].get('individual_confidence', 0.5) * 100)
+                                else:
+                                    confidence = int(validation.confidence_score * 100)
                             elif validation.validation_status == 'rejected':
                                 status = 'rejected'
                                 status_display = '❌ Rejected - Invalid Location'
@@ -431,14 +474,14 @@ def location_status_api(request):
                                 confidence = 0
                             else:
                                 status = 'geocoded'
-                                status_display = '🔍 Geocoded - Awaiting Enhanced AI Analysis'
+                                status_display = '🔍 Geocoded - Awaiting Individual Source Analysis'
                                 status_color = 'blue'
                                 confidence = 50
                         else:
                             # No validation yet, but has geocoding results
                             if geocoding_result.has_any_results:
                                 status = 'geocoded'
-                                status_display = '🔍 Geocoded - Awaiting Enhanced AI Analysis'
+                                status_display = '🔍 Geocoded - Awaiting Individual Source Analysis'
                                 status_color = 'blue'
                                 confidence = 50
                             else:
@@ -627,7 +670,7 @@ def validation_api(request):
                 geocoding_result = get_object_or_404(GeocodingResult, id=geocoding_result_id)
                 validation = getattr(geocoding_result, 'validation', None)
                 if not validation:
-                    # Create validation if it doesn't exist using enhanced AI
+                    # Create validation if it doesn't exist using individual source scoring
                     validator = SmartGeocodingValidator()
                     validation = validator.validate_geocoding_result(geocoding_result)
             else:
@@ -751,7 +794,7 @@ def geocoding_api(request):
                 
                 return JsonResponse({
                     'success': True,
-                    'message': f'Enhanced coordinate search completed: {found_coordinates} locations now have coordinates, {no_results} locations could not be geocoded',
+                    'message': f'Coordinate search completed: {found_coordinates} locations now have coordinates, {no_results} locations could not be geocoded',
                     'stats': {
                         'processed': processed,
                         'found_coordinates': found_coordinates,  # Successfully found coordinates
@@ -820,7 +863,7 @@ def bulk_validation_actions(request):
                 if total_validations == 0:
                     return JsonResponse({
                         'success': False,
-                        'error': 'No enhanced AI analysis has been performed yet. Please wait for AI analysis to complete first.'
+                        'error': 'No individual source scoring analysis has been performed yet. Please wait for analysis to complete first.'
                     }, status=400)
                 
                 # Check for high-confidence results
@@ -855,7 +898,7 @@ def bulk_validation_actions(request):
                 if count > 0:
                     return JsonResponse({
                         'success': True,
-                        'message': f'✅ Auto-validated {count} high confidence locations with enhanced validation factors' + (f' ({errors} had errors)' if errors > 0 else '')
+                        'message': f'✅ Auto-validated {count} high confidence locations with individual source scoring' + (f' ({errors} had errors)' if errors > 0 else '')
                     })
                 else:
                     return JsonResponse({
@@ -869,7 +912,7 @@ def bulk_validation_actions(request):
                 if total_geocoding_results == 0:
                     return JsonResponse({
                         'success': False,
-                        'error': 'No locations have been geocoded yet. Please run "Start Coordinate Search" first to find coordinates for your locations before running enhanced AI analysis.'
+                        'error': 'No locations have been geocoded yet. Please run "Start Coordinate Search" first to find coordinates for your locations before running individual source scoring analysis.'
                     }, status=400)
                 
                 # Check if there are results to analyze
@@ -880,7 +923,7 @@ def bulk_validation_actions(request):
                 if not pending_results.exists():
                     return JsonResponse({
                         'success': True,
-                        'message': 'All geocoded locations have already been analyzed by enhanced AI. No new analysis needed.'
+                        'message': 'All geocoded locations have already been analyzed by individual source scoring. No new analysis needed.'
                     })
                 
                 # Run validation manually with proper error handling
@@ -898,7 +941,7 @@ def bulk_validation_actions(request):
                     # Process up to 50 results
                     for result in pending_results[:50]:
                         try:
-                            print(f"🔍 Enhanced AI validating: {result.location_name}")
+                            print(f"🔍 Individual source scoring validation: {result.location_name}")
                             validation = validator.validate_geocoding_result(result)
                             stats['processed'] += 1
                             
@@ -927,22 +970,22 @@ def bulk_validation_actions(request):
                     if stats['processed'] == 0:
                         return JsonResponse({
                             'success': True,
-                            'message': 'No new locations to analyze. All locations have already been processed by enhanced AI.'
+                            'message': 'No new locations to analyze. All locations have already been processed by individual source scoring.'
                         })
                     
                     return JsonResponse({
                         'success': True,
-                        'message': f'✅ Enhanced AI analysis completed: processed {stats["processed"]} locations with multi-factor validation (population density, road proximity, reverse geocoding). {stats["auto_validated"]} auto-validated, {stats["needs_review"]} need review, {stats["pending"]} need manual verification.',
+                        'message': f'✅ Individual source scoring analysis completed: processed {stats["processed"]} locations with reverse geocoding and distance penalty scoring. {stats["auto_validated"]} auto-validated, {stats["needs_review"]} need review, {stats["pending"]} need manual verification.',
                         'stats': stats
                     })
                     
                 except Exception as e:
-                    logger.error(f"Error running enhanced smart validation: {str(e)}")
-                    print(f"Error running smart validation: {str(e)}")
+                    logger.error(f"Error running individual source scoring validation: {str(e)}")
+                    print(f"Error running source scoring validation: {str(e)}")
                     print(f"Traceback: {traceback.format_exc()}")
                     return JsonResponse({
                         'success': False,
-                        'error': f'Enhanced AI analysis failed: {str(e)}'
+                        'error': f'Individual source scoring analysis failed: {str(e)}'
                     }, status=500)
             else:
                 return JsonResponse({
@@ -973,40 +1016,40 @@ def handle_approve_ai_suggestion(validation, data):
     try:
         # Get AI recommended source from metadata
         metadata = validation.validation_metadata or {}
-        analysis = metadata.get('coordinates_analysis', {})
-        recommended_source = analysis.get('recommended_source')
+        individual_scores = metadata.get('individual_scores', {})
+        best_source = metadata.get('best_source')
         
-        if not recommended_source:
+        if not best_source:
             return JsonResponse({
                 'success': False,
-                'error': 'No enhanced AI recommendation available for this location. Please run enhanced AI analysis first or select a source manually.'
+                'error': 'No individual source scoring recommendation available for this location. Please run individual source scoring analysis first or select a source manually.'
             }, status=400)
         
         with transaction.atomic():
             result = validation.geocoding_result
             
             # Get coordinates from AI recommended source
-            if recommended_source == 'hdx' and result.hdx_success:
+            if best_source == 'hdx' and result.hdx_success:
                 final_lat, final_lng = result.hdx_lat, result.hdx_lng
-            elif recommended_source == 'arcgis' and result.arcgis_success:
+            elif best_source == 'arcgis' and result.arcgis_success:
                 final_lat, final_lng = result.arcgis_lat, result.arcgis_lng
-            elif recommended_source == 'google' and result.google_success:
+            elif best_source == 'google' and result.google_success:
                 final_lat, final_lng = result.google_lat, result.google_lng
-            elif recommended_source == 'nominatim' and result.nominatim_success:
+            elif best_source == 'nominatim' and result.nominatim_success:
                 final_lat, final_lng = result.nominatim_lat, result.nominatim_lng
             else:
                 return JsonResponse({
                     'success': False,
-                    'error': f'The enhanced AI recommended source ({recommended_source}) does not have valid coordinates. Please select a different source manually.'
+                    'error': f'The individual source scoring recommended source ({best_source}) does not have valid coordinates. Please select a different source manually.'
                 }, status=400)
             
             # FIXED: Update validation status with proper completion
             validation.validation_status = 'validated'
             validation.validated_at = timezone.now()
-            validation.validated_by = 'Enhanced_AI_Recommendation'
+            validation.validated_by = 'Individual_Source_Scoring_Recommendation'
             validation.recommended_lat = final_lat
             validation.recommended_lng = final_lng
-            validation.recommended_source = recommended_source
+            validation.recommended_source = best_source
             validation.save()
             
             # FIXED: Add to ValidationDataset (the "validated dataset")
@@ -1016,7 +1059,7 @@ def handle_approve_ai_suggestion(validation, data):
                     'final_lat': final_lat,
                     'final_long': final_lng,
                     'country': '',  # Add country if available
-                    'source': f'enhanced_ai_recommended_{recommended_source}',
+                    'source': f'individual_source_scoring_{best_source}',
                     'validated_at': timezone.now()
                 }
             )
@@ -1039,21 +1082,21 @@ def handle_approve_ai_suggestion(validation, data):
             
             return JsonResponse({
                 'success': True,
-                'message': f'✅ Enhanced AI recommendation accepted: {result.location_name} validated using {recommended_source.upper()} coordinates with multi-factor analysis',
+                'message': f'✅ Individual source scoring recommendation accepted: {result.location_name} validated using {best_source.upper()} coordinates with reverse geocoding and distance penalty analysis',
                 'coordinates': {'lat': final_lat, 'lng': final_lng},
-                'source': recommended_source,
+                'source': best_source,
                 'status': 'validated',
                 'trigger_refresh': True  # Signal for frontend to refresh
             })
     
     except Exception as e:
-        logger.error(f"Error approving enhanced AI suggestion: {str(e)}")
-        print(f"Error approving AI suggestion: {str(e)}")
+        logger.error(f"Error approving individual source scoring suggestion: {str(e)}")
+        print(f"Error approving source scoring suggestion: {str(e)}")
         import traceback
         traceback.print_exc()
         return JsonResponse({
             'success': False,
-            'error': f'Failed to approve enhanced AI suggestion: {str(e)}'
+            'error': f'Failed to approve individual source scoring suggestion: {str(e)}'
         }, status=500)
 
 
@@ -1259,15 +1302,16 @@ def handle_reject(validation, data):
 
 
 def get_enhanced_validation_details(validation):
-    """Get detailed validation information with enhanced AI analysis."""
+    """Get detailed validation information with individual source scoring analysis."""
     try:
         result = validation.geocoding_result
         metadata = validation.validation_metadata or {}
         
-        # Extract coordinate details with enhanced information
+        # Extract coordinate details with individual source scoring information
         coordinates = []
         sources = ['hdx', 'arcgis', 'google', 'nominatim']
         reverse_geocoding = metadata.get('reverse_geocoding_results', {})
+        individual_scores = metadata.get('individual_scores', {})
         
         for source in sources:
             if getattr(result, f"{source}_success", False):
@@ -1277,6 +1321,9 @@ def get_enhanced_validation_details(validation):
                 # Get reverse geocoding info for this source
                 reverse_info = reverse_geocoding.get(source, {})
                 
+                # Get individual source scoring info
+                score_info = individual_scores.get(source, {})
+                
                 coordinates.append({
                     'source': source.upper(),
                     'lat': lat,
@@ -1285,26 +1332,29 @@ def get_enhanced_validation_details(validation):
                     'reverse_address': reverse_info.get('address', 'Not available'),
                     'name_similarity': reverse_info.get('similarity_score', 0.0) * 100,
                     'reverse_confidence': reverse_info.get('confidence', 0.0) * 100,
-                    'place_type': reverse_info.get('place_type', 'unknown')
+                    'place_type': reverse_info.get('place_type', 'unknown'),
+                    'individual_confidence': score_info.get('individual_confidence', 0.0) * 100,
+                    'reverse_geocoding_score': score_info.get('reverse_geocoding_score', 0.0) * 100,
+                    'distance_penalty_score': score_info.get('distance_penalty_score', 0.0) * 100
                 })
         
-        # Extract enhanced analysis data
-        analysis = metadata.get('coordinates_analysis', {})
-        recommendation = metadata.get('recommendation', {})
+        # Extract individual source scoring analysis data
+        best_source = metadata.get('best_source', 'Unknown')
+        best_score = metadata.get('best_score', 0.0)
         
         # Convert variance to user-friendly description
         variance = result.coordinate_variance or 0
-        if variance < 0.001:
-            accuracy_description = "Excellent precision - all sources agree closely"
+        if variance < 0.5:
+            accuracy_description = "Excellent agreement - all sources very close"
             distance_quality = "excellent"
-        elif variance < 0.01:
-            accuracy_description = "Good precision - sources mostly agree"
+        elif variance < 1.0:
+            accuracy_description = "Very good agreement - sources mostly aligned"
             distance_quality = "good"
-        elif variance < 0.1:
-            accuracy_description = "Moderate precision - some variation between sources"
+        elif variance < 2.0:
+            accuracy_description = "Good agreement - minor variations between sources"
             distance_quality = "moderate"
         else:
-            accuracy_description = "Variable precision - significant differences between sources"
+            accuracy_description = "Variable agreement - significant differences between sources"
             distance_quality = "poor"
         
         return JsonResponse({
@@ -1315,35 +1365,34 @@ def get_enhanced_validation_details(validation):
                 'status': validation.validation_status,
                 'coordinates': coordinates,
                 'analysis': {
-                    'recommended_source': analysis.get('recommended_source', 'Unknown'),
-                    'reverse_geocoding_score': analysis.get('reverse_geocoding_score', 0) * 100,
-                    'distance_confidence': analysis.get('distance_confidence', 0) * 100,
-                    'max_distance_km': analysis.get('max_distance_km', 0),
-                    'accuracy_level': analysis.get('accuracy_level', 'Unknown'),
-                    'population_density': analysis.get('confidence_breakdown', {}).get('population_density', 0) * 100,
-                    'road_proximity': analysis.get('confidence_breakdown', {}).get('road_proximity', 0) * 100
+                    'best_source': best_source,
+                    'best_score': best_score * 100,
+                    'max_distance_km': metadata.get('cluster_analysis', {}).get('max_distance_km', 0),
+                    'avg_distance_km': metadata.get('cluster_analysis', {}).get('avg_distance_km', 0),
+                    'source_count': metadata.get('sources_count', 0)
                 },
-                'recommendation': recommendation,
+                'recommendation': metadata.get('recommendation', {}),
                 'variance': variance,
                 'accuracy_description': accuracy_description,
                 'distance_quality': distance_quality,
-                'ai_summary': metadata.get('user_friendly_summary', 'Enhanced AI analysis completed with multi-factor validation'),
+                'ai_summary': metadata.get('user_friendly_summary', 'Individual source scoring analysis completed with reverse geocoding and distance penalty validation'),
                 'reverse_geocoding_results': reverse_geocoding,
-                'enhanced_factors': metadata.get('validation_flags', [])
+                'individual_scores': individual_scores,
+                'validation_flags': metadata.get('validation_flags', [])
             }
         })
     
     except Exception as e:
-        logger.error(f"Error getting enhanced validation details: {str(e)}")
+        logger.error(f"Error getting individual source scoring validation details: {str(e)}")
         print(f"Error getting validation details: {str(e)}")
         return JsonResponse({
             'success': False,
-            'error': f'Failed to get enhanced validation details: {str(e)}'
+            'error': f'Failed to get individual source scoring validation details: {str(e)}'
         }, status=500)
 
 
 def run_ai_analysis(validation):
-    """Re-run enhanced AI analysis on a validation result with external API timeout handling."""
+    """Re-run individual source scoring analysis on a validation result with external API timeout handling."""
     try:
         validator = SmartGeocodingValidator()
         # Add timeout handling for external APIs
@@ -1351,26 +1400,26 @@ def run_ai_analysis(validation):
         
         return JsonResponse({
             'success': True,
-            'message': '✅ Enhanced AI analysis completed successfully with multi-factor validation (population density, road proximity, reverse geocoding)',
+            'message': '✅ Individual source scoring analysis completed successfully with reverse geocoding and distance penalty validation',
             'confidence': updated_validation.confidence_score * 100,
             'status': updated_validation.validation_status,
-            'enhanced_factors': True
+            'individual_scoring': True
         })
     except requests.exceptions.Timeout:
         logger.warning(f"External API timeout during validation of {validation.geocoding_result.location_name}")
         return JsonResponse({
             'success': True,
-            'message': '⚠️ AI analysis completed with basic factors (external APIs temporarily unavailable)',
+            'message': '⚠️ Individual source scoring analysis completed with basic factors (external APIs temporarily unavailable)',
             'confidence': validation.confidence_score * 100,
             'status': validation.validation_status,
-            'enhanced_factors': False
+            'individual_scoring': False
         })
     except Exception as e:
-        logger.error(f"Error running enhanced AI analysis: {str(e)}")
-        print(f"Error running AI analysis: {str(e)}")
+        logger.error(f"Error running individual source scoring analysis: {str(e)}")
+        print(f"Error running individual source scoring analysis: {str(e)}")
         return JsonResponse({
             'success': False,
-            'error': f'Enhanced AI analysis failed: {str(e)}'
+            'error': f'Individual source scoring analysis failed: {str(e)}'
         }, status=500)
 
 

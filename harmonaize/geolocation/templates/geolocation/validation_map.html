@@ -304,6 +304,33 @@
       transition: width 0.3s ease;
     }
 
+    .scoring-details {
+      background: #f8f9fa;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .scoring-item {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 0.5rem;
+      font-size: 0.8rem;
+    }
+
+    .scoring-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .scoring-label {
+      color: var(--text-secondary);
+    }
+
+    .scoring-value {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
     .actions-section {
       padding: 1.5rem;
       border-top: 1px solid var(--border-color);
@@ -623,9 +650,9 @@
       <div>
         <h1 class="hero-title">
           {% include 'components/svg_icon.html' with icon='map-pin' size='24' class='inline-icon' %}
-          AI Location Validation
+          Individual Source Scoring Validation
         </h1>
-        <p class="hero-subtitle">Intelligent geospatial validation for HarmonAIze</p>
+        <p class="hero-subtitle">Best source selection for HarmonAIze</p>
       </div>
       
       <div class="hero-nav">
@@ -635,7 +662,7 @@
             {{ current_location.name }}
           </div>
           <div class="confidence-badge">
-            {{ current_location.confidence|floatformat:0 }}% AI Confidence
+            {{ current_location.confidence|floatformat:0 }}% Best Source Score
           </div>
         </div>
         {% endif %}
@@ -678,7 +705,7 @@
           
           <div class="confidence-container">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-              <span>AI Confidence Score</span>
+              <span>Best Source Score</span>
               <span style="font-size: 1.2rem; font-weight: 700;">{{ current_location.confidence|floatformat:0 }}%</span>
             </div>
             <div class="confidence-meter">
@@ -691,8 +718,8 @@
           {% if current_location.recommended_source %}
           <div style="background: rgba(52, 199, 89, 0.2); border: 1px solid rgba(52, 199, 89, 0.3); border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
             <div style="display: flex; align-items: center; gap: 0.5rem;">
-              <span style="font-size: 1.2rem;">🤖</span>
-              <span style="font-weight: 600;">AI Recommends: {{ current_location.recommended_source }}</span>
+              <span style="font-size: 1.2rem;">🏆</span>
+              <span style="font-weight: 600;">Best Source: {{ current_location.recommended_source }}</span>
             </div>
           </div>
           {% endif %}
@@ -701,7 +728,7 @@
 
       <div class="source-selection">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-          <h3 style="margin: 0; font-size: 1.2rem; font-weight: 600;">Choose Best Coordinate</h3>
+          <h3 style="margin: 0; font-size: 1.2rem; font-weight: 600;">Individual Source Scores</h3>
           <span style="background: #e9ecef; color: #495057; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 500;">
             {{ current_location.coordinates|length }} Sources
           </span>
@@ -716,19 +743,37 @@
               <div class="source-marker" style="background-color: {{ coord.color }}"></div>
               <span>{{ coord.source }}</span>
               {% if coord.source == current_location.recommended_source %}
-              <span class="ai-badge">🏆 AI Choice</span>
+              <span class="ai-badge">🏆 Best</span>
               {% endif %}
             </div>
             <button onclick="event.stopPropagation(); selectSource('{{ coord.source_key }}', {{ coord.lat }}, {{ coord.lng }})"
                     class="btn {% if coord.source == current_location.recommended_source %}btn-success{% else %}btn-secondary{% endif %}"
                     style="padding: 0.5rem 1rem; font-size: 0.8rem;">
-              {% if coord.source == current_location.recommended_source %}✅ Use AI Pick{% else %}📍 Use This{% endif %}
+              {% if coord.source == current_location.recommended_source %}✅ Use Best{% else %}📍 Use This{% endif %}
             </button>
           </div>
           
           <div class="coordinate-info">
             <div class="coordinate-label">Coordinates</div>
             <div class="coordinate-value">{{ coord.lat|floatformat:5 }}, {{ coord.lng|floatformat:5 }}</div>
+          </div>
+          
+          <div class="scoring-details">
+            <div class="coordinate-label" style="margin-bottom: 0.75rem;">Individual Source Scoring</div>
+            <div class="scoring-item">
+              <span class="scoring-label">Reverse Geocoding:</span>
+              <span class="scoring-value">{{ coord.reverse_geocoding_score|default:0|floatformat:0 }}%</span>
+            </div>
+            <div class="scoring-item">
+              <span class="scoring-label">Distance Penalty:</span>
+              <span class="scoring-value">{{ coord.distance_penalty_score|default:0|floatformat:0 }}%</span>
+            </div>
+            <div class="scoring-item">
+              <span class="scoring-label">Overall Score:</span>
+              <span class="scoring-value" style="color: {% if coord.individual_confidence >= 80 %}#28a745{% elif coord.individual_confidence >= 60 %}#ffc107{% else %}#dc3545{% endif %};">
+                {{ coord.individual_confidence|default:0|floatformat:0 }}%
+              </span>
+            </div>
           </div>
           
           {% if coord.reverse_address != 'Not checked' and coord.reverse_address != 'Reverse geocoding failed' %}
@@ -744,10 +789,10 @@
           <div class="confidence-display">
             <div class="confidence-bar">
               <div class="confidence-progress" 
-                   style="width: {{ coord.overall_confidence }}%; background-color: {% if coord.overall_confidence >= 80 %}#28a745{% elif coord.overall_confidence >= 60 %}#ffc107{% else %}#dc3545{% endif %};">
+                   style="width: {{ coord.individual_confidence|default:0 }}%; background-color: {% if coord.individual_confidence >= 80 %}#28a745{% elif coord.individual_confidence >= 60 %}#ffc107{% else %}#dc3545{% endif %};">
               </div>
             </div>
-            <span style="font-size: 0.9rem; font-weight: 500;">{{ coord.overall_confidence|floatformat:0 }}%</span>
+            <span style="font-size: 0.9rem; font-weight: 500;">{{ coord.individual_confidence|default:0|floatformat:0 }}%</span>
           </div>
         </div>
         {% endfor %}
@@ -755,8 +800,8 @@
 
       <div class="actions-section">
         {% if current_location.confidence >= 70 %}
-        <button onclick="approveAIRecommendation()" class="btn btn-success btn-action">
-          ✅ Accept AI Recommendation
+        <button onclick="approveBestSource()" class="btn btn-success btn-action">
+          ✅ Accept Best Source Recommendation
         </button>
         {% endif %}
         
@@ -836,25 +881,25 @@
       <div class="map-legend">
         <h4 style="margin-bottom: 1rem; font-size: 0.9rem; font-weight: 600;">📍 Data Sources</h4>
         <div class="legend-item">
-          <div class="legend-color" style="background-color: #dc3545;"></div>
+          <div class="legend-color" style="background-color: #dc2626;"></div>
           <span>Google Maps</span>
         </div>
         <div class="legend-item">
-          <div class="legend-color" style="background-color: #6f42c1;"></div>
+          <div class="legend-color" style="background-color: #8b5cf6;"></div>
           <span>ArcGIS</span>
         </div>
         <div class="legend-item">
-          <div class="legend-color" style="background-color: #fd7e14;"></div>
+          <div class="legend-color" style="background-color: #f59e0b;"></div>
           <span>OpenStreetMap</span>
         </div>
         <div class="legend-item">
-          <div class="legend-color" style="background-color: #007bff;"></div>
+          <div class="legend-color" style="background-color: #3b82f6;"></div>
           <span>HDX Health</span>
         </div>
         <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
           <div class="legend-item">
             <div class="legend-color" style="background-color: var(--accent-color); border-color: var(--accent-color); border-width: 3px;"></div>
-            <span style="font-weight: 600;">AI Recommendation</span>
+            <span style="font-weight: 600;">Best Source</span>
           </div>
         </div>
       </div>
@@ -944,25 +989,39 @@
           zoomToSource(coord.source_key, coord.lat, coord.lng);
         });
 
-        const isRecommended = coord.source === currentLocationData.recommended_source;
+        const isBest = coord.source === currentLocationData.recommended_source;
         const popupHTML = `
-          <div style="min-width: 200px;">
+          <div style="min-width: 250px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
               <span style="font-weight: 600; font-size: 1.1rem;">${coord.source}</span>
-              ${isRecommended ? '<span style="background: var(--accent-color); color: white; padding: 0.25rem 0.5rem; border-radius: 10px; font-size: 0.7rem; font-weight: 600;">🏆 AI Pick</span>' : ''}
+              ${isBest ? '<span style="background: var(--accent-color); color: white; padding: 0.25rem 0.5rem; border-radius: 10px; font-size: 0.7rem; font-weight: 600;">🏆 Best</span>' : ''}
             </div>
             <div style="background: #f8f9fa; padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem;">
               <div style="font-size: 0.8rem; color: #6c757d; margin-bottom: 0.25rem;">Coordinates</div>
               <div style="font-family: monospace; font-size: 0.9rem;">${coord.lat.toFixed(5)}, ${coord.lng.toFixed(5)}</div>
             </div>
             <div style="background: #f8f9fa; padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem;">
-              <div style="font-size: 0.8rem; color: #6c757d; margin-bottom: 0.25rem;">Confidence</div>
-              <div style="font-weight: 600;">${Math.round(coord.overall_confidence)}%</div>
+              <div style="font-size: 0.8rem; color: #6c757d; margin-bottom: 0.5rem;">Individual Source Scoring</div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                <span style="font-size: 0.8rem;">Reverse Geocoding (65%):</span>
+                <span style="font-weight: 600; font-size: 0.8rem;">${Math.round(coord.reverse_geocoding_score || 0)}%</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                <span style="font-size: 0.8rem;">Distance Penalty (35%):</span>
+                <span style="font-weight: 600; font-size: 0.8rem;">${Math.round(coord.distance_penalty_score || 0)}%</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; border-top: 1px solid #dee2e6; padding-top: 0.25rem;">
+                <span style="font-size: 0.8rem; font-weight: 600;">Overall Score:</span>
+                <span style="font-weight: 600; font-size: 0.8rem;">${Math.round(coord.individual_confidence || 0)}%</span>
+              </div>
+              <div style="font-size: 0.7rem; color: #6c757d; margin-top: 0.25rem;">
+                (${Math.round(coord.reverse_geocoding_score || 0)}% × 0.65) + (${Math.round(coord.distance_penalty_score || 0)}% × 0.35)
+              </div>
             </div>
             <button onclick="selectSource('${coord.source_key}', ${coord.lat}, ${coord.lng})" 
-                    class="btn ${isRecommended ? 'btn-success' : 'btn-secondary'}" 
+                    class="btn ${isBest ? 'btn-success' : 'btn-secondary'}" 
                     style="width: 100%; padding: 0.75rem; font-size: 0.9rem;">
-              ${isRecommended ? '✅ Use AI Recommendation' : '📍 Use This Source'}
+              ${isBest ? '✅ Use Best Source' : '📍 Use This Source'}
             </button>
           </div>
         `;
@@ -1047,7 +1106,7 @@
       });
     }
 
-    function approveAIRecommendation() {
+    function approveBestSource() {
       if (!currentLocationData) return;
       showLoading(true);
       
@@ -1072,7 +1131,7 @@
             {% endif %}
           }, 2000);
         } else {
-          showMessage('❌ ' + (data.error || 'Failed to approve recommendation'), 'error');
+          showMessage('❌ ' + (data.error || 'Failed to approve best source'), 'error');
         }
       })
       .catch(error => {
@@ -1209,7 +1268,7 @@
       } else if (e.key === 'ArrowRight' && {{ navigation.has_next|yesno:"true,false" }}) {
         window.location.href = '{% url "geolocation:validation_map" %}?location_id={{ navigation.next_location_id }}';
       } else if (e.key === 'Enter' && currentLocationData && currentLocationData.confidence >= 70) {
-        approveAIRecommendation();
+        approveBestSource();
       } else if (e.key === 'Escape') {
         document.getElementById('manualEntry').classList.remove('active');
         document.getElementById('rejectForm').classList.remove('active');
