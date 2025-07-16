@@ -650,9 +650,9 @@
       <div>
         <h1 class="hero-title">
           {% include 'components/svg_icon.html' with icon='map-pin' size='24' class='inline-icon' %}
-          Individual Source Scoring Validation
+          Visual Source Validation
         </h1>
-        <p class="hero-subtitle">Best source selection for HarmonAIze</p>
+        <p class="hero-subtitle">coordinates visualisation for all sources</p>
       </div>
       
       <div class="hero-nav">
@@ -705,7 +705,7 @@
           
           <div class="confidence-container">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-              <span>Best Source Score</span>
+              <span>Overall Confidence</span>
               <span style="font-size: 1.2rem; font-weight: 700;">{{ current_location.confidence|floatformat:0 }}%</span>
             </div>
             <div class="confidence-meter">
@@ -718,8 +718,8 @@
           {% if current_location.recommended_source %}
           <div style="background: rgba(52, 199, 89, 0.2); border: 1px solid rgba(52, 199, 89, 0.3); border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
             <div style="display: flex; align-items: center; gap: 0.5rem;">
-              <span style="font-size: 1.2rem;">🏆</span>
-              <span style="font-weight: 600;">Best Source: {{ current_location.recommended_source }}</span>
+              <span style="font-size: 1.2rem;"></span>
+              <span style="font-weight: 600;">Recommended Source: {{ current_location.recommended_source }}</span>
             </div>
           </div>
           {% endif %}
@@ -743,13 +743,13 @@
               <div class="source-marker" style="background-color: {{ coord.color }}"></div>
               <span>{{ coord.source }}</span>
               {% if coord.source == current_location.recommended_source %}
-              <span class="ai-badge">🏆 Best</span>
+              <span class="ai-badge"> Best</span>
               {% endif %}
             </div>
             <button onclick="event.stopPropagation(); selectSource('{{ coord.source_key }}', {{ coord.lat }}, {{ coord.lng }})"
                     class="btn {% if coord.source == current_location.recommended_source %}btn-success{% else %}btn-secondary{% endif %}"
                     style="padding: 0.5rem 1rem; font-size: 0.8rem;">
-              {% if coord.source == current_location.recommended_source %}✅ Use Best{% else %}📍 Use This{% endif %}
+              {% if coord.source == current_location.recommended_source %} Use Best{% else %}📍 Use This{% endif %}
             </button>
           </div>
           
@@ -759,17 +759,17 @@
           </div>
           
           <div class="scoring-details">
-            <div class="coordinate-label" style="margin-bottom: 0.75rem;">Individual Source Scoring</div>
+            <!--div class="coordinate-label" style="margin-bottom: 0.75rem;">Indvidual source Scoring</div-->
             <div class="scoring-item">
               <span class="scoring-label">Reverse Geocoding:</span>
               <span class="scoring-value">{{ coord.reverse_geocoding_score|default:0|floatformat:0 }}%</span>
             </div>
             <div class="scoring-item">
-              <span class="scoring-label">Distance Penalty:</span>
+              <span class="scoring-label">Proximity:</span>
               <span class="scoring-value">{{ coord.distance_penalty_score|default:0|floatformat:0 }}%</span>
             </div>
             <div class="scoring-item">
-              <span class="scoring-label">Overall Score:</span>
+              <span class="scoring-label">Source Score:</span>
               <span class="scoring-value" style="color: {% if coord.individual_confidence >= 80 %}#28a745{% elif coord.individual_confidence >= 60 %}#ffc107{% else %}#dc3545{% endif %};">
                 {{ coord.individual_confidence|default:0|floatformat:0 }}%
               </span>
@@ -869,12 +869,12 @@
         <button onclick="changeMapLayer('streets')" class="layer-button" id="streets-btn">
           🗺️ Streets
         </button>
-        <button onclick="changeMapLayer('terrain')" class="layer-button" id="terrain-btn">
+        <!--button onclick="changeMapLayer('terrain')" class="layer-button" id="terrain-btn">
           🏔️ Terrain
         </button>
         <button onclick="changeMapLayer('outdoors')" class="layer-button" id="outdoors-btn">
           🌲 Outdoors
-        </button>
+        </button-->
       </div>
       
       <!-- Map Legend -->
@@ -935,10 +935,10 @@
 
     // Map styles
     const mapStyles = {
-      'satellite': 'mapbox://styles/mapbox/satellite-streets-v11',
+      'satellite': 'mapbox://styles/mapbox/satellite-streets-v12',
       'streets': 'mapbox://styles/mapbox/streets-v11',
-      'terrain': 'mapbox://styles/mapbox/outdoors-v11',
-      'outdoors': 'mapbox://styles/mapbox/outdoors-v11'
+     // 'terrain': 'mapbox://styles/mapbox/light-v11',
+   //   'outdoors': 'mapbox://styles/mapbox/dark-v11'
     };
 
     // Map layer switching
