@@ -843,7 +843,7 @@ def geocoding_api(request):
 
 @csrf_exempt
 def bulk_validation_actions(request):
-    """Handle bulk validation actions with enhanced error handling."""
+    """FIXED: Handle bulk validation actions with enhanced auto-approve logic."""
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
@@ -866,29 +866,97 @@ def bulk_validation_actions(request):
                         'error': 'No individual source scoring analysis has been performed yet. Please wait for analysis to complete first.'
                     }, status=400)
                 
-                # Check for high-confidence results
+                # FIXED: Look for high-confidence results that need validation
+                # Look for ValidationResults with status = 'needs_review'
                 high_confidence_results = ValidationResult.objects.filter(
-                    confidence_score__gte=0.8,
-                    validation_status='needs_review'
-                )
+                    validation_status='needs_review'  # Only those needing review
+                ).select_related('geocoding_result')
                 
-                if not high_confidence_results.exists():
+                # FIXED: Filter by INDIVIDUAL source confidence, not aggregate
+                qualified_results = []
+                for validation in high_confidence_results:
+                    metadata = validation.validation_metadata or {}
+                    individual_scores = metadata.get('individual_scores', {})
+                    best_source = metadata.get('best_source')
+                    
+                    # Check if best source has >= 80% individual confidence
+                    if best_source and individual_scores.get(best_source):
+                        best_source_data = individual_scores[best_source]
+                        individual_confidence = best_source_data.get('individual_confidence', 0.0)
+                        
+                        if individual_confidence >= 0.8:  # 80% threshold
+                            qualified_results.append(validation)
+                            print(f"✅ Qualified for auto-approve: {validation.geocoding_result.location_name} - {individual_confidence*100:.1f}%")
+                
+                if not qualified_results:
                     return JsonResponse({
                         'success': True,
-                        'message': 'No high-confidence locations found that need auto-validation. All high-confidence locations may already be validated, or none meet the 80% confidence threshold.'
+                        'message': 'No locations found with ≥80% individual source scoring confidence that need auto-validation. All high-confidence locations may already be validated.'
                     })
                 
                 count = 0
                 errors = 0
-                for validation in high_confidence_results:
+                for validation in qualified_results:
                     try:
-                        # Use the existing handle_approve_ai_suggestion function
-                        result_response = handle_approve_ai_suggestion(validation, {})
-                        result_data = json.loads(result_response.content.decode('utf-8'))
-                        if result_data.get('success'):
-                            count += 1
-                        else:
-                            errors += 1
+                        # FIXED: Use the existing handle_approve_ai_suggestion function
+                        with transaction.atomic():
+                            result = validation.geocoding_result
+                            metadata = validation.validation_metadata or {}
+                            best_source = metadata.get('best_source')
+                            
+                            # Get coordinates from best source
+                            if best_source == 'hdx' and result.hdx_success:
+                                final_lat, final_lng = result.hdx_lat, result.hdx_lng
+                            elif best_source == 'arcgis' and result.arcgis_success:
+                                final_lat, final_lng = result.arcgis_lat, result.arcgis_lng
+                            elif best_source == 'google' and result.google_success:
+                                final_lat, final_lng = result.google_lat, result.google_lng
+                            elif best_source == 'nominatim' and result.nominatim_success:
+                                final_lat, final_lng = result.nominatim_lat, result.nominatim_lng
+                            else:
+                                errors += 1
+                                continue
+                            
+                            # Update validation status
+                            validation.validation_status = 'validated'
+                            validation.validated_at = timezone.now()
+                            validation.validated_by = 'Auto_Approve_High_Confidence'
+                            validation.recommended_lat = final_lat
+                            validation.recommended_lng = final_lng
+                            validation.recommended_source = best_source
+                            validation.save()
+                            
+                            # Add to ValidationDataset
+                            ValidationDataset.objects.update_or_create(
+                                location_name=result.location_name,
+                                defaults={
+                                    'final_lat': final_lat,
+                                    'final_long': final_lng,
+                                    'country': '',
+                                    'source': f'auto_approve_{best_source}',
+                                    'validated_at': timezone.now()
+                                }
+                            )
+                            
+                            # FIXED: Update core Location model immediately
+                            try:
+                                location = Location.objects.get(name__iexact=result.location_name)
+                                location.latitude = final_lat
+                                location.longitude = final_lng
+                                location.save()
+                                count += 1
+                                print(f"✅ Auto-approved: {location.name} using {best_source.upper()}")
+                            except Location.DoesNotExist:
+                                print(f"⚠️ Warning: Could not find Location: {result.location_name}")
+                                errors += 1
+                            except Location.MultipleObjectsReturned:
+                                location = Location.objects.filter(name__iexact=result.location_name).first()
+                                location.latitude = final_lat
+                                location.longitude = final_lng
+                                location.save()
+                                count += 1
+                                print(f"✅ Auto-approved: {location.name} using {best_source.upper()}")
+                        
                     except Exception as e:
                         logger.error(f"Error auto-validating {validation.geocoding_result.location_name}: {e}")
                         print(f"Error auto-validating {validation.geocoding_result.location_name}: {e}")
@@ -898,12 +966,12 @@ def bulk_validation_actions(request):
                 if count > 0:
                     return JsonResponse({
                         'success': True,
-                        'message': f'✅ Auto-validated {count} high confidence locations with individual source scoring' + (f' ({errors} had errors)' if errors > 0 else '')
+                        'message': f'✅ Successfully auto-approved {count} high confidence locations (≥80% individual source scoring)' + (f' ({errors} had errors)' if errors > 0 else '')
                     })
                 else:
                     return JsonResponse({
                         'success': False,
-                        'error': f'Failed to auto-validate any locations. {errors} errors occurred.'
+                        'error': f'Failed to auto-approve any locations. {errors} errors occurred during processing.'
                     })
             
             elif action == 'run_smart_validation_batch':
@@ -1477,23 +1545,26 @@ def validation_statistics(request):
         }, status=500)
 
 def validated_locations_map(request):
-    """Show map of all validated locations."""
-    # Get all validated locations
+    """FIXED: Show map of all validated locations with proper data structure."""
+    # Get all validated locations from core Location model
     validated_locations = Location.objects.filter(
         latitude__isnull=False,
         longitude__isnull=False
     ).order_by('name')
     
-    # Prepare data for map
+    print(f"DEBUG: Found {validated_locations.count()} validated locations")
+    
+    # FIXED: Prepare data for map in the correct format
     locations_data = []
     for location in validated_locations:
         locations_data.append({
             'id': location.id,
             'name': location.name,
-            'lat': location.latitude,
-            'lng': location.longitude,
+            'lat': float(location.latitude),
+            'lng': float(location.longitude),
             'status': 'validated'
         })
+        print(f"DEBUG: Added location: {location.name} at {location.latitude}, {location.longitude}")
     
     context = {
         'locations_data': json.dumps(locations_data),
@@ -1501,4 +1572,5 @@ def validated_locations_map(request):
         'total_locations': len(locations_data)
     }
     
+    print(f"DEBUG: Rendering template with {len(locations_data)} locations")
     return render(request, 'geolocation/validated_locations_map.html', context)

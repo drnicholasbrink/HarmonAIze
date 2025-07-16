@@ -1,11 +1,13 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}AI Location Validation - HarmonAIze{% endblock title %}
+{% block title %}Validated Locations Map - HarmonAIze{% endblock title %}
 
 {% block css %}
   {{ block.super }}
   <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
     :root {
       --primary-color: #007AFF;
@@ -33,7 +35,7 @@
     }
 
     .hero-section {
-      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      background: linear-gradient(135deg, var(--accent-color) 0%, #2ecc71 100%);
       color: white;
       padding: 1.5rem 0;
       margin: -1rem -15px 0 -15px;
@@ -106,13 +108,13 @@
 
     .btn-secondary {
       background: white;
-      color: var(--primary-color);
+      color: var(--accent-color);
     }
 
     .btn-secondary:hover {
       background: #f8f9fa;
       transform: translateY(-1px);
-      color: var(--primary-color);
+      color: var(--accent-color);
     }
 
     .confidence-badge {
@@ -126,261 +128,13 @@
     }
 
     .map-container {
-      display: flex;
       height: calc(100vh - 120px);
-      overflow: hidden;
-    }
-
-    .sidebar {
-      width: 400px;
-      background: var(--card-background);
-      border-right: 1px solid var(--border-color);
-      display: flex;
-      flex-direction: column;
-      box-shadow: var(--shadow);
-    }
-
-    .sidebar-header {
-      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
-      color: white;
-      padding: 2rem;
       position: relative;
-      overflow: hidden;
-    }
-
-    .sidebar-header::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") repeat;
-      opacity: 0.3;
-    }
-
-    .sidebar-content {
-      position: relative;
-      z-index: 1;
-    }
-
-    .location-title {
-      font-size: 1.5rem;
-      font-weight: 700;
-      margin-bottom: 1rem;
-    }
-
-    .confidence-container {
-      background: rgba(255, 255, 255, 0.2);
-      border-radius: var(--border-radius);
-      padding: 1.5rem;
-      margin-bottom: 1rem;
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 255, 255, 0.3);
-    }
-
-    .confidence-meter {
-      background: rgba(255, 255, 255, 0.3);
-      height: 8px;
-      border-radius: 4px;
-      overflow: hidden;
-      margin: 1rem 0;
-    }
-
-    .confidence-fill {
-      height: 100%;
-      transition: width 0.5s ease;
-      border-radius: 4px;
-    }
-
-    .confidence-fill.high {
-      background: linear-gradient(90deg, #34C759, #2ecc71);
-    }
-
-    .confidence-fill.medium {
-      background: linear-gradient(90deg, #ffc107, #e0a800);
-    }
-
-    .confidence-fill.low {
-      background: linear-gradient(90deg, #dc3545, #c82333);
-    }
-
-    .source-selection {
-      flex: 1;
-      overflow-y: auto;
-      padding: 1.5rem;
-    }
-
-    .source-card {
-      background: var(--card-background);
-      border: 2px solid var(--border-color);
-      border-radius: var(--border-radius);
-      padding: 1.5rem;
-      margin-bottom: 1rem;
-      transition: all 0.3s ease;
-      cursor: pointer;
-    }
-
-    .source-card:hover {
-      transform: translateY(-2px);
-      box-shadow: var(--shadow);
-    }
-
-    .source-card.recommended {
-      border-color: var(--accent-color);
-      background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
-      box-shadow: 0 0 0 4px rgba(52, 199, 89, 0.1);
-    }
-
-    .source-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1rem;
-    }
-
-    .source-name {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      font-weight: 600;
-      color: var(--text-primary);
-    }
-
-    .source-marker {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      border: 2px solid white;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-    }
-
-    .ai-badge {
-      background: var(--accent-color);
-      color: white;
-      padding: 0.25rem 0.75rem;
-      border-radius: 15px;
-      font-size: 0.8rem;
-      font-weight: 600;
-    }
-
-    .coordinate-info {
-      background: #f8f9fa;
-      border-radius: 8px;
-      padding: 1rem;
-      margin-bottom: 1rem;
-    }
-
-    .coordinate-label {
-      font-size: 0.8rem;
-      color: var(--text-secondary);
-      margin-bottom: 0.25rem;
-    }
-
-    .coordinate-value {
-      font-family: monospace;
-      font-size: 0.9rem;
-      color: var(--text-primary);
-      font-weight: 500;
-    }
-
-    .confidence-display {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      margin-top: 1rem;
-    }
-
-    .confidence-bar {
-      flex: 1;
-      height: 6px;
-      background: #e5e7eb;
-      border-radius: 3px;
-      overflow: hidden;
-    }
-
-    .confidence-progress {
-      height: 100%;
-      transition: width 0.3s ease;
-    }
-
-    .scoring-details {
-      background: #f8f9fa;
-      border-radius: 8px;
-      padding: 1rem;
-      margin-bottom: 1rem;
-    }
-
-    .scoring-item {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 0.5rem;
-      font-size: 0.8rem;
-    }
-
-    .scoring-item:last-child {
-      margin-bottom: 0;
-    }
-
-    .scoring-label {
-      color: var(--text-secondary);
-    }
-
-    .scoring-value {
-      font-weight: 600;
-      color: var(--text-primary);
-    }
-
-    .actions-section {
-      padding: 1.5rem;
-      border-top: 1px solid var(--border-color);
-      background: #f8f9fa;
-    }
-
-    .btn-action {
-      width: 100%;
-      margin-bottom: 1rem;
-      padding: 1rem;
-      font-size: 1rem;
-      border-radius: var(--border-radius);
-    }
-
-    .btn-success {
-      background: linear-gradient(135deg, var(--accent-color) 0%, #2ecc71 100%);
-      color: white;
-    }
-
-    .btn-success:hover {
-      background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
-      transform: translateY(-1px);
-      box-shadow: 0 4px 15px rgba(52, 199, 89, 0.3);
-      color: white;
-    }
-
-    .btn-warning {
-      background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%);
-      color: white;
-    }
-
-    .btn-warning:hover {
-      background: linear-gradient(135deg, #e0a800 0%, #d39e00 100%);
-      transform: translateY(-1px);
-      color: white;
-    }
-
-    .btn-danger {
-      background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
-      color: white;
-    }
-
-    .btn-danger:hover {
-      background: linear-gradient(135deg, #c82333 0%, #bd2130 100%);
-      transform: translateY(-1px);
-      color: white;
     }
 
     .map-area {
-      flex: 1;
+      width: 100%;
+      height: 100%;
       position: relative;
     }
 
@@ -389,12 +143,12 @@
       top: 1rem;
       left: 1rem;
       z-index: 1000;
-      background: var(--card-background);
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
       border-radius: var(--border-radius);
       padding: 1rem;
       box-shadow: var(--shadow);
       border: 1px solid var(--border-color);
-      backdrop-filter: blur(10px);
     }
 
     .map-controls h4 {
@@ -424,21 +178,74 @@
     }
 
     .layer-button.active {
-      background: var(--primary-color);
+      background: var(--accent-color);
+      color: white;
+    }
+
+    .download-panel {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      z-index: 1000;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: var(--border-radius);
+      padding: 1rem;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border-color);
+    }
+
+    .download-panel h4 {
+      margin-bottom: 0.75rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .download-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      width: 100%;
+      padding: 0.75rem;
+      margin-bottom: 0.5rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .download-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .btn-pdf {
+      background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+      color: white;
+    }
+
+    .btn-png {
+      background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
       color: white;
     }
 
     .map-legend {
       position: absolute;
       bottom: 1rem;
-      right: 1rem;
+      left: 1rem;
       z-index: 1000;
-      background: var(--card-background);
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
       border-radius: var(--border-radius);
       padding: 1rem;
       box-shadow: var(--shadow);
       border: 1px solid var(--border-color);
-      backdrop-filter: blur(10px);
+      max-height: 300px;
+      overflow-y: auto;
     }
 
     .legend-item {
@@ -457,81 +264,87 @@
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
     }
 
-    .form-section {
-      background: var(--card-background);
-      border: 2px solid var(--border-color);
+    .stats-panel {
+      position: absolute;
+      bottom: 1rem;
+      right: 1rem;
+      z-index: 1000;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
       border-radius: var(--border-radius);
-      padding: 1.5rem;
-      margin-top: 1rem;
-      display: none;
-    }
-
-    .form-section.active {
-      display: block;
-    }
-
-    .form-section h4 {
-      margin-bottom: 1rem;
-      color: var(--text-primary);
-      font-weight: 600;
-    }
-
-    .form-group {
-      margin-bottom: 1rem;
-    }
-
-    .form-control {
-      width: 100%;
-      padding: 0.75rem;
-      border: 2px solid var(--border-color);
-      border-radius: 8px;
-      font-size: 0.9rem;
-      color: var(--text-primary);
-      background: var(--card-background);
-      transition: border-color 0.3s ease;
-    }
-
-    .form-control:focus {
-      outline: none;
-      border-color: var(--primary-color);
-      box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
-    }
-
-    .loading-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.5);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 10000;
-    }
-
-    .loading-content {
-      background: var(--card-background);
-      border-radius: var(--border-radius);
-      padding: 2rem;
-      display: flex;
-      align-items: center;
-      gap: 1rem;
+      padding: 1rem;
       box-shadow: var(--shadow);
+      border: 1px solid var(--border-color);
+    }
+
+    .stats-panel h4 {
+      margin-bottom: 0.75rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .stat-item {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 0.5rem;
+      font-size: 0.8rem;
+    }
+
+    .stat-label {
+      color: var(--text-secondary);
+    }
+
+    .stat-value {
+      font-weight: 600;
+      color: var(--accent-color);
+    }
+
+    .mapboxgl-popup-content {
+      padding: 1rem;
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border-color);
+    }
+
+    .validated-marker {
+      border-radius: 50%;
+      border: 3px solid white;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .validated-marker:hover {
+      transform: scale(1.2);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
     }
 
     .loading-spinner {
       border: 3px solid #f3f4f6;
-      border-top: 3px solid var(--primary-color);
+      border-top: 3px solid var(--accent-color);
       border-radius: 50%;
-      width: 24px;
-      height: 24px;
+      width: 20px;
+      height: 20px;
       animation: spin 1s linear infinite;
     }
 
     @keyframes spin {
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
+    }
+
+    .progress-container {
+      background: rgba(16, 185, 129, 0.1);
+      border-radius: var(--border-radius);
+      padding: 1rem;
+      margin-top: 1rem;
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      display: none;
+    }
+
+    .progress-container.show {
+      display: block;
     }
 
     .message-container {
@@ -576,32 +389,6 @@
       transform: translateX(0);
     }
 
-    .mapboxgl-popup-content {
-      padding: 1rem;
-      border-radius: var(--border-radius);
-      box-shadow: var(--shadow);
-      border: 1px solid var(--border-color);
-    }
-
-    .source-marker-map {
-      border-radius: 50%;
-      border: 3px solid white;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-      cursor: pointer;
-      transition: all 0.3s ease;
-    }
-
-    .source-marker-map:hover {
-      transform: scale(1.2);
-      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
-    }
-
-    .source-marker-map.recommended {
-      border-color: var(--accent-color);
-      border-width: 4px;
-      box-shadow: 0 0 0 4px rgba(52, 199, 89, 0.3), 0 4px 12px rgba(0, 0, 0, 0.3);
-    }
-
     .inline-icon {
       display: inline-block;
       vertical-align: middle;
@@ -620,25 +407,16 @@
         justify-content: space-between;
       }
 
-      .sidebar {
-        width: 100%;
-        max-width: none;
-        height: 50vh;
+      .map-controls,
+      .download-panel,
+      .map-legend,
+      .stats-panel {
+        position: relative;
+        margin: 1rem;
       }
 
       .map-container {
-        flex-direction: column;
-        height: auto;
-      }
-
-      .map-area {
-        height: 50vh;
-      }
-
-      .map-controls,
-      .map-legend {
-        position: relative;
-        margin: 1rem;
+        height: calc(100vh - 160px);
       }
     }
   </style>
@@ -649,214 +427,26 @@
     <div class="hero-content">
       <div>
         <h1 class="hero-title">
-          {% include 'components/svg_icon.html' with icon='map-pin' size='24' class='inline-icon' %}
+          {% include 'components/svg_icon.html' with icon='check-circle' size='24' class='inline-icon' %}
           Validated Locations Map
         </h1>
-        <p class="hero-subtitle">Ground-Truth for Impact — Explore Validated Sites in Context.</p>
+        <p class="hero-subtitle">Ground-Truth for Impact — Explore {{ total_locations }} Validated Sites in Context</p>
       </div>
       
       <div class="hero-nav">
-        {% if current_location %}
-        <div style="display: flex; align-items: center; gap: 1rem;">
-          <div class="confidence-badge">
-            {{ current_location.name }}
-          </div>
-          <div class="confidence-badge">
-            {{ current_location.confidence|floatformat:0 }}% Best Source Confidence
-          </div>
+        <div class="confidence-badge">
+          {{ total_locations }} Validated Locations
         </div>
-        {% endif %}
         
-        <div style="display: flex; align-items: center; gap: 1rem;">
-          {% if navigation.has_prev %}
-          <a href="{% url 'geolocation:validation_map' %}?location_id={{ navigation.prev_location_id }}" 
-             class="btn btn-primary">
-            ← Previous
-          </a>
-          {% endif %}
-          
-          <span style="color: rgba(255,255,255,0.8); font-size: 0.9rem;">
-            {{ navigation.current_index }} of {{ navigation.total_pending }}
-          </span>
-          
-          {% if navigation.has_next %}
-          <a href="{% url 'geolocation:validation_map' %}?location_id={{ navigation.next_location_id }}" 
-             class="btn btn-secondary">
-            Next →
-          </a>
-          {% endif %}
-          
-          <a href="{% url 'geolocation:validation_dashboard' %}" 
-             class="btn btn-primary">
-            Geolocation Dashboard
-          </a>
-        </div>
+        <a href="{% url 'geolocation:validation_dashboard' %}" 
+           class="btn btn-primary">
+          📊 Back to Dashboard
+        </a>
       </div>
     </div>
   </div>
 
   <div class="map-container">
-    <!-- Sidebar -->
-    <div class="sidebar">
-      {% if current_location %}
-      <div class="sidebar-header">
-        <div class="sidebar-content">
-          <h2 class="location-title">{{ current_location.name }}</h2>
-          
-          <div class="confidence-container">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-              <span>Best Source Confidence</span>
-              <span style="font-size: 1.2rem; font-weight: 700;">{{ current_location.confidence|floatformat:0 }}%</span>
-            </div>
-            <div class="confidence-meter">
-              <div class="confidence-fill {% if current_location.confidence >= 80 %}high{% elif current_location.confidence >= 60 %}medium{% else %}low{% endif %}" 
-                   style="width: {{ current_location.confidence }}%"></div>
-            </div>
-            <p style="font-size: 0.9rem; opacity: 0.9; margin: 0;">{{ current_location.accuracy_description }}</p>
-          </div>
-          
-          {% if current_location.recommended_source %}
-          <div style="background: rgba(52, 199, 89, 0.2); border: 1px solid rgba(52, 199, 89, 0.3); border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
-            <div style="display: flex; align-items: center; gap: 0.5rem;">
-              <span style="font-size: 1.2rem;">🏆</span>
-              <span style="font-weight: 600;">Best Source: {{ current_location.recommended_source }}</span>
-            </div>
-          </div>
-          {% endif %}
-        </div>
-      </div>
-
-      <div class="source-selection">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-          <h3 style="margin: 0; font-size: 1.2rem; font-weight: 600;">Individual Source Scores</h3>
-          <span style="background: #e9ecef; color: #495057; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 500;">
-            {{ current_location.coordinates|length }} Sources
-          </span>
-        </div>
-        
-        {% for coord in current_location.coordinates %}
-        <div class="source-card {% if coord.source == current_location.recommended_source %}recommended{% endif %}" 
-             onclick="zoomToSource('{{ coord.source_key }}', {{ coord.lat }}, {{ coord.lng }})">
-          
-          <div class="source-header">
-            <div class="source-name">
-              <div class="source-marker" style="background-color: {{ coord.color }}"></div>
-              <span>{{ coord.source }}</span>
-              {% if coord.source == current_location.recommended_source %}
-              <span class="ai-badge">🏆 Best</span>
-              {% endif %}
-            </div>
-            <button onclick="event.stopPropagation(); selectSource('{{ coord.source_key }}', {{ coord.lat }}, {{ coord.lng }})"
-                    class="btn {% if coord.source == current_location.recommended_source %}btn-success{% else %}btn-secondary{% endif %}"
-                    style="padding: 0.5rem 1rem; font-size: 0.8rem;">
-              {% if coord.source == current_location.recommended_source %}✅ Use Best{% else %}📍 Use This{% endif %}
-            </button>
-          </div>
-          
-          <div class="coordinate-info">
-            <div class="coordinate-label">Coordinates</div>
-            <div class="coordinate-value">{{ coord.lat|floatformat:5 }}, {{ coord.lng|floatformat:5 }}</div>
-          </div>
-          
-          <div class="scoring-details">
-            <div class="coordinate-label" style="margin-bottom: 0.75rem;">Individual Source Scoring</div>
-            <div class="scoring-item">
-              <span class="scoring-label">Reverse Geocoding:</span>
-              <span class="scoring-value">{{ coord.reverse_geocoding_score|default:0|floatformat:0 }}%</span>
-            </div>
-            <div class="scoring-item">
-              <span class="scoring-label">Distance Penalty:</span>
-              <span class="scoring-value">{{ coord.distance_penalty_score|default:0|floatformat:0 }}%</span>
-            </div>
-            <div class="scoring-item">
-              <span class="scoring-label">Overall Score:</span>
-              <span class="scoring-value" style="color: {% if coord.individual_confidence >= 80 %}#28a745{% elif coord.individual_confidence >= 60 %}#ffc107{% else %}#dc3545{% endif %};">
-                {{ coord.individual_confidence|default:0|floatformat:0 }}%
-              </span>
-            </div>
-          </div>
-          
-          {% if coord.reverse_address != 'Not checked' and coord.reverse_address != 'Reverse geocoding failed' %}
-          <div class="coordinate-info">
-            <div class="coordinate-label">Reverse Lookup</div>
-            <div style="color: {% if coord.name_similarity >= 80 %}#28a745{% elif coord.name_similarity >= 50 %}#ffc107{% else %}#6c757d{% endif %};">
-              {% if coord.name_similarity >= 80 %}✅{% elif coord.name_similarity >= 50 %}⚠️{% else %}❓{% endif %}
-              {{ coord.reverse_address|truncatechars:40 }}
-            </div>
-          </div>
-          {% endif %}
-          
-          <div class="confidence-display">
-            <div class="confidence-bar">
-              <div class="confidence-progress" 
-                   style="width: {{ coord.individual_confidence|default:0 }}%; background-color: {% if coord.individual_confidence >= 80 %}#28a745{% elif coord.individual_confidence >= 60 %}#ffc107{% else %}#dc3545{% endif %};">
-              </div>
-            </div>
-            <span style="font-size: 0.9rem; font-weight: 500;">{{ coord.individual_confidence|default:0|floatformat:0 }}%</span>
-          </div>
-        </div>
-        {% endfor %}
-      </div>
-
-      <div class="actions-section">
-        {% if current_location.confidence >= 70 %}
-        <button onclick="approveBestSource()" class="btn btn-success btn-action">
-          ✅ Accept Best Source Recommendation
-        </button>
-        {% endif %}
-        
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-          <button onclick="toggleManualEntry()" class="btn btn-warning">
-            📍 Manual Entry
-          </button>
-          <button onclick="toggleRejectForm()" class="btn btn-danger">
-            ❌ Reject Location
-          </button>
-        </div>
-        
-        <!-- Manual Entry Form -->
-        <div id="manualEntry" class="form-section">
-          <h4>🔧 Manual Coordinate Entry</h4>
-          <div class="form-group">
-            <input type="number" id="manualLat" placeholder="Latitude (e.g., -26.2041)" 
-                   step="any" class="form-control">
-          </div>
-          <div class="form-group">
-            <input type="number" id="manualLng" placeholder="Longitude (e.g., 28.0473)" 
-                   step="any" class="form-control">
-          </div>
-          <button onclick="saveManualCoordinates()" class="btn btn-success">
-            💾 Save Coordinates
-          </button>
-        </div>
-        
-        <!-- Reject Form -->
-        <div id="rejectForm" class="form-section">
-          <h4>❌ Reject Location</h4>
-          <div class="form-group">
-            <textarea id="rejectNotes" placeholder="Please provide a reason for rejection..." 
-                      rows="3" class="form-control"></textarea>
-          </div>
-          <button onclick="rejectLocation()" class="btn btn-danger">
-            🗑️ Confirm Rejection
-          </button>
-        </div>
-      </div>
-      {% else %}
-      <div style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 2rem;">
-        <div style="text-align: center;">
-          <div style="font-size: 4rem; margin-bottom: 1rem;">🎉</div>
-          <h3 style="color: var(--text-primary); margin-bottom: 1rem;">All Caught Up!</h3>
-          <p style="color: var(--text-secondary); margin-bottom: 2rem;">No locations currently need validation</p>
-          <a href="{% url 'geolocation:validation_dashboard' %}" class="btn btn-secondary">
-            📊 Return to Dashboard
-          </a>
-        </div>
-      </div>
-      {% endif %}
-    </div>
-
-    <!-- Map Area -->
     <div class="map-area">
       <div id="map" style="width: 100%; height: 100%;"></div>
       
@@ -869,50 +459,64 @@
         <button onclick="changeMapLayer('streets')" class="layer-button" id="streets-btn">
           🗺️ Streets
         </button>
-        <!--button onclick="changeMapLayer('terrain')" class="layer-button" id="terrain-btn">
-          🏔️ Terrain
+      </div>
+      
+      <!-- Download Panel -->
+      <div class="download-panel">
+        <h4>📥 Download Map</h4>
+        <button onclick="downloadMap('pdf')" class="download-btn btn-pdf">
+          <span>📄</span>
+          <span>Download PDF</span>
         </button>
-        <button onclick="changeMapLayer('outdoors')" class="layer-button" id="outdoors-btn">
-          🌲 Outdoors
-        </button-->
+        <button onclick="downloadMap('png')" class="download-btn btn-png">
+          <span>🖼️</span>
+          <span>Download PNG</span>
+        </button>
+        
+        <!-- Download Progress -->
+        <div id="downloadProgress" class="progress-container">
+          <div style="display: flex; align-items: center; gap: 1rem;">
+            <div class="loading-spinner"></div>
+            <div>
+              <div style="font-weight: 600; color: var(--accent-color);">Generating download...</div>
+              <div style="color: var(--text-secondary); font-size: 0.9rem;">Creating enhanced map with basemap</div>
+            </div>
+          </div>
+        </div>
       </div>
       
       <!-- Map Legend -->
       <div class="map-legend">
-        <h4 style="margin-bottom: 1rem; font-size: 0.9rem; font-weight: 600;">📍 Data Sources</h4>
-        <div class="legend-item">
-          <div class="legend-color" style="background-color: #dc2626;"></div>
-          <span>Google Maps</span>
+        <h4 style="margin-bottom: 1rem; font-size: 0.9rem; font-weight: 600;">🏷️ Location Legend</h4>
+        <div id="locationLegend" class="space-y-1">
+          <!-- Dynamic legend will be populated here -->
         </div>
-        <div class="legend-item">
-          <div class="legend-color" style="background-color: #8b5cf6;"></div>
-          <span>ArcGIS</span>
+        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color); font-size: 0.8rem; color: var(--text-secondary);">
+          Total: {{ total_locations }} validated locations
         </div>
-        <div class="legend-item">
-          <div class="legend-color" style="background-color: #f59e0b;"></div>
-          <span>OpenStreetMap</span>
+      </div>
+      
+      <!-- Statistics Panel -->
+      <div class="stats-panel">
+        <h4>📊 Map Info</h4>
+        <div class="stat-item">
+          <span class="stat-label">Locations:</span>
+          <span class="stat-value">{{ total_locations }}</span>
         </div>
-        <div class="legend-item">
-          <div class="legend-color" style="background-color: #3b82f6;"></div>
-          <span>HDX Health</span>
+        <div class="stat-item">
+          <span class="stat-label">Zoom Level:</span>
+          <span class="stat-value" id="currentZoom">-</span>
         </div>
-        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
-          <div class="legend-item">
-            <div class="legend-color" style="background-color: var(--accent-color); border-color: var(--accent-color); border-width: 3px;"></div>
-            <span style="font-weight: 600;">Best Source</span>
-          </div>
+        <div class="stat-item">
+          <span class="stat-label">Center:</span>
+          <span class="stat-value" id="currentCenter">-</span>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Loading Overlay -->
-  <div id="loadingOverlay" class="loading-overlay" style="display: none;">
-    <div class="loading-content">
-      <div class="loading-spinner"></div>
-      <span>Processing your request...</span>
-    </div>
-  </div>
+  <!-- Hidden canvas for download generation -->
+  <canvas id="downloadCanvas" width="1200" height="800" style="position: absolute; top: -9999px; left: -9999px; pointer-events: none;"></canvas>
 
   <!-- Messages Container -->
   <div id="messageContainer" class="message-container"></div>
@@ -929,17 +533,49 @@
     });
 
     const locationsData = {{ locations_data|safe }};
-    let currentLocationData = {% if current_location %}{{ current_location|safe }}{% else %}null{% endif %};
     let markers = [];
     let currentMapStyle = 'satellite';
+    let locationColors = {};
 
-    // Map styles
+    // Enhanced color palette for better distinction
+    const colorPalette = [
+      '#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6',
+      '#1abc9c', '#e67e22', '#34495e', '#e91e63', '#ff5722',
+      '#607d8b', '#795548', '#009688', '#4caf50', '#8bc34a',
+      '#cddc39', '#ffeb3b', '#ffc107', '#ff9800', '#ff5722',
+      '#9c27b0', '#673ab7', '#3f51b5', '#2196f3', '#03a9f4',
+      '#00bcd4', '#004d40', '#1b5e20', '#bf360c', '#e65100'
+    ];
+
+    // Map layer styles
     const mapStyles = {
       'satellite': 'mapbox://styles/mapbox/satellite-streets-v11',
       'streets': 'mapbox://styles/mapbox/streets-v11',
-      'terrain': 'mapbox://styles/mapbox/outdoors-v11',
-      'outdoors': 'mapbox://styles/mapbox/outdoors-v11'
+      'terrain': 'mapbox://styles/mapbox/outdoors-v11'
     };
+
+    // Generate unique colors for each location
+    function assignLocationColors() {
+      locationsData.forEach((location, index) => {
+        locationColors[location.name] = colorPalette[index % colorPalette.length];
+      });
+    }
+
+    // Create enhanced legend
+    function createLocationLegend() {
+      const legendContainer = document.getElementById('locationLegend');
+      legendContainer.innerHTML = '';
+      
+      locationsData.forEach((location) => {
+        const legendItem = document.createElement('div');
+        legendItem.className = 'legend-item';
+        legendItem.innerHTML = `
+          <div class="legend-color" style="background-color: ${locationColors[location.name]}"></div>
+          <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${location.name}</span>
+        `;
+        legendContainer.appendChild(legendItem);
+      });
+    }
 
     // Map layer switching
     function changeMapLayer(layerType) {
@@ -960,279 +596,694 @@
       });
     }
 
-    // Add markers to map
+    // Add markers to map with unique colors - FIXED VERSION
     function addMarkersToMap() {
+      // Clear existing markers
       markers.forEach(marker => marker.remove());
       markers = [];
 
-      if (!currentLocationData || !currentLocationData.coordinates) return;
+      if (locationsData.length === 0) {
+        showMessage('No validated locations found', 'info');
+        return;
+      }
 
-      const coordinates = currentLocationData.coordinates;
       const bounds = new mapboxgl.LngLatBounds();
 
-      coordinates.forEach((coord, index) => {
+      locationsData.forEach((location, index) => {
+        // Create marker element
         const el = document.createElement('div');
-        el.className = 'source-marker-map';
-        
-        if (coord.source === currentLocationData.recommended_source) {
-          el.classList.add('recommended');
-          el.style.width = '18px';
-          el.style.height = '18px';
-        } else {
-          el.style.width = '14px';
-          el.style.height = '14px';
-        }
-        
-        el.style.backgroundColor = coord.color;
-        
-        el.addEventListener('click', () => {
-          zoomToSource(coord.source_key, coord.lat, coord.lng);
-        });
+        el.className = 'validated-marker';
+        el.style.width = '16px';
+        el.style.height = '16px';
+        el.style.backgroundColor = locationColors[location.name];
 
-        const isBest = coord.source === currentLocationData.recommended_source;
+        // Create popup HTML
         const popupHTML = `
           <div style="min-width: 250px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-              <span style="font-weight: 600; font-size: 1.1rem;">${coord.source}</span>
-              ${isBest ? '<span style="background: var(--accent-color); color: white; padding: 0.25rem 0.5rem; border-radius: 10px; font-size: 0.7rem; font-weight: 600;">🏆 Best</span>' : ''}
+            <div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 1rem; color: ${locationColors[location.name]}">${location.name}</div>
+            <div style="background: #f0fdf4; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+              <div style="font-size: 0.8rem; color: #15803d; font-weight: 600; margin-bottom: 0.5rem;">✅ Validated Coordinates</div>
+              <div style="font-family: monospace; font-size: 0.9rem; color: #374151;">${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}</div>
             </div>
-            <div style="background: #f8f9fa; padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem;">
-              <div style="font-size: 0.8rem; color: #6c757d; margin-bottom: 0.25rem;">Coordinates</div>
-              <div style="font-family: monospace; font-size: 0.9rem;">${coord.lat.toFixed(5)}, ${coord.lng.toFixed(5)}</div>
+            <div style="background: #f8f9fa; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+              <div style="font-size: 0.8rem; color: #6b7280; margin-bottom: 0.25rem;">Status</div>
+              <div style="font-size: 0.9rem; font-weight: 600; color: var(--accent-color);">Ready for Analysis</div>
             </div>
-            <div style="background: #f8f9fa; padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem;">
-              <div style="font-size: 0.8rem; color: #6c757d; margin-bottom: 0.5rem;">Individual Source Scoring</div>
-              <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
-                <span style="font-size: 0.8rem;">Reverse Geocoding:</span>
-                <span style="font-weight: 600; font-size: 0.8rem;">${Math.round(coord.reverse_geocoding_score || 0)}%</span>
-              </div>
-              <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
-                <span style="font-size: 0.8rem;">Distance Penalty:</span>
-                <span style="font-weight: 600; font-size: 0.8rem;">${Math.round(coord.distance_penalty_score || 0)}%</span>
-              </div>
-              <div style="display: flex; justify-content: space-between; border-top: 1px solid #dee2e6; padding-top: 0.25rem;">
-                <span style="font-size: 0.8rem; font-weight: 600;">Overall Score:</span>
-                <span style="font-weight: 600; font-size: 0.8rem;">${Math.round(coord.individual_confidence || 0)}%</span>
-              </div>
-            </div>
-            <button onclick="selectSource('${coord.source_key}', ${coord.lat}, ${coord.lng})" 
-                    class="btn ${isBest ? 'btn-success' : 'btn-secondary'}" 
-                    style="width: 100%; padding: 0.75rem; font-size: 0.9rem;">
-              ${isBest ? '✅ Use Best Source' : '📍 Use This Source'}
+            <button onclick="zoomToLocation(${location.lat}, ${location.lng})" 
+                    style="background: var(--accent-color); color: white; border: none; padding: 0.75rem 1rem; border-radius: 8px; width: 100%; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">
+              🔍 Zoom to Location
             </button>
           </div>
         `;
 
+        // Create popup
         const popup = new mapboxgl.Popup({ 
-          offset: 20,
+          offset: 15,
           closeButton: true,
           closeOnClick: false
         }).setHTML(popupHTML);
         
+        // Create marker with popup
         const marker = new mapboxgl.Marker(el)
-          .setLngLat([coord.lng, coord.lat])
+          .setLngLat([location.lng, location.lat])
           .setPopup(popup)
           .addTo(map);
         
         markers.push(marker);
-        bounds.extend([coord.lng, coord.lat]);
+        bounds.extend([location.lng, location.lat]);
       });
 
-      if (coordinates.length > 1) {
+      // Fit map to bounds
+      if (locationsData.length > 1) {
         map.fitBounds(bounds, { 
           padding: 60,
           maxZoom: 16
         });
-      } else if (coordinates.length === 1) {
+      } else if (locationsData.length === 1) {
         map.flyTo({
-          center: [coordinates[0].lng, coordinates[0].lat],
+          center: [locationsData[0].lng, locationsData[0].lat],
           zoom: 14,
           duration: 1500
         });
       }
     }
 
-    // Zoom to source
-    function zoomToSource(sourceKey, lat, lng) {
+    function zoomToLocation(lat, lng) {
       map.flyTo({
         center: [lng, lat],
-        zoom: 18,
+        zoom: 16,
         duration: 1500,
         essential: true
       });
     }
 
-    // Initialize map
-    map.on('load', function() {
-      addMarkersToMap();
-    });
-
-    // Validation functions
-    function selectSource(source, lat, lng) {
-      if (!currentLocationData) return;
-      showLoading(true);
+    // Download functionality
+    function downloadMap(format) {
+      const downloadProgress = document.getElementById('downloadProgress');
+      downloadProgress.classList.add('show');
       
-      fetch('{% url "geolocation:validation_api" %}', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          action: 'use_source',
-          geocoding_result_id: currentLocationData.id,
-          source: source
-        })
-      })
-      .then(response => response.json())
-      .then(data => {
-        showLoading(false);
-        if (data.success) {
-          showMessage('✅ ' + data.message, 'success');
-          setTimeout(() => {
-            {% if navigation.has_next %}
-            window.location.href = '{% url "geolocation:validation_map" %}?location_id={{ navigation.next_location_id }}';
-            {% else %}
-            window.location.href = '{% url "geolocation:validation_dashboard" %}';
-            {% endif %}
-          }, 2000);
-        } else {
-          showMessage('❌ ' + (data.error || 'Failed to save selection'), 'error');
-        }
-      })
-      .catch(error => {
-        showLoading(false);
-        showMessage('❌ An error occurred while saving', 'error');
-      });
+      showMessage('🔄 Creating enhanced map with basemap...', 'info');
+      
+      if (format === 'pdf') {
+        generateEnhancedPDF();
+      } else if (format === 'png') {
+        generateEnhancedPNG();
+      }
     }
 
-    function approveBestSource() {
-      if (!currentLocationData) return;
-      showLoading(true);
+    // Generate PDF with proper basemap
+    function generateEnhancedPDF() {
+      const canvas = document.getElementById('downloadCanvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = 1200;
+      canvas.height = 900;
       
-      fetch('{% url "geolocation:validation_api" %}', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          action: 'approve_suggestion',
-          geocoding_result_id: currentLocationData.id
-        })
-      })
-      .then(response => response.json())
-      .then(data => {
-        showLoading(false);
-        if (data.success) {
-          showMessage('🎉 ' + data.message, 'success');
-          setTimeout(() => {
-            {% if navigation.has_next %}
-            window.location.href = '{% url "geolocation:validation_map" %}?location_id={{ navigation.next_location_id }}';
-            {% else %}
-            window.location.href = '{% url "geolocation:validation_dashboard" %}';
-            {% endif %}
-          }, 2000);
-        } else {
-          showMessage('❌ ' + (data.error || 'Failed to approve best source'), 'error');
-        }
-      })
-      .catch(error => {
-        showLoading(false);
-        showMessage('❌ An error occurred during approval', 'error');
-      });
-    }
-
-    function toggleManualEntry() {
-      const form = document.getElementById('manualEntry');
-      const rejectForm = document.getElementById('rejectForm');
+      // Clear canvas
+      ctx.fillStyle = '#f0f9ff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
       
-      form.classList.toggle('active');
-      rejectForm.classList.remove('active');
-    }
-
-    function saveManualCoordinates() {
-      const lat = parseFloat(document.getElementById('manualLat').value);
-      const lng = parseFloat(document.getElementById('manualLng').value);
-
-      if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-        showMessage('❌ Please enter valid coordinates (lat: -90 to 90, lng: -180 to 180)', 'error');
+      // Calculate map bounds
+      const bounds = getLocationBounds();
+      const zoom = calculateOptimalZoom(bounds, 700, 400);
+      
+      // Centered map area
+      const mapArea = { 
+        x: (canvas.width - 800) / 2,
+        y: 100, 
+        width: 800, 
+        height: 450 
+      };
+      
+      // Get tiles needed
+      const tilesNeeded = calculateTileCoverage(bounds, zoom, mapArea.width, mapArea.height);
+      let tilesLoaded = 0;
+      let totalTiles = tilesNeeded.tiles.length;
+      
+      if (totalTiles === 0) {
+        generateFallbackPDF();
         return;
       }
-
-      showLoading(true);
-      fetch('{% url "geolocation:validation_api" %}', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          action: 'manual_coordinates',
-          geocoding_result_id: currentLocationData.id,
-          lat: lat,
-          lng: lng,
-          notes: 'Manual coordinate entry'
-        })
-      })
-      .then(response => response.json())
-      .then(data => {
-        showLoading(false);
-        if (data.success) {
-          showMessage('✅ ' + data.message, 'success');
-          setTimeout(() => {
-            {% if navigation.has_next %}
-            window.location.href = '{% url "geolocation:validation_map" %}?location_id={{ navigation.next_location_id }}';
-            {% else %}
-            window.location.href = '{% url "geolocation:validation_dashboard" %}';
-            {% endif %}
-          }, 2000);
-        } else {
-          showMessage('❌ ' + (data.error || 'Failed to save coordinates'), 'error');
-        }
-      })
-      .catch(error => {
-        showLoading(false);
-        showMessage('❌ An error occurred while saving', 'error');
+      
+      // Load tiles
+      const tileImages = [];
+      
+      tilesNeeded.tiles.forEach((tile, index) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        
+        img.onload = function() {
+          tileImages[index] = { img: img, tile: tile };
+          tilesLoaded++;
+          
+          if (tilesLoaded === totalTiles) {
+            drawPDFWithTiles(canvas, ctx, tileImages, tilesNeeded, bounds, mapArea);
+          }
+        };
+        
+        img.onerror = function() {
+          tilesLoaded++;
+          if (tilesLoaded === totalTiles) {
+            drawPDFWithTiles(canvas, ctx, tileImages, tilesNeeded, bounds, mapArea);
+          }
+        };
+        
+        img.src = `https://tile.openstreetmap.org/${zoom}/${tile.x}/${tile.y}.png`;
       });
     }
-
-    function toggleRejectForm() {
-      const form = document.getElementById('rejectForm');
-      const manualForm = document.getElementById('manualEntry');
+    
+    function drawPDFWithTiles(canvas, ctx, tileImages, tilesNeeded, bounds, mapArea) {
+      // Clear canvas
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
       
-      form.classList.toggle('active');
-      manualForm.classList.remove('active');
+      // Background
+      ctx.fillStyle = '#f0f9ff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Title
+      ctx.fillStyle = '#059669';
+      ctx.font = 'bold 28px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('Validated Locations Map', canvas.width / 2, 40);
+      
+      ctx.fillStyle = '#6b7280';
+      ctx.font = '16px Arial';
+      ctx.fillText(`HarmonAIze Geolocation Platform | ${locationsData.length} Locations`, canvas.width / 2, 70);
+      
+      // Map background
+      ctx.fillStyle = '#e0f2fe';
+      ctx.fillRect(mapArea.x, mapArea.y, mapArea.width, mapArea.height);
+      ctx.strokeStyle = '#0369a1';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(mapArea.x, mapArea.y, mapArea.width, mapArea.height);
+      
+      // Draw tiles
+      const drawnTiles = new Set();
+      tileImages.forEach((tileData) => {
+        if (tileData && tileData.img) {
+          const tile = tileData.tile;
+          const tileKey = `${tile.x}-${tile.y}`;
+          
+          if (!drawnTiles.has(tileKey)) {
+            drawnTiles.add(tileKey);
+            const tilePixelX = mapArea.x + (tile.x - tilesNeeded.minTileX) * 256;
+            const tilePixelY = mapArea.y + (tile.y - tilesNeeded.minTileY) * 256;
+            
+            if (tilePixelX < mapArea.x + mapArea.width && tilePixelY < mapArea.y + mapArea.height) {
+              ctx.drawImage(tileData.img, tilePixelX, tilePixelY, 256, 256);
+            }
+          }
+        }
+      });
+      
+      // Plot locations
+      locationsData.forEach((location) => {
+        const tileCoords = getTileCoords(location.lat, location.lng, tilesNeeded.zoom);
+        const pixelX = (tileCoords.x - tilesNeeded.minTileX) * 256 + tileCoords.pixelX;
+        const pixelY = (tileCoords.y - tilesNeeded.minTileY) * 256 + tileCoords.pixelY;
+        
+        const mapX = mapArea.x + pixelX;
+        const mapY = mapArea.y + pixelY;
+        
+        if (mapX >= mapArea.x && mapX <= mapArea.x + mapArea.width && 
+            mapY >= mapArea.y && mapY <= mapArea.y + mapArea.height) {
+          
+          // Draw marker
+          ctx.fillStyle = locationColors[location.name];
+          ctx.beginPath();
+          ctx.arc(mapX, mapY, 10, 0, 2 * Math.PI);
+          ctx.fill();
+          
+          // White border
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 3;
+          ctx.stroke();
+          
+          // Label
+          ctx.fillStyle = '#000000';
+          ctx.font = 'bold 12px Arial';
+          ctx.textAlign = 'center';
+          ctx.fillText(location.name, mapX, mapY + 25);
+        }
+      });
+      
+      // Legend
+      const legendY = 620;
+      addLegendToPDF(ctx, 50, legendY, canvas.width - 100, 120);
+      
+      // Metadata
+      ctx.fillStyle = '#6b7280';
+      ctx.font = '10px Arial';
+      ctx.textAlign = 'left';
+      ctx.fillText(`Generated: ${new Date().toLocaleDateString()} | Zoom: ${tilesNeeded.zoom} | Source: HarmonAIze Platform`, 50, canvas.height - 10);
+      
+      // Convert to PDF
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF('l', 'mm', 'a4');
+      const imgData = canvas.toDataURL('image/png');
+      pdf.addImage(imgData, 'PNG', 10, 10, 277, 190);
+      pdf.save(`validated-locations-map-${new Date().toISOString().split('T')[0]}.pdf`);
+      
+      document.getElementById('downloadProgress').classList.remove('show');
+      showMessage('✅ Enhanced PDF downloaded!', 'success');
     }
 
-    function rejectLocation() {
-      const notes = document.getElementById('rejectNotes').value;
-      if (!notes.trim()) {
-        showMessage('❌ Please provide a reason for rejection', 'error');
+    // Generate PNG
+    function generateEnhancedPNG() {
+      const canvas = document.getElementById('downloadCanvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = 1400;
+      canvas.height = 1200;
+      
+      ctx.fillStyle = '#f0f9ff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      const bounds = getLocationBounds();
+      const zoom = calculateOptimalZoom(bounds, 800, 500);
+      
+      const mapArea = { 
+        x: (canvas.width - 1000) / 2,
+        y: 120, 
+        width: 1000, 
+        height: 600 
+      };
+      
+      const tilesNeeded = calculateTileCoverage(bounds, zoom, mapArea.width, mapArea.height);
+      let tilesLoaded = 0;
+      let totalTiles = tilesNeeded.tiles.length;
+      
+      if (totalTiles === 0) {
+        generateFallbackPNG();
         return;
       }
-
-      showLoading(true);
-      fetch('{% url "geolocation:validation_api" %}', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          action: 'reject',
-          geocoding_result_id: currentLocationData.id,
-          notes: notes
-        })
-      })
-      .then(response => response.json())
-      .then(data => {
-        showLoading(false);
-        if (data.success) {
-          showMessage('✅ ' + data.message, 'success');
-          setTimeout(() => {
-            {% if navigation.has_next %}
-            window.location.href = '{% url "geolocation:validation_map" %}?location_id={{ navigation.next_location_id }}';
-            {% else %}
-            window.location.href = '{% url "geolocation:validation_dashboard" %}';
-            {% endif %}
-          }, 2000);
-        } else {
-          showMessage('❌ ' + (data.error || 'Failed to reject location'), 'error');
-        }
-      })
-      .catch(error => {
-        showLoading(false);
-        showMessage('❌ An error occurred during rejection', 'error');
+      
+      const tileImages = [];
+      
+      tilesNeeded.tiles.forEach((tile, index) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        
+        img.onload = function() {
+          tileImages[index] = { img: img, tile: tile };
+          tilesLoaded++;
+          
+          if (tilesLoaded === totalTiles) {
+            drawPNGWithTiles(canvas, ctx, tileImages, tilesNeeded, bounds, mapArea);
+          }
+        };
+        
+        img.onerror = function() {
+          tilesLoaded++;
+          if (tilesLoaded === totalTiles) {
+            drawPNGWithTiles(canvas, ctx, tileImages, tilesNeeded, bounds, mapArea);
+          }
+        };
+        
+        img.src = `https://tile.openstreetmap.org/${zoom}/${tile.x}/${tile.y}.png`;
       });
+    }
+    
+    function drawPNGWithTiles(canvas, ctx, tileImages, tilesNeeded, bounds, mapArea) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      ctx.fillStyle = '#f0f9ff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Title
+      ctx.fillStyle = '#059669';
+      ctx.font = 'bold 32px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('Validated Locations Map', canvas.width / 2, 50);
+      
+      ctx.fillStyle = '#6b7280';
+      ctx.font = '18px Arial';
+      ctx.fillText(`${locationsData.length} Validated Locations | Generated: ${new Date().toLocaleDateString()}`, canvas.width / 2, 80);
+      
+      // Map container
+      ctx.fillStyle = '#e0f2fe';
+      ctx.fillRect(mapArea.x, mapArea.y, mapArea.width, mapArea.height);
+      ctx.strokeStyle = '#0369a1';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(mapArea.x, mapArea.y, mapArea.width, mapArea.height);
+      
+      // Center map content
+      const boundsWidth = bounds.east - bounds.west;
+      const boundsHeight = bounds.north - bounds.south;
+      const mapCenterLng = (bounds.east + bounds.west) / 2;
+      const mapCenterLat = (bounds.north + bounds.south) / 2;
+      
+      const centerTileCoords = getTileCoords(mapCenterLat, mapCenterLng, tilesNeeded.zoom);
+      const centerPixelX = (centerTileCoords.x - tilesNeeded.minTileX) * 256 + centerTileCoords.pixelX;
+      const centerPixelY = (centerTileCoords.y - tilesNeeded.minTileY) * 256 + centerTileCoords.pixelY;
+      
+      const offsetX = mapArea.x + (mapArea.width / 2) - centerPixelX;
+      const offsetY = mapArea.y + (mapArea.height / 2) - centerPixelY;
+      
+      // Draw tiles
+      const drawnTiles = new Set();
+      tileImages.forEach((tileData) => {
+        if (tileData && tileData.img) {
+          const tile = tileData.tile;
+          const tileKey = `${tile.x}-${tile.y}`;
+          
+          if (!drawnTiles.has(tileKey)) {
+            drawnTiles.add(tileKey);
+            const tilePixelX = offsetX + (tile.x - tilesNeeded.minTileX) * 256;
+            const tilePixelY = offsetY + (tile.y - tilesNeeded.minTileY) * 256;
+            
+            if (tilePixelX < mapArea.x + mapArea.width && tilePixelY < mapArea.y + mapArea.height &&
+                tilePixelX + 256 > mapArea.x && tilePixelY + 256 > mapArea.y) {
+              
+              ctx.save();
+              ctx.beginPath();
+              ctx.rect(mapArea.x, mapArea.y, mapArea.width, mapArea.height);
+              ctx.clip();
+              
+              ctx.drawImage(tileData.img, tilePixelX, tilePixelY, 256, 256);
+              ctx.restore();
+            }
+          }
+        }
+      });
+      
+      // Plot locations
+      locationsData.forEach((location) => {
+        const tileCoords = getTileCoords(location.lat, location.lng, tilesNeeded.zoom);
+        const pixelX = offsetX + (tileCoords.x - tilesNeeded.minTileX) * 256 + tileCoords.pixelX;
+        const pixelY = offsetY + (tileCoords.y - tilesNeeded.minTileY) * 256 + tileCoords.pixelY;
+        
+        if (pixelX >= mapArea.x && pixelX <= mapArea.x + mapArea.width && 
+            pixelY >= mapArea.y && pixelY <= mapArea.y + mapArea.height) {
+          
+          ctx.fillStyle = locationColors[location.name];
+          ctx.beginPath();
+          ctx.arc(pixelX, pixelY, 12, 0, 2 * Math.PI);
+          ctx.fill();
+          
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 3;
+          ctx.stroke();
+        }
+      });
+      
+      // Legend
+      const legendY = mapArea.y + mapArea.height + 50;
+      addLegendToCanvas(ctx, 50, legendY, canvas.width - 100, 120);
+      
+      // Download
+      const link = document.createElement('a');
+      link.download = `validated-locations-map-${new Date().toISOString().split('T')[0]}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      
+      document.getElementById('downloadProgress').classList.remove('show');
+      showMessage('✅ Enhanced PNG downloaded!', 'success');
+    }
+
+    // Helper functions
+    function getLocationBounds() {
+      if (locationsData.length === 0) return { north: 0, south: 0, east: 0, west: 0 };
+      
+      const lats = locationsData.map(l => l.lat);
+      const lngs = locationsData.map(l => l.lng);
+      
+      const bounds = {
+        north: Math.max(...lats),
+        south: Math.min(...lats),
+        east: Math.max(...lngs),
+        west: Math.min(...lngs)
+      };
+      
+      const latSpan = bounds.north - bounds.south;
+      const lngSpan = bounds.east - bounds.west;
+      
+      const minSpan = 0.1;
+      const actualLatSpan = Math.max(latSpan, minSpan);
+      const actualLngSpan = Math.max(lngSpan, minSpan);
+      
+      const latPadding = actualLatSpan * 0.3;
+      const lngPadding = actualLngSpan * 0.3;
+      
+      return {
+        north: bounds.north + latPadding,
+        south: bounds.south - latPadding,
+        east: bounds.east + lngPadding,
+        west: bounds.west - lngPadding
+      };
+    }
+
+    function calculateOptimalZoom(bounds, mapWidth, mapHeight) {
+      const latDiff = bounds.north - bounds.south;
+      const lngDiff = bounds.east - bounds.west;
+      
+      const latZoom = Math.floor(Math.log2(360 / latDiff * mapHeight / 256));
+      const lngZoom = Math.floor(Math.log2(360 / lngDiff * mapWidth / 256));
+      
+      let zoom = Math.min(latZoom, lngZoom);
+      zoom = Math.max(1, Math.min(zoom, 15));
+      
+      return zoom;
+    }
+
+    function calculateTileCoverage(bounds, zoom, mapWidth, mapHeight) {
+      const nwTile = getTileCoords(bounds.north, bounds.west, zoom);
+      const seTile = getTileCoords(bounds.south, bounds.east, zoom);
+      
+      const minTileX = Math.min(nwTile.x, seTile.x);
+      const maxTileX = Math.max(nwTile.x, seTile.x);
+      const minTileY = Math.min(nwTile.y, seTile.y);
+      const maxTileY = Math.max(nwTile.y, seTile.y);
+      
+      const tiles = [];
+      for (let x = minTileX; x <= maxTileX; x++) {
+        for (let y = minTileY; y <= maxTileY; y++) {
+          tiles.push({ x, y });
+        }
+      }
+      
+      return {
+        tiles,
+        minTileX,
+        maxTileX,
+        minTileY,
+        maxTileY,
+        zoom
+      };
+    }
+
+    function getTileCoords(lat, lng, zoom) {
+      const n = Math.pow(2, zoom);
+      const x = Math.floor(n * ((lng + 180) / 360));
+      const latRad = lat * Math.PI / 180;
+      const y = Math.floor(n * (1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2);
+      
+      const pixelX = ((lng + 180) / 360 * n - x) * 256;
+      const pixelY = ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n - y) * 256;
+      
+      return { x, y, pixelX, pixelY };
+    }
+
+    function addLegendToPDF(ctx, x, y, width, height) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x, y, width, height);
+      ctx.strokeStyle = '#d1d5db';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x, y, width, height);
+      
+      ctx.fillStyle = '#374151';
+      ctx.font = 'bold 16px Arial';
+      ctx.textAlign = 'left';
+      ctx.fillText('Location Legend', x + 15, y + 25);
+      
+      const itemWidth = (width - 30) / locationsData.length;
+      
+      locationsData.forEach((location, index) => {
+        const itemX = x + 15 + (index * itemWidth);
+        const itemY = y + 45;
+        
+        ctx.fillStyle = locationColors[location.name];
+        ctx.beginPath();
+        ctx.arc(itemX + 8, itemY, 6, 0, 2 * Math.PI);
+        ctx.fill();
+        
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        ctx.fillStyle = '#374151';
+        ctx.font = '11px Arial';
+        ctx.textAlign = 'left';
+        
+        let displayName = location.name;
+        if (displayName.length > 12) {
+          displayName = displayName.substring(0, 10) + '...';
+        }
+        
+        ctx.fillText(displayName, itemX + 18, itemY + 4);
+        
+        ctx.fillStyle = '#6b7280';
+        ctx.font = '9px Arial';
+        const coords = `${location.lat.toFixed(2)}, ${location.lng.toFixed(2)}`;
+        ctx.fillText(coords, itemX + 18, itemY + 16);
+      });
+    }
+
+    function addLegendToCanvas(ctx, x, y, width, height) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x, y, width, height);
+      ctx.strokeStyle = '#d1d5db';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x, y, width, height);
+      
+      ctx.fillStyle = '#374151';
+      ctx.font = 'bold 20px Arial';
+      ctx.textAlign = 'left';
+      ctx.fillText('Location Legend', x + 20, y + 30);
+      
+      const legendCols = 3;
+      const colWidth = (width - 40) / legendCols;
+      let currentCol = 0;
+      let currentY = y + 50;
+      
+      locationsData.forEach((location, index) => {
+        if (index > 0 && index % Math.ceil(locationsData.length / legendCols) === 0) {
+          currentCol++;
+          currentY = y + 50;
+        }
+        
+        const itemX = x + 20 + (currentCol * colWidth);
+        
+        ctx.fillStyle = locationColors[location.name];
+        ctx.beginPath();
+        ctx.arc(itemX + 8, currentY + 5, 6, 0, 2 * Math.PI);
+        ctx.fill();
+        
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        ctx.fillStyle = '#374151';
+        ctx.font = '14px Arial';
+        ctx.fillText(location.name, itemX + 20, currentY + 9);
+        
+        currentY += 25;
+      });
+    }
+
+    function generateFallbackPDF() {
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF('l', 'mm', 'a4');
+      
+      pdf.setFontSize(24);
+      pdf.setTextColor(5, 150, 105);
+      pdf.text('Validated Locations Map', 148, 25, { align: 'center' });
+      
+      pdf.setFontSize(14);
+      pdf.setTextColor(75, 85, 99);
+      pdf.text('HarmonAIze Geolocation Platform', 148, 35, { align: 'center' });
+      
+      let y = 60;
+      pdf.setFontSize(16);
+      pdf.setTextColor(0, 0, 0);
+      pdf.text('Validated Locations:', 20, y);
+      
+      locationsData.forEach((location, index) => {
+        y += 12;
+        const color = hexToRgb(locationColors[location.name]);
+        pdf.setFillColor(color.r, color.g, color.b);
+        pdf.circle(25, y - 2, 2, 'F');
+        
+        pdf.setFontSize(12);
+        pdf.text(`${index + 1}. ${location.name}`, 32, y);
+        pdf.setFontSize(10);
+        pdf.setTextColor(100, 100, 100);
+        pdf.text(`Coordinates: ${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}`, 32, y + 5);
+        pdf.setTextColor(0, 0, 0);
+        y += 5;
+      });
+      
+      pdf.setFontSize(10);
+      pdf.setTextColor(100, 100, 100);
+      pdf.text(`Generated: ${new Date().toLocaleDateString()} | Source: HarmonAIze Platform`, 20, 190);
+      
+      pdf.save(`validated-locations-map-${new Date().toISOString().split('T')[0]}.pdf`);
+      
+      document.getElementById('downloadProgress').classList.remove('show');
+      showMessage('✅ Fallback PDF downloaded!', 'success');
+    }
+
+    function generateFallbackPNG() {
+      const canvas = document.getElementById('downloadCanvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = 1400;
+      canvas.height = 1200;
+      
+      ctx.fillStyle = '#f0f9ff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      ctx.fillStyle = '#059669';
+      ctx.font = 'bold 32px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('Validated Locations Map', canvas.width / 2, 50);
+      
+      ctx.fillStyle = '#6b7280';
+      ctx.font = '18px Arial';
+      ctx.fillText(`${locationsData.length} Validated Locations | Generated: ${new Date().toLocaleDateString()}`, canvas.width / 2, 80);
+      
+      const bounds = getLocationBounds();
+      const plotArea = { 
+        x: (canvas.width - 1000) / 2, 
+        y: 120, 
+        width: 1000, 
+        height: 600 
+      };
+      
+      ctx.fillStyle = '#e0f2fe';
+      ctx.fillRect(plotArea.x, plotArea.y, plotArea.width, plotArea.height);
+      ctx.strokeStyle = '#0369a1';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(plotArea.x, plotArea.y, plotArea.width, plotArea.height);
+      
+      locationsData.forEach((location) => {
+        const x = plotArea.x + ((location.lng - bounds.west) / (bounds.east - bounds.west)) * plotArea.width;
+        const y = plotArea.y + ((bounds.north - location.lat) / (bounds.north - bounds.south)) * plotArea.height;
+        
+        ctx.fillStyle = locationColors[location.name];
+        ctx.beginPath();
+        ctx.arc(x, y, 12, 0, 2 * Math.PI);
+        ctx.fill();
+        
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+      });
+      
+      const legendY = plotArea.y + plotArea.height + 50;
+      addLegendToCanvas(ctx, 50, legendY, canvas.width - 100, 120);
+      
+      const link = document.createElement('a');
+      link.download = `validated-locations-map-${new Date().toISOString().split('T')[0]}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      
+      document.getElementById('downloadProgress').classList.remove('show');
+      showMessage('✅ Fallback PNG downloaded!', 'success');
+    }
+
+    function hexToRgb(hex) {
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      return result ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16)
+      } : null;
+    }
+
+    function updateMapInfo() {
+      const zoom = map.getZoom().toFixed(1);
+      const center = map.getCenter();
+      
+      document.getElementById('currentZoom').textContent = zoom;
+      document.getElementById('currentCenter').textContent = `${center.lat.toFixed(2)}, ${center.lng.toFixed(2)}`;
     }
 
     function showMessage(message, type) {
@@ -1253,32 +1304,24 @@
       }, 5000);
     }
 
-    function showLoading(show) {
-      const overlay = document.getElementById('loadingOverlay');
-      overlay.style.display = show ? 'flex' : 'none';
-    }
-
-    // Keyboard shortcuts
-    document.addEventListener('keydown', function(e) {
-      if (e.key === 'ArrowLeft' && {{ navigation.has_prev|yesno:"true,false" }}) {
-        window.location.href = '{% url "geolocation:validation_map" %}?location_id={{ navigation.prev_location_id }}';
-      } else if (e.key === 'ArrowRight' && {{ navigation.has_next|yesno:"true,false" }}) {
-        window.location.href = '{% url "geolocation:validation_map" %}?location_id={{ navigation.next_location_id }}';
-      } else if (e.key === 'Enter' && currentLocationData && currentLocationData.confidence >= 70) {
-        approveBestSource();
-      } else if (e.key === 'Escape') {
-        document.getElementById('manualEntry').classList.remove('active');
-        document.getElementById('rejectForm').classList.remove('active');
-      }
+    // Initialize map
+    map.on('load', function() {
+      assignLocationColors();
+      createLocationLegend();
+      addMarkersToMap();
+      updateMapInfo();
     });
 
-    // Initialize
-    document.addEventListener('DOMContentLoaded', function() {
-      if (currentLocationData && currentLocationData.coordinates.length > 0) {
-        setTimeout(() => {
-          showMessage('💡 Click on map markers or source cards to explore. Use keyboard arrows to navigate.', 'info');
-        }, 1000);
+    map.on('zoom', updateMapInfo);
+    map.on('move', updateMapInfo);
+
+    // Show initial message
+    setTimeout(() => {
+      if (locationsData.length > 0) {
+        showMessage(`🗺️ Map loaded with ${locationsData.length} validated locations`, 'info');
+      } else {
+        showMessage('No validated locations found. Complete validation process first.', 'info');
       }
-    });
+    }, 1000);
   </script>
 {% endblock content %}

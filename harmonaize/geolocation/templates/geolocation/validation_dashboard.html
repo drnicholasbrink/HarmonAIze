@@ -818,7 +818,7 @@
         .then(response => response.json())
         .then(data => {
           btn.disabled = false;
-          btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span>🧠</span><span>Run Individual Source Scoring</span></span>';
+          btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span>🧠</span><span>Run Auto-validation</span></span>';
           
           if (data.success) {
             showMessage(' Auto-validation completed');
