@@ -783,13 +783,13 @@
           btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span>🔍</span><span>Start Coordinate Search</span></span>';
           
           if (data.success) {
-            showMessage(' Coordinate search completed successfully!', 'success');
+            showMessage('✅ Coordinate search completed successfully!', 'success');
             setTimeout(() => {
               refreshStats();
               refreshLocationStatus();
             }, 1000);
           } else {
-            showMessage('Coordinate Search failed: ' + (data.error || 'Unknown error occurred'), 'error');
+            showMessage('❌ Coordinate Search failed: ' + (data.error || 'Unknown error occurred'), 'error');
           }
         }, 1000);
       })
@@ -798,17 +798,17 @@
         document.getElementById('geocodingProgress').style.display = 'none';
         btn.disabled = false;
         btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span>🔍</span><span>Start Coordinate Search</span></span>';
-        showMessage('Connection error during coordinate search', 'error');
+        showMessage('❌ Connection error during coordinate search', 'error');
       });
     }
 
     function runSmartValidation() {
       const btn = document.getElementById('aiAnalysisBtn');
       
-      if (confirm('🤖 Run auto-validation on all pending locations?\n\nThis will analyze coordinate accuracy with reverse geocoding and distance proximity validation.')) {
+      if (confirm('🤖 Run auto-validation on all pending locations?\n\nThis will analyze coordinate accuracy with reverse geocoding (70%) and distance proximity (30%) validation.')) {
         btn.disabled = true;
         btn.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><div class="loading-spinner" style="width: 16px; height: 16px; border-width: 2px;"></div><span>Analyzing...</span></div>';
-        showMessage('🤖 Auto-validation started - analyzing reverse geocoding and distance proximities...', 'info');
+        showMessage('🤖 Auto-validation started - analyzing with two-component system...', 'info');
         
         fetch('{% url "geolocation:bulk_validation_actions" %}', {
           method: 'POST',
@@ -821,20 +821,20 @@
           btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span>🧠</span><span>Run Auto-validation</span></span>';
           
           if (data.success) {
-            showMessage(' Auto-validation completed');
+            showMessage('✅ Auto-validation completed: ' + data.message, 'success');
             setTimeout(() => {
               refreshStats();
               refreshLocationStatus();
-              showMessage('Dashboard updated with validation results', 'info');
+              showMessage('📊 Dashboard updated with validation results', 'info');
             }, 2000);
           } else {
-            showMessage('Auto-validation failed: ' + (data.error || 'Processing error occurred'), 'error');
+            showMessage('❌ Auto-validation failed: ' + (data.error || 'Processing error occurred'), 'error');
           }
         })
         .catch(error => {
           btn.disabled = false;
-          btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span>🧠</span><span>Run Individual Source Scoring</span></span>';
-          showMessage(' Connection error during Auto-validation', 'error');
+          btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span>🧠</span><span>Run Auto-validation</span></span>';
+          showMessage('❌ Connection error during Auto-validation', 'error');
         });
       }
     }
@@ -842,10 +842,10 @@
     function autoValidateHighConfidence() {
       const btn = document.getElementById('autoValidateBtn');
       
-      if (confirm('⚡ Automatically approve all high-confidence locations (≥80%) validated with individual source scoring?\n\nThis will mark them as validated without manual review.')) {
+      if (confirm('⚡ Automatically approve all high-confidence locations (≥80%) validated with two-component scoring?\n\nThis will mark them as validated without manual review.')) {
         btn.disabled = true;
         btn.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><div class="loading-spinner" style="width: 12px; height: 12px; border-width: 2px;"></div><span>Processing...</span></div>';
-        showMessage('⚡ Auto-validation in progress with individual source scoring confidence factors...', 'info');
+        showMessage('⚡ Auto-validation in progress with two-component confidence factors...', 'info');
         
         fetch('{% url "geolocation:bulk_validation_actions" %}', {
           method: 'POST',
@@ -858,11 +858,11 @@
           btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span>⚡</span><span>Auto-approve High Confidence (≥80%)</span></span>';
           
           if (data.success) {
-            showMessage('Auto-validation completed: ' + data.message, 'success');
+            showMessage('✅ Auto-validation completed: ' + data.message, 'success');
             setTimeout(() => {
               refreshStats();
               refreshLocationStatus();
-              showMessage('', 'info');
+              showMessage('📊 Dashboard refreshed with updated status', 'info');
             }, 2000);
           } else {
             showMessage('❌ Auto-validation failed: ' + (data.error || 'Processing error occurred'), 'error');
@@ -920,12 +920,12 @@
       refreshLocationStatus();
       
       // Set up auto-refresh intervals
-      setInterval(refreshStats, 10000); // Every 30 seconds
-      setInterval(refreshLocationStatus, 15000); // Every 45 seconds
+      setInterval(refreshStats, 10000); // Every 10 seconds
+      setInterval(refreshLocationStatus, 15000); // Every 15 seconds
       
       // Show initial welcome message
       setTimeout(() => {
-        showMessage('Welcome to the Geolocation Dashboard', 'info');
+        showMessage('🌍 Welcome to the Geolocation Dashboard', 'info');
       }, 1000);
     });
   </script>

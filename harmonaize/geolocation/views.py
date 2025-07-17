@@ -111,25 +111,22 @@ def validation_map(request):
             metadata = validation.validation_metadata if validation else {}
             individual_scores = metadata.get('individual_scores', {})
             reverse_geocoding = metadata.get('reverse_geocoding_results', {})
-            recommendation = metadata.get('recommendation', {})
             
-            # FIXED: Use best individual source score, not aggregate
+            # FIXED: Use best individual source score as overall confidence
             best_source = metadata.get('best_source')
-            print(f"DEBUG: Location={result.location_name}, best_source={best_source}")
-            print(f"DEBUG: individual_scores keys={list(individual_scores.keys()) if individual_scores else 'None'}")
+            best_score = metadata.get('best_score', 0.0)
             
-            if best_source and individual_scores.get(best_source):
-                best_source_data = individual_scores[best_source]
-                confidence = best_source_data.get('individual_confidence', 0.5) * 100
-                print(f"DEBUG: Using individual confidence for {best_source}: {confidence}%")
-                print(f"DEBUG: Best source data: {best_source_data}")
+            # Overall confidence is the best individual source score
+            if best_score > 0:
+                confidence = best_score * 100
+                print(f"DEBUG: Using best individual source score for {result.location_name}: {confidence}%")
             elif validation:
-                # Fallback to validation confidence if no individual scoring
+                # Fallback to validation confidence if no best score available
                 confidence = validation.confidence_score * 100
-                print(f"DEBUG: Using validation confidence: {confidence}%")
+                print(f"DEBUG: Using validation confidence for {result.location_name}: {confidence}%")
             else:
-                confidence = 50  # Default if no individual scoring available
-                print(f"DEBUG: Using default confidence: {confidence}%")
+                confidence = 50  # Default if no validation available
+                print(f"DEBUG: Using default confidence for {result.location_name}: {confidence}%")
             
             # UPDATED: Add individual source scoring info to each coordinate
             for coord in coordinates:
@@ -152,10 +149,10 @@ def validation_map(request):
                         'place_type': 'unknown'
                     })
                 
-                # UPDATED: Get individual source confidence from new validation structure
+                # UPDATED: Get individual source confidence from simplified validation structure
                 if source_key in individual_scores:
                     source_score = individual_scores[source_key]
-                    # Get the raw scores
+                    # Get the scores from simplified two-component system
                     reverse_score = source_score.get('reverse_geocoding_score', 0.0)
                     distance_score = source_score.get('distance_penalty_score', 0.0)
                     individual_confidence = source_score.get('individual_confidence', 0.0)
@@ -165,15 +162,15 @@ def validation_map(request):
                     coord['distance_penalty_score'] = distance_score * 100
                     coord['individual_confidence'] = individual_confidence * 100
                     
-                    # FIXED: Verify the calculation matches the expected formula
-                    calculated_score = (reverse_score * 0.65) + (distance_score * 0.35)
+                    # FIXED: Verify the calculation matches the expected formula (70% reverse + 30% distance)
+                    calculated_score = (reverse_score * 0.70) + (distance_score * 0.30)
                     print(f"DEBUG {source_key}: Reverse={reverse_score:.2f}, Distance={distance_score:.2f}, Individual={individual_confidence:.2f}, Calculated={calculated_score:.2f}")
                     
                 else:
                     # Fallback calculation if no individual scoring
                     reverse_score = coord['name_similarity']
                     distance_score = 0.5  # Default distance score
-                    calculated_score = (reverse_score * 0.65) + (distance_score * 0.35)
+                    calculated_score = (reverse_score * 0.70) + (distance_score * 0.30)
                     
                     coord['reverse_geocoding_score'] = reverse_score * 100
                     coord['distance_penalty_score'] = distance_score * 100
@@ -223,14 +220,14 @@ def validation_map(request):
                 'confidence': confidence,  # Now uses best individual source score
                 'status': status,
                 'coordinates': coordinates,
-                'recommendation': recommendation,
+                'recommendation': metadata.get('recommendation', {}),
                 'individual_scores': individual_scores,
                 'reverse_geocoding': reverse_geocoding,
                 'recommended_source': recommended_source,
                 'variance': variance,
                 'accuracy_description': accuracy_description,
                 'max_distance_km': metadata.get('cluster_analysis', {}).get('max_distance_km', 0),
-                'ai_summary': metadata.get('user_friendly_summary', 'Individual source scoring analysis completed...')
+                'ai_summary': metadata.get('user_friendly_summary', 'Simplified two-component analysis completed...')
             })
     
     # Get navigation info for next/previous locations
@@ -449,24 +446,18 @@ def location_status_api(request):
                                 status = 'needs_review'
                                 status_display = '⚠️ Good Quality - Quick Review'
                                 status_color = 'yellow'
-                                # FIXED: Use best individual source confidence, not aggregate
-                                best_source = validation.validation_metadata.get('best_source') if validation.validation_metadata else None
-                                individual_scores = validation.validation_metadata.get('individual_scores', {}) if validation.validation_metadata else {}
-                                if best_source and individual_scores.get(best_source):
-                                    confidence = int(individual_scores[best_source].get('individual_confidence', 0.5) * 100)
-                                else:
-                                    confidence = int(validation.confidence_score * 100)
+                                # FIXED: Use best individual source confidence from simplified system
+                                metadata = validation.validation_metadata or {}
+                                best_score = metadata.get('best_score', validation.confidence_score)
+                                confidence = int(best_score * 100)
                             elif validation.validation_status == 'pending':
                                 status = 'pending'
                                 status_display = '🔍 Lower Quality - Detailed Review'
                                 status_color = 'orange'
-                                # FIXED: Use best individual source confidence, not aggregate
-                                best_source = validation.validation_metadata.get('best_source') if validation.validation_metadata else None
-                                individual_scores = validation.validation_metadata.get('individual_scores', {}) if validation.validation_metadata else {}
-                                if best_source and individual_scores.get(best_source):
-                                    confidence = int(individual_scores[best_source].get('individual_confidence', 0.5) * 100)
-                                else:
-                                    confidence = int(validation.confidence_score * 100)
+                                # FIXED: Use best individual source confidence from simplified system
+                                metadata = validation.validation_metadata or {}
+                                best_score = metadata.get('best_score', validation.confidence_score)
+                                confidence = int(best_score * 100)
                             elif validation.validation_status == 'rejected':
                                 status = 'rejected'
                                 status_display = '❌ Rejected - Invalid Location'
@@ -474,14 +465,14 @@ def location_status_api(request):
                                 confidence = 0
                             else:
                                 status = 'geocoded'
-                                status_display = '🔍 Geocoded - Awaiting Individual Source Analysis'
+                                status_display = '🔍 Geocoded - Awaiting Two-Component Analysis'
                                 status_color = 'blue'
                                 confidence = 50
                         else:
                             # No validation yet, but has geocoding results
                             if geocoding_result.has_any_results:
                                 status = 'geocoded'
-                                status_display = '🔍 Geocoded - Awaiting Individual Source Analysis'
+                                status_display = '🔍 Geocoded - Awaiting Two-Component Analysis'
                                 status_color = 'blue'
                                 confidence = 50
                             else:
@@ -629,10 +620,14 @@ def validation_queue_api(request):
                 if result.nominatim_success:
                     sources.append('OSM')
                 
+                # Use best individual source score if available, otherwise validation confidence
+                metadata = validation.validation_metadata or {}
+                best_score = metadata.get('best_score', validation.confidence_score)
+                
                 locations_data.append({
                     'id': result.id,
                     'name': result.location_name,
-                    'confidence': validation.confidence_score * 100,
+                    'confidence': best_score * 100,
                     'status': validation.validation_status,
                     'sources': sources
                 })
@@ -670,7 +665,7 @@ def validation_api(request):
                 geocoding_result = get_object_or_404(GeocodingResult, id=geocoding_result_id)
                 validation = getattr(geocoding_result, 'validation', None)
                 if not validation:
-                    # Create validation if it doesn't exist using individual source scoring
+                    # Create validation if it doesn't exist using simplified two-component scoring
                     validator = SmartGeocodingValidator()
                     validation = validator.validate_geocoding_result(geocoding_result)
             else:
@@ -863,7 +858,7 @@ def bulk_validation_actions(request):
                 if total_validations == 0:
                     return JsonResponse({
                         'success': False,
-                        'error': 'No individual source scoring analysis has been performed yet. Please wait for analysis to complete first.'
+                        'error': 'No two-component analysis has been performed yet. Please wait for analysis to complete first.'
                     }, status=400)
                 
                 # FIXED: Look for high-confidence results that need validation
@@ -872,26 +867,21 @@ def bulk_validation_actions(request):
                     validation_status='needs_review'  # Only those needing review
                 ).select_related('geocoding_result')
                 
-                # FIXED: Filter by INDIVIDUAL source confidence, not aggregate
+                # FIXED: Filter by best individual source confidence (≥80%)
                 qualified_results = []
                 for validation in high_confidence_results:
                     metadata = validation.validation_metadata or {}
-                    individual_scores = metadata.get('individual_scores', {})
-                    best_source = metadata.get('best_source')
+                    best_score = metadata.get('best_score', validation.confidence_score)
                     
-                    # Check if best source has >= 80% individual confidence
-                    if best_source and individual_scores.get(best_source):
-                        best_source_data = individual_scores[best_source]
-                        individual_confidence = best_source_data.get('individual_confidence', 0.0)
-                        
-                        if individual_confidence >= 0.8:  # 80% threshold
-                            qualified_results.append(validation)
-                            print(f"✅ Qualified for auto-approve: {validation.geocoding_result.location_name} - {individual_confidence*100:.1f}%")
+                    # Check if best score has >= 80% confidence
+                    if best_score >= 0.8:  # 80% threshold
+                        qualified_results.append(validation)
+                        print(f"✅ Qualified for auto-approve: {validation.geocoding_result.location_name} - {best_score*100:.1f}%")
                 
                 if not qualified_results:
                     return JsonResponse({
                         'success': True,
-                        'message': 'No locations found with ≥80% individual source scoring confidence that need auto-validation. All high-confidence locations may already be validated.'
+                        'message': 'No locations found with ≥80% best source confidence that need auto-validation. All high-confidence locations may already be validated.'
                     })
                 
                 count = 0
@@ -966,7 +956,7 @@ def bulk_validation_actions(request):
                 if count > 0:
                     return JsonResponse({
                         'success': True,
-                        'message': f'✅ Successfully auto-approved {count} high confidence locations (≥80% individual source scoring)' + (f' ({errors} had errors)' if errors > 0 else '')
+                        'message': f'✅ Successfully auto-approved {count} high confidence locations (≥80% best source confidence)' + (f' ({errors} had errors)' if errors > 0 else '')
                     })
                 else:
                     return JsonResponse({
@@ -980,7 +970,7 @@ def bulk_validation_actions(request):
                 if total_geocoding_results == 0:
                     return JsonResponse({
                         'success': False,
-                        'error': 'No locations have been geocoded yet. Please run "Start Coordinate Search" first to find coordinates for your locations before running individual source scoring analysis.'
+                        'error': 'No locations have been geocoded yet. Please run "Start Coordinate Search" first to find coordinates for your locations before running two-component analysis.'
                     }, status=400)
                 
                 # Check if there are results to analyze
@@ -991,7 +981,7 @@ def bulk_validation_actions(request):
                 if not pending_results.exists():
                     return JsonResponse({
                         'success': True,
-                        'message': 'All geocoded locations have already been analyzed by individual source scoring. No new analysis needed.'
+                        'message': 'All geocoded locations have already been analyzed by two-component validation. No new analysis needed.'
                     })
                 
                 # Run validation manually with proper error handling
@@ -1009,7 +999,7 @@ def bulk_validation_actions(request):
                     # Process up to 50 results
                     for result in pending_results[:50]:
                         try:
-                            print(f"🔍 Individual source scoring validation: {result.location_name}")
+                            print(f"🔍 Two-component validation: {result.location_name}")
                             validation = validator.validate_geocoding_result(result)
                             stats['processed'] += 1
                             
@@ -1038,22 +1028,22 @@ def bulk_validation_actions(request):
                     if stats['processed'] == 0:
                         return JsonResponse({
                             'success': True,
-                            'message': 'No new locations to analyze. All locations have already been processed by individual source scoring.'
+                            'message': 'No new locations to analyze. All locations have already been processed by two-component validation.'
                         })
                     
                     return JsonResponse({
                         'success': True,
-                        'message': f'✅ Individual source scoring analysis completed: processed {stats["processed"]} locations with reverse geocoding and distance penalty scoring. {stats["auto_validated"]} auto-validated, {stats["needs_review"]} need review, {stats["pending"]} need manual verification.',
+                        'message': f'✅ Two-component analysis completed: processed {stats["processed"]} locations with reverse geocoding and distance proximity scoring. {stats["auto_validated"]} auto-validated, {stats["needs_review"]} need review, {stats["pending"]} need manual verification.',
                         'stats': stats
                     })
                     
                 except Exception as e:
-                    logger.error(f"Error running individual source scoring validation: {str(e)}")
-                    print(f"Error running source scoring validation: {str(e)}")
+                    logger.error(f"Error running two-component validation: {str(e)}")
+                    print(f"Error running two-component validation: {str(e)}")
                     print(f"Traceback: {traceback.format_exc()}")
                     return JsonResponse({
                         'success': False,
-                        'error': f'Individual source scoring analysis failed: {str(e)}'
+                        'error': f'Two-component analysis failed: {str(e)}'
                     }, status=500)
             else:
                 return JsonResponse({
@@ -1084,13 +1074,12 @@ def handle_approve_ai_suggestion(validation, data):
     try:
         # Get AI recommended source from metadata
         metadata = validation.validation_metadata or {}
-        individual_scores = metadata.get('individual_scores', {})
         best_source = metadata.get('best_source')
         
         if not best_source:
             return JsonResponse({
                 'success': False,
-                'error': 'No individual source scoring recommendation available for this location. Please run individual source scoring analysis first or select a source manually.'
+                'error': 'No two-component recommendation available for this location. Please run two-component analysis first or select a source manually.'
             }, status=400)
         
         with transaction.atomic():
@@ -1108,13 +1097,13 @@ def handle_approve_ai_suggestion(validation, data):
             else:
                 return JsonResponse({
                     'success': False,
-                    'error': f'The individual source scoring recommended source ({best_source}) does not have valid coordinates. Please select a different source manually.'
+                    'error': f'The two-component recommended source ({best_source}) does not have valid coordinates. Please select a different source manually.'
                 }, status=400)
             
             # FIXED: Update validation status with proper completion
             validation.validation_status = 'validated'
             validation.validated_at = timezone.now()
-            validation.validated_by = 'Individual_Source_Scoring_Recommendation'
+            validation.validated_by = 'Two_Component_Recommendation'
             validation.recommended_lat = final_lat
             validation.recommended_lng = final_lng
             validation.recommended_source = best_source
@@ -1127,7 +1116,7 @@ def handle_approve_ai_suggestion(validation, data):
                     'final_lat': final_lat,
                     'final_long': final_lng,
                     'country': '',  # Add country if available
-                    'source': f'individual_source_scoring_{best_source}',
+                    'source': f'two_component_{best_source}',
                     'validated_at': timezone.now()
                 }
             )
@@ -1150,7 +1139,7 @@ def handle_approve_ai_suggestion(validation, data):
             
             return JsonResponse({
                 'success': True,
-                'message': f'✅ Individual source scoring recommendation accepted: {result.location_name} validated using {best_source.upper()} coordinates with reverse geocoding and distance penalty analysis',
+                'message': f'✅ Two-component recommendation accepted: {result.location_name} validated using {best_source.upper()} coordinates',
                 'coordinates': {'lat': final_lat, 'lng': final_lng},
                 'source': best_source,
                 'status': 'validated',
@@ -1158,13 +1147,13 @@ def handle_approve_ai_suggestion(validation, data):
             })
     
     except Exception as e:
-        logger.error(f"Error approving individual source scoring suggestion: {str(e)}")
-        print(f"Error approving source scoring suggestion: {str(e)}")
+        logger.error(f"Error approving two-component suggestion: {str(e)}")
+        print(f"Error approving two-component suggestion: {str(e)}")
         import traceback
         traceback.print_exc()
         return JsonResponse({
             'success': False,
-            'error': f'Failed to approve individual source scoring suggestion: {str(e)}'
+            'error': f'Failed to approve two-component suggestion: {str(e)}'
         }, status=500)
 
 
@@ -1370,12 +1359,12 @@ def handle_reject(validation, data):
 
 
 def get_enhanced_validation_details(validation):
-    """Get detailed validation information with individual source scoring analysis."""
+    """Get detailed validation information with two-component analysis."""
     try:
         result = validation.geocoding_result
         metadata = validation.validation_metadata or {}
         
-        # Extract coordinate details with individual source scoring information
+        # Extract coordinate details with two-component scoring information
         coordinates = []
         sources = ['hdx', 'arcgis', 'google', 'nominatim']
         reverse_geocoding = metadata.get('reverse_geocoding_results', {})
@@ -1406,7 +1395,7 @@ def get_enhanced_validation_details(validation):
                     'distance_penalty_score': score_info.get('distance_penalty_score', 0.0) * 100
                 })
         
-        # Extract individual source scoring analysis data
+        # Extract two-component analysis data
         best_source = metadata.get('best_source', 'Unknown')
         best_score = metadata.get('best_score', 0.0)
         
@@ -1443,7 +1432,7 @@ def get_enhanced_validation_details(validation):
                 'variance': variance,
                 'accuracy_description': accuracy_description,
                 'distance_quality': distance_quality,
-                'ai_summary': metadata.get('user_friendly_summary', 'Individual source scoring analysis completed with reverse geocoding and distance penalty validation'),
+                'ai_summary': metadata.get('user_friendly_summary', 'Two-component analysis completed with reverse geocoding and distance proximity validation'),
                 'reverse_geocoding_results': reverse_geocoding,
                 'individual_scores': individual_scores,
                 'validation_flags': metadata.get('validation_flags', [])
@@ -1451,16 +1440,16 @@ def get_enhanced_validation_details(validation):
         })
     
     except Exception as e:
-        logger.error(f"Error getting individual source scoring validation details: {str(e)}")
+        logger.error(f"Error getting two-component validation details: {str(e)}")
         print(f"Error getting validation details: {str(e)}")
         return JsonResponse({
             'success': False,
-            'error': f'Failed to get individual source scoring validation details: {str(e)}'
+            'error': f'Failed to get two-component validation details: {str(e)}'
         }, status=500)
 
 
 def run_ai_analysis(validation):
-    """Re-run individual source scoring analysis on a validation result with external API timeout handling."""
+    """Re-run two-component analysis on a validation result with external API timeout handling."""
     try:
         validator = SmartGeocodingValidator()
         # Add timeout handling for external APIs
@@ -1468,26 +1457,26 @@ def run_ai_analysis(validation):
         
         return JsonResponse({
             'success': True,
-            'message': '✅ Individual source scoring analysis completed successfully with reverse geocoding and distance penalty validation',
+            'message': '✅ Two-component analysis completed successfully with reverse geocoding and distance proximity validation',
             'confidence': updated_validation.confidence_score * 100,
             'status': updated_validation.validation_status,
-            'individual_scoring': True
+            'two_component': True
         })
     except requests.exceptions.Timeout:
         logger.warning(f"External API timeout during validation of {validation.geocoding_result.location_name}")
         return JsonResponse({
             'success': True,
-            'message': '⚠️ Individual source scoring analysis completed with basic factors (external APIs temporarily unavailable)',
+            'message': '⚠️ Two-component analysis completed with basic factors (external APIs temporarily unavailable)',
             'confidence': validation.confidence_score * 100,
             'status': validation.validation_status,
-            'individual_scoring': False
+            'two_component': False
         })
     except Exception as e:
-        logger.error(f"Error running individual source scoring analysis: {str(e)}")
-        print(f"Error running individual source scoring analysis: {str(e)}")
+        logger.error(f"Error running two-component analysis: {str(e)}")
+        print(f"Error running two-component analysis: {str(e)}")
         return JsonResponse({
             'success': False,
-            'error': f'Individual source scoring analysis failed: {str(e)}'
+            'error': f'Two-component analysis failed: {str(e)}'
         }, status=500)
 
 
