@@ -49,6 +49,10 @@ License: MIT
    cd harmonaize
    ```
 
+    pip install -r requirements/base.txt
+    pip install -r requirements/local.txt  # Note: 'psycopg' may cause issues> try updating https://visualstudio.microsoft.com/downloads/?q=build+tools
+    pip install -r requirements/production.txt
+    
 3. **Build and start the application**:
    ```bash
    docker-compose -f docker-compose.local.yml up -d
@@ -72,7 +76,6 @@ License: MIT
 **This section provides essential guidelines for AI agents contributing to this codebase.**
 
 ### Core Principles
-
 #### Critical Rules
 1. **Database Models**: Only edit `models.py` files when **absolutely necessary**. Models are the foundation of the application and changes require careful consideration of:
    - Data migration implications
