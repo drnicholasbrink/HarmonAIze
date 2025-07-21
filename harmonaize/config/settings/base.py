@@ -359,3 +359,12 @@ SPECTACULAR_SETTINGS = {
 }
 # Your stuff...
 # ------------------------------------------------------------------------------
+
+# Geocoding Service Configuration
+# ------------------------------------------------------------------------------
+LOCAL_NOMINATIM_URL = env.str('LOCAL_NOMINATIM_URL', default='http://nominatim:8080')
+GOOGLE_GEOCODING_API_KEY = env.str('GOOGLE_GEOCODING_API_KEY', default=None)
+
+# Geocoding timeouts
+GEOCODING_TIMEOUT_LOCAL = env.int('GEOCODING_TIMEOUT_LOCAL', default=5)
+GEOCODING_TIMEOUT_REMOTE = env.int('GEOCODING_TIMEOUT_REMOTE', default=15)

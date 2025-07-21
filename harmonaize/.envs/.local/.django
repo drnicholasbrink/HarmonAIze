@@ -15,3 +15,10 @@ CELERY_FLOWER_PASSWORD=yHvwYNVOR0VWclgvDGeuuY84Xk0sYuuQo4RUL2a2FH9xFAUWBvUfh175q
 
 # Postgres
 DATABASE_URL=postgres://VyEeAsAhLQRemlTBkLvZEOFiVOAtvIHf:DA3372kNwHHhsmhr5cS5ucomOjsY9hs0UiNzxlfOITRM4ZwjW1nTYXSPz1zWousV@postgres:5432/harmonaize
+
+# Local Nominatim Configuration
+LOCAL_NOMINATIM_URL=http://nominatim:8080
+
+# Geocoding timeout settings
+GEOCODING_TIMEOUT_LOCAL=5
+GEOCODING_TIMEOUT_REMOTE=10

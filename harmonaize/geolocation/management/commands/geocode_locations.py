@@ -38,6 +38,12 @@ COUNTRY_NAME_TO_ISO2 = {
 class Command(BaseCommand):
     help = 'Geocode locations using validated dataset first, then all sources (HDX, ArcGIS, Google, Nominatim) for validation'
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Local Nominatim configuration
+        self.local_nominatim_url = getattr(settings, 'LOCAL_NOMINATIM_URL', 'http://nominatim:8080')
+        self.public_nominatim_url = 'https://nominatim.openstreetmap.org'
+
     def add_arguments(self, parser):
         parser.add_argument(
             '--limit',
@@ -58,6 +64,9 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         self.stdout.write(self.style.SUCCESS("Starting geocoding process..."))
+
+        # Test local Nominatim connection
+        self._test_local_nominatim_connection()
 
         # Get locations without coordinates
         if options['location_name']:
@@ -136,6 +145,20 @@ class Command(BaseCommand):
             )
         )
 
+    def _test_local_nominatim_connection(self):
+        """Test connection to local Nominatim instance."""
+        try:
+            response = requests.get(f"{self.local_nominatim_url}/status", timeout=5)
+            if response.status_code == 200:
+                self.stdout.write(self.style.SUCCESS(f"✓ Local Nominatim is available at {self.local_nominatim_url}"))
+                return True
+        except requests.exceptions.ConnectionError:
+            self.stdout.write(self.style.WARNING(f"⚠ Local Nominatim not available at {self.local_nominatim_url}, will use public API"))
+        except Exception as e:
+            self.stdout.write(self.style.WARNING(f"⚠ Local Nominatim connection test failed: {e}"))
+        
+        return False
+
     def check_validated_dataset(self, location):
         """Check if location exists in validated dataset (pre-validated coordinates only)."""
         # Try exact match first
@@ -166,7 +189,7 @@ class Command(BaseCommand):
             "hdx": self.geocode_hdx_enhanced(location),
             "arcgis": self.geocode_arcgis(query, location.country),
             "google": self.geocode_google(query, location.country),
-            "nominatim": self.geocode_nominatim(query, location.country),
+            "nominatim": self.geocode_nominatim_with_fallback(query, location.country),
         }
         
         # Create or update geocoding result
@@ -184,14 +207,22 @@ class Command(BaseCommand):
                 setattr(geocoding_result, f"{source}_lng", lng)
                 setattr(geocoding_result, f"{source}_success", True)
                 
-                # Store additional HDX-specific data
+                # Store additional source-specific data
                 if source == "hdx" and data.get("facility"):
                     geocoding_result.hdx_facility_match = data["facility"]
+                elif source == "nominatim":
+                    # FIXED: Store info about which Nominatim was used
+                    raw_response = data.get("raw_response", [])
+                    geocoding_result.nominatim_raw_response = {
+                        'results': raw_response if isinstance(raw_response, list) else [raw_response],
+                        'local_nominatim_used': data.get('local_nominatim_used', False)
+                    }
                 elif source != "hdx":
                     setattr(geocoding_result, f"{source}_raw_response", data.get("raw_response"))
                 
                 has_success = True
-                self.stdout.write(f"    ✓ {source.upper()}: {lat:.6f}, {lng:.6f}")
+                local_indicator = " (LOCAL)" if source == "nominatim" and data.get('local_nominatim_used') else ""
+                self.stdout.write(f"    ✓ {source.upper()}{local_indicator}: {lat:.6f}, {lng:.6f}")
             else:
                 setattr(geocoding_result, f"{source}_error", data.get("error", "Unknown error"))
                 setattr(geocoding_result, f"{source}_success", False)
@@ -387,10 +418,65 @@ class Command(BaseCommand):
         except Exception as e:
             return {"error": f"Unexpected error: {str(e)}"}
 
-    def geocode_nominatim(self, query, country):
-        """Geocode using Nominatim (OpenStreetMap) API."""
+    def geocode_nominatim_with_fallback(self, query, country):
+        """Geocode using Nominatim with local fallback to public API."""
+        # Try local Nominatim first
+        result = self._geocode_nominatim_local(query, country)
+        if result and result.get("coordinates"):
+            result['local_nominatim_used'] = True
+            self.stdout.write(f"    📍 NOMINATIM (LOCAL): Success")
+            return result
+        
+        # Fallback to public Nominatim
+        self.stdout.write(f"    📍 NOMINATIM: Local failed, trying public API...")
+        result = self._geocode_nominatim_public(query, country)
+        if result:
+            result['local_nominatim_used'] = False
+        
+        return result
+
+    def _geocode_nominatim_local(self, query, country):
+        """Geocode using local Nominatim instance."""
         try:
-            url = 'https://nominatim.openstreetmap.org/search'
+            url = f'{self.local_nominatim_url}/search'
+            params = {
+                'q': query, 
+                'format': 'json', 
+                'limit': 1, 
+                'addressdetails': 1,
+                'dedupe': 1
+            }
+            if country:
+                params['countrycodes'] = COUNTRY_NAME_TO_ISO2.get(country, country.lower())
+            
+            headers = {
+                'User-Agent': 'HarmonAIze-Geocoder/1.0 (harmonaize@project.com)'
+            }
+            
+            # Use shorter timeout for local instance
+            response = requests.get(url, params=params, headers=headers, timeout=5)
+            response.raise_for_status()
+            data = response.json()
+            
+            if data and len(data) > 0:
+                result = data[0]
+                return {
+                    "coordinates": (float(result['lat']), float(result['lon'])),
+                    "raw_response": data
+                }
+            return {"error": "No results found", "raw_response": data}
+            
+        except requests.exceptions.ConnectionError:
+            return {"error": "Local Nominatim connection failed (not running or unreachable)"}
+        except requests.exceptions.Timeout:
+            return {"error": "Local Nominatim timeout"}
+        except Exception as e:
+            return {"error": f"Local Nominatim error: {str(e)}"}
+
+    def _geocode_nominatim_public(self, query, country):
+        """Geocode using public Nominatim API."""
+        try:
+            url = f'{self.public_nominatim_url}/search'
             params = {
                 'q': query, 
                 'format': 'json', 

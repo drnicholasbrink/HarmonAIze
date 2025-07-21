@@ -7,6 +7,7 @@ from difflib import SequenceMatcher
 from typing import Dict, List, Tuple, Optional
 from django.db import transaction
 from django.utils import timezone
+from django.conf import settings
 from .models import GeocodingResult, ValidationResult, ValidationDataset
 from core.models import Location
 
@@ -26,6 +27,10 @@ class SmartGeocodingValidator:
             'reverse_geocoding': 0.70,  # 70% - How well names match
             'distance_proximity': 0.30  # 30% - How close to other sources
         }
+        
+        # Local Nominatim configuration
+        self.local_nominatim_url = getattr(settings, 'LOCAL_NOMINATIM_URL', 'http://nominatim:8080')
+        self.public_nominatim_url = 'https://nominatim.openstreetmap.org'
     
     def validate_geocoding_result(self, geocoding_result: GeocodingResult) -> ValidationResult:
         """Main validation entry point with simplified two-component analysis."""
@@ -75,7 +80,11 @@ class SmartGeocodingValidator:
             'cluster_analysis': cluster_analysis,
             'recommendation': self._generate_recommendation(best_source, best_score),
             'user_friendly_summary': self._generate_user_summary(best_score, len(coordinates)),
-            'validation_method': 'two_component_simplified'
+            'validation_method': 'two_component_simplified',
+            'local_nominatim_used': any(
+                result.get('local_nominatim_used', False) 
+                for result in reverse_geocoding_results.values()
+            )
         }
         
         # Update coordinate variance on the geocoding result
@@ -104,34 +113,15 @@ class SmartGeocodingValidator:
         return coordinates
     
     def _perform_enhanced_reverse_geocoding(self, coordinates: Dict[str, Tuple[float, float]], original_name: str) -> Dict:
-        """Perform reverse geocoding with fallback strategy for each coordinate."""
+        """Perform reverse geocoding using Nominatim (local first, public fallback) for ALL sources."""
         reverse_results = {}
         
         for source, (lat, lng) in coordinates.items():
             try:
-                print(f"Reverse geocoding {source} coordinates with fallback...")
+                print(f"Reverse geocoding {source} coordinates using Nominatim (local→public fallback)...")
                 
-                # Try primary reverse geocoding (source-specific)
-                reverse_result = None
-                
-                if source == 'google':
-                    reverse_result = self._reverse_geocode_google(lat, lng)
-                elif source == 'arcgis':
-                    reverse_result = self._reverse_geocode_arcgis(lat, lng)
-                elif source in ['nominatim', 'hdx']:
-                    reverse_result = self._reverse_geocode_nominatim(lat, lng)
-                else:
-                    reverse_result = self._reverse_geocode_nominatim(lat, lng)
-                
-                # If primary fails, try fallback reverse geocoding (usually Nominatim)
-                if not reverse_result or not reverse_result.get('display_name'):
-                    print(f"Primary reverse geocoding failed for {source}, trying fallback...")
-                    reverse_result = self._reverse_geocode_nominatim(lat, lng)
-                
-                # If still no result, try Google as secondary fallback
-                if not reverse_result or not reverse_result.get('display_name'):
-                    print(f"Nominatim fallback failed for {source}, trying Google fallback...")
-                    reverse_result = self._reverse_geocode_google(lat, lng)
+                # Use Nominatim (local first, public fallback) for ALL sources
+                reverse_result = self._reverse_geocode_nominatim_with_fallback(lat, lng)
                 
                 if reverse_result and reverse_result.get('display_name'):
                     # Calculate similarity with original name
@@ -144,17 +134,26 @@ class SmartGeocodingValidator:
                         'similarity_score': similarity,
                         'place_type': reverse_result.get('type', 'unknown'),
                         'confidence': self._assess_reverse_geocoding_confidence(reverse_result, original_name),
-                        'source_api': source,
-                        'fallback_used': reverse_result.get('fallback_used', False)
+                        'source_api': 'nominatim',  # Always Nominatim now
+                        'original_source': source,  # Track which geocoding source provided the coordinates
+                        'fallback_used': reverse_result.get('fallback_used', False),
+                        'local_nominatim_used': reverse_result.get('local_nominatim_used', False)
                     }
+                    
+                    # Show which Nominatim was used
+                    nominatim_type = "LOCAL" if reverse_result.get('local_nominatim_used') else "PUBLIC"
+                    print(f"✓ {source.upper()} → Nominatim ({nominatim_type}) reverse geocoding successful")
                 else:
                     reverse_results[source] = {
                         'address': 'No address found',
                         'similarity_score': 0.0,
                         'confidence': 0.0,
-                        'source_api': source,
-                        'fallback_used': True
+                        'source_api': 'nominatim',
+                        'original_source': source,
+                        'fallback_used': True,
+                        'local_nominatim_used': False
                     }
+                    print(f"✗ {source.upper()} → Nominatim reverse geocoding failed")
                 
                 # Be respectful to APIs
                 time.sleep(0.3)
@@ -165,80 +164,64 @@ class SmartGeocodingValidator:
                     'address': f'Error: {str(e)}',
                     'similarity_score': 0.0,
                     'confidence': 0.0,
-                    'source_api': source,
-                    'fallback_used': True
+                    'source_api': 'nominatim',
+                    'original_source': source,
+                    'fallback_used': True,
+                    'local_nominatim_used': False
                 }
         
         return reverse_results
     
-    def _reverse_geocode_google(self, lat: float, lng: float) -> Optional[Dict]:
-        """Reverse geocode using Google Maps API."""
+    def _reverse_geocode_nominatim_with_fallback(self, lat: float, lng: float) -> Optional[Dict]:
+        """Try local Nominatim first, then fallback to public API if needed."""
+        # First try local Nominatim instance
+        result = self._reverse_geocode_nominatim_local(lat, lng)
+        if result and result.get('display_name'):
+            result['local_nominatim_used'] = True
+            result['fallback_used'] = False
+            return result
+        
+        # Fallback to public Nominatim
+        result = self._reverse_geocode_nominatim_public(lat, lng)
+        if result:
+            result['local_nominatim_used'] = False
+            result['fallback_used'] = True
+        
+        return result
+    
+    def _reverse_geocode_nominatim_local(self, lat: float, lng: float) -> Optional[Dict]:
+        """Reverse geocode using local Nominatim instance."""
         try:
-            import os
-            from django.conf import settings
-            
-            key = getattr(settings, "GOOGLE_GEOCODING_API_KEY", None) or os.getenv("GOOGLE_GEOCODING_API_KEY")
-            if not key:
-                return None
-            
-            url = "https://maps.googleapis.com/maps/api/geocode/json"
+            url = f'{self.local_nominatim_url}/reverse'
             params = {
-                "latlng": f"{lat},{lng}",
-                "key": key,
-                "result_type": "establishment|point_of_interest|premise|locality"
+                'lat': lat,
+                'lon': lng,
+                'format': 'json',
+                'addressdetails': 1,
+                'zoom': 18
+            }
+            headers = {
+                'User-Agent': 'HarmonAIze-Geocoder/1.0 (harmonaize@project.com)'
             }
             
-            response = requests.get(url, params=params, timeout=10)
+            # Use shorter timeout for local instance
+            response = requests.get(url, params=params, headers=headers, timeout=5)
             response.raise_for_status()
             data = response.json()
             
-            if data["status"] == "OK" and data["results"]:
-                result = data["results"][0]
-                return {
-                    'display_name': result.get('formatted_address', ''),
-                    'type': result.get('types', [None])[0] if result.get('types') else 'unknown',
-                    'address_components': result.get('address_components', [])
-                }
+            return data if data else None
             
+        except requests.exceptions.ConnectionError:
             return None
-            
+        except requests.exceptions.Timeout:
+            return None
         except Exception as e:
-            print(f"Google reverse geocoding error: {e}")
             return None
     
-    def _reverse_geocode_arcgis(self, lat: float, lng: float) -> Optional[Dict]:
-        """Reverse geocode using ArcGIS API."""
+    def _reverse_geocode_nominatim_public(self, lat: float, lng: float) -> Optional[Dict]:
+        """Reverse geocode using public Nominatim API."""
         try:
-            url = 'https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode'
-            params = {
-                'f': 'json',
-                'location': f"{lng},{lat}",  # ArcGIS uses lng,lat
-                'distance': 1000,
-                'outSR': 4326
-            }
-            
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-            
-            if 'address' in data and data['address']:
-                address_info = data['address']
-                return {
-                    'display_name': address_info.get('LongLabel', address_info.get('Match_addr', '')),
-                    'type': address_info.get('Type', 'unknown'),
-                    'address_components': address_info
-                }
-            
-            return None
-            
-        except Exception as e:
-            print(f"ArcGIS reverse geocoding error: {e}")
-            return None
-    
-    def _reverse_geocode_nominatim(self, lat: float, lng: float) -> Optional[Dict]:
-        """Reverse geocode using Nominatim."""
-        try:
-            url = 'https://nominatim.openstreetmap.org/reverse'
+            url = f'{self.public_nominatim_url}/reverse'
             params = {
                 'lat': lat,
                 'lon': lng,
@@ -257,7 +240,6 @@ class SmartGeocodingValidator:
             return data if data else None
             
         except Exception as e:
-            print(f"Nominatim reverse geocoding error: {e}")
             return None
     
     def _calculate_individual_source_scores(self, 
@@ -291,7 +273,13 @@ class SmartGeocodingValidator:
                 'coordinates': (lat, lng)
             }
             
-            print(f"Source {source}: Reverse={reverse_score:.2f}, Distance={distance_score:.2f}, Individual={individual_confidence:.2f}")
+            # Show if local Nominatim was used for this source
+            nominatim_info = ""
+            if source in reverse_results:
+                local_used = reverse_results[source].get('local_nominatim_used', False)
+                nominatim_info = f" (Nominatim: {'LOCAL' if local_used else 'PUBLIC'})"
+            
+            print(f"Source {source}: Reverse={reverse_score:.2f}, Distance={distance_score:.2f}, Individual={individual_confidence:.2f}{nominatim_info}")
         
         return individual_scores
     

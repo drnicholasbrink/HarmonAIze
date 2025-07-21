@@ -72,4 +72,8 @@ INSTALLED_APPS += ["django_extensions"]
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#task-eager-propagates
 CELERY_TASK_EAGER_PROPAGATES = True
 # Your stuff...
+# Geocoding
+LOCAL_NOMINATIM_URL = 'http://nominatim:8080'
 GOOGLE_GEOCODING_API_KEY = "AIzaSyBxCNZ27yBk7ZAg73yw7GK3HrgMDQT-Cp4"
+GEOCODING_TIMEOUT_LOCAL = 5   # Local services should be fast
+GEOCODING_TIMEOUT_REMOTE = 10 # Remote services may be slower
