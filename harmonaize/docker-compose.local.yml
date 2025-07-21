@@ -83,15 +83,17 @@ services:
 
   
   nominatim:
-    image: mediagis/nominatim:4.4
+    build:
+      context: .
+      dockerfile: ./compose/local/nominatim/Dockerfile
+    image: harmonaize_local_nominatim
     container_name: harmonaize_local_nominatim
     environment:
       - NOMINATIM_PASSWORD=harmonaize_secure_pass_2024
       
-      # AUTO-DOWNLOAD: Full Africa continent (WARNING: Large dataset!)
-      - DOWNLOAD_PBF=https://download.geofabrik.de/africa-latest.osm.pbf
+      # AUTO-DOWNLOAD: Full Africa continent with aria2c (FAST!)
+      - PBF_URL=https://download.geofabrik.de/africa-latest.osm.pbf
       
-
       # Import settings optimized for large dataset
       - UPDATE_MODE=import
       - IMPORT_STYLE=street      # Includes health facilities
@@ -130,7 +132,7 @@ services:
     volumes:
       - nominatim_data:/var/lib/postgresql/14/main
       - nominatim_flatnode:/nominatim/flatnode
-      # No local PBF file needed - downloads automatically from Geofabrik
+      # Downloads automatically with aria2c - much faster than curl!
     shm_size: '8gb'  # Increased from 2gb for large dataset
     deploy:
       resources:
