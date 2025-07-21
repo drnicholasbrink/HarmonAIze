@@ -81,19 +81,20 @@ services:
       - '5555:5555'
     command: /start-flower
 
-  # Zimbabwe Nominatim - Optimized for testing
+  
   nominatim:
     image: mediagis/nominatim:4.4
     container_name: harmonaize_local_nominatim
     environment:
       - NOMINATIM_PASSWORD=harmonaize_secure_pass_2024
-      - PBF_PATH=/nominatim-import/zimbabwe-latest.osm.pbf
+      
+      # AUTO-DOWNLOAD: Full Africa continent (WARNING: Large dataset!)
+      - DOWNLOAD_PBF=https://download.geofabrik.de/africa-latest.osm.pbf
+      
+
+      # Import settings optimized for large dataset
       - UPDATE_MODE=import
-      
-      # Use 'street' for balanced coverage (health facilities included)
-      - IMPORT_STYLE=street
-      
-      # Disable unnecessary imports for faster setup
+      - IMPORT_STYLE=street      # Includes health facilities
       - IMPORT_WIKIPEDIA=false
       - IMPORT_US_POSTCODES=false
       - IMPORT_GB_POSTCODES=false
@@ -103,33 +104,45 @@ services:
       - REVERSE_ONLY=false
       - FREEZE=false
       
-      # Optimized for smaller dataset
-      - THREADS=4
-      - GUNICORN_WORKERS=2
+      # Performance settings for large dataset
+      - THREADS=8                # Increased for large dataset
+      - GUNICORN_WORKERS=4       # Increased for better performance
       
-      # Memory settings for Zimbabwe (much smaller than Africa)
-      - POSTGRES_SHARED_BUFFERS=1GB
-      - POSTGRES_MAINTENANCE_WORK_MEM=2GB
-      - POSTGRES_AUTOVACUUM_WORK_MEM=1GB
-      - POSTGRES_WORK_MEM=256MB
-      - POSTGRES_EFFECTIVE_CACHE_SIZE=4GB
+      # Memory settings optimized for Africa dataset (requires 16GB+ RAM)
+      - POSTGRES_SHARED_BUFFERS=4GB           # Increased from 1GB
+      - POSTGRES_MAINTENANCE_WORK_MEM=8GB     # Increased from 2GB  
+      - POSTGRES_AUTOVACUUM_WORK_MEM=2GB      # Increased from 1GB
+      - POSTGRES_WORK_MEM=512MB               # Increased from 256MB
+      - POSTGRES_EFFECTIVE_CACHE_SIZE=12GB    # Increased from 4GB
       - POSTGRES_SYNCHRONOUS_COMMIT=off
-      - POSTGRES_MAX_WAL_SIZE=1GB
-      - POSTGRES_CHECKPOINT_TIMEOUT=10min
+      - POSTGRES_MAX_WAL_SIZE=4GB             # Increased from 1GB
+      - POSTGRES_CHECKPOINT_TIMEOUT=20min     # Increased from 10min
       - POSTGRES_CHECKPOINT_COMPLETION_TARGET=0.9
-      - POSTGRES_WAL_BUFFERS=32MB
+      - POSTGRES_WAL_BUFFERS=64MB             # Increased from 32MB
       - POSTGRES_RANDOM_PAGE_COST=1.1
+      
+      # Additional settings for large import
+      - POSTGRES_MIN_WAL_SIZE=2GB
+      - POSTGRES_CHECKPOINT_SEGMENTS=128
       
     ports:
       - "8080:8080"
     volumes:
       - nominatim_data:/var/lib/postgresql/14/main
       - nominatim_flatnode:/nominatim/flatnode
-      - C:/Users/ruten/Desktop/osm_africa:/nominatim-import:ro #point to local directory with PBF file
-    shm_size: '2gb'
+      # No local PBF file needed - downloads automatically from Geofabrik
+    shm_size: '8gb'  # Increased from 2gb for large dataset
     deploy:
       resources:
         limits:
-          memory: 6G
+          memory: 20G    # Increased from 6G - Africa dataset needs more RAM
         reservations:
-          memory: 2G
+          memory: 8G     # Increased from 2G
+    
+    # Health check with longer timeout for large dataset
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/status"]
+      interval: 60s      # Check every minute
+      timeout: 30s       # Longer timeout
+      retries: 10        # More retries
+      start_period: 7200s # 2 hours startup time for large dataset
