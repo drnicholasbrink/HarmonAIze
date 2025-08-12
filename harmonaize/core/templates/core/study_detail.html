@@ -1005,9 +1005,15 @@
         {% if study.codebook %}
           {% if study.variables.count > 0 %}
             <!-- Source study with variables defined -->
-            <a href="#" class="btn btn-primary" onclick="showUpcomingFeature('Harmonisation Results'); return false;">
-              {% include 'components/svg_icon.html' with icon='refresh' size='16' class='inline-icon' %} View Harmonisation Results →
+            {% if study.source_mappings.exists %}
+            <a href="{% url 'health:study_harmonization_dashboard' study.id %}" class="btn btn-primary">
+              {% include 'components/svg_icon.html' with icon='microscope' size='16' class='inline-icon' %} Start Harmonisation →
             </a>
+            {% else %}
+            <a href="{% url 'health:start_harmonisation' study.id %}" class="btn btn-primary">
+              {% include 'components/svg_icon.html' with icon='microscope' size='16' class='inline-icon' %} Start Harmonisation →
+            </a>
+            {% endif %}
             <button class="btn btn-outline-secondary" onclick="showReuploadModal()">
               {% include 'components/svg_icon.html' with icon='upload' size='16' class='inline-icon' %} Re-upload Source Codebook
             </button>
@@ -1018,7 +1024,7 @@
           {% else %}
             <!-- Source study with codebook but no variables selected -->
             <a href="{% url 'health:map_codebook' study.id %}" class="btn btn-primary">
-              {% include 'components/svg_icon.html' with icon='microscope' size='16' class='inline-icon' %} Start Health Data Harmonisation →
+              {% include 'components/svg_icon.html' with icon='microscope' size='16' class='inline-icon' %} Start Harmonisation →
             </a>
             <button class="btn btn-outline-secondary" onclick="showReuploadModal()">
               {% include 'components/svg_icon.html' with icon='upload' size='16' class='inline-icon' %} Re-upload Source Codebook
@@ -1026,9 +1032,15 @@
           {% endif %}
         {% else %}
           <!-- Source study with no codebook -->
-          <button class="btn btn-primary" onclick="showReuploadModal()">
-            {% include 'components/svg_icon.html' with icon='upload' size='16' class='inline-icon' %} Upload Source Codebook →
-          </button>
+            {% if study.source_mappings.exists %}
+            <a href="{% url 'health:study_harmonization_dashboard' study.id %}" class="btn btn-primary">
+              {% include 'components/svg_icon.html' with icon='microscope' size='16' class='inline-icon' %} Start Harmonisation →
+            </a>
+            {% else %}
+            <a href="{% url 'health:start_harmonisation' study.id %}" class="btn btn-primary">
+              {% include 'components/svg_icon.html' with icon='microscope' size='16' class='inline-icon' %} Start Harmonisation →
+            </a>
+            {% endif %}
         {% endif %}
       {% endif %}
       

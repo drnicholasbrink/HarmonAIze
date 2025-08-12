@@ -1,0 +1,577 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}Map Variable: {{ current_attr.variable_name }} - {{ schema.name }}{% endblock %}
+
+{% block content %}
+<div class="mapping-step-container">
+    <style>
+      :root {
+        --color-primary: #3b82f6;
+        --color-primary-dark: #2563eb;
+        --color-secondary: #64748b;
+        --color-success: #10b981;
+        --color-warning: #f59e0b;
+        --color-danger: #ef4444;
+        --text-primary: #1e293b;
+        --text-secondary: #475569;
+        --text-muted: #64748b;
+        --bg-primary: #ffffff;
+        --bg-secondary: #f8fafc;
+        --bg-accent: #f1f5f9;
+        --border-color: #e2e8f0;
+        --border-light: #f1f5f9;
+        --radius-sm: 0.375rem;
+        --radius-md: 0.5rem;
+        --radius-lg: 0.75rem;
+        --radius-xl: 1rem;
+        --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+      }
+
+      .mapping-step-container {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 2rem;
+      }
+
+      /* Progress Header */
+      .progress-header {
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-lg);
+        padding: 2rem;
+        margin-bottom: 2rem;
+        box-shadow: var(--shadow-sm);
+      }
+
+      .progress-title {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1rem;
+      }
+
+      .progress-title h1 {
+        margin: 0;
+        font-size: 1.875rem;
+        font-weight: 700;
+        color: var(--text-primary);
+      }
+
+      .step-indicator {
+        background: var(--color-primary);
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: var(--radius-md);
+        font-weight: 500;
+        font-size: 0.875rem;
+      }
+
+      .progress-bar-container {
+        background: var(--bg-secondary);
+        border-radius: var(--radius-md);
+        height: 0.75rem;
+        margin-bottom: 1rem;
+        overflow: hidden;
+      }
+
+      .progress-bar {
+        background: linear-gradient(90deg, var(--color-primary), var(--color-success));
+        height: 100%;
+        border-radius: var(--radius-md);
+        transition: width 0.5s ease;
+      }
+
+      .progress-stats {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        color: var(--text-muted);
+        font-size: 0.875rem;
+      }
+
+      /* Variable Card */
+      .variable-card {
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-lg);
+        padding: 2rem;
+        margin-bottom: 2rem;
+        box-shadow: var(--shadow-md);
+      }
+
+      .variable-header {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--border-light);
+      }
+
+      .variable-icon {
+        background: var(--bg-accent);
+        color: var(--color-primary);
+        padding: 0.75rem;
+        border-radius: var(--radius-md);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .variable-info h2 {
+        margin: 0 0 0.25rem 0;
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: var(--text-primary);
+      }
+
+      .variable-meta {
+        color: var(--text-muted);
+        font-size: 0.875rem;
+      }
+
+      /* Form Styling */
+      .mapping-form {
+        display: grid;
+        gap: 1.5rem;
+      }
+
+      .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .form-label {
+        font-weight: 500;
+        color: var(--text-primary);
+        font-size: 0.9rem;
+      }
+
+      .form-select, .form-input, .form-textarea {
+        padding: 0.75rem;
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-md);
+        font-size: 0.9rem;
+        transition: border-color 0.2s, box-shadow 0.2s;
+        background: var(--bg-primary);
+      }
+
+      .form-select:focus, .form-input:focus, .form-textarea:focus {
+        outline: none;
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+      }
+
+      .form-textarea {
+        resize: vertical;
+        min-height: 100px;
+      }
+
+      .form-hint {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        line-height: 1.3;
+      }
+
+      /* Role-specific styling */
+      .role-dependent {
+        display: none;
+        padding: 1rem;
+        background: var(--bg-accent);
+        border-radius: var(--radius-md);
+        border-left: 4px solid var(--color-primary);
+      }
+
+      .role-dependent.show {
+        display: block;
+      }
+
+      /* Navigation Controls */
+      .navigation-controls {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        margin-top: 2rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--border-light);
+      }
+
+      .nav-button {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1.5rem;
+        font-size: 0.9rem;
+        font-weight: 500;
+        border-radius: var(--radius-md);
+        border: 1px solid transparent;
+        cursor: pointer;
+        transition: all 0.2s;
+        text-decoration: none;
+      }
+
+      .nav-button svg {
+        width: 18px;
+        height: 18px;
+      }
+
+      .btn-primary {
+        background: var(--color-primary);
+        color: white;
+        border-color: var(--color-primary);
+      }
+
+      .btn-primary:hover {
+        background: var(--color-primary-dark);
+        border-color: var(--color-primary-dark);
+      }
+
+      .btn-secondary {
+        background: transparent;
+        color: var(--text-secondary);
+        border-color: var(--border-color);
+      }
+
+      .btn-secondary:hover {
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        border-color: var(--color-primary);
+      }
+
+      .btn-success {
+        background: var(--color-success);
+        color: white;
+        border-color: var(--color-success);
+      }
+
+      .btn-success:hover {
+        background: #059669;
+        border-color: #059669;
+      }
+
+      .btn-disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        pointer-events: none;
+      }
+
+      /* Universal Settings Display */
+      .universal-settings-info {
+        background: var(--bg-accent);
+        border: 1px solid var(--border-light);
+        border-radius: var(--radius-md);
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .settings-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.75rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(--text-secondary);
+      }
+
+      .settings-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 0.5rem;
+        font-size: 0.8rem;
+        color: var(--text-muted);
+      }
+
+      .setting-item {
+        display: flex;
+        justify-content: space-between;
+      }
+
+      .setting-value {
+        font-weight: 500;
+        color: var(--text-secondary);
+      }
+
+      @media (max-width: 768px) {
+        .mapping-step-container {
+          padding: 1rem;
+        }
+        
+        .progress-header, .variable-card {
+          padding: 1.5rem;
+        }
+        
+        .navigation-controls {
+          flex-direction: column;
+        }
+        
+        .navigation-controls .nav-button {
+          width: 100%;
+          justify-content: center;
+        }
+      }
+    </style>
+
+    <!-- Progress Header -->
+    <div class="progress-header">
+        <div class="progress-title">
+            <h1>Map Variable</h1>
+            <div class="step-indicator">
+                Step {{ variable_index|add:1 }} of {{ total_variables }}
+            </div>
+        </div>
+        
+        <div class="progress-bar-container">
+            <div class="progress-bar" style="width: {{ progress_percent }}%"></div>
+        </div>
+        
+        <div class="progress-stats">
+            <span>{{ completed_rules }} of {{ total_variables }} variables mapped</span>
+            <span>{{ progress_percent }}% complete</span>
+        </div>
+    </div>
+
+    <!-- Universal Settings Info -->
+    {% if schema.auto_populate_enabled %}
+    <div class="universal-settings-info">
+        <div class="settings-header">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M12 1v6m0 6v6"/>
+                <path d="M21 12h-6m-6 0H3"/>
+            </svg>
+            Universal Settings Active
+        </div>
+        <div class="settings-list">
+            <div class="setting-item">
+                <span>Default Patient ID:</span>
+                <span class="setting-value">{{ schema.universal_patient_id.variable_name|default:"None" }}</span>
+            </div>
+            <div class="setting-item">
+                <span>Default DateTime:</span>
+                <span class="setting-value">{{ schema.universal_datetime.variable_name|default:"None" }}</span>
+            </div>
+            <div class="setting-item">
+                <span>Default Relationship:</span>
+                <span class="setting-value">{{ schema.get_universal_relation_type_display }}</span>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Variable Card -->
+    <div class="variable-card">
+        <div class="variable-header">
+            <div class="variable-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                </svg>
+            </div>
+            <div class="variable-info">
+                <h2>{{ current_attr.variable_name }}</h2>
+                <div class="variable-meta">
+                    {% if current_attr.variable_label %}
+                        Label: {{ current_attr.variable_label }} | 
+                    {% endif %}
+                    Type: {{ current_attr.data_type|default:"Unknown" }}
+                </div>
+            </div>
+        </div>
+
+        <form method="post" class="mapping-form" id="mapping-form">
+            {% csrf_token %}
+
+            <div class="form-group">
+                <label class="form-label">Role</label>
+                <select name="{{ form.role.html_name }}" id="{{ form.role.id_for_label }}" class="form-select">
+                    {% for value, label in form.role.field.choices %}
+                        <option value="{{ value }}" {% if form.role.value == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <div class="form-hint">What type of data does this variable represent?</div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Target Attribute</label>
+                <select name="{{ form.target_attribute.html_name }}" id="{{ form.target_attribute.id_for_label }}" class="form-select">
+                    <option value="">Select target attribute...</option>
+                    {% for option in form.target_attribute.field.queryset %}
+                        <option value="{{ option.pk }}" {% if form.target_attribute.value == option.pk %}selected{% endif %}>
+                            {{ option.variable_name }}
+                        </option>
+                    {% endfor %}
+                </select>
+                <div class="form-hint">Which target study attribute should this map to?</div>
+            </div>
+
+            <div class="role-dependent" id="related-patient-section">
+                <div class="form-group">
+                    <label class="form-label">Relationship Type</label>
+                    <select name="{{ form.related_relation_type.html_name }}" id="{{ form.related_relation_type.id_for_label }}" class="form-select">
+                        {% for value, label in form.related_relation_type.field.choices %}
+                            <option value="{{ value }}" {% if form.related_relation_type.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-hint">What is the relationship of this person to the main patient?</div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Transform Code (Optional)</label>
+                <textarea name="{{ form.transform_code.html_name }}" id="{{ form.transform_code.id_for_label }}" class="form-textarea" rows="4">{{ form.transform_code.value|default:"" }}</textarea>
+                <div class="form-hint">Python code to transform the value, e.g., "lambda value: value.upper()"</div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Comments (Optional)</label>
+                <textarea name="{{ form.comments.html_name }}" id="{{ form.comments.id_for_label }}" class="form-textarea" rows="3">{{ form.comments.value|default:"" }}</textarea>
+                <div class="form-hint">Any notes about this mapping</div>
+            </div>
+
+            <div class="navigation-controls">
+                <div>
+                    {% if has_previous %}
+                        <button type="submit" name="save_and_previous" class="nav-button btn-secondary">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M19 12H5M12 19l-7-7 7-7"/>
+                            </svg>
+                            Previous
+                        </button>
+                    {% endif %}
+                </div>
+
+                <div style="display: flex; gap: 1rem;">
+                    <button type="submit" class="nav-button btn-secondary">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+                            <polyline points="17,21 17,13 7,13 7,21"/>
+                            <polyline points="7,3 7,8 15,8"/>
+                        </svg>
+                        Save
+                    </button>
+                    
+                    {% if has_next %}
+                        <button type="submit" name="save_and_next" class="nav-button btn-primary">
+                            Next
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M5 12h14M12 5l7 7-7 7"/>
+                            </svg>
+                        </button>
+                    {% else %}
+                        <a href="{% url 'health:edit_mapping' schema.id %}" class="nav-button btn-success">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M20 6L9 17l-5-5"/>
+                            </svg>
+                            Finish & Review
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        // Show/hide relationship section based on role
+        function toggleRelationshipSection() {
+            const roleSelect = document.querySelector('select[name="role"]');
+            const relationSection = document.getElementById('related-patient-section');
+            
+            if (roleSelect.value === 'related_patient_id') {
+                relationSection.classList.add('show');
+            } else {
+                relationSection.classList.remove('show');
+            }
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            toggleRelationshipSection();
+            
+            // Listen for role changes
+            const roleSelect = document.querySelector('select[name="role"]');
+            roleSelect.addEventListener('change', toggleRelationshipSection);
+        });
+
+        // Auto-save functionality
+        let autoSaveTimeout;
+        let hasUnsavedChanges = false;
+
+        function triggerAutoSave() {
+            if (autoSaveTimeout) {
+                clearTimeout(autoSaveTimeout);
+            }
+            
+            autoSaveTimeout = setTimeout(() => {
+                const form = document.getElementById('mapping-form');
+                const formData = new FormData(form);
+                
+                fetch(form.action, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(response => {
+                    if (response.ok) {
+                        hasUnsavedChanges = false;
+                        showSaveIndicator('Changes saved automatically');
+                    }
+                })
+                .catch(error => {
+                    console.error('Auto-save failed:', error);
+                });
+            }, 2000);
+        }
+
+        function showSaveIndicator(message) {
+            const indicator = document.createElement('div');
+            indicator.textContent = message;
+            indicator.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: var(--color-success);
+                color: white;
+                padding: 0.5rem 1rem;
+                border-radius: var(--radius-md);
+                z-index: 1000;
+                font-size: 0.9rem;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            `;
+            
+            document.body.appendChild(indicator);
+            
+            setTimeout(() => {
+                indicator.style.opacity = '0';
+                indicator.style.transition = 'opacity 0.3s';
+                setTimeout(() => indicator.remove(), 300);
+            }, 2000);
+        }
+
+        // Track changes for auto-save
+        document.addEventListener('DOMContentLoaded', function() {
+            const formElements = document.querySelectorAll('select, textarea, input');
+            formElements.forEach(element => {
+                element.addEventListener('change', function() {
+                    hasUnsavedChanges = true;
+                    triggerAutoSave();
+                });
+            });
+        });
+
+        // Warn before leaving with unsaved changes
+        window.addEventListener('beforeunload', function(e) {
+            if (hasUnsavedChanges) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        });
+    </script>
+</div>
+{% endblock %}

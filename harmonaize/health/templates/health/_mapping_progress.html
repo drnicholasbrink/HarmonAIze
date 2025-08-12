@@ -1,0 +1,35 @@
+<style>
+  .mapping-progress { margin:0 0 1.25rem; }
+  .mapping-progress__list { list-style:none;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:.5rem; }
+  .mapping-progress__item { display:flex;align-items:center;gap:.4rem;border-radius:6px;padding:.35rem .55rem;font-size:.7rem;font-weight:500;line-height:1.1; }
+  .mapping-progress__item--done { background:#ecfdf5;color:#065f46;border:1px solid #10b981; }
+  .mapping-progress__item--todo { background:#f3f4f6;color:#374151;border:1px solid #d1d5db; }
+  .mapping-progress__dot { width:.65rem;height:.65rem;border-radius:50%;display:inline-block; }
+  .mapping-progress__dot--done { background:#10b981; }
+  .mapping-progress__dot--todo { background:#9ca3af; }
+</style>
+<div class="mapping-progress">
+  <ol class="mapping-progress__list">
+    <li class="mapping-progress__item {% if schema.target_study_id %}mapping-progress__item--done{% else %}mapping-progress__item--todo{% endif %}">
+      <span class="mapping-progress__dot {% if schema.target_study_id %}mapping-progress__dot--done{% else %}mapping-progress__dot--todo{% endif %}"></span>Target study selected
+    </li>
+    <li class="mapping-progress__item {% if has_patient_id %}mapping-progress__item--done{% else %}mapping-progress__item--todo{% endif %}">
+      <span class="mapping-progress__dot {% if has_patient_id %}mapping-progress__dot--done{% else %}mapping-progress__dot--todo{% endif %}"></span>Patient ID mapped
+    </li>
+    <li class="mapping-progress__item {% if has_datetime %}mapping-progress__item--done{% else %}mapping-progress__item--todo{% endif %}">
+      <span class="mapping-progress__dot {% if has_datetime %}mapping-progress__dot--done{% else %}mapping-progress__dot--todo{% endif %}"></span>Datetime mapped (optional)
+    </li>
+    <li class="mapping-progress__item {% if rules_count %}mapping-progress__item--done{% else %}mapping-progress__item--todo{% endif %}">
+      <span class="mapping-progress__dot {% if rules_count %}mapping-progress__dot--done{% else %}mapping-progress__dot--todo{% endif %}"></span>Attributes mapped
+    </li>
+    <li class="mapping-progress__item {% if has_related %}mapping-progress__item--done{% else %}mapping-progress__item--todo{% endif %}">
+      <span class="mapping-progress__dot {% if has_related %}mapping-progress__dot--done{% else %}mapping-progress__dot--todo{% endif %}"></span>Related IDs configured
+    </li>
+    <li class="mapping-progress__item {% if has_transforms %}mapping-progress__item--done{% else %}mapping-progress__item--todo{% endif %}">
+      <span class="mapping-progress__dot {% if has_transforms %}mapping-progress__dot--done{% else %}mapping-progress__dot--todo{% endif %}"></span>Transforms added
+    </li>
+    <li class="mapping-progress__item {% if approved or schema.status == 'approved' %}mapping-progress__item--done{% else %}mapping-progress__item--todo{% endif %}">
+      <span class="mapping-progress__dot {% if approved or schema.status == 'approved' %}mapping-progress__dot--done{% else %}mapping-progress__dot--todo{% endif %}"></span>Approved
+    </li>
+  </ol>
+</div>

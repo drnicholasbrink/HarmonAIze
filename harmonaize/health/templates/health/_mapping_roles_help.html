@@ -1,0 +1,37 @@
+<div class="mapping-roles-help" style="border:1px solid #e5e7eb;border-radius:10px;padding:1rem;background:#f9fafb;margin:0 0 1rem;">
+  <details open>
+    <summary style="cursor:pointer;font-weight:600;font-size:.9rem;">Role guidance & transform safety</summary>
+    <div style="margin-top:.6rem;font-size:.72rem;line-height:1.25;color:#374151;display:grid;gap:.6rem;">
+      <div>
+        <strong>Roles</strong>
+        <ul style="margin:.35rem 0 0;padding-left:1.1rem;">
+          <li><code>value</code>: Regular data point mapping (default). Multiple value rows allowed.</li>
+          <li><code>patient_id</code>: Attribute uniquely identifying the primary patient for a record (exactly one recommended).</li>
+          <li><code>datetime</code>: Observation timestamp (0 or 1).</li>
+          <li><code>related_patient_id</code>: Identifier for a different person related to the primary patient. Requires a <em>Relation Type</em>.</li>
+        </ul>
+      </div>
+      <div>
+        <strong>Relation Type</strong>
+        <p style="margin:.35rem 0 0;">Enabled only when role is <code>related_patient_id</code>. Choose the relationship (e.g. Child, Mother, Spouse). Leave blank for all other roles.</p>
+      </div>
+      <div>
+        <strong>Transform Code</strong>
+        <p style="margin:.35rem 0 .3rem;">Optional safe Python used to normalise a single raw value. Provide either a one-line lambda (<code>lambda value: value</code>) or a <code>def transform(value): ...</code> function.</p>
+        <ul style="margin:0;padding-left:1.1rem;">
+          <li>Only simple expressions & built‑ins: <code>int</code>, <code>float</code>, <code>str</code>, <code>bool</code>, <code>round</code>, <code>abs</code>, <code>min</code>, <code>max</code>, <code>len</code>.</li>
+          <li>No imports, file / network access, or attribute calls.</li>
+          <li>Rejected code will raise a validation error on save.</li>
+        </ul>
+      </div>
+      <div>
+        <strong>Tips</strong>
+        <ul style="margin:.35rem 0 0;padding-left:1.1rem;">
+          <li>Leave <em>Target Attribute</em> blank to skip a source attribute (no rule created).</li>
+          <li>Set exactly one <code>patient_id</code> role for reliable linkage.</li>
+          <li>Use transforms sparingly—prefer target standardisation upstream.</li>
+        </ul>
+      </div>
+    </div>
+  </details>
+</div>

@@ -1,0 +1,1270 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ page_title|default:"Harmonization Dashboard" }}{% endblock %}
+
+{% block css %}
+  {{ block.super }}
+  <style>
+    :root {
+      --primary-color: #007AFF;
+      --secondary-color: #5AC8FA;
+      --accent-color: #34C759;
+      --health-color: #FF6B6B;
+      --warning-color: #FF9500;
+      --background-color: #F2F2F7;
+      --card-background: #FFFFFF;
+      --text-primary: #1C1C1E;
+      --text-secondary: #8E8E93;
+      --border-color: #C6C6C8;
+      --shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+      --border-radius: 12px;
+    }
+
+    body {
+      background-color: var(--background-color);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--text-primary);
+      line-height: 1.5;
+    }
+
+    .hero-section {
+      background: linear-gradient(135deg, var(--health-color) 0%, var(--primary-color) 100%);
+      color: white;
+      padding: 3rem 0;
+      margin: -1rem -15px 0 -15px;
+    }
+
+    .hero-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 2rem;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 2rem;
+    }
+
+    .hero-content h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    .hero-subtitle {
+      font-size: 1.1rem;
+      opacity: 0.9;
+      margin-bottom: 2rem;
+    }
+
+    .progress-section {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: var(--border-radius);
+      padding: 1.5rem;
+      backdrop-filter: blur(10px);
+    }
+
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+
+    .progress-stats {
+      font-size: 0.9rem;
+      opacity: 0.9;
+    }
+
+    .progress-bar-container {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 50px;
+      height: 8px;
+      overflow: hidden;
+    }
+
+    .progress-bar {
+      background: linear-gradient(90deg, var(--accent-color), var(--secondary-color));
+      height: 100%;
+      border-radius: 50px;
+      transition: width 0.5s ease;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 1rem;
+      flex-shrink: 0;
+    }
+
+    .btn {
+      padding: 0.75rem 1.5rem;
+      border-radius: var(--border-radius);
+      font-weight: 500;
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .btn-primary {
+      background: var(--primary-color);
+      color: white;
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .btn-outline {
+      background: transparent;
+      color: var(--primary-color);
+      border: 1px solid var(--primary-color);
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .main-container {
+      max-width: 1200px;
+      margin: 2rem auto;
+      padding: 0 2rem;
+      display: grid;
+      grid-template-columns: 1fr 300px;
+      gap: 2rem;
+    }
+
+    /* Universal Settings Panel */
+    .settings-panel {
+      background: var(--card-background);
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow);
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      grid-column: 1 / -1;
+    }
+
+    .settings-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+    }
+
+    .settings-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .settings-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .form-label {
+      font-weight: 500;
+      color: var(--text-primary);
+      font-size: 0.9rem;
+    }
+
+    .form-select, .form-input {
+      padding: 0.75rem;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 0.9rem;
+      transition: border-color 0.2s;
+    }
+
+    .form-select:focus, .form-input:focus {
+      outline: none;
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+    }
+
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 1rem;
+    }
+
+    /* Variables Section */
+    .variables-section {
+      grid-column: 1;
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+    }
+
+    .section-title {
+      font-size: 1.5rem;
+      font-weight: 600;
+    }
+
+    .filter-controls {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+    }
+
+    .filter-select {
+      padding: 0.5rem;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 0.9rem;
+    }
+
+    .search-input {
+      padding: 0.5rem 1rem;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 0.9rem;
+      width: 200px;
+    }
+
+    /* Variable Cards */
+    .variable-card {
+      background: var(--card-background);
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow);
+      margin-bottom: 1.5rem;
+      overflow: hidden;
+      transition: all 0.2s;
+    }
+
+    .variable-card:hover {
+      box-shadow: 0 4px 25px rgba(0, 0, 0, 0.15);
+    }
+
+    .variable-card.complete {
+      border-left: 4px solid var(--accent-color);
+    }
+
+    .variable-card.incomplete {
+      border-left: 4px solid var(--warning-color);
+    }
+
+    .variable-header {
+      padding: 1.5rem;
+      border-bottom: 1px solid var(--border-color);
+      background: linear-gradient(45deg, #f8f9fa 0%, #ffffff 100%);
+    }
+
+    .variable-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+
+    .variable-name {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .completion-badge {
+      padding: 0.25rem 0.75rem;
+      border-radius: 50px;
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+
+    .badge-complete {
+      background: var(--accent-color);
+      color: white;
+    }
+
+    .badge-incomplete {
+      background: var(--warning-color);
+      color: white;
+    }
+
+    .variable-meta {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+
+    .variable-content {
+      padding: 1.5rem;
+    }
+
+    .mapping-form {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+    }
+
+    .mapping-form .form-group.full-width {
+      grid-column: 1 / -1;
+    }
+
+    .form-textarea {
+      padding: 0.75rem;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 0.9rem;
+      resize: vertical;
+      min-height: 80px;
+    }
+
+    .form-textarea:focus {
+      outline: none;
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+    }
+
+    .relationship-section {
+      display: none;
+      grid-column: 1 / -1;
+      padding: 1rem;
+      background: #f8f9fa;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+    }
+
+    .relationship-section.show {
+      display: block;
+    }
+
+    .variable-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 1rem;
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .btn-small {
+      padding: 0.5rem 1rem;
+      font-size: 0.9rem;
+    }
+
+    .btn-success {
+      background: var(--accent-color);
+      color: white;
+    }
+
+    .btn-warning {
+      background: var(--warning-color);
+      color: white;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      grid-column: 2;
+    }
+
+    .sidebar-section {
+      background: var(--card-background);
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow);
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .sidebar-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+    }
+
+    .stats-grid {
+      display: grid;
+      gap: 1rem;
+    }
+
+    .stat-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem;
+      background: var(--background-color);
+      border-radius: 8px;
+    }
+
+    .stat-label {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+    }
+
+    .stat-value {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .bulk-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .action-btn {
+      width: 100%;
+      justify-content: center;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .main-container {
+        grid-template-columns: 1fr;
+        padding: 0 1rem;
+      }
+
+      .hero-header {
+        flex-direction: column;
+        text-align: center;
+        gap: 1rem;
+        padding: 0 1rem;
+      }
+
+      .settings-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .mapping-form {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        order: -1;
+      }
+    }
+
+    /* Auto-save indicator */
+    .auto-save-indicator {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: var(--accent-color);
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      opacity: 0;
+      transition: opacity 0.3s;
+      z-index: 1000;
+    }
+
+    .auto-save-indicator.show {
+      opacity: 1;
+    }
+
+    /* Error styling */
+    .form-group.error .form-select,
+    .form-group.error .form-input,
+    .form-group.error .form-textarea {
+      border-color: #dc3545;
+    }
+
+    .error-message {
+      color: #dc3545;
+      font-size: 0.8rem;
+      margin-top: 0.25rem;
+    }
+
+    /* Messages styling */
+    .messages-container {
+      z-index: 100;
+    }
+    
+    .alert {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: 500;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      animation: slideDown 0.3s ease-out;
+    }
+    
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+<div class="hero-section">
+  <div class="hero-header">
+    <div class="hero-content">
+      <h1>{{ schema.name }}</h1>
+      <p class="hero-subtitle">
+        Harmonizing {{ total_variables }} variables from {{ schema.source_study.name }}
+        to {{ schema.target_study.name }}
+      </p>
+      
+      <div class="progress-section">
+        <div class="progress-header">
+          <span>Progress</span>
+          <span class="progress-stats">{{ completed_rules }}/{{ total_variables }} variables mapped</span>
+        </div>
+        <div class="progress-bar-container">
+          <div class="progress-bar" style="width: {{ progress_percent }}%"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Messages Section -->
+{% if messages %}
+<div class="container">
+  <div class="messages-container" style="max-width: 1200px; margin: 2rem auto; padding: 0 2rem;">
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags }}" style="
+        padding: 1rem 1.5rem;
+        margin-bottom: 1rem;
+        border-radius: var(--border-radius);
+        border: 1px solid;
+        {% if message.tags == 'error' %}
+          background-color: #fee;
+          border-color: #fcc;
+          color: #c33;
+        {% elif message.tags == 'warning' %}
+          background-color: #fff3cd;
+          border-color: #ffeaa7;
+          color: #856404;
+        {% elif message.tags == 'success' %}
+          background-color: #d4edda;
+          border-color: #c3e6cb;
+          color: #155724;
+        {% elif message.tags == 'info' %}
+          background-color: #d1ecf1;
+          border-color: #bee5eb;
+          color: #0c5460;
+        {% else %}
+          background-color: #f8f9fa;
+          border-color: #dee2e6;
+          color: #6c757d;
+        {% endif %}
+      ">
+        <strong>
+          {% if message.tags == 'error' %}
+            <i class="fas fa-exclamation-triangle"></i> Error:
+          {% elif message.tags == 'warning' %}
+            <i class="fas fa-exclamation-circle"></i> Warning:
+          {% elif message.tags == 'success' %}
+            <i class="fas fa-check-circle"></i> Success:
+          {% elif message.tags == 'info' %}
+            <i class="fas fa-info-circle"></i> Info:
+          {% endif %}
+        </strong>
+        {{ message }}
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div class="main-container">
+  <!-- Universal Settings Panel -->
+  <div class="settings-panel">
+    <div class="settings-header">
+      <h2 class="settings-title">
+        <i class="fas fa-cog"></i>
+        Universal Settings
+      </h2>
+      <button type="button" class="btn btn-outline btn-small" onclick="toggleSettingsForm()">
+        <i class="fas fa-edit"></i>
+        Edit Settings
+      </button>
+    </div>
+
+    <form method="post" id="universal-settings-form" style="display: none;">
+      {% csrf_token %}
+      <div class="settings-grid">
+        <div class="form-group">
+          <label class="form-label">Target Study</label>
+          {{ universal_form.target_study }}
+          {% if universal_form.target_study.errors %}
+            <div class="error-message">
+              {% for error in universal_form.target_study.errors %}
+                <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        <div class="form-group">
+          <label class="form-label">Default Patient ID Variable</label>
+          {{ universal_form.universal_patient_id }}
+          {% if universal_form.universal_patient_id.errors %}
+            <div class="error-message">
+              {% for error in universal_form.universal_patient_id.errors %}
+                <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        <div class="form-group">
+          <label class="form-label">Default DateTime Variable</label>
+          {{ universal_form.universal_datetime }}
+          {% if universal_form.universal_datetime.errors %}
+            <div class="error-message">
+              {% for error in universal_form.universal_datetime.errors %}
+                <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        <div class="form-group">
+          <label class="form-label">Default Relationship Type</label>
+          {{ universal_form.universal_relation_type }}
+          {% if universal_form.universal_relation_type.errors %}
+            <div class="error-message">
+              {% for error in universal_form.universal_relation_type.errors %}
+                <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="variable-actions">
+        <button type="button" class="btn btn-secondary btn-small" onclick="toggleSettingsForm()">Cancel</button>
+        <button type="submit" name="update_universal_settings" class="btn btn-success btn-small">
+          <i class="fas fa-check"></i>
+          Save Universal Settings
+        </button>
+      </div>
+    </form>
+
+    <!-- Current Settings Display -->
+    <div id="settings-display">
+      <div class="settings-grid">
+        <div class="stat-item">
+          <span class="stat-label">Target Study</span>
+          <span class="stat-value">{{ schema.target_study.name|default:"Not set" }}</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Patient ID</span>
+          <span class="stat-value">{{ schema.universal_patient_id.variable_name|default:"Not set" }}</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">DateTime</span>
+          <span class="stat-value">{{ schema.universal_datetime.variable_name|default:"Not set" }}</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Relationship</span>
+          <span class="stat-value">{{ schema.get_universal_relation_type_display|default:"Self" }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Variables Section -->
+  <div class="variables-section">
+    <div class="section-header">
+      <h2 class="section-title">Variable Mappings</h2>
+      <div class="filter-controls">
+        <select class="filter-select" id="completion-filter">
+          <option value="all">All Variables</option>
+          <option value="complete">Mapped Only</option>
+          <option value="incomplete">Unmapped Only</option>
+        </select>
+        <input type="text" class="search-input" id="search-variables" placeholder="Search variables...">
+      </div>
+    </div>
+
+    <form method="post" id="mappings-form">
+      {% csrf_token %}
+      
+      {% for variable_form in variable_forms %}
+      <div class="variable-card {% if variable_form.is_complete %}complete{% else %}incomplete{% endif %}" 
+           data-variable-name="{{ variable_form.attribute.variable_name|lower }}"
+           data-completion="{{ variable_form.is_complete|yesno:'complete,incomplete' }}">
+        
+        <div class="variable-header">
+          <div class="variable-title">
+            <span class="variable-name">{{ variable_form.attribute.variable_name }}</span>
+            <span class="completion-badge {% if variable_form.is_complete %}badge-complete{% else %}badge-incomplete{% endif %}">
+              {% if variable_form.is_complete %}
+                <i class="fas fa-check"></i> Mapped
+              {% else %}
+                <i class="fas fa-exclamation-triangle"></i> Needs Mapping
+              {% endif %}
+            </span>
+          </div>
+          {% if variable_form.attribute.variable_label %}
+          <div class="variable-meta">{{ variable_form.attribute.variable_label }}</div>
+          {% endif %}
+          <div class="variable-meta">
+            Type: {{ variable_form.attribute.data_type|default:"Unknown" }}
+            {% if variable_form.attribute.values_count %}
+              | {{ variable_form.attribute.values_count }} unique values
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="variable-content">
+          <div class="mapping-form">
+            <div class="form-group">
+              <label class="form-label">Role</label>
+              {{ variable_form.form.role }}
+              {% if variable_form.form.role.errors %}
+                <div class="error-message">
+                  {% for error in variable_form.form.role.errors %}
+                    <span>{{ error }}</span>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Target Attribute</label>
+              {{ variable_form.form.target_attribute }}
+              {% if variable_form.form.target_attribute.errors %}
+                <div class="error-message">
+                  {% for error in variable_form.form.target_attribute.errors %}
+                    <span>{{ error }}</span>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Patient ID Attribute</label>
+              {{ variable_form.form.patient_id_attribute }}
+              {% if variable_form.form.patient_id_attribute.errors %}
+                <div class="error-message">
+                  {% for error in variable_form.form.patient_id_attribute.errors %}
+                    <span>{{ error }}</span>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">DateTime Attribute</label>
+              {{ variable_form.form.datetime_attribute }}
+              {% if variable_form.form.datetime_attribute.errors %}
+                <div class="error-message">
+                  {% for error in variable_form.form.datetime_attribute.errors %}
+                    <span>{{ error }}</span>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </div>
+            
+            <div class="relationship-section" id="relationship-{{ variable_form.attribute.id }}">
+              <div class="form-group">
+                <label class="form-label">Relationship Type</label>
+                {{ variable_form.form.related_relation_type }}
+                {% if variable_form.form.related_relation_type.errors %}
+                  <div class="error-message">
+                    {% for error in variable_form.form.related_relation_type.errors %}
+                      <span>{{ error }}</span>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+            
+            <div class="form-group full-width">
+              <label class="form-label">Transform Code (Optional)</label>
+              {{ variable_form.form.transform_code }}
+              {% if variable_form.form.transform_code.errors %}
+                <div class="error-message">
+                  {% for error in variable_form.form.transform_code.errors %}
+                    <span>{{ error }}</span>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </div>
+            
+            <div class="form-group full-width">
+              <label class="form-label">Comments (Optional)</label>
+              {{ variable_form.form.comments }}
+              {% if variable_form.form.comments.errors %}
+                <div class="error-message">
+                  {% for error in variable_form.form.comments.errors %}
+                    <span>{{ error }}</span>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="variable-actions">
+            <button type="button" class="btn btn-warning btn-small" onclick="clearMapping({{ variable_form.attribute.id }})">
+              <i class="fas fa-times"></i>
+              Clear
+            </button>
+            <button type="button" class="btn btn-success btn-small" onclick="saveMapping({{ variable_form.attribute.id }})">
+              <i class="fas fa-save"></i>
+              Save
+            </button>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </form>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <!-- Progress Stats -->
+    <div class="sidebar-section">
+      <h3 class="sidebar-title">Progress</h3>
+      <div class="stats-grid">
+        <div class="stat-item">
+          <span class="stat-label">Total Variables</span>
+          <span class="stat-value">{{ total_variables }}</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Mapped</span>
+          <span class="stat-value">{{ completed_rules }}</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Remaining</span>
+          <span class="stat-value">{{ total_variables|add:"-"|add:completed_rules }}</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Completion</span>
+          <span class="stat-value">{{ progress_percent }}%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bulk Actions -->
+    <div class="sidebar-section">
+      <h3 class="sidebar-title">Bulk Actions</h3>
+      <div class="bulk-actions">
+        <button type="button" class="btn btn-outline action-btn" onclick="applyUniversalSettings()">
+          <i class="fas fa-magic"></i>
+          Apply Universal Settings
+        </button>
+        <button type="button" class="btn btn-outline action-btn" onclick="clearAllMappings()">
+          <i class="fas fa-trash"></i>
+          Clear All Mappings
+        </button>
+        <button type="button" class="btn btn-primary action-btn" onclick="validateAllMappings()">
+          <i class="fas fa-check-circle"></i>
+          Validate All
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+  <!-- Navigation -->
+    <div class="sidebar-section">
+      <h3 class="sidebar-title">Navigation</h3>
+      <div class="bulk-actions">
+        <!--greyed out until 100%-->
+        {% if progress_percent < 100 %}
+          <button type="button" class="btn btn-secondary action-btn" disabled>
+            <i class="fas fa-check"></i>
+            Approve & Finalize
+          </button>
+        {% endif %}
+      </div>
+    </div>
+<!-- Auto-save indicator -->
+<div class="auto-save-indicator" id="auto-save-indicator">
+  <i class="fas fa-save"></i> Saving...
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize role-dependent sections
+    initializeRoleDependentSections();
+    
+    // Initialize filters
+    initializeFilters();
+    
+    // Initialize auto-save
+    initializeAutoSave();
+});
+
+function initializeRoleDependentSections() {
+    document.querySelectorAll('select[name$="-role"]').forEach(select => {
+        const variableId = select.name.match(/variable_(\d+)-role/)[1];
+        const relationshipSection = document.getElementById(`relationship-${variableId}`);
+        
+        function toggleRelationshipSection() {
+            if (select.value === 'related_patient_id') {
+                relationshipSection.classList.add('show');
+            } else {
+                relationshipSection.classList.remove('show');
+            }
+        }
+        
+        // Initialize state
+        toggleRelationshipSection();
+        
+        // Listen for changes
+        select.addEventListener('change', toggleRelationshipSection);
+    });
+}
+
+function initializeFilters() {
+    const completionFilter = document.getElementById('completion-filter');
+    const searchInput = document.getElementById('search-variables');
+    
+    function filterVariables() {
+        const completionValue = completionFilter.value;
+        const searchValue = searchInput.value.toLowerCase();
+        
+        document.querySelectorAll('.variable-card').forEach(card => {
+            const completion = card.dataset.completion;
+            const variableName = card.dataset.variableName;
+            
+            let showCompletion = completionValue === 'all' || completion === completionValue;
+            let showSearch = !searchValue || variableName.includes(searchValue);
+            
+            if (showCompletion && showSearch) {
+                card.style.display = 'block';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    }
+    
+    completionFilter.addEventListener('change', filterVariables);
+    searchInput.addEventListener('input', filterVariables);
+}
+
+function initializeAutoSave() {
+    let autoSaveTimeout;
+    const indicator = document.getElementById('auto-save-indicator');
+    
+    function showSaveIndicator() {
+        indicator.classList.add('show');
+        setTimeout(() => {
+            indicator.classList.remove('show');
+        }, 2000);
+    }
+    
+    function triggerAutoSave(variableId) {
+        if (autoSaveTimeout) {
+            clearTimeout(autoSaveTimeout);
+        }
+        
+        autoSaveTimeout = setTimeout(() => {
+            saveMapping(variableId, true);
+        }, 2000);
+    }
+    
+    // Listen for form changes
+    document.querySelectorAll('select, textarea, input').forEach(element => {
+        if (element.name && element.name.startsWith('variable_')) {
+            element.addEventListener('change', function() {
+                const variableId = element.name.match(/variable_(\d+)/)[1];
+                triggerAutoSave(variableId);
+            });
+        }
+    });
+}
+
+function toggleSettingsForm() {
+    const form = document.getElementById('universal-settings-form');
+    const display = document.getElementById('settings-display');
+    
+    if (form.style.display === 'none') {
+        form.style.display = 'block';
+        display.style.display = 'none';
+    } else {
+        form.style.display = 'none';
+        display.style.display = 'block';
+    }
+}
+
+function saveMapping(variableId, isAutoSave = false) {
+    const form = document.getElementById('mappings-form');
+    const formData = new FormData(form);
+    
+    // Only include data for this specific variable
+    const newFormData = new FormData();
+    newFormData.append('csrfmiddlewaretoken', formData.get('csrfmiddlewaretoken'));
+    
+    for (const [key, value] of formData.entries()) {
+        if (key.startsWith(`variable_${variableId}-`)) {
+            newFormData.append(key, value);
+        }
+    }
+    
+    if (!isAutoSave) {
+        document.getElementById('auto-save-indicator').innerHTML = '<i class="fas fa-save"></i> Saving...';
+        document.getElementById('auto-save-indicator').classList.add('show');
+    }
+    
+    fetch(window.location.href, {
+        method: 'POST',
+        body: newFormData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            if (!isAutoSave) {
+                document.getElementById('auto-save-indicator').innerHTML = '<i class="fas fa-check"></i> Saved!';
+                setTimeout(() => {
+                    document.getElementById('auto-save-indicator').classList.remove('show');
+                }, 2000);
+            }
+            
+            // Update completion status
+            const card = document.querySelector(`[data-variable-name="${data.variable_name.toLowerCase()}"]`);
+            if (card && data.is_complete) {
+                card.classList.remove('incomplete');
+                card.classList.add('complete');
+                card.dataset.completion = 'complete';
+                
+                const badge = card.querySelector('.completion-badge');
+                badge.className = 'completion-badge badge-complete';
+                badge.innerHTML = '<i class="fas fa-check"></i> Mapped';
+            }
+        } else {
+            console.error('Save failed:', data.errors);
+            
+            // Show specific errors to the user
+            if (data.errors && Array.isArray(data.errors)) {
+                data.errors.forEach(error => {
+                    showErrorNotification(error);
+                });
+            } else if (data.errors) {
+                showErrorNotification(`Save failed: ${JSON.stringify(data.errors)}`);
+            } else {
+                showErrorNotification('Save failed: Unknown error occurred');
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        if (!isAutoSave) {
+            // Show more detailed error message
+            const errorMsg = error.message || 'Network error occurred';
+            document.getElementById('auto-save-indicator').innerHTML = `<i class="fas fa-exclamation-triangle"></i> Error: ${errorMsg}`;
+            document.getElementById('auto-save-indicator').style.color = '#dc3545';
+            setTimeout(() => {
+                document.getElementById('auto-save-indicator').classList.remove('show');
+                document.getElementById('auto-save-indicator').style.color = '';
+            }, 5000);
+        }
+        
+        // Also show a notification at the top of the page
+        showErrorNotification(`Save failed: ${error.message || 'Network error'}`);
+    });
+}
+
+function saveAllMappings() {
+    const form = document.getElementById('mappings-form');
+    const formData = new FormData(form);
+    
+    document.getElementById('auto-save-indicator').innerHTML = '<i class="fas fa-save"></i> Saving all...';
+    document.getElementById('auto-save-indicator').classList.add('show');
+    
+    fetch(window.location.href, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => {
+        if (response.ok) {
+            document.getElementById('auto-save-indicator').innerHTML = '<i class="fas fa-check"></i> All saved!';
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } else {
+            throw new Error('Save failed');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        document.getElementById('auto-save-indicator').innerHTML = '<i class="fas fa-exclamation-triangle"></i> Error!';
+        setTimeout(() => {
+            document.getElementById('auto-save-indicator').classList.remove('show');
+        }, 2000);
+    });
+}
+
+function clearMapping(variableId) {
+    if (confirm('Are you sure you want to clear this mapping?')) {
+        // Clear form fields for this variable
+        document.querySelectorAll(`[name^="variable_${variableId}-"]`).forEach(field => {
+            if (field.type === 'select-one') {
+                field.selectedIndex = 0;
+            } else {
+                field.value = '';
+            }
+        });
+        
+        // Save the cleared mapping
+        saveMapping(variableId);
+    }
+}
+
+function applyUniversalSettings() {
+    if (confirm('Apply universal settings to all unmapped variables?')) {
+        // This would trigger a special form submission
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = window.location.href;
+        
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = 'csrfmiddlewaretoken';
+        csrfInput.value = csrfToken;
+        
+        const actionInput = document.createElement('input');
+        actionInput.type = 'hidden';
+        actionInput.name = 'apply_universal_settings';
+        actionInput.value = 'true';
+        
+        form.appendChild(csrfInput);
+        form.appendChild(actionInput);
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+function clearAllMappings() {
+    if (confirm('Are you sure you want to clear ALL mappings? This cannot be undone.')) {
+        // Clear all form fields
+        document.querySelectorAll('select, textarea, input[type="text"]').forEach(field => {
+            if (field.name && field.name.startsWith('variable_')) {
+                if (field.type === 'select-one') {
+                    field.selectedIndex = 0;
+                } else {
+                    field.value = '';
+                }
+            }
+        });
+        
+        saveAllMappings();
+    }
+}
+
+function validateAllMappings() {
+    // This could check for required fields, validate transforms, etc.
+    const incompleteVariables = document.querySelectorAll('.variable-card.incomplete').length;
+    
+    if (incompleteVariables > 0) {
+        alert(`There are ${incompleteVariables} variables that still need mapping before validation.`);
+    } else {
+        alert('All variables are mapped! You can now proceed to approval.');
+    }
+}
+
+function showErrorNotification(message) {
+    // Create or get the notification container
+    let container = document.querySelector('.error-notifications');
+    if (!container) {
+        container = document.createElement('div');
+        container.className = 'error-notifications';
+        container.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            max-width: 400px;
+        `;
+        document.body.appendChild(container);
+    }
+    
+    // Create the notification element
+    const notification = document.createElement('div');
+    notification.className = 'error-notification';
+    notification.style.cssText = `
+        background-color: #fee;
+        border: 1px solid #fcc;
+        color: #c33;
+        padding: 1rem 1.5rem;
+        margin-bottom: 0.5rem;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        animation: slideInRight 0.3s ease-out;
+        cursor: pointer;
+    `;
+    notification.innerHTML = `
+        <strong><i class="fas fa-exclamation-triangle"></i> Error:</strong> ${message}
+        <div style="font-size: 0.8rem; margin-top: 0.5rem; opacity: 0.7;">Click to dismiss</div>
+    `;
+    
+    // Add click to dismiss
+    notification.addEventListener('click', () => {
+        notification.style.animation = 'slideOutRight 0.3s ease-in';
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 300);
+    });
+    
+    // Auto-dismiss after 10 seconds
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.style.animation = 'slideOutRight 0.3s ease-in';
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 300);
+        }
+    }, 10000);
+    
+    container.appendChild(notification);
+}
+
+// Add CSS animations for notifications
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes slideInRight {
+        from {
+            opacity: 0;
+            transform: translateX(100%);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+    
+    @keyframes slideOutRight {
+        from {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        to {
+            opacity: 0;
+            transform: translateX(100%);
+        }
+    }
+`;
+document.head.appendChild(style);
+</script>
+{% endblock %}
