@@ -1,0 +1,1216 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ page_title|default:"Edit Mapping" }}{% endblock %}
+
+{% block css %}
+  {{ block.super }}
+  <style>
+    :root {
+      --primary-color: #007AFF;
+      --secondary-color: #5AC8FA;
+      --accent-color: #34C759;
+      --health-color: #FF6B6B;
+      --background-color: #F2F2F7;
+      --card-background: #FFFFFF;
+      --text-primary: #1C1C1E;
+      --text-secondary: #8E8E93;
+      --border-color: #C6C6C8;
+      --shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+      --border-radius: 12px;
+    }
+
+    body {
+      background-color: var(--background-color);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--text-primary);
+      line-height: 1.5;
+    }
+
+    .hero-section {
+      background: linear-gradient(135deg, var(--health-color) 0%, var(--primary-color) 100%);
+      color: white;
+      padding: 3rem 0;
+      margin: -1rem -15px 0 -15px;
+    }
+
+    .hero-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 2rem;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 2rem;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 1rem;
+      flex-shrink: 0;
+    }
+
+    .btn-hero {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 1rem 1.5rem;
+      font-size: 1rem;
+      font-weight: 500;
+      border-radius: var(--border-radius);
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .btn-hero.btn-primary {
+      background: rgba(255, 255, 255, 0.15);
+      color: white;
+      border-color: rgba(255, 255, 255, 0.3);
+      backdrop-filter: blur(10px);
+    }
+
+    .btn-hero.btn-primary:hover {
+      background: rgba(255, 255, 255, 0.25);
+      border-color: rgba(255, 255, 255, 0.4);
+      transform: translateY(-2px);
+    }
+
+    .hero-title {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    .hero-subtitle {
+      font-size: 1.1rem;
+      opacity: 0.9;
+    }
+
+    .main-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    .mapping-card {
+      background: var(--card-background);
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow);
+      padding: 2rem;
+      margin-bottom: 2rem;
+    }
+
+    .mapping-header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .mapping-title {
+      color: var(--text-primary);
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    .mapping-subtitle {
+      color: var(--text-secondary);
+      font-size: 1rem;
+    }
+
+    .study-info {
+      background: rgba(255, 255, 255, 0.5);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 2rem;
+      text-align: center;
+    }
+
+    .study-name {
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 0.5rem;
+    }
+
+    .study-detail {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+
+      /* Progress and status indicators */
+      .mapping-summary {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem;
+        background: var(--bg-primary);
+        border-radius: var(--radius-md);
+        margin-bottom: 2rem;
+        border: 1px solid var(--border-color);
+      }
+
+      .summary-count {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--color-primary);
+        line-height: 1;
+      }
+
+      .summary-text {
+        color: var(--text-muted);
+        font-weight: 500;
+      }
+
+      /* Universal Settings Panel */
+      .universal-settings-panel {
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-lg);
+        margin-bottom: 2rem;
+        overflow: hidden;
+      }
+
+      .settings-header {
+        padding: 1.5rem;
+        border-bottom: 1px solid var(--border-color);
+        background: var(--bg-secondary);
+      }
+
+      .settings-title {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin: 0 0 0.5rem 0;
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--text-primary);
+      }
+
+      .settings-title svg {
+        color: var(--color-primary);
+      }
+
+      .settings-subtitle {
+        margin: 0;
+        color: var(--text-muted);
+        font-size: 0.9rem;
+      }
+
+      .settings-form {
+        padding: 1.5rem;
+      }
+
+      .settings-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr 300px;
+        gap: 1.5rem;
+        align-items: start;
+      }
+
+      .setting-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .setting-label {
+        font-weight: 500;
+        color: var(--text-primary);
+        font-size: 0.9rem;
+      }
+
+      .setting-hint {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        line-height: 1.3;
+      }
+
+      .setting-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        justify-content: space-between;
+        min-height: 100px;
+      }
+
+      .auto-populate-toggle {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .toggle-label {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        cursor: pointer;
+        font-weight: 500;
+        color: var(--text-primary);
+        font-size: 0.9rem;
+      }
+
+      .toggle-switch {
+        position: relative;
+        width: 44px;
+        height: 24px;
+        background: var(--border-color);
+        border-radius: 12px;
+        transition: background-color 0.2s;
+      }
+
+      .toggle-switch::after {
+        content: '';
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 20px;
+        height: 20px;
+        background: white;
+        border-radius: 50%;
+        transition: transform 0.2s;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      }
+
+      input[type="checkbox"]:checked + .toggle-switch {
+        background: var(--color-primary);
+      }
+
+      input[type="checkbox"]:checked + .toggle-switch::after {
+        transform: translateX(20px);
+      }
+
+      input[type="checkbox"] {
+        display: none;
+      }
+
+      .setting-buttons {
+        display: flex;
+        gap: 0.75rem;
+      }
+
+      .btn-small {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        font-size: 0.85rem;
+        font-weight: 500;
+        border-radius: var(--radius-md);
+        border: 1px solid transparent;
+        cursor: pointer;
+        transition: all 0.2s;
+        text-decoration: none;
+      }
+
+      .btn-small svg {
+        width: 16px;
+        height: 16px;
+      }
+
+      .btn-primary {
+        background: var(--color-primary);
+        color: white;
+        border-color: var(--color-primary);
+      }
+
+      .btn-primary:hover {
+        background: var(--color-primary-dark);
+        border-color: var(--color-primary-dark);
+      }
+
+      .btn-outline {
+        background: transparent;
+        color: var(--text-muted);
+        border-color: var(--border-color);
+      }
+
+      .btn-outline:hover {
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        border-color: var(--color-primary);
+      }
+
+      @media (max-width: 1200px) {
+        .settings-grid {
+          grid-template-columns: 1fr 1fr;
+          gap: 1rem;
+        }
+        
+        .setting-actions {
+          grid-column: 1 / -1;
+          flex-direction: row;
+          align-items: center;
+          justify-content: space-between;
+          min-height: auto;
+        }
+      }
+
+      @media (max-width: 768px) {
+        .settings-grid {
+          grid-template-columns: 1fr;
+        }
+        
+        .setting-buttons {
+          flex-direction: column;
+        }
+      }    .mappings-grid {
+      display: grid;
+      gap: 1rem;
+      margin: 2rem 0;
+    }
+
+    .mapping-item {
+      background: var(--card-background);
+      border: 2px solid var(--border-color);
+      border-radius: 8px;
+      padding: 1.5rem;
+      transition: all 0.3s ease;
+      position: relative;
+    }
+
+    .mapping-item:hover {
+      border-color: var(--primary-color);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow);
+    }
+
+    .mapping-item.has-error {
+      border-color: #dc3545 !important;
+      background: rgba(220, 53, 69, 0.05);
+    }
+
+    .mapping-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+      gap: 1rem;
+    }
+
+    .mapping-number {
+      background: var(--primary-color);
+      color: white;
+      border-radius: 50%;
+      width: 2rem;
+      height: 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 0.9rem;
+      flex-shrink: 0;
+    }
+
+    .mapping-direction {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      min-width: 0;
+    }
+
+    .source-info,
+    .target-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .source-label,
+    .target-label {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      font-weight: 600;
+      margin-bottom: 0.3rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .source-name,
+    .target-name {
+      font-weight: 600;
+      color: var(--text-primary);
+      font-size: 1rem;
+      word-break: break-word;
+    }
+
+    .mapping-arrow {
+      color: var(--primary-color);
+      font-size: 1.5rem;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+
+    .mapping-fields {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .field-group.full-width {
+      grid-column: 1 / -1;
+    }
+
+    .field-label {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 0.5rem;
+    }
+
+    .form-control,
+    .form-select {
+      width: 100%;
+      padding: 0.75rem;
+      border: 2px solid var(--border-color);
+      border-radius: 6px;
+      font-size: 0.9rem;
+      transition: border-color 0.3s;
+      background: var(--card-background);
+    }
+
+    .form-control:focus,
+    .form-select:focus {
+      outline: none;
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+    }
+
+    .form-control[disabled],
+    .form-select[disabled] {
+      background-color: var(--background-color);
+      color: var(--text-secondary);
+      opacity: 0.7;
+    }
+
+    .role-badge {
+      display: inline-block;
+      background: var(--accent-color);
+      color: white;
+      padding: 0.25rem 0.75rem;
+      border-radius: 15px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      text-transform: capitalize;
+    }
+
+    .relation-field {
+      transition: opacity 0.3s ease;
+    }
+
+    .relation-field.hidden {
+      opacity: 0.35;
+    }
+
+    .transform-hint {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      margin-top: 0.25rem;
+      font-style: italic;
+    }
+
+    /* Error Styling */
+    .alert {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      font-weight: 500;
+      border-left: 4px solid;
+    }
+
+    .alert-error {
+      background: #fee;
+      border-left-color: #dc3545;
+      color: #721c24;
+    }
+
+    .error-icon {
+      font-size: 1.2rem;
+      min-width: 1.2rem;
+    }
+
+    .field-error {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: #721c24;
+      font-size: 0.85rem;
+      margin-top: 0.25rem;
+      background: rgba(220, 53, 69, 0.1);
+      border: 1px solid rgba(220, 53, 69, 0.3);
+      border-radius: 4px;
+      padding: 0.5rem;
+    }
+
+    .field-error .error-icon {
+      font-size: 0.9rem;
+      min-width: 0.9rem;
+    }
+
+    .action-buttons {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-top: 2rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .btn {
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.3s ease;
+      border: none;
+      cursor: pointer;
+      font-size: 1rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .btn-primary {
+      background-color: var(--primary-color);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background-color: #0056CC;
+      transform: translateY(-2px);
+    }
+
+    .btn-secondary {
+      background-color: var(--text-secondary);
+      color: white;
+    }
+
+    .btn-secondary:hover {
+      background-color: #666;
+      transform: translateY(-2px);
+    }
+
+    .btn-approve {
+      background-color: var(--accent-color);
+      color: white;
+    }
+
+    .btn-approve:hover {
+      background-color: #2da44e;
+      transform: translateY(-2px);
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: var(--text-secondary);
+    }
+
+    .empty-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+      opacity: 0.5;
+    }
+
+    .empty-title {
+      font-size: 1.2rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: var(--text-primary);
+    }
+
+    @media (max-width: 768px) {
+      .main-content {
+        padding: 1rem;
+      }
+      
+      .mapping-header-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 1rem;
+      }
+      
+      .mapping-direction {
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+      
+      .mapping-arrow {
+        transform: rotate(90deg);
+        align-self: center;
+      }
+      
+      .mapping-fields {
+        grid-template-columns: 1fr;
+      }
+      
+      .action-buttons {
+        flex-direction: column;
+      }
+    }
+      </style>
+
+    <script>
+      // Auto-save functionality
+      let autoSaveTimeout;
+      let hasUnsavedChanges = false;
+
+      function triggerAutoSave() {
+        if (autoSaveTimeout) {
+          clearTimeout(autoSaveTimeout);
+        }
+        
+        autoSaveTimeout = setTimeout(() => {
+          const form = document.getElementById('mapping-form');
+          const formData = new FormData(form);
+          formData.append('auto_save', 'true');
+          
+          fetch(form.action, {
+            method: 'POST',
+            body: formData,
+            headers: {
+              'X-Requested-With': 'XMLHttpRequest'
+            }
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              hasUnsavedChanges = false;
+              showSaveIndicator('Changes saved automatically');
+            }
+          })
+          .catch(error => {
+            console.error('Auto-save failed:', error);
+          });
+        }, 2000);
+      }
+
+      function showSaveIndicator(message) {
+        const indicator = document.createElement('div');
+        indicator.textContent = message;
+        indicator.style.cssText = `
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          background: var(--color-success);
+          color: white;
+          padding: 0.5rem 1rem;
+          border-radius: var(--radius-md);
+          z-index: 1000;
+          font-size: 0.9rem;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        `;
+        
+        document.body.appendChild(indicator);
+        
+        setTimeout(() => {
+          indicator.style.opacity = '0';
+          indicator.style.transition = 'opacity 0.3s';
+          setTimeout(() => indicator.remove(), 300);
+        }, 2000);
+      }
+
+      // Track changes for auto-save
+      document.addEventListener('DOMContentLoaded', function() {
+        const selects = document.querySelectorAll('select[name$="-target_attribute"]');
+        selects.forEach(select => {
+          select.addEventListener('change', function() {
+            hasUnsavedChanges = true;
+            triggerAutoSave();
+          });
+        });
+      });
+
+      // Universal settings functions
+      function handleUniversalChange(select) {
+        // Visual feedback that setting changed
+        select.style.borderColor = 'var(--color-primary)';
+        setTimeout(() => {
+          select.style.borderColor = '';
+        }, 1000);
+      }
+
+      function handleAutoPopulateToggle(checkbox) {
+        const settingsForm = checkbox.closest('.settings-form');
+        if (checkbox.checked) {
+          // Show confirmation dialog
+          if (confirm('Auto-populate will apply universal settings to all mapping rules. Continue?')) {
+            // Apply immediately if enabled
+            settingsForm.submit();
+          } else {
+            checkbox.checked = false;
+          }
+        }
+      }
+
+      function resetUniversalSettings() {
+        if (confirm('Reset all universal settings? This will clear all default mappings.')) {
+          const form = document.querySelector('.settings-form');
+          const selects = form.querySelectorAll('select');
+          selects.forEach(select => {
+            if (select.name !== 'universal_relation_type') {
+              select.value = '';
+            } else {
+              select.value = 'self'; // Reset to default relationship
+            }
+          });
+          
+          const checkbox = form.querySelector('input[type="checkbox"]');
+          checkbox.checked = false;
+          
+          form.submit();
+        }
+      }
+
+      // Apply universal settings to individual mappings
+      function applyUniversalToMapping(mappingIndex) {
+        const universalPatientId = document.querySelector('select[name="universal_patient_id"]').value;
+        const universalDateTime = document.querySelector('select[name="universal_datetime"]').value;
+        
+        if (universalPatientId) {
+          const patientIdSelect = document.querySelector(`select[name="form-${mappingIndex}-target_attribute"][data-type="patient_id"]`);
+          if (patientIdSelect) {
+            patientIdSelect.value = universalPatientId;
+            triggerAutoSave();
+          }
+        }
+        
+        if (universalDateTime) {
+          const dateTimeSelect = document.querySelector(`select[name="form-${mappingIndex}-target_attribute"][data-type="datetime"]`);
+          if (dateTimeSelect) {
+            dateTimeSelect.value = universalDateTime;
+            triggerAutoSave();
+          }
+        }
+      }
+
+      // Warn before leaving with unsaved changes
+      window.addEventListener('beforeunload', function(e) {
+        if (hasUnsavedChanges) {
+          e.preventDefault();
+          e.returnValue = '';
+        }
+      });
+    </script>
+{% endblock css %}
+
+{% block content %}
+  <div class="hero-section">
+    <div class="container">
+      <div class="hero-header">
+        <div>
+          <h1 class="hero-title">Health Data Mapping</h1>
+          <p class="hero-subtitle">Map source variables to target schema for data harmonisation</p>
+          
+          <div class="study-info">
+            <div class="study-name">{{ source_study.name }} → {{ target_study.name }}</div>
+            <div class="study-detail">Health Data Harmonisation Workflow</div>
+          </div>
+        </div>
+        <div class="hero-actions">
+          <a href="{% url 'health:harmonization_dashboard' schema.id %}" class="btn-hero btn-primary">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+              <polyline points="9,22 9,12 15,12 15,22"/>
+            </svg>
+            Dashboard View
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="main-content">
+    <div class="mapping-card">
+      <div class="mapping-header">
+        <h2 class="mapping-title">Configure Variable Mappings</h2>
+        <p class="mapping-subtitle">
+          Define how each source variable maps to the target schema, including roles and transformations.
+        </p>
+      </div>
+
+      <!-- Progress Display -->
+      <div style="padding: .75rem 0 .25rem;">
+        {% include 'health/_mapping_progress.html' %}
+      </div>
+
+      {% if formset.forms %}
+        <div class="mapping-summary">
+          <div class="summary-count">{{ formset.forms|length }}</div>
+          <div class="summary-text">Source Variables to Map</div>
+        </div>
+      {% endif %}
+
+      <!-- Universal Settings Panel -->
+      <div class="universal-settings-panel">
+        <div class="settings-header">
+          <h3 class="settings-title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M12 1v6m0 6v6"/>
+              <path d="M21 12h-6m-6 0H3"/>
+            </svg>
+            Universal Settings
+          </h3>
+          <p class="settings-subtitle">Set default mappings that will be applied to all variables</p>
+        </div>
+        
+        <form method="post" action="{% url 'health:update_universal_settings' schema.id %}" class="settings-form">
+          {% csrf_token %}
+          
+          <div class="settings-grid">
+            <div class="setting-group">
+              <label class="setting-label">Universal Patient ID</label>
+              <select name="universal_patient_id" class="form-select" onchange="handleUniversalChange(this)">
+                <option value="">Select patient ID field...</option>
+                {% for attr in source_attrs %}
+                  <option value="{{ attr.id }}" {% if schema.universal_patient_id_id == attr.id %}selected{% endif %}>
+                    {{ attr.variable_name }}
+                  </option>
+                {% endfor %}
+              </select>
+              <div class="setting-hint">This field will be automatically mapped as patient_id for all rows</div>
+            </div>
+
+            <div class="setting-group">
+              <label class="setting-label">Universal DateTime</label>
+              <select name="universal_datetime" class="form-select" onchange="handleUniversalChange(this)">
+                <option value="">Select datetime field...</option>
+                {% for attr in source_attrs %}
+                  <option value="{{ attr.id }}" {% if schema.universal_datetime_id == attr.id %}selected{% endif %}>
+                    {{ attr.variable_name }}
+                  </option>
+                {% endfor %}
+              </select>
+              <div class="setting-hint">This field will be automatically mapped as datetime for all rows</div>
+            </div>
+
+            <div class="setting-group">
+              <label class="setting-label">Default Relationship</label>
+              <select name="universal_relation_type" class="form-select" onchange="handleUniversalChange(this)">
+                {% for value, label in schema.RELATION_CHOICES %}
+                  <option value="{{ value }}" {% if schema.universal_relation_type == value %}selected{% endif %}>
+                    {{ label }}
+                  </option>
+                {% endfor %}
+              </select>
+              <div class="setting-hint">Default relationship type for related patient mappings</div>
+            </div>
+
+            <div class="setting-group setting-actions">
+              <div class="auto-populate-toggle">
+                <label class="toggle-label">
+                  <input type="checkbox" name="auto_populate_enabled" value="true" 
+                         {% if schema.auto_populate_enabled %}checked{% endif %}
+                         onchange="handleAutoPopulateToggle(this)">
+                  <span class="toggle-switch"></span>
+                  Auto-populate mappings
+                </label>
+                <div class="setting-hint">Automatically apply universal settings to all mapping rules</div>
+              </div>
+              
+              <div class="setting-buttons">
+                <button type="submit" class="btn-small btn-primary">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+                    <polyline points="17,21 17,13 7,13 7,21"/>
+                    <polyline points="7,3 7,8 15,8"/>
+                  </svg>
+                  Apply Settings
+                </button>
+                <button type="button" class="btn-small btn-outline" onclick="resetUniversalSettings()">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="1,4 1,10 7,10"/>
+                    <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+                  </svg>
+                  Reset
+                </button>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <!-- Error Messages Display -->
+      {% if formset.non_form_errors %}
+        <div class="alert alert-error">
+          <span class="error-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
+            </svg>
+          </span>
+          <span class="error-text">{{ formset.non_form_errors }}</span>
+        </div>
+      {% endif %}
+
+      <!-- Help Information -->
+      {% include 'health/_mapping_roles_help.html' %}
+
+      <form method="post" id="mapping-form">
+        {% csrf_token %}
+        {{ formset.management_form }}
+        
+        <!-- Mappings Grid -->
+        <div class="mappings-grid">
+          {% for form in formset %}
+            {% with source_attr=source_attrs.forloop.counter0 %}
+            <div class="mapping-item{% if form.errors %} has-error{% endif %}" data-form-index="{{ forloop.counter0 }}">
+              
+              <!-- Mapping Header -->
+              <div class="mapping-header-row">
+                <div class="mapping-number">{{ forloop.counter }}</div>
+                
+                <div class="mapping-direction">
+                  <div class="source-info">
+                    <div class="source-label">Source Variable</div>
+                    <div class="source-name">
+                      {{ source_attr.variable_name|default:"Unknown Variable" }}
+                    </div>
+                  </div>
+                  
+                  <div class="mapping-arrow">→</div>
+                  
+                  <div class="target-info">
+                    <div class="target-label">Target Variable</div>
+                    <div class="target-name">
+                      {% if form.target_attribute.value %}
+                        {% for option in form.target_attribute.field.queryset %}
+                          {% if option.id == form.target_attribute.value %}
+                            {{ option.variable_name }}
+                          {% endif %}
+                        {% endfor %}
+                      {% else %}
+                        <em>Select target...</em>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Mapping Configuration Fields -->
+              <div class="mapping-fields">
+                
+                <!-- Source Attribute (disabled) -->
+                <div class="field-group">
+                  <label class="field-label">Source Attribute</label>
+                  {{ form.source_attribute }}
+                  {% if form.source_attribute.errors %}
+                    <div class="field-error">
+                      <span class="error-icon">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <circle cx="12" cy="12" r="10"></circle>
+                          <line x1="12" y1="8" x2="12" y2="12"></line>
+                          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                        </svg>
+                      </span>
+                      {{ form.source_attribute.errors }}
+                    </div>
+                  {% endif %}
+                </div>
+
+                <!-- Target Attribute -->
+                <div class="field-group">
+                  <label class="field-label">Target Attribute</label>
+                  {{ form.target_attribute }}
+                  {% if form.target_attribute.errors %}
+                    <div class="field-error">
+                      <span class="error-icon">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <circle cx="12" cy="12" r="10"></circle>
+                          <line x1="12" y1="8" x2="12" y2="12"></line>
+                          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                        </svg>
+                      </span>
+                      {{ form.target_attribute.errors }}
+                    </div>
+                  {% endif %}
+                </div>
+
+                <!-- Role -->
+                <div class="field-group">
+                  <label class="field-label">Role</label>
+                  {{ form.role }}
+                  {% if form.role.errors %}
+                    <div class="field-error">
+                      <span class="error-icon">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <circle cx="12" cy="12" r="10"></circle>
+                          <line x1="12" y1="8" x2="12" y2="12"></line>
+                          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                        </svg>
+                      </span>
+                      {{ form.role.errors }}
+                    </div>
+                  {% endif %}
+                </div>
+
+                <!-- Relation Type (conditional) -->
+                <div class="field-group relation-field" data-relation-field>
+                  <label class="field-label">Relation Type</label>
+                  {{ form.related_relation_type }}
+                  {% if form.related_relation_type.errors %}
+                    <div class="field-error">
+                      <span class="error-icon">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <circle cx="12" cy="12" r="10"></circle>
+                          <line x1="12" y1="8" x2="12" y2="12"></line>
+                          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                        </svg>
+                      </span>
+                      {{ form.related_relation_type.errors }}
+                    </div>
+                  {% endif %}
+                </div>
+
+                <!-- Transform Code -->
+                <div class="field-group full-width">
+                  <label class="field-label">Transform Code</label>
+                  {{ form.transform_code }}
+                  <div class="transform-hint">Python lambda function (e.g., "lambda value: value * 2")</div>
+                  {% if form.transform_code.errors %}
+                    <div class="field-error">
+                      <span class="error-icon">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <circle cx="12" cy="12" r="10"></circle>
+                          <line x1="12" y1="8" x2="12" y2="12"></line>
+                          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                        </svg>
+                      </span>
+                      {{ form.transform_code.errors }}
+                    </div>
+                  {% endif %}
+                </div>
+
+                <!-- Comments -->
+                <div class="field-group full-width">
+                  <label class="field-label">Comments</label>
+                  {{ form.comments }}
+                  {% if form.comments.errors %}
+                    <div class="field-error">
+                      <span class="error-icon">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <circle cx="12" cy="12" r="10"></circle>
+                          <line x1="12" y1="8" x2="12" y2="12"></line>
+                          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                        </svg>
+                      </span>
+                      {{ form.comments.errors }}
+                    </div>
+                  {% endif %}
+                </div>
+
+              </div>
+            </div>
+            {% endwith %}
+          {% empty %}
+            <div class="empty-state">
+              <div class="empty-icon">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                  <path d="M2 17l10 5 10-5"/>
+                  <path d="M2 12l10 5 10-5"/>
+                </svg>
+              </div>
+              <div class="empty-title">No Source Variables to Map</div>
+              <div>Please go back and extract variables from your codebook.</div>
+            </div>
+          {% endfor %}
+        </div>
+
+        <div class="action-buttons">
+          <div>
+            <a href="{% url 'core:study_detail' source_study.id %}" class="btn btn-secondary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19 12H5"/>
+                <path d="M12 19l-7-7 7-7"/>
+              </svg>
+              Back to Study
+            </a>
+          </div>
+          <div style="display: flex; gap: 1rem;">
+            <button type="submit" class="btn btn-primary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+                <polyline points="17,21 17,13 7,13 7,21"/>
+                <polyline points="7,3 7,8 15,8"/>
+              </svg>
+              Save Mappings
+            </button>
+            {% if schema.rules.count %}
+              <a href="{% url 'health:approve_mapping' schema.id %}" class="btn btn-approve" onclick="return confirm('Approve this mapping? You can still edit later.');">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="20,6 9,17 4,12"/>
+                </svg>
+                Approve Mapping
+              </a>
+            {% endif %}
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Hide relation type select unless role == related_patient_id
+      function toggleRelationField(mappingItem) {
+        const roleSelect = mappingItem.querySelector('select[name$="-role"]');
+        const relationField = mappingItem.querySelector('[data-relation-field]');
+        const relationSelect = mappingItem.querySelector('select[name$="-related_relation_type"]');
+        
+        if (!roleSelect || !relationField || !relationSelect) return;
+        
+        const showRelation = roleSelect.value === 'related_patient_id';
+        
+        if (showRelation) {
+          relationField.classList.remove('hidden');
+          relationSelect.disabled = false;
+        } else {
+          relationField.classList.add('hidden');
+          relationSelect.disabled = true;
+        }
+      }
+
+      // Initialize all mapping items
+      document.querySelectorAll('.mapping-item').forEach(item => {
+        toggleRelationField(item);
+      });
+
+      // Listen for role changes
+      document.addEventListener('change', function(e) {
+        if (e.target.matches('select[name$="-role"]')) {
+          const mappingItem = e.target.closest('.mapping-item');
+          if (mappingItem) {
+            toggleRelationField(mappingItem);
+          }
+        }
+      });
+
+      // Update target name display when target attribute changes
+      document.addEventListener('change', function(e) {
+        if (e.target.matches('select[name$="-target_attribute"]')) {
+          const mappingItem = e.target.closest('.mapping-item');
+          const targetNameDisplay = mappingItem.querySelector('.target-name');
+          if (targetNameDisplay) {
+            const selectedOption = e.target.selectedOptions[0];
+            if (selectedOption && selectedOption.value) {
+              targetNameDisplay.textContent = selectedOption.textContent;
+            } else {
+              targetNameDisplay.innerHTML = '<em>Select target...</em>';
+            }
+          }
+        }
+      });
+    });
+  </script>
+{% endblock %}
