@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework.routers import SimpleRouter
 
@@ -10,4 +11,7 @@ router.register("users", UserViewSet)
 
 
 app_name = "api"
-urlpatterns = router.urls
+urlpatterns = router.urls + [
+    # Climate API endpoints
+    path("climate/", include("climate.api.urls", namespace="climate_api")),
+]
