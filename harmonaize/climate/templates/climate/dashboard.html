@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}Climate Data Dashboard{% endblock title %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Climate Data Dashboard</h1>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'home' %}">Home</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Climate</li>
+            </ol>
+        </nav>
+    </div>
+
+    <!-- Stats Cards Row -->
+    <div class="row mb-4">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-primary shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Active Sources</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ stats.active_sources }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-database fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Completed Requests</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ stats.completed_requests }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-check-circle fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-info shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Available Variables</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ stats.total_variables }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-thermometer-half fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-warning shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Pending Requests</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ stats.pending_requests }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-clock fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Studies Needing Climate -->
+        <div class="col-lg-6 mb-4">
+            <div class="card shadow">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">Studies Needing Climate Data</h6>
+                    <a href="{% url 'core:study_list' %}" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-eye fa-sm"></i> View All Studies
+                    </a>
+                </div>
+                <div class="card-body">
+                    {% if studies_needing_climate %}
+                        {% for study in studies_needing_climate %}
+                            <div class="d-flex align-items-center mb-3 pb-3 {% if not forloop.last %}border-bottom{% endif %}">
+                                <div class="flex-grow-1">
+                                    <div class="font-weight-bold text-dark">{{ study.name }}</div>
+                                    <div class="text-muted small">{{ study.description|truncatechars:60 }}</div>
+                                    <div class="text-muted small">
+                                        <i class="fas fa-calendar-alt"></i>
+                                        {% if study.study_period_start %}
+                                            {{ study.study_period_start }} to {{ study.study_period_end|default:"ongoing" }}
+                                        {% else %}
+                                            Period not specified
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="ml-3">
+                                    <a href="{% url 'climate:configure' study_id=study.pk %}" class="btn btn-sm btn-primary">
+                                        <i class="fas fa-cog"></i> Configure
+                                    </a>
+                                </div>
+                            </div>
+                        {% endfor %}
+                        {% if stats.studies_with_climate > 5 %}
+                            <div class="text-center mt-3">
+                                <small class="text-muted">Showing 5 of {{ stats.studies_with_climate }} studies</small>
+                            </div>
+                        {% endif %}
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-info-circle fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">No studies currently need climate data linkage.</p>
+                            <a href="{% url 'core:study_list' %}" class="btn btn-outline-primary">
+                                <i class="fas fa-plus"></i> Create Study
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Climate Requests -->
+        <div class="col-lg-6 mb-4">
+            <div class="card shadow">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">Recent Climate Requests</h6>
+                    <a href="{% url 'climate:request_list' %}" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-list"></i> View All Requests
+                    </a>
+                </div>
+                <div class="card-body">
+                    {% if recent_requests %}
+                        {% for request in recent_requests %}
+                            <div class="d-flex align-items-center mb-3 pb-3 {% if not forloop.last %}border-bottom{% endif %}">
+                                <div class="flex-grow-1">
+                                    <div class="font-weight-bold text-dark">{{ request.study.name }}</div>
+                                    <div class="text-muted small">
+                                        {{ request.data_source.name }} • 
+                                        {{ request.variables.count }} variable{{ request.variables.count|pluralize }} •
+                                        {{ request.locations.count }} location{{ request.locations.count|pluralize }}
+                                    </div>
+                                    <div class="text-muted small">
+                                        <i class="fas fa-calendar"></i> {{ request.requested_at|date:"M d, Y" }}
+                                    </div>
+                                </div>
+                                <div class="ml-3">
+                                    {% if request.status == 'pending' %}
+                                        <span class="badge badge-warning">Pending</span>
+                                    {% elif request.status == 'processing' %}
+                                        <span class="badge badge-info">Processing</span>
+                                    {% elif request.status == 'completed' %}
+                                        <span class="badge badge-success">Completed</span>
+                                    {% elif request.status == 'failed' %}
+                                        <span class="badge badge-danger">Failed</span>
+                                    {% else %}
+                                        <span class="badge badge-secondary">{{ request.get_status_display }}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-cloud fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">No climate data requests yet.</p>
+                            <p class="small text-muted">Configure climate data for your studies to get started.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Available Data Sources -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Available Climate Data Sources</h6>
+                </div>
+                <div class="card-body">
+                    {% if available_sources %}
+                        <div class="row">
+                            {% for source in available_sources %}
+                                <div class="col-md-4 mb-3">
+                                    <div class="card border h-100">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                                <h6 class="card-title mb-0">{{ source.name }}</h6>
+                                                <span class="badge badge-{{ source.source_type|default:"secondary" }}">
+                                                    {{ source.get_source_type_display }}
+                                                </span>
+                                            </div>
+                                            <p class="card-text small text-muted">{{ source.description|truncatechars:100 }}</p>
+                                            <div class="small text-muted">
+                                                {% if source.global_coverage %}
+                                                    <i class="fas fa-globe text-success"></i> Global Coverage
+                                                {% endif %}
+                                                {% if source.spatial_resolution_m %}
+                                                    <br><i class="fas fa-map"></i> {{ source.spatial_resolution_m }}m resolution
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                        {% if stats.active_sources > 3 %}
+                            <div class="text-center mt-3">
+                                <a href="{% url 'admin:climate_climatedatasource_changelist' %}" class="btn btn-outline-primary">
+                                    <i class="fas fa-cogs"></i> View All Sources in Admin
+                                </a>
+                            </div>
+                        {% endif %}
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-exclamation-triangle fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">No active climate data sources configured.</p>
+                            <a href="{% url 'admin:climate_climatedatasource_add' %}" class="btn btn-outline-primary">
+                                <i class="fas fa-plus"></i> Add Data Source
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}

@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block title %}Climate Data Preview - {{ climate_request.study.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <div class="row">
+    <div class="col-md-12">
+      <!-- Header -->
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+              <li class="breadcrumb-item"><a href="{% url 'core:project_list' %}">Projects</a></li>
+              <li class="breadcrumb-item"><a href="{% url 'climate:request_detail' climate_request.id %}">Climate Request #{{ climate_request.id }}</a></li>
+              <li class="breadcrumb-item active">Data Preview</li>
+            </ol>
+          </nav>
+        </div>
+      </div>
+
+      <!-- Statistics Overview -->
+      <div class="card shadow mb-4">
+        <div class="card-header">
+          <h4 class="mb-0">Climate Data Statistics</h4>
+        </div>
+        <div class="card-body">
+          {% if statistics %}
+          <div class="row">
+            {% for variable_name, stats in statistics.items %}
+            <div class="col-md-4 mb-3">
+              <div class="card">
+                <div class="card-body">
+                  <h6 class="card-title">{{ variable_name }}</h6>
+                  <ul class="list-unstyled mb-0">
+                    <li><small class="text-muted">Count:</small> {{ stats.count|default:"0" }}</li>
+                    <li><small class="text-muted">Average:</small> {{ stats.avg_value|floatformat:2|default:"N/A" }}</li>
+                    <li><small class="text-muted">Min:</small> {{ stats.min_value|floatformat:2|default:"N/A" }}</li>
+                    <li><small class="text-muted">Max:</small> {{ stats.max_value|floatformat:2|default:"N/A" }}</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <p class="text-muted">No statistics available yet. Process the climate request to generate data.</p>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Sample Data Table -->
+      <div class="card shadow mb-4">
+        <div class="card-header">
+          <h4 class="mb-0">Sample Climate Observations</h4>
+        </div>
+        <div class="card-body">
+          {% if sample_observations %}
+          <div class="table-responsive">
+            <table class="table table-striped table-hover">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Location</th>
+                  <th>Coordinates</th>
+                  <th>Variable</th>
+                  <th>Value</th>
+                  <th>Unit</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for obs in sample_observations %}
+                <tr>
+                  <td>{{ obs.time.timestamp|date:"Y-m-d" }}</td>
+                  <td>{{ obs.location.name|default:"Location" }}</td>
+                  <td>
+                    <small class="text-muted">
+                      {{ obs.location.latitude|floatformat:4 }}, {{ obs.location.longitude|floatformat:4 }}
+                    </small>
+                  </td>
+                  <td>{{ obs.attribute.display_name }}</td>
+                  <td>{{ obs.float_value|floatformat:2 }}</td>
+                  <td>{{ obs.attribute.unit }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          
+          {% if sample_observations|length >= 100 %}
+          <div class="alert alert-info mt-3">
+            <small>Showing first 100 observations. Download the full dataset to see all data.</small>
+          </div>
+          {% endif %}
+          {% else %}
+          <p class="text-muted">No observations available. Please process the climate request first.</p>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="card shadow">
+        <div class="card-body">
+          <div class="d-flex justify-content-between">
+            <a href="{% url 'climate:request_detail' climate_request.id %}" class="btn btn-secondary">
+              Back to Request
+            </a>
+            <div>
+              {% if climate_request.status == 'completed' %}
+              <a href="{% url 'climate:data_export' climate_request.id %}" class="btn btn-success">
+                Download Full Dataset (CSV)
+              </a>
+              {% endif %}
+              {% if can_process %}
+              <a href="{% url 'climate:integration' climate_request.id %}" class="btn btn-primary">
+                Process Climate Data
+              </a>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

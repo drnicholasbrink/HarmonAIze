@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+
+{% block title %}Climate Data Request - {{ climate_request.study.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <div class="row">
+    <div class="col-md-12">
+      <!-- Header -->
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+              <li class="breadcrumb-item"><a href="{% url 'core:project_list' %}">Projects</a></li>
+              <li class="breadcrumb-item"><a href="{% url 'core:project_detail' climate_request.study.project.pk %}">{{ climate_request.study.project.name }}</a></li>
+              <li class="breadcrumb-item"><a href="{% url 'core:study_detail' climate_request.study.pk %}">{{ climate_request.study.name }}</a></li>
+              <li class="breadcrumb-item active">Climate Data Request #{{ climate_request.id }}</li>
+            </ol>
+          </nav>
+        </div>
+      </div>
+
+      <!-- Status Card -->
+      <div class="card shadow mb-4">
+        <div class="card-header">
+          <h4 class="mb-0">Request Status</h4>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-3">
+              <h6 class="text-muted">Status</h6>
+              <span class="badge 
+                {% if climate_request.status == 'completed' %}bg-success
+                {% elif climate_request.status == 'processing' %}bg-warning
+                {% elif climate_request.status == 'failed' %}bg-danger
+                {% else %}bg-secondary{% endif %} fs-6">
+                {{ climate_request.get_status_display }}
+              </span>
+            </div>
+            <div class="col-md-3">
+              <h6 class="text-muted">Progress</h6>
+              <div class="progress" style="height: 25px;">
+                <div class="progress-bar" role="progressbar" 
+                     style="width: {{ climate_request.progress_percentage }}%"
+                     aria-valuenow="{{ climate_request.progress_percentage }}" 
+                     aria-valuemin="0" aria-valuemax="100">
+                  {{ climate_request.progress_percentage }}%
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <h6 class="text-muted">Locations Processed</h6>
+              <p class="mb-0">{{ climate_request.processed_locations }} / {{ climate_request.total_locations }}</p>
+            </div>
+            <div class="col-md-3">
+              <h6 class="text-muted">Observations Created</h6>
+              <p class="mb-0">{{ climate_request.total_observations|default:"0" }}</p>
+            </div>
+          </div>
+
+          {% if climate_request.error_message %}
+          <div class="alert alert-danger mt-3">
+            <strong>Error:</strong> {{ climate_request.error_message }}
+          </div>
+          {% endif %}
+
+          {% if climate_request.duration %}
+          <div class="mt-3">
+            <small class="text-muted">Processing time: {{ climate_request.duration }}</small>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Configuration Details -->
+      <div class="card shadow mb-4">
+        <div class="card-header">
+          <h4 class="mb-0">Configuration Details</h4>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6">
+              <h6 class="text-muted">Data Source</h6>
+              <p>{{ climate_request.data_source.name }} ({{ climate_request.data_source.get_source_type_display }})</p>
+              
+              <h6 class="text-muted mt-3">Date Range</h6>
+              <p>{{ climate_request.start_date }} to {{ climate_request.end_date }}</p>
+              
+              <h6 class="text-muted mt-3">Temporal Aggregation</h6>
+              <p>{{ climate_request.get_temporal_aggregation_display }}</p>
+              
+              {% if climate_request.spatial_buffer_km > 0 %}
+              <h6 class="text-muted mt-3">Spatial Buffer</h6>
+              <p>{{ climate_request.spatial_buffer_km }} km</p>
+              {% endif %}
+            </div>
+            <div class="col-md-6">
+              <h6 class="text-muted">Climate Variables ({{ climate_request.variables.count }})</h6>
+              <ul class="list-unstyled">
+                {% for variable in climate_request.variables.all %}
+                <li>
+                  <span class="badge bg-info text-dark">{{ variable.category|title }}</span>
+                  {{ variable.display_name }} ({{ variable.unit_symbol }})
+                </li>
+                {% endfor %}
+              </ul>
+              
+              <h6 class="text-muted mt-3">Requested By</h6>
+              <p>{{ climate_request.requested_by.get_full_name|default:climate_request.requested_by.username }}</p>
+              
+              <h6 class="text-muted mt-3">Requested At</h6>
+              <p>{{ climate_request.requested_at|date:"Y-m-d H:i" }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Data Summary -->
+      {% if observation_count > 0 %}
+      <div class="card shadow mb-4">
+        <div class="card-header">
+          <h4 class="mb-0">Data Summary</h4>
+        </div>
+        <div class="card-body">
+          <p>Successfully retrieved <strong>{{ observation_count }}</strong> climate observations for this study.</p>
+          
+          <div class="mt-3">
+            <a href="{% url 'climate:data_export' climate_request.id %}" class="btn btn-success">
+              Download Climate Data (CSV)
+            </a>
+            <a href="{% url 'climate:data_preview' climate_request.id %}" class="btn btn-info">
+              Preview Data
+            </a>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Actions -->
+      <div class="card shadow">
+        <div class="card-header">
+          <h4 class="mb-0">Actions</h4>
+        </div>
+        <div class="card-body">
+          <div class="d-flex justify-content-between">
+            <a href="{% url 'core:study_detail' climate_request.study.pk %}" class="btn btn-secondary">
+              Back to Study
+            </a>
+            <div>
+              {% if climate_request.status == 'pending' %}
+              <a href="{% url 'climate:integration' climate_request.id %}" class="btn btn-primary">
+                Process Climate Data
+              </a>
+              {% elif climate_request.status == 'processing' %}
+              <button class="btn btn-warning" id="refresh-status">
+                Refresh Status
+              </button>
+              {% elif climate_request.status == 'completed' %}
+              <a href="{% url 'climate:configure' climate_request.study.id %}" class="btn btn-outline-primary">
+                Create New Request
+              </a>
+              {% elif climate_request.status == 'failed' %}
+              <a href="{% url 'climate:configure' climate_request.study.id %}" class="btn btn-danger">
+                Retry Configuration
+              </a>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if climate_request.status == 'processing' %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Auto-refresh status for processing requests
+  function checkStatus() {
+    fetch(`{% url 'climate:status_api' climate_request.id %}`)
+      .then(response => response.json())
+      .then(data => {
+        if (data.status !== 'processing') {
+          // Reload page when processing is complete
+          location.reload();
+        } else {
+          // Update progress
+          const progressBar = document.querySelector('.progress-bar');
+          if (progressBar) {
+            progressBar.style.width = data.progress + '%';
+            progressBar.textContent = data.progress + '%';
+            progressBar.setAttribute('aria-valuenow', data.progress);
+          }
+          // Check again in 5 seconds
+          setTimeout(checkStatus, 5000);
+        }
+      })
+      .catch(error => console.error('Error checking status:', error));
+  }
+  
+  // Start checking status
+  setTimeout(checkStatus, 5000);
+  
+  // Manual refresh button
+  const refreshBtn = document.getElementById('refresh-status');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', function() {
+      location.reload();
+    });
+  }
+});
+</script>
+{% endif %}
+{% endblock %}
