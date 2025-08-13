@@ -7,8 +7,11 @@ from . import views
 app_name = 'climate'
 
 urlpatterns = [
+    # Climate module landing page
+    path('', views.climate_landing_view, name='landing'),
+    
     # Climate dashboard
-    path('', views.climate_dashboard_view, name='dashboard'),
+    path('dashboard/', views.climate_dashboard_view, name='dashboard'),
     
     # Climate configuration
     path('configure/<int:study_id>/', views.climate_configuration_view, name='configure'),
@@ -19,6 +22,11 @@ urlpatterns = [
     path('request/<int:request_id>/preview/', views.climate_data_preview_view, name='data_preview'),
     path('request/<int:request_id>/integrate/', views.climate_integration_view, name='integration'),
     path('request/<int:request_id>/export/', views.climate_data_export_view, name='data_export'),
+    
+    # Demo and documentation
+    path('demo/', views.climate_demo_view, name='demo'),
+    path('api-docs/', views.climate_api_docs_view, name='api_docs'),
+    path('improvements/', views.climate_improvements_view, name='improvements'),
     
     # API endpoints
     path('api/variables/', views.climate_variables_api_view, name='variables_api'),

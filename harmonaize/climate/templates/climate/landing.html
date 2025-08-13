@@ -1,0 +1,704 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Climate Data Integration - HarmonAIze{% endblock title %}
+
+{% block css %}
+  {{ block.super }}
+  <style>
+    :root {
+      --primary-color: #007AFF;
+      --secondary-color: #5AC8FA;
+      --accent-color: #34C759;
+      --warning-color: #FF9500;
+      --background-color: #F2F2F7;
+      --card-background: #FFFFFF;
+      --text-primary: #1C1C1E;
+      --text-secondary: #8E8E93;
+      --border-color: #C6C6C8;
+      --shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+      --border-radius: 12px;
+    }
+
+    body {
+      background-color: var(--background-color);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--text-primary);
+      line-height: 1.5;
+    }
+
+    .climate-hero {
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      color: white;
+      padding: 4rem 0;
+      margin: -1rem -15px 0 -15px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .climate-hero::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.15'%3E%3Ccircle cx='30' cy='30' r='3'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") repeat;
+      opacity: 0.3;
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 1;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0 1rem;
+    }
+
+    .hero-title {
+      font-size: 3.5rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      letter-spacing: -0.02em;
+    }
+
+    .hero-subtitle {
+      font-size: 1.3rem;
+      font-weight: 400;
+      opacity: 0.9;
+      margin-bottom: 2rem;
+      max-width: 700px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn-hero {
+      padding: 1rem 2rem;
+      border-radius: 8px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.3s ease;
+      font-size: 1.1rem;
+    }
+
+    .btn-hero-primary {
+      background: white;
+      color: var(--primary-color);
+      border: 2px solid white;
+    }
+
+    .btn-hero-primary:hover {
+      background: rgba(255, 255, 255, 0.9);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+      color: var(--primary-color);
+      text-decoration: none;
+    }
+
+    .btn-hero-secondary {
+      background: transparent;
+      color: white;
+      border: 2px solid rgba(255, 255, 255, 0.5);
+    }
+
+    .btn-hero-secondary:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: white;
+      transform: translateY(-2px);
+      color: white;
+      text-decoration: none;
+    }
+
+    .content-wrapper {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 1rem;
+    }
+
+    .section {
+      margin: 4rem 0;
+    }
+
+    .section-title {
+      font-size: 2.5rem;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 1rem;
+      color: var(--text-primary);
+      letter-spacing: -0.02em;
+    }
+
+    .section-subtitle {
+      font-size: 1.2rem;
+      text-align: center;
+      color: var(--text-secondary);
+      margin-bottom: 3rem;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 2rem;
+      margin: 3rem 0;
+    }
+
+    .feature-card {
+      background: var(--card-background);
+      border-radius: var(--border-radius);
+      padding: 2.5rem;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border-color);
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+    }
+
+    .feature-card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+    }
+
+    .feature-icon {
+      width: 80px;
+      height: 80px;
+      background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1.5rem;
+      color: white;
+      font-size: 2rem;
+    }
+
+    .feature-title {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      color: var(--text-primary);
+    }
+
+    .feature-description {
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    .stats-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 2rem;
+      margin: 3rem 0;
+    }
+
+    .stat-card {
+      background: var(--card-background);
+      border-radius: var(--border-radius);
+      padding: 2rem;
+      text-align: center;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border-color);
+      transition: all 0.3s ease;
+    }
+
+    .stat-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    }
+
+    .stat-number {
+      font-size: 3rem;
+      font-weight: 700;
+      color: var(--primary-color);
+      display: block;
+      margin-bottom: 0.5rem;
+    }
+
+    .stat-label {
+      color: var(--text-secondary);
+      font-size: 1rem;
+      font-weight: 500;
+    }
+
+    .workflow-container {
+      background: var(--card-background);
+      border-radius: var(--border-radius);
+      padding: 3rem 2rem;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border-color);
+      margin: 3rem 0;
+    }
+
+    .workflow-steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 2rem;
+      margin: 2rem 0;
+    }
+
+    .workflow-step {
+      text-align: center;
+      padding: 2rem;
+      background: var(--background-color);
+      border-radius: var(--border-radius);
+      transition: all 0.3s ease;
+    }
+
+    .workflow-step:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+    }
+
+    .step-number {
+      width: 60px;
+      height: 60px;
+      background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 1rem;
+      color: white;
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+
+    .step-title {
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: var(--text-primary);
+    }
+
+    .step-description {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .demo-section {
+      background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+      border-radius: var(--border-radius);
+      padding: 3rem 2rem;
+      margin: 3rem 0;
+      text-align: center;
+    }
+
+    .btn-demo {
+      background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+      color: white;
+      padding: 1rem 2rem;
+      border-radius: 8px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.3s ease;
+      display: inline-block;
+      margin: 1rem 0.5rem;
+      box-shadow: 0 4px 15px rgba(0, 122, 255, 0.3);
+    }
+
+    .btn-demo:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 122, 255, 0.4);
+      color: white;
+      text-decoration: none;
+    }
+
+    .data-sources-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+      margin: 2rem 0;
+    }
+
+    .data-source-card {
+      background: var(--card-background);
+      border: 1px solid var(--border-color);
+      border-radius: var(--border-radius);
+      padding: 1.5rem;
+      transition: all 0.3s ease;
+    }
+
+    .data-source-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+      border-color: var(--primary-color);
+    }
+
+    .source-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+      margin-bottom: 1rem;
+    }
+
+    .source-title {
+      font-weight: 600;
+      color: var(--text-primary);
+      margin: 0;
+    }
+
+    .source-badge {
+      background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+      color: white;
+      padding: 0.25rem 0.75rem;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .breadcrumb {
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 8px;
+      padding: 0.5rem 1rem;
+      margin: 1rem 0;
+    }
+
+    .breadcrumb-item a {
+      color: var(--primary-color);
+      text-decoration: none;
+    }
+
+    .breadcrumb-item.active {
+      color: var(--text-secondary);
+    }
+
+    @media (max-width: 768px) {
+      .hero-title {
+        font-size: 2.5rem;
+      }
+      
+      .hero-subtitle {
+        font-size: 1.1rem;
+      }
+      
+      .section-title {
+        font-size: 2rem;
+      }
+      
+      .hero-actions {
+        flex-direction: column;
+        align-items: center;
+      }
+      
+      .btn-hero {
+        width: 100%;
+        max-width: 300px;
+      }
+    }
+  </style>
+{% endblock css %}
+
+{% block content %}
+<!-- Climate Hero Section -->
+<div class="climate-hero">
+  <div class="hero-content">
+    <h1 class="hero-title">Climate Data Integration</h1>
+    <p class="hero-subtitle">
+      Seamlessly integrate climate and environmental data with your health studies. 
+      Access curated climate datasets, automate data retrieval, and accelerate your climate-health research with our AI-powered platform.
+    </p>
+    <div class="hero-actions">
+      <a href="{% url 'climate:dashboard' %}" class="btn-hero btn-hero-primary">
+        Get Started with Climate Data
+      </a>
+      <a href="#documentation" class="btn-hero btn-hero-secondary">
+        View Documentation
+      </a>
+    </div>
+  </div>
+</div>
+
+<div class="content-wrapper">
+  <!-- Breadcrumb -->
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'home' %}">Home</a></li>
+      <li class="breadcrumb-item active" aria-current="page">Climate Module</li>
+    </ol>
+  </nav>
+
+  <!-- Platform Statistics -->
+  <div class="section">
+    <h2 class="section-title">Platform Overview</h2>
+    <p class="section-subtitle">Current climate data capabilities and resources available on HarmonAIze</p>
+    
+    <div class="stats-container">
+      <div class="stat-card">
+        <span class="stat-number">{{ stats.active_sources }}</span>
+        <div class="stat-label">Active Data Sources</div>
+      </div>
+      <div class="stat-card">
+        <span class="stat-number">{{ stats.total_variables }}</span>
+        <div class="stat-label">Climate Variables</div>
+      </div>
+      <div class="stat-card">
+        <span class="stat-number">{{ stats.user_requests }}</span>
+        <div class="stat-label">Your Requests</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Key Features -->
+  <div class="section">
+    <h2 class="section-title">Why Use Climate Data Integration?</h2>
+    <p class="section-subtitle">Discover the powerful capabilities that make climate-health research more accessible and efficient</p>
+    
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path>
+          </svg>
+        </div>
+        <h3 class="feature-title">Automated Data Retrieval</h3>
+        <p class="feature-description">
+          Automatically fetch climate data for your study locations and timeframes. No manual data collection required - our system handles spatial and temporal matching for you.
+        </p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="2" y1="12" x2="22" y2="12"></line>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+          </svg>
+        </div>
+        <h3 class="feature-title">Global Coverage</h3>
+        <p class="feature-description">
+          Access climate data from multiple international sources with global coverage. From temperature and precipitation to air quality and extreme weather events.
+        </p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14,2 14,8 20,8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+          </svg>
+        </div>
+        <h3 class="feature-title">Multiple Export Formats</h3>
+        <p class="feature-description">
+          Export your harmonised climate-health data in various formats including CSV, Excel, SPSS, and Stata. Compatible with popular statistical analysis software.
+        </p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M12 1v6m0 6v6"></path>
+            <path d="m15.5 4 3.5 3.5-3.5 3.5"></path>
+            <path d="M9 9 5.5 5.5 9 2"></path>
+          </svg>
+        </div>
+        <h3 class="feature-title">Real-time Processing</h3>
+        <p class="feature-description">
+          Monitor data retrieval progress in real-time with detailed status updates. Track processing across locations and variables with comprehensive logging.
+        </p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+          </svg>
+        </div>
+        <h3 class="feature-title">Quality Assurance</h3>
+        <p class="feature-description">
+          Built-in data quality checks and validation ensure reliable climate data integration. Automatic handling of missing values and outlier detection.
+        </p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="16 18 22 12 16 6"></polyline>
+            <polyline points="8 6 2 12 8 18"></polyline>
+          </svg>
+        </div>
+        <h3 class="feature-title">API Access</h3>
+        <p class="feature-description">
+          Programmatic access to climate data through RESTful APIs. Integrate climate data retrieval directly into your research workflows and analysis pipelines.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- How It Works -->
+  <div class="section">
+    <h2 class="section-title">How Climate Integration Works</h2>
+    <p class="section-subtitle">A simple four-step process to enrich your health data with environmental context</p>
+    
+    <div class="workflow-container">
+      <div class="workflow-steps">
+        <div class="workflow-step">
+          <div class="step-number">1</div>
+          <h3 class="step-title">Select Your Study</h3>
+          <p class="step-description">
+            Choose a study that has location and date information. Our system will identify the spatial and temporal scope for climate data retrieval.
+          </p>
+        </div>
+
+        <div class="workflow-step">
+          <div class="step-number">2</div>
+          <h3 class="step-title">Configure Variables</h3>
+          <p class="step-description">
+            Select relevant climate variables from our curated collection. Choose from temperature, precipitation, air quality, and many more environmental indicators.
+          </p>
+        </div>
+
+        <div class="workflow-step">
+          <div class="step-number">3</div>
+          <h3 class="step-title">Automated Retrieval</h3>
+          <p class="step-description">
+            Our system automatically fetches climate data for your study locations and timeframes, handling spatial interpolation and temporal alignment.
+          </p>
+        </div>
+
+        <div class="workflow-step">
+          <div class="step-number">4</div>
+          <h3 class="step-title">Export & Analyse</h3>
+          <p class="step-description">
+            Download your enriched dataset with seamlessly integrated climate variables. Ready for statistical analysis and research insights.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Available Data Sources -->
+  <div class="section">
+    <h2 class="section-title">Available Climate Data Sources</h2>
+    <p class="section-subtitle">Access to leading climate and environmental datasets from trusted international sources</p>
+    
+    {% if data_sources %}
+      <div class="data-sources-grid">
+        {% for source in data_sources %}
+          <div class="data-source-card">
+            <div class="source-header">
+              <h3 class="source-title">{{ source.name }}</h3>
+              <span class="source-badge">{{ source.get_source_type_display }}</span>
+            </div>
+            <p style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.5;">
+              {{ source.description|truncatechars:150 }}
+            </p>
+            <div style="display: flex; gap: 1rem; margin-top: 1rem; font-size: 0.8rem; color: var(--text-secondary);">
+              {% if source.global_coverage %}
+                <span style="display: flex; align-items: center; gap: 0.25rem;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="2" y1="12" x2="22" y2="12"></line>
+                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                  </svg>
+                  Global
+                </span>
+              {% endif %}
+              {% if source.spatial_resolution_m %}
+                <span>{{ source.spatial_resolution_m }}m resolution</span>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+        <p>No climate data sources are currently configured. Contact your administrator to set up climate data access.</p>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Interactive Demo Section -->
+  <div class="demo-section" id="demo">
+    <h2 style="font-size: 2rem; font-weight: 700; margin-bottom: 1rem; color: var(--text-primary);">
+      Try Climate Integration
+    </h2>
+    <p style="color: var(--text-secondary); margin-bottom: 2rem; max-width: 600px; margin-left: auto; margin-right: auto;">
+      Experience climate data integration with sample data or start with your own studies. See how easy it is to enrich health data with environmental context.
+    </p>
+    
+    <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+      <a href="{% url 'climate:dashboard' %}" class="btn-demo">
+        Start with Your Studies
+      </a>
+      <a href="{% url 'climate:demo' %}" class="btn-demo" style="background: linear-gradient(135deg, var(--accent-color), #30D158);">
+        Interactive Demo
+      </a>
+    </div>
+  </div>
+
+  <!-- Documentation Section -->
+  <div class="section" id="documentation">
+    <h2 class="section-title">Documentation & Resources</h2>
+    <p class="section-subtitle">Comprehensive guides and resources to help you make the most of climate data integration</p>
+    
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+          </svg>
+        </div>
+        <h3 class="feature-title">User Guide</h3>
+        <p class="feature-description">
+          Step-by-step instructions for integrating climate data with your health studies. Covers everything from basic setup to advanced configuration options.
+        </p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="16 18 22 12 16 6"></polyline>
+            <polyline points="8 6 2 12 8 18"></polyline>
+          </svg>
+        </div>
+        <h3 class="feature-title">API Documentation</h3>
+        <p class="feature-description">
+          Complete API reference for programmatic access to climate data. Includes authentication, endpoints, and code examples in multiple programming languages.
+        </p>
+        <a href="{% url 'climate:api_docs' %}" style="color: var(--primary-color); text-decoration: none; font-weight: 600; margin-top: 1rem; display: inline-block;">
+          View API Documentation →
+        </a>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+        </div>
+        <h3 class="feature-title">FAQ & Troubleshooting</h3>
+        <p class="feature-description">
+          Common questions and solutions for climate data integration. Troubleshooting guides for data quality issues and processing errors.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock content %}

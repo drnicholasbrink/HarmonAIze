@@ -26,6 +26,37 @@ from .services import ClimateDataProcessor, SpatioTemporalMatcher
 
 
 @login_required
+def climate_landing_view(request):
+    """
+    Climate module landing page with overview and documentation.
+    """
+    # Get some basic stats for the landing page
+    stats = {
+        'active_sources': ClimateDataSource.objects.filter(is_active=True).count(),
+        'total_variables': ClimateVariable.objects.count(),
+        'user_requests': ClimateDataRequest.objects.filter(
+            study__created_by=request.user
+        ).count(),
+    }
+    
+    # Get available data sources
+    data_sources = ClimateDataSource.objects.filter(is_active=True)[:6]
+    
+    # Get variable categories
+    variable_categories = ClimateVariable.objects.values('category').annotate(
+        count=Count('id')
+    ).order_by('category')
+    
+    context = {
+        'stats': stats,
+        'data_sources': data_sources,
+        'variable_categories': variable_categories,
+    }
+    
+    return render(request, 'climate/landing.html', context)
+
+
+@login_required
 def climate_dashboard_view(request):
     """
     Main climate module dashboard.
@@ -364,6 +395,136 @@ def climate_variables_api_view(request):
         })
     except ClimateDataSource.DoesNotExist:
         return JsonResponse({'error': 'Data source not found'}, status=404)
+
+
+@login_required
+def climate_demo_view(request):
+    """
+    Interactive demo page for climate data integration.
+    """
+    # Sample data for demonstration - using African clinical study locations
+    sample_data = {
+        'study_locations': [
+            {'name': 'Maputo Central Hospital, Mozambique', 'lat': -25.9653, 'lon': 32.5892, 'clinic_type': 'Central Hospital'},
+            {'name': 'Chris Hani Baragwanath Hospital, South Africa', 'lat': -26.2708, 'lon': 27.9147, 'clinic_type': 'Academic Hospital'},
+            {'name': 'Kenyatta National Hospital, Kenya', 'lat': -1.3018, 'lon': 36.8081, 'clinic_type': 'National Referral Hospital'},
+            {'name': 'Manhiça Health Research Centre, Mozambique', 'lat': -25.4069, 'lon': 32.8073, 'clinic_type': 'Research Centre'},
+            {'name': 'Kilifi County Hospital, Kenya', 'lat': -3.5053, 'lon': 39.8502, 'clinic_type': 'County Hospital'},
+        ],
+        'climate_variables': [
+            {'name': 'temperature_mean', 'display_name': 'Mean Temperature', 'unit': '°C'},
+            {'name': 'precipitation_total', 'display_name': 'Total Precipitation', 'unit': 'mm'},
+            {'name': 'humidity_relative', 'display_name': 'Relative Humidity', 'unit': '%'},
+            {'name': 'temperature_max', 'display_name': 'Maximum Temperature', 'unit': '°C'},
+            {'name': 'wind_speed', 'display_name': 'Wind Speed', 'unit': 'm/s'},
+        ],
+        'sample_results': [
+            {'location': 'Maputo Central Hospital, Mozambique', 'date': '2023-01-15', 'temperature': 26.8, 'precipitation': 84.2, 'humidity': 76, 'temp_max': 31.2, 'wind_speed': 3.1},
+            {'location': 'Chris Hani Baragwanath Hospital, South Africa', 'date': '2023-01-15', 'temperature': 22.4, 'precipitation': 45.7, 'humidity': 68, 'temp_max': 28.9, 'wind_speed': 2.8},
+            {'location': 'Kenyatta National Hospital, Kenya', 'date': '2023-01-15', 'temperature': 18.6, 'precipitation': 12.3, 'humidity': 61, 'temp_max': 24.7, 'wind_speed': 1.9},
+            {'location': 'Manhiça Health Research Centre, Mozambique', 'date': '2023-01-15', 'temperature': 27.1, 'precipitation': 88.5, 'humidity': 78, 'temp_max': 32.0, 'wind_speed': 2.9},
+            {'location': 'Kilifi County Hospital, Kenya', 'date': '2023-01-15', 'temperature': 25.9, 'precipitation': 18.6, 'humidity': 73, 'temp_max': 29.4, 'wind_speed': 4.2},
+        ]
+    }
+    
+    context = {
+        'sample_data': sample_data,
+        'available_sources': ClimateDataSource.objects.filter(is_active=True)[:3],
+        'variable_categories': ClimateVariable.objects.values('category').annotate(
+            count=Count('id')
+        ).order_by('category'),
+    }
+    
+    return render(request, 'climate/demo.html', context)
+
+
+@login_required
+def climate_api_docs_view(request):
+    """
+    API documentation page for climate endpoints.
+    """
+    # Sample API endpoints and their documentation
+    api_endpoints = [
+        {
+            'method': 'GET',
+            'endpoint': '/climate/api/variables/',
+            'description': 'List available climate variables for a data source',
+            'parameters': [
+                {'name': 'source_id', 'type': 'integer', 'required': True, 'description': 'ID of the climate data source'}
+            ],
+            'response_example': {
+                'source': 'ERA5 Reanalysis',
+                'variables': [
+                    {'id': 1, 'name': 'temperature_2m', 'display_name': 'Temperature at 2m', 'category': 'temperature', 'unit_symbol': '°C'}
+                ]
+            }
+        },
+        {
+            'method': 'GET',
+            'endpoint': '/climate/api/request/{request_id}/status/',
+            'description': 'Check the processing status of a climate data request',
+            'parameters': [
+                {'name': 'request_id', 'type': 'integer', 'required': True, 'description': 'ID of the climate data request'}
+            ],
+            'response_example': {
+                'status': 'processing',
+                'progress': 75,
+                'processed_locations': 15,
+                'total_locations': 20,
+                'total_observations': 1250
+            }
+        }
+    ]
+    
+    context = {
+        'api_endpoints': api_endpoints,
+        'base_url': request.build_absolute_uri('/').rstrip('/'),
+    }
+    
+    return render(request, 'climate/api_docs.html', context)
+
+
+@login_required  
+def climate_improvements_view(request):
+    """
+    Summary page documenting climate module improvements.
+    """
+    improvements = {
+        'ui_enhancements': [
+            'Modernized climate dashboard with Cupertino design system',
+            'Added visual workflow indicators showing 4-step climate integration process',
+            'Implemented real-time progress tracking with animated progress bars',
+            'Enhanced status monitoring with live updates and pulse indicators',
+            'Improved responsive design for mobile and tablet devices'
+        ],
+        'new_features': [
+            'Created comprehensive climate module landing page',
+            'Built interactive demo showcasing climate data integration workflow',
+            'Added API documentation with interactive testing interface',
+            'Implemented code examples in Python, JavaScript, R, and cURL',
+            'Created step-by-step guided demo with sample data'
+        ],
+        'documentation': [
+            'Added comprehensive API reference with live examples',
+            'Created user guides for climate data integration',
+            'Built FAQ section for common climate module questions',
+            'Added tooltips and contextual help throughout interface',
+            'Implemented breadcrumb navigation for better orientation'
+        ],
+        'integration': [
+            'Added climate module link to main dashboard quick actions',
+            'Improved navigation between climate module pages',
+            'Enhanced status tracking with real-time updates',
+            'Better error handling and user feedback',
+            'Consistent design integration with main application'
+        ]
+    }
+    
+    context = {
+        'improvements': improvements,
+    }
+    
+    return render(request, 'climate/improvements.html', context)
 
 
 @login_required

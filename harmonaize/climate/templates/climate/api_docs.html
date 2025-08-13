@@ -1,0 +1,853 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Climate API Documentation - HarmonAIze{% endblock title %}
+
+{% block css %}
+  {{ block.super }}
+  <style>
+    :root {
+      --primary-color: #007AFF;
+      --secondary-color: #5AC8FA;
+      --accent-color: #34C759;
+      --warning-color: #FF9500;
+      --background-color: #F2F2F7;
+      --card-background: #FFFFFF;
+      --text-primary: #1C1C1E;
+      --text-secondary: #8E8E93;
+      --border-color: #C6C6C8;
+      --shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+      --border-radius: 12px;
+    }
+
+    body {
+      background-color: var(--background-color);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--text-primary);
+      line-height: 1.5;
+    }
+
+    .api-hero {
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      color: white;
+      padding: 3rem 0;
+      margin: -1rem -15px 0 -15px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 1;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 0 1rem;
+    }
+
+    .hero-title {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      letter-spacing: -0.02em;
+    }
+
+    .hero-subtitle {
+      font-size: 1.1rem;
+      font-weight: 400;
+      opacity: 0.9;
+      margin-bottom: 0;
+    }
+
+    .content-wrapper {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 1rem;
+    }
+
+    .api-section {
+      background: var(--card-background);
+      border-radius: var(--border-radius);
+      padding: 2rem;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border-color);
+      margin: 2rem 0;
+    }
+
+    .section-title {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+      color: var(--text-primary);
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid var(--primary-color);
+    }
+
+    .endpoint-card {
+      background: var(--background-color);
+      border: 1px solid var(--border-color);
+      border-radius: var(--border-radius);
+      margin: 1.5rem 0;
+      overflow: hidden;
+    }
+
+    .endpoint-header {
+      background: white;
+      padding: 1.5rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .endpoint-method {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 0.8rem;
+      margin-right: 1rem;
+    }
+
+    .method-get {
+      background: rgba(52, 199, 89, 0.2);
+      color: #155724;
+    }
+
+    .method-post {
+      background: rgba(0, 122, 255, 0.2);
+      color: #0056b3;
+    }
+
+    .endpoint-url {
+      font-family: 'Monaco', 'Consolas', monospace;
+      font-size: 1.1rem;
+      color: var(--text-primary);
+      font-weight: 500;
+    }
+
+    .endpoint-description {
+      color: var(--text-secondary);
+      margin-top: 0.5rem;
+    }
+
+    .endpoint-body {
+      padding: 1.5rem;
+    }
+
+    .parameters-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+    }
+
+    .parameters-table th {
+      background: var(--background-color);
+      padding: 0.75rem;
+      text-align: left;
+      font-weight: 600;
+      color: var(--text-primary);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .parameters-table td {
+      padding: 0.75rem;
+      border-bottom: 1px solid var(--border-color);
+      vertical-align: top;
+    }
+
+    .param-name {
+      font-family: 'Monaco', 'Consolas', monospace;
+      color: var(--primary-color);
+      font-weight: 500;
+    }
+
+    .param-type {
+      background: rgba(0, 122, 255, 0.1);
+      color: var(--primary-color);
+      padding: 0.125rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+
+    .param-required {
+      background: rgba(255, 59, 48, 0.1);
+      color: #d32f2f;
+      padding: 0.125rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+
+    .param-optional {
+      background: rgba(142, 142, 147, 0.1);
+      color: var(--text-secondary);
+      padding: 0.125rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+
+    .code-block {
+      background: #f8f9fa;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin: 1rem 0;
+      font-family: 'Monaco', 'Consolas', monospace;
+      font-size: 0.9rem;
+      overflow-x: auto;
+    }
+
+    .code-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .code-title {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .copy-btn {
+      background: var(--primary-color);
+      color: white;
+      border: none;
+      padding: 0.25rem 0.75rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .copy-btn:hover {
+      background: var(--secondary-color);
+    }
+
+    .try-it-section {
+      background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+      border-radius: var(--border-radius);
+      padding: 2rem;
+      margin: 2rem 0;
+    }
+
+    .try-it-form {
+      display: grid;
+      gap: 1rem;
+      margin: 1rem 0;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .form-label {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .form-input {
+      padding: 0.75rem;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 1rem;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+    }
+
+    .test-btn {
+      background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+      color: white;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .test-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(0, 122, 255, 0.3);
+    }
+
+    .test-btn:disabled {
+      background: var(--border-color);
+      color: var(--text-secondary);
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .response-container {
+      background: #f8f9fa;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-top: 1rem;
+      display: none;
+    }
+
+    .breadcrumb {
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 8px;
+      padding: 0.5rem 1rem;
+      margin: 1rem 0;
+    }
+
+    .breadcrumb-item a {
+      color: var(--primary-color);
+      text-decoration: none;
+    }
+
+    .breadcrumb-item.active {
+      color: var(--text-secondary);
+    }
+
+    .nav-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 1rem;
+    }
+
+    .nav-tab {
+      padding: 0.75rem 1.5rem;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--text-secondary);
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+
+    .nav-tab.active {
+      color: var(--primary-color);
+      border-bottom: 2px solid var(--primary-color);
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    @media (max-width: 768px) {
+      .hero-title {
+        font-size: 2rem;
+      }
+      
+      .api-section {
+        padding: 1.5rem;
+      }
+      
+      .endpoint-header,
+      .endpoint-body {
+        padding: 1rem;
+      }
+    }
+  </style>
+{% endblock css %}
+
+{% block content %}
+<!-- API Hero Section -->
+<div class="api-hero">
+  <div class="hero-content">
+    <h1 class="hero-title">Climate API Documentation</h1>
+    <p class="hero-subtitle">
+      Comprehensive reference for integrating climate data programmatically into your research workflows
+    </p>
+  </div>
+</div>
+
+<div class="content-wrapper">
+  <!-- Breadcrumb -->
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'home' %}">Home</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'climate:landing' %}">Climate</a></li>
+      <li class="breadcrumb-item active" aria-current="page">API Documentation</li>
+    </ol>
+  </nav>
+
+  <!-- Introduction Section -->
+  <div class="api-section">
+    <h2 class="section-title">Getting Started</h2>
+    <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">
+      The Climate API provides programmatic access to climate data integration features. 
+      Use these endpoints to automate climate data retrieval, monitor processing status, and integrate climate data directly into your analysis pipelines.
+    </p>
+
+    <div class="nav-tabs">
+      <button class="nav-tab active" onclick="showTab('overview')">Overview</button>
+      <button class="nav-tab" onclick="showTab('auth')">Authentication</button>
+      <button class="nav-tab" onclick="showTab('quickstart')">Quick Start</button>
+    </div>
+
+    <div id="overview-tab" class="tab-content active">
+      <h3 style="color: var(--primary-color); margin-bottom: 1rem;">Base URL</h3>
+      <div class="code-block">{{ base_url }}/climate/api/</div>
+
+      <h3 style="color: var(--primary-color); margin-bottom: 1rem;">Response Format</h3>
+      <p style="color: var(--text-secondary);">All responses are returned as JSON with appropriate HTTP status codes.</p>
+    </div>
+
+    <div id="auth-tab" class="tab-content">
+      <h3 style="color: var(--primary-color); margin-bottom: 1rem;">Authentication Required</h3>
+      <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+        All API endpoints require authentication. Use your HarmonAIze account credentials to access the API.
+      </p>
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-title">Example Request Headers</span>
+          <button class="copy-btn" onclick="copyToClipboard('auth-headers')">Copy</button>
+        </div>
+        <pre id="auth-headers">Authorization: Token your-api-token-here
+Content-Type: application/json</pre>
+      </div>
+    </div>
+
+    <div id="quickstart-tab" class="tab-content">
+      <h3 style="color: var(--primary-color); margin-bottom: 1rem;">Quick Start Example</h3>
+      <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+        Here's a simple example to get available climate variables:
+      </p>
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-title">Python Example</span>
+          <button class="copy-btn" onclick="copyToClipboard('python-example')">Copy</button>
+        </div>
+        <pre id="python-example">import requests
+
+url = "{{ base_url }}/climate/api/variables/"
+params = {"source_id": 1}
+headers = {"Authorization": "Token your-api-token"}
+
+response = requests.get(url, params=params, headers=headers)
+data = response.json()
+
+print(f"Available variables for {data['source']}: {len(data['variables'])}")</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- API Endpoints -->
+  <div class="api-section">
+    <h2 class="section-title">API Endpoints</h2>
+    
+    {% for endpoint in api_endpoints %}
+    <div class="endpoint-card">
+      <div class="endpoint-header">
+        <div>
+          <span class="endpoint-method method-{{ endpoint.method|lower }}">{{ endpoint.method }}</span>
+          <span class="endpoint-url">{{ endpoint.endpoint }}</span>
+        </div>
+        <div class="endpoint-description">{{ endpoint.description }}</div>
+      </div>
+      
+      <div class="endpoint-body">
+        {% if endpoint.parameters %}
+        <h4 style="color: var(--primary-color); margin-bottom: 1rem;">Parameters</h4>
+        <table class="parameters-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Required</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for param in endpoint.parameters %}
+            <tr>
+              <td><span class="param-name">{{ param.name }}</span></td>
+              <td><span class="param-type">{{ param.type }}</span></td>
+              <td>
+                {% if param.required %}
+                  <span class="param-required">Required</span>
+                {% else %}
+                  <span class="param-optional">Optional</span>
+                {% endif %}
+              </td>
+              <td style="color: var(--text-secondary);">{{ param.description }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
+
+        <h4 style="color: var(--primary-color); margin-bottom: 1rem;">Example Response</h4>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-title">JSON Response</span>
+            <button class="copy-btn" onclick="copyToClipboard('response-{{ forloop.counter }}')">Copy</button>
+          </div>
+          <pre id="response-{{ forloop.counter }}">{{ endpoint.response_example|safe }}</pre>
+        </div>
+
+        <!-- Interactive Testing -->
+        <div class="try-it-section">
+          <h4 style="color: var(--primary-color); margin-bottom: 1rem;">Try It Out</h4>
+          <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+            Test this endpoint with your own parameters:
+          </p>
+          
+          <div class="try-it-form">
+            {% for param in endpoint.parameters %}
+            <div class="form-group">
+              <label class="form-label">{{ param.name }} ({{ param.type }}){% if param.required %} *{% endif %}</label>
+              <input 
+                type="text" 
+                class="form-input" 
+                placeholder="{{ param.description }}"
+                data-param="{{ param.name }}"
+                {% if param.required %}required{% endif %}
+              >
+            </div>
+            {% endfor %}
+            
+            <button class="test-btn" onclick="testEndpoint('{{ endpoint.endpoint }}', '{{ endpoint.method }}', {{ forloop.counter }})">
+              Test {{ endpoint.method }} Request
+            </button>
+          </div>
+
+          <div class="response-container" id="response-container-{{ forloop.counter }}">
+            <h5 style="color: var(--primary-color); margin-bottom: 0.5rem;">Response:</h5>
+            <pre id="test-response-{{ forloop.counter }}"></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Code Examples -->
+  <div class="api-section">
+    <h2 class="section-title">Code Examples</h2>
+    
+    <div class="nav-tabs">
+      <button class="nav-tab active" onclick="showCodeTab('python')">Python</button>
+      <button class="nav-tab" onclick="showCodeTab('javascript')">JavaScript</button>
+      <button class="nav-tab" onclick="showCodeTab('r')">R</button>
+      <button class="nav-tab" onclick="showCodeTab('curl')">cURL</button>
+    </div>
+
+    <div id="python-code" class="tab-content active">
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-title">Python with requests library</span>
+          <button class="copy-btn" onclick="copyToClipboard('python-full')">Copy</button>
+        </div>
+        <pre id="python-full">import requests
+import json
+
+class ClimateAPI:
+    def __init__(self, base_url, api_token):
+        self.base_url = base_url
+        self.headers = {
+            'Authorization': f'Token {api_token}',
+            'Content-Type': 'application/json'
+        }
+    
+    def get_variables(self, source_id):
+        """Get available climate variables for a data source"""
+        url = f"{self.base_url}/climate/api/variables/"
+        params = {"source_id": source_id}
+        
+        response = requests.get(url, params=params, headers=self.headers)
+        response.raise_for_status()
+        
+        return response.json()
+    
+    def check_request_status(self, request_id):
+        """Check the status of a climate data request"""
+        url = f"{self.base_url}/climate/api/request/{request_id}/status/"
+        
+        response = requests.get(url, headers=self.headers)
+        response.raise_for_status()
+        
+        return response.json()
+
+# Usage example
+api = ClimateAPI("{{ base_url }}", "your-api-token")
+
+try:
+    variables = api.get_variables(source_id=1)
+    print(f"Found {len(variables['variables'])} variables")
+    
+    status = api.check_request_status(request_id=123)
+    print(f"Request status: {status['status']}")
+    
+except requests.exceptions.RequestException as e:
+    print(f"API Error: {e}")</pre>
+      </div>
+    </div>
+
+    <div id="javascript-code" class="tab-content">
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-title">JavaScript with fetch API</span>
+          <button class="copy-btn" onclick="copyToClipboard('js-full')">Copy</button>
+        </div>
+        <pre id="js-full">class ClimateAPI {
+    constructor(baseUrl, apiToken) {
+        this.baseUrl = baseUrl;
+        this.headers = {
+            'Authorization': `Token ${apiToken}`,
+            'Content-Type': 'application/json'
+        };
+    }
+
+    async getVariables(sourceId) {
+        const url = `${this.baseUrl}/climate/api/variables/?source_id=${sourceId}`;
+        
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: this.headers
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        return await response.json();
+    }
+
+    async checkRequestStatus(requestId) {
+        const url = `${this.baseUrl}/climate/api/request/${requestId}/status/`;
+        
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: this.headers
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        return await response.json();
+    }
+}
+
+// Usage example
+const api = new ClimateAPI('{{ base_url }}', 'your-api-token');
+
+api.getVariables(1)
+    .then(data => console.log(`Found ${data.variables.length} variables`))
+    .catch(error => console.error('Error:', error));</pre>
+      </div>
+    </div>
+
+    <div id="r-code" class="tab-content">
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-title">R with httr package</span>
+          <button class="copy-btn" onclick="copyToClipboard('r-full')">Copy</button>
+        </div>
+        <pre id="r-full">library(httr)
+library(jsonlite)
+
+# Climate API client function
+climate_api <- function(base_url, api_token) {
+  list(
+    get_variables = function(source_id) {
+      url <- paste0(base_url, "/climate/api/variables/")
+      
+      response <- GET(
+        url,
+        query = list(source_id = source_id),
+        add_headers(Authorization = paste("Token", api_token))
+      )
+      
+      stop_for_status(response)
+      content(response, as = "parsed")
+    },
+    
+    check_request_status = function(request_id) {
+      url <- paste0(base_url, "/climate/api/request/", request_id, "/status/")
+      
+      response <- GET(
+        url,
+        add_headers(Authorization = paste("Token", api_token))
+      )
+      
+      stop_for_status(response)
+      content(response, as = "parsed")
+    }
+  )
+}
+
+# Usage example
+api <- climate_api("{{ base_url }}", "your-api-token")
+
+tryCatch({
+  variables <- api$get_variables(1)
+  cat("Found", length(variables$variables), "variables\n")
+  
+  status <- api$check_request_status(123)
+  cat("Request status:", status$status, "\n")
+}, error = function(e) {
+  cat("API Error:", e$message, "\n")
+})</pre>
+      </div>
+    </div>
+
+    <div id="curl-code" class="tab-content">
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-title">cURL commands</span>
+          <button class="copy-btn" onclick="copyToClipboard('curl-full')">Copy</button>
+        </div>
+        <pre id="curl-full"># Get available climate variables
+curl -X GET "{{ base_url }}/climate/api/variables/?source_id=1" \
+     -H "Authorization: Token your-api-token" \
+     -H "Content-Type: application/json"
+
+# Check request status
+curl -X GET "{{ base_url }}/climate/api/request/123/status/" \
+     -H "Authorization: Token your-api-token" \
+     -H "Content-Type: application/json"
+
+# Example response format
+{
+  "source": "ERA5 Reanalysis",
+  "variables": [
+    {
+      "id": 1,
+      "name": "temperature_2m",
+      "display_name": "Temperature at 2m",
+      "category": "temperature",
+      "unit_symbol": "°C",
+      "description": "Air temperature at 2 meters above ground"
+    }
+  ]
+}</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Support Section -->
+  <div class="api-section">
+    <h2 class="section-title">Support & Resources</h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem;">
+      <div>
+        <h3 style="color: var(--primary-color); margin-bottom: 1rem;">Rate Limits</h3>
+        <p style="color: var(--text-secondary);">
+          API requests are limited to 100 requests per minute per user. 
+          Contact support if you need higher limits for your research.
+        </p>
+      </div>
+      <div>
+        <h3 style="color: var(--primary-color); margin-bottom: 1rem;">Error Handling</h3>
+        <p style="color: var(--text-secondary);">
+          All errors return appropriate HTTP status codes with JSON error messages. 
+          Implement proper error handling in your applications.
+        </p>
+      </div>
+      <div>
+        <h3 style="color: var(--primary-color); margin-bottom: 1rem;">Support</h3>
+        <p style="color: var(--text-secondary);">
+          Need help with the API? Contact our support team or check the 
+          climate module documentation for additional guidance.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function showTab(tabName) {
+  // Hide all tab contents
+  document.querySelectorAll('.tab-content').forEach(tab => {
+    tab.classList.remove('active');
+  });
+  
+  // Remove active class from all tabs
+  document.querySelectorAll('.nav-tab').forEach(tab => {
+    tab.classList.remove('active');
+  });
+  
+  // Show selected tab content
+  document.getElementById(tabName + '-tab').classList.add('active');
+  
+  // Add active class to clicked tab
+  event.target.classList.add('active');
+}
+
+function showCodeTab(language) {
+  // Hide all code tabs
+  document.querySelectorAll('#python-code, #javascript-code, #r-code, #curl-code').forEach(tab => {
+    tab.classList.remove('active');
+  });
+  
+  // Remove active class from all code tabs
+  document.querySelectorAll('.nav-tab').forEach(tab => {
+    tab.classList.remove('active');
+  });
+  
+  // Show selected code tab
+  document.getElementById(language + '-code').classList.add('active');
+  
+  // Add active class to clicked tab
+  event.target.classList.add('active');
+}
+
+function copyToClipboard(elementId) {
+  const element = document.getElementById(elementId);
+  const text = element.textContent || element.innerText;
+  
+  navigator.clipboard.writeText(text).then(function() {
+    // Provide feedback
+    const button = event.target;
+    const originalText = button.textContent;
+    button.textContent = 'Copied!';
+    setTimeout(() => {
+      button.textContent = originalText;
+    }, 2000);
+  });
+}
+
+function testEndpoint(endpoint, method, endpointIndex) {
+  const container = document.getElementById(`response-container-${endpointIndex}`);
+  const responseElement = document.getElementById(`test-response-${endpointIndex}`);
+  
+  // Collect parameters from form
+  const params = {};
+  const inputs = container.parentElement.querySelectorAll('input[data-param]');
+  
+  inputs.forEach(input => {
+    if (input.value) {
+      params[input.dataset.param] = input.value;
+    }
+  });
+  
+  // Show loading state
+  responseElement.textContent = 'Loading...';
+  container.style.display = 'block';
+  
+  // Simulate API call (in real implementation, this would make actual HTTP requests)
+  setTimeout(() => {
+    const sampleResponse = {
+      "status": "success",
+      "data": {
+        "message": "This is a simulated response for demonstration purposes.",
+        "parameters": params,
+        "endpoint": endpoint,
+        "method": method
+      }
+    };
+    
+    responseElement.textContent = JSON.stringify(sampleResponse, null, 2);
+  }, 1000);
+}
+</script>
+{% endblock content %}
