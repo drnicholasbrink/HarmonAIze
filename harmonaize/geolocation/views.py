@@ -152,7 +152,7 @@ def validation_map(request):
                 # UPDATED: Get individual source confidence from simplified validation structure
                 if source_key in individual_scores:
                     source_score = individual_scores[source_key]
-                    # Get the scores from simplified two-component system
+                    # Get the scores from simplified Auto-Validation system
                     reverse_score = source_score.get('reverse_geocoding_score', 0.0)
                     distance_score = source_score.get('distance_penalty_score', 0.0)
                     individual_confidence = source_score.get('individual_confidence', 0.0)
@@ -227,7 +227,7 @@ def validation_map(request):
                 'variance': variance,
                 'accuracy_description': accuracy_description,
                 'max_distance_km': metadata.get('cluster_analysis', {}).get('max_distance_km', 0),
-                'ai_summary': metadata.get('user_friendly_summary', 'Simplified two-component analysis completed...')
+                'ai_summary': metadata.get('user_friendly_summary', 'auto-validation completed...')
             })
     
     # Get navigation info for next/previous locations
@@ -465,14 +465,14 @@ def location_status_api(request):
                                 confidence = 0
                             else:
                                 status = 'geocoded'
-                                status_display = '🔍 Geocoded - Awaiting Two-Component Analysis'
+                                status_display = '🔍 Geocoded - Awaiting Auto-validation Analysis'
                                 status_color = 'blue'
                                 confidence = 50
                         else:
                             # No validation yet, but has geocoding results
                             if geocoding_result.has_any_results:
                                 status = 'geocoded'
-                                status_display = '🔍 Geocoded - Awaiting Two-Component Analysis'
+                                status_display = '🔍 Geocoded - Awaiting Auto-validation Analysis'
                                 status_color = 'blue'
                                 confidence = 50
                             else:
@@ -665,7 +665,7 @@ def validation_api(request):
                 geocoding_result = get_object_or_404(GeocodingResult, id=geocoding_result_id)
                 validation = getattr(geocoding_result, 'validation', None)
                 if not validation:
-                    # Create validation if it doesn't exist using simplified two-component scoring
+                    # Create validation if it doesn't exist using simplified Auto-Validation scoring
                     validator = SmartGeocodingValidator()
                     validation = validator.validate_geocoding_result(geocoding_result)
             else:
@@ -858,7 +858,7 @@ def bulk_validation_actions(request):
                 if total_validations == 0:
                     return JsonResponse({
                         'success': False,
-                        'error': 'No two-component analysis has been performed yet. Please wait for analysis to complete first.'
+                        'error': 'No validation analysis has been performed yet. Please wait for analysis to complete first.'
                     }, status=400)
                 
                 # FIXED: Look for high-confidence results that need validation
@@ -970,7 +970,7 @@ def bulk_validation_actions(request):
                 if total_geocoding_results == 0:
                     return JsonResponse({
                         'success': False,
-                        'error': 'No locations have been geocoded yet. Please run "Start Coordinate Search" first to find coordinates for your locations before running two-component analysis.'
+                        'error': 'No locations have been geocoded yet. Please run "Start Coordinate Search" first to find coordinates for your locations before running Auto-Validation analysis.'
                     }, status=400)
                 
                 # Check if there are results to analyze
@@ -981,7 +981,7 @@ def bulk_validation_actions(request):
                 if not pending_results.exists():
                     return JsonResponse({
                         'success': True,
-                        'message': 'All geocoded locations have already been analyzed by two-component validation. No new analysis needed.'
+                        'message': 'All geocoded locations have already been analyzed by Auto-Validation . No new analysis needed.'
                     })
                 
                 # Run validation manually with proper error handling
@@ -999,7 +999,7 @@ def bulk_validation_actions(request):
                     # Process up to 50 results
                     for result in pending_results[:50]:
                         try:
-                            print(f"🔍 Two-component validation: {result.location_name}")
+                            print(f"🔍 Auto-Validation : {result.location_name}")
                             validation = validator.validate_geocoding_result(result)
                             stats['processed'] += 1
                             
@@ -1028,22 +1028,22 @@ def bulk_validation_actions(request):
                     if stats['processed'] == 0:
                         return JsonResponse({
                             'success': True,
-                            'message': 'No new locations to analyze. All locations have already been processed by two-component validation.'
+                            'message': 'No new locations to analyze. All locations have already been processed by Auto-Validation .'
                         })
                     
                     return JsonResponse({
                         'success': True,
-                        'message': f'✅ Two-component analysis completed: processed {stats["processed"]} locations with reverse geocoding and distance proximity scoring. {stats["auto_validated"]} auto-validated, {stats["needs_review"]} need review, {stats["pending"]} need manual verification.',
+                        'message': f'✅ Auto-Validation analysis completed: processed {stats["processed"]} locations with reverse geocoding and distance proximity scoring. {stats["auto_validated"]} auto-validated, {stats["needs_review"]} need review, {stats["pending"]} need manual verification.',
                         'stats': stats
                     })
                     
                 except Exception as e:
-                    logger.error(f"Error running two-component validation: {str(e)}")
-                    print(f"Error running two-component validation: {str(e)}")
+                    logger.error(f"Error running Auto-Validation : {str(e)}")
+                    print(f"Error running Auto-Validation : {str(e)}")
                     print(f"Traceback: {traceback.format_exc()}")
                     return JsonResponse({
                         'success': False,
-                        'error': f'Two-component analysis failed: {str(e)}'
+                        'error': f'Auto-Validation analysis failed: {str(e)}'
                     }, status=500)
             else:
                 return JsonResponse({
@@ -1079,7 +1079,7 @@ def handle_approve_ai_suggestion(validation, data):
         if not best_source:
             return JsonResponse({
                 'success': False,
-                'error': 'No two-component recommendation available for this location. Please run two-component analysis first or select a source manually.'
+                'error': 'No Auto-Validation recommendation available for this location. Please run Auto-Validation analysis first or select a source manually.'
             }, status=400)
         
         with transaction.atomic():
@@ -1097,7 +1097,7 @@ def handle_approve_ai_suggestion(validation, data):
             else:
                 return JsonResponse({
                     'success': False,
-                    'error': f'The two-component recommended source ({best_source}) does not have valid coordinates. Please select a different source manually.'
+                    'error': f'The Auto-Validation recommended source ({best_source}) does not have valid coordinates. Please select a different source manually.'
                 }, status=400)
             
             # FIXED: Update validation status with proper completion
@@ -1139,7 +1139,7 @@ def handle_approve_ai_suggestion(validation, data):
             
             return JsonResponse({
                 'success': True,
-                'message': f'✅ Two-component recommendation accepted: {result.location_name} validated using {best_source.upper()} coordinates',
+                'message': f'✅ Auto-Validation recommendation accepted: {result.location_name} validated using {best_source.upper()} coordinates',
                 'coordinates': {'lat': final_lat, 'lng': final_lng},
                 'source': best_source,
                 'status': 'validated',
@@ -1147,13 +1147,13 @@ def handle_approve_ai_suggestion(validation, data):
             })
     
     except Exception as e:
-        logger.error(f"Error approving two-component suggestion: {str(e)}")
-        print(f"Error approving two-component suggestion: {str(e)}")
+        logger.error(f"Error approving Auto-Validation suggestion: {str(e)}")
+        print(f"Error approving Auto-Validation suggestion: {str(e)}")
         import traceback
         traceback.print_exc()
         return JsonResponse({
             'success': False,
-            'error': f'Failed to approve two-component suggestion: {str(e)}'
+            'error': f'Failed to approve Auto-Validation suggestion: {str(e)}'
         }, status=500)
 
 
@@ -1359,12 +1359,12 @@ def handle_reject(validation, data):
 
 
 def get_enhanced_validation_details(validation):
-    """Get detailed validation information with two-component analysis."""
+    """Get detailed validation information with Auto-Validation analysis."""
     try:
         result = validation.geocoding_result
         metadata = validation.validation_metadata or {}
         
-        # Extract coordinate details with two-component scoring information
+        # Extract coordinate details with Auto-Validation scoring information
         coordinates = []
         sources = ['hdx', 'arcgis', 'google', 'nominatim']
         reverse_geocoding = metadata.get('reverse_geocoding_results', {})
@@ -1395,7 +1395,7 @@ def get_enhanced_validation_details(validation):
                     'distance_penalty_score': score_info.get('distance_penalty_score', 0.0) * 100
                 })
         
-        # Extract two-component analysis data
+        # Extract Auto-Validation analysis data
         best_source = metadata.get('best_source', 'Unknown')
         best_score = metadata.get('best_score', 0.0)
         
@@ -1432,7 +1432,7 @@ def get_enhanced_validation_details(validation):
                 'variance': variance,
                 'accuracy_description': accuracy_description,
                 'distance_quality': distance_quality,
-                'ai_summary': metadata.get('user_friendly_summary', 'Two-component analysis completed with reverse geocoding and distance proximity validation'),
+                'ai_summary': metadata.get('user_friendly_summary', 'Auto-Validation analysis completed with reverse geocoding and distance proximity validation'),
                 'reverse_geocoding_results': reverse_geocoding,
                 'individual_scores': individual_scores,
                 'validation_flags': metadata.get('validation_flags', [])
@@ -1440,16 +1440,16 @@ def get_enhanced_validation_details(validation):
         })
     
     except Exception as e:
-        logger.error(f"Error getting two-component validation details: {str(e)}")
+        logger.error(f"Error getting Auto-Validation  details: {str(e)}")
         print(f"Error getting validation details: {str(e)}")
         return JsonResponse({
             'success': False,
-            'error': f'Failed to get two-component validation details: {str(e)}'
+            'error': f'Failed to get Auto-Validation  details: {str(e)}'
         }, status=500)
 
 
 def run_ai_analysis(validation):
-    """Re-run two-component analysis on a validation result with external API timeout handling."""
+    """Re-run Auto-Validation analysis on a validation result with external API timeout handling."""
     try:
         validator = SmartGeocodingValidator()
         # Add timeout handling for external APIs
@@ -1457,7 +1457,7 @@ def run_ai_analysis(validation):
         
         return JsonResponse({
             'success': True,
-            'message': '✅ Two-component analysis completed successfully with reverse geocoding and distance proximity validation',
+            'message': '✅ Auto-Validation analysis completed successfully with reverse geocoding and distance proximity validation',
             'confidence': updated_validation.confidence_score * 100,
             'status': updated_validation.validation_status,
             'two_component': True
@@ -1466,17 +1466,17 @@ def run_ai_analysis(validation):
         logger.warning(f"External API timeout during validation of {validation.geocoding_result.location_name}")
         return JsonResponse({
             'success': True,
-            'message': '⚠️ Two-component analysis completed with basic factors (external APIs temporarily unavailable)',
+            'message': '⚠️ Auto-Validation analysis completed with basic factors (external APIs temporarily unavailable)',
             'confidence': validation.confidence_score * 100,
             'status': validation.validation_status,
             'two_component': False
         })
     except Exception as e:
-        logger.error(f"Error running two-component analysis: {str(e)}")
-        print(f"Error running two-component analysis: {str(e)}")
+        logger.error(f"Error running Auto-Validation analysis: {str(e)}")
+        print(f"Error running Auto-Validation analysis: {str(e)}")
         return JsonResponse({
             'success': False,
-            'error': f'Two-component analysis failed: {str(e)}'
+            'error': f'Auto-Validation analysis failed: {str(e)}'
         }, status=500)
 
 

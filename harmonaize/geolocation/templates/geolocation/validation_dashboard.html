@@ -808,7 +808,7 @@
       if (confirm('🤖 Run auto-validation on all pending locations?\n\nThis will analyze coordinate accuracy with reverse geocoding (70%) and distance proximity (30%) validation.')) {
         btn.disabled = true;
         btn.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><div class="loading-spinner" style="width: 16px; height: 16px; border-width: 2px;"></div><span>Analyzing...</span></div>';
-        showMessage('🤖 Auto-validation started - analyzing with two-component system...', 'info');
+        showMessage('🤖 Auto-validation started...', 'info');
         
         fetch('{% url "geolocation:bulk_validation_actions" %}', {
           method: 'POST',
@@ -842,10 +842,10 @@
     function autoValidateHighConfidence() {
       const btn = document.getElementById('autoValidateBtn');
       
-      if (confirm('⚡ Automatically approve all high-confidence locations (≥80%) validated with two-component scoring?\n\nThis will mark them as validated without manual review.')) {
+      if (confirm('⚡ Automatically approve all high-confidence locations (≥80%) auto-validated?\n\nThis will mark them as validated without manual review.')) {
         btn.disabled = true;
         btn.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><div class="loading-spinner" style="width: 12px; height: 12px; border-width: 2px;"></div><span>Processing...</span></div>';
-        showMessage('⚡ Auto-validation in progress with two-component confidence factors...', 'info');
+        showMessage('⚡ Auto-validation in progress with confidence factors...', 'info');
         
         fetch('{% url "geolocation:bulk_validation_actions" %}', {
           method: 'POST',
