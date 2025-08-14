@@ -26,17 +26,6 @@ def map_codebook(request, study_id):
     # If result is a redirect, return it
     if hasattr(result, 'status_code'):
         return result
-    from django.shortcuts import render, redirect, get_object_or_404
-    from django.contrib.auth.decorators import login_required
-    from django.contrib import messages
-    from django.utils import timezone
-    from django.forms import formset_factory
-    from core.models import Study, Attribute
-    from core.forms import VariableConfirmationFormSetFactory
-    from core.utils import process_codebook_mapping, process_codebook_extraction
-    from .models import MappingSchema, MappingRule
-    from .forms import MappingSchemaForm, MappingRuleForm
-
     
     # If result is a context dictionary, render the template
     if isinstance(result, dict):
@@ -83,48 +72,19 @@ def extract_variables(request, study_id):
     return result
 
 
-def _progress_flags(schema: MappingSchema) -> dict:
-    """Compute progress booleans for a schema (used in list/detail templates)."""
-    rules_qs = schema.rules.all()
-    return {
-        "rules_count": rules_qs.count(),
-        "has_patient_id": rules_qs.filter(role="patient_id").exists(),
-        "has_datetime": rules_qs.filter(role="datetime").exists(),  # optional
-        "has_related": rules_qs.filter(role="related_patient_id").exists(),
-        "has_transforms": rules_qs.exclude(transform_code="").exists(),
-        "approved": schema.status == "approved",
-    }
-
-
-@login_required
-def mapping_schemas(request, study_id):
-    """List mapping schemas for a source study (up to one typically)."""
-    source_study = get_object_or_404(
-        Study, id=study_id, created_by=request.user, study_purpose="source",
-    )
-    schemas = (
-        MappingSchema.objects.filter(source_study=source_study)
-        .select_related("target_study")
-        .prefetch_related("rules")
-    )
-    enriched = [(s, _progress_flags(s)) for s in schemas]
-    return render(
-        request,
-        "health/mapping_schema_list.html",
-        {
-            "study": source_study,
-            "schemas": enriched,
-            "page_title": f"Harmonisation Schemas - {source_study.name}",
-        },
-    )
-
-
 @login_required
 def start_harmonisation(request, study_id):
-    """Create a new MappingSchema selecting a target study."""
+    """Create a new MappingSchema and redirect to harmonization dashboard."""
     source_study = get_object_or_404(
         Study, id=study_id, created_by=request.user, study_purpose="source",
     )
+    
+    # Check if a mapping schema already exists
+    existing_schema = MappingSchema.objects.filter(source_study=source_study).first()
+    if existing_schema:
+        messages.info(request, "Using existing harmonization schema.")
+        return redirect("health:harmonization_dashboard", schema_id=existing_schema.id)
+    
     if request.method == "POST":
         form = MappingSchemaForm(
             request.POST, source_study=source_study, user=request.user,
@@ -136,27 +96,23 @@ def start_harmonisation(request, study_id):
             schema.save()
             messages.success(
                 request,
-                "Mapping schema created. Map source attributes to target attributes next.",
+                "Harmonization schema created successfully!",
             )
-            return redirect("health:edit_mapping_step", schema_id=schema.id)
+            return redirect("health:harmonization_dashboard", schema_id=schema.id)
         messages.error(request, "Please correct the errors below.")
     else:
         form = MappingSchemaForm(source_study=source_study, user=request.user)
+    
     return render(
         request,
-        "health/mapping_schema_form.html",
+        "health/harmonization_dashboard.html",
         {
             "study": source_study,
             "form": form,
             "page_title": f"Start Harmonisation - {source_study.name}",
+            "creating_new": True,
         },
     )
-
-
-@login_required
-def edit_mapping(request, schema_id):
-    """Redirect to unified harmonization dashboard."""
-    return redirect("health:harmonization_dashboard", schema_id=schema_id)
     schema = get_object_or_404(MappingSchema, id=schema_id, created_by=request.user)
     source_attrs = list(
         schema.source_study.variables.order_by("variable_name"),
@@ -266,17 +222,17 @@ def approve_mapping(request, schema_id):
         messages.error(
             request, 
             "Add at least one complete mapping rule before approving. "
-            "Complete rules must have both source and target attributes."
+            "Complete rules must have both source and target attributes.",
         )
-        return redirect("health:edit_mapping", schema_id=schema.id)
+        return redirect("health:harmonization_dashboard", schema_id=schema.id)
     
     # Check for required patient ID mapping
     if not complete_rules.filter(role="patient_id").exists():
         messages.error(
             request,
-            "You must map at least one patient ID field before approval."
+            "You must map at least one patient ID field before approval.",
         )
-        return redirect("health:edit_mapping", schema_id=schema.id)
+        return redirect("health:harmonization_dashboard", schema_id=schema.id)
     
     # Clean up any incomplete provisional rules before approval
     if incomplete_rules.exists():
@@ -285,7 +241,7 @@ def approve_mapping(request, schema_id):
         messages.info(
             request,
             f"Removed {incomplete_count} incomplete provisional mappings "
-            f"during approval."
+            f"during approval.",
         )
 
     schema.status = "approved"
@@ -294,41 +250,9 @@ def approve_mapping(request, schema_id):
     schema.save(update_fields=["status", "approved_by", "approved_at"])
     messages.success(
         request, 
-        f"Mapping approved with {complete_rules.count()} complete rules."
+        f"Mapping approved with {complete_rules.count()} complete rules.",
     )
     return redirect("core:study_detail", pk=schema.source_study_id)
-
-
-@login_required
-@require_http_methods(["POST"])
-def update_universal_settings(request, schema_id):
-    """Update universal settings for a mapping schema"""
-    schema = get_object_or_404(MappingSchema, id=schema_id, created_by=request.user)
-    
-    try:
-        # Update universal settings fields
-        universal_patient_id = request.POST.get("universal_patient_id")
-        universal_datetime = request.POST.get("universal_datetime")
-        universal_relation_type = request.POST.get("universal_relation_type", "self")
-        auto_populate_enabled = request.POST.get("auto_populate_enabled") == "true"
-        
-        # Update the schema
-        schema.universal_patient_id_id = universal_patient_id if universal_patient_id else None
-        schema.universal_datetime_id = universal_datetime if universal_datetime else None
-        schema.universal_relation_type = universal_relation_type
-        schema.auto_populate_enabled = auto_populate_enabled
-        schema.save()
-        
-        # Apply universal settings if auto-populate is enabled
-        if auto_populate_enabled:
-            _apply_universal_mappings(schema)
-        
-        messages.success(request, "Universal settings updated successfully!")
-        
-    except (ValueError, AttributeError) as e:
-        messages.error(request, f"Error updating universal settings: {e!s}")
-    
-    return redirect("health:edit_mapping", schema_id=schema_id)
 
 
 def _apply_universal_mappings(schema):
@@ -743,21 +667,25 @@ def harmonization_dashboard(request, schema_id):
             'attribute': attr,
             'form': form,
             'mapping_rule': mapping_rule,
-            'is_complete': mapping_rule.target_attribute is not None,
+            'is_complete': mapping_rule.target_attribute is not None or mapping_rule.not_mappable,
+            'instance': mapping_rule,  # Add instance for template access
         })
     
-    # Progress tracking
+    # Progress tracking - count mapped variables and not mappable variables as "complete"
     completed_rules = sum(1 for vf in variable_forms if vf['is_complete'])
+    not_mappable_count = sum(1 for vf in variable_forms if vf['mapping_rule'].not_mappable)
+    mappable_variables = len(source_attrs) - not_mappable_count
     progress_percent = int((completed_rules / len(source_attrs)) * 100) if source_attrs else 0
     
     context = {
-        'schema': schema,
-        'universal_form': universal_form,
-        'variable_forms': variable_forms,
-        'total_variables': len(source_attrs),
-        'completed_rules': completed_rules,
-        'progress_percent': progress_percent,
-        'page_title': f'Harmonize Variables - {schema.source_study.name}',
+        "schema": schema,
+        "universal_form": universal_form,
+        "variable_forms": variable_forms,
+        "total_variables": len(source_attrs),
+        "completed_rules": completed_rules,
+        "not_mappable_count": not_mappable_count,
+        "progress_percent": progress_percent,
+        "page_title": "Harmonise Study Dashboard",
     }
     
     return render(request, 'health/harmonization_dashboard.html', context)

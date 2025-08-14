@@ -113,56 +113,112 @@ class MappingSchema(models.Model):
 
 
 def validate_safe_transform_code(code: str):
-	"""Validate transform code with a conservative AST whitelist."""
-	import ast
+    """Validate transform code with a conservative AST whitelist allowing safe method calls."""
+    import ast
 
-	if not code:
-		return
+    if not code:
+        return
 
-	try:
-		tree = ast.parse(code, mode="exec")
-	except SyntaxError as e:
-		raise ValidationError(f"Transform code has a syntax error: {e}")
+    try:
+        tree = ast.parse(code, mode="exec")
+    except SyntaxError as e:
+        msg = f"Transform code has a syntax error: {e}"
+        raise ValidationError(msg) from e
 
-	allowed_nodes = (
-		ast.Module, ast.Expr, ast.Assign, ast.Return,
-		ast.Lambda, ast.FunctionDef, ast.arguments, ast.arg,
-		ast.BinOp, ast.UnaryOp, ast.BoolOp, ast.Compare, ast.IfExp,
-		ast.Call, ast.Name, ast.Load, ast.Store,
-		ast.Num, ast.Str, ast.Constant, ast.List, ast.Tuple, ast.Dict,
-		ast.Attribute, ast.Subscript, ast.Slice,
-		ast.NameConstant,
-		ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow, ast.Mod,
-		ast.And, ast.Or, ast.Not, ast.USub, ast.UAdd,
-		ast.Eq, ast.NotEq, ast.Lt, ast.LtE, ast.Gt, ast.GtE,
-	)
-	banned_names = {"__import__", "open", "exec", "eval", "compile", "globals", "locals", "input", "help"}
+    allowed_nodes = (
+        ast.Module, ast.Expr, ast.Assign, ast.Return,
+        ast.Lambda, ast.FunctionDef, ast.arguments, ast.arg,
+        ast.BinOp, ast.UnaryOp, ast.BoolOp, ast.Compare, ast.IfExp,
+        ast.Call, ast.Name, ast.Load, ast.Store,
+        ast.Num, ast.Str, ast.Constant, ast.List, ast.Tuple, ast.Dict,
+        ast.Attribute, ast.Subscript, ast.Slice,
+        ast.NameConstant,
+        ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow, ast.Mod,
+        ast.And, ast.Or, ast.Not, ast.USub, ast.UAdd,
+        ast.Eq, ast.NotEq, ast.Lt, ast.LtE, ast.Gt, ast.GtE,
+        # Allow basic control flow and comprehensions
+        ast.If, ast.ListComp, ast.DictComp, ast.SetComp, ast.GeneratorExp,
+        ast.comprehension,
+    )
+    banned_names = {"__import__", "open", "exec", "eval", "compile", "globals", "locals", "input", "help"}
+    
+    # Safe method names that can be called on objects
+    safe_string_methods = {
+        "upper", "lower", "title", "capitalize", "strip", "lstrip", "rstrip",
+        "split", "rsplit", "join", "replace", "find", "rfind", "index", "rindex",
+        "count", "startswith", "endswith", "isdigit", "isalpha", "isalnum", 
+        "isspace", "islower", "isupper", "istitle", "zfill", "ljust", "rjust", 
+        "center", "partition", "rpartition", "swapcase", "translate", "encode",
+    }
+    
+    safe_list_methods = {
+        "append", "extend", "insert", "remove", "pop", "clear", "index", "count",
+        "sort", "reverse", "copy",
+    }
+    
+    safe_dict_methods = {
+        "keys", "values", "items", "get", "pop", "clear", "copy", "update",
+    }
+    
+    # All safe methods combined
+    safe_methods = safe_string_methods | safe_list_methods | safe_dict_methods
 
-	class SafeVisitor(ast.NodeVisitor):
-		def visit(self, node):
-			if not isinstance(node, allowed_nodes):
-				raise ValidationError(f"Unsupported Python construct in transform code: {type(node).__name__}")
-			return super().visit(node)
+    class SafeVisitor(ast.NodeVisitor):
+        def visit(self, node):
+            if not isinstance(node, allowed_nodes):
+                msg = f"Unsupported Python construct in transform code: {type(node).__name__}"
+                raise ValidationError(msg)
+            return super().visit(node)
 
-		def visit_Call(self, node: ast.Call):
-			safe_call_names = {"int", "float", "str", "bool", "round", "abs", "min", "max", "len"}
-			if isinstance(node.func, ast.Name):
-				if node.func.id in banned_names or node.func.id not in safe_call_names:
-					raise ValidationError(f"Call to disallowed function: {getattr(node.func, 'id', '')}")
-			elif isinstance(node.func, ast.Attribute):
-				raise ValidationError("Attribute function calls are not allowed in transform code.")
-			self.generic_visit(node)
+        def visit_Call(self, node: ast.Call):
+            safe_call_names = {"int", "float", "str", "bool", "round", "abs", "min", "max", "len", "sum", "any", "all", "sorted", "reversed"}
+            
+            if isinstance(node.func, ast.Name):
+                # Direct function calls like int(), str(), etc.
+                if node.func.id in banned_names or node.func.id not in safe_call_names:
+                    msg = f"Call to disallowed function: {getattr(node.func, 'id', '')}"
+                    raise ValidationError(msg)
+            elif isinstance(node.func, ast.Attribute):
+                # Method calls like value.upper(), mylist.append(), etc.
+                method_name = node.func.attr
+                if method_name not in safe_methods:
+                    msg = f"Method call not allowed: {method_name}"
+                    raise ValidationError(msg)
+            else:
+                msg = "Complex function calls are not allowed in transform code."
+                raise ValidationError(msg)
+            
+            self.generic_visit(node)
 
-		def visit_Attribute(self, node: ast.Attribute):
-			if isinstance(node.value, ast.Name) and node.value.id == "value":
-				return
-			raise ValidationError("Attribute access is restricted in transform code.")
+        def visit_Attribute(self, node: ast.Attribute):
+            # Block access to dangerous attributes like __class__, __dict__, etc.
+            if node.attr.startswith('__') and node.attr.endswith('__'):
+                msg = f"Access to dunder attribute not allowed: {node.attr}"
+                raise ValidationError(msg)
+            
+            # Allow attribute access for safe method calls and the 'value' variable
+            if isinstance(node.value, ast.Name):
+                # Allow access to 'value' variable and its attributes
+                if node.value.id == "value":
+                    return
+                # Allow access to other variables for method calls
+                return
+            if isinstance(node.value, ast.Attribute):
+                # Allow chained attribute access (method calls validated separately)
+                return
+            if isinstance(node.value, ast.Call):
+                # Allow attribute access on results of function calls
+                return
+            
+            # Allow the attribute access - method call validation happens in visit_Call
+            return
 
-		def visit_Name(self, node: ast.Name):
-			if node.id in banned_names:
-				raise ValidationError(f"Use of banned identifier: {node.id}")
+        def visit_Name(self, node: ast.Name):
+            if node.id in banned_names:
+                msg = f"Use of banned identifier: {node.id}"
+                raise ValidationError(msg)
 
-	SafeVisitor().visit(tree)
+    SafeVisitor().visit(tree)
 
 
 class MappingRule(models.Model):
@@ -178,6 +234,11 @@ class MappingRule(models.Model):
 	source_attribute = models.ForeignKey(
 		Attribute, on_delete=models.CASCADE, related_name="as_source_in_rules",
 		help_text="Attribute from the source study",
+	)
+	# Flag to mark variables as not mappable
+	not_mappable = models.BooleanField(
+		default=False,
+		help_text="Mark this variable as not mappable to any target variable"
 	)
 	target_attribute = models.ForeignKey(
 		Attribute, on_delete=models.CASCADE, related_name="as_target_in_rules",
