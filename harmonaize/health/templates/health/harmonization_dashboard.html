@@ -29,17 +29,14 @@
     }
 
     .hero-section {
-      background: linear-gradient(135deg, var(--health-color) 0%, var(--primary-color) 100%);
+      background: var(--primary-color);
       color: white;
-      padding: 3rem 0;
+      padding: 2rem 0;
       margin: -1rem -15px 0 -15px;
+      text-align: center;
     }
 
     .hero-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 2rem;
       max-width: 1200px;
       margin: 0 auto;
       padding: 0 2rem;
@@ -54,14 +51,16 @@
     .hero-subtitle {
       font-size: 1.1rem;
       opacity: 0.9;
-      margin-bottom: 2rem;
+      margin-bottom: 1.5rem;
     }
 
     .progress-section {
-      background: rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.15);
       border-radius: var(--border-radius);
-      padding: 1.5rem;
+      padding: 1rem 1.5rem;
       backdrop-filter: blur(10px);
+      display: inline-block;
+      min-width: 300px;
     }
 
     .progress-header {
@@ -138,6 +137,79 @@
       display: grid;
       grid-template-columns: 1fr 300px;
       gap: 2rem;
+    }
+
+    /* Breadcrumb Styles */
+    .breadcrumb {
+      background: transparent;
+      padding: 1rem 0;
+      margin-bottom: 0;
+      border-radius: 0;
+      font-size: 0.9rem;
+    }
+
+    .breadcrumb-item a {
+      color: var(--primary-color);
+      text-decoration: none;
+    }
+
+    .breadcrumb-item a:hover {
+      text-decoration: underline;
+    }
+
+    .breadcrumb-item.active {
+      color: var(--text-secondary);
+    }
+
+    .breadcrumb-item + .breadcrumb-item::before {
+      content: ">";
+      color: var(--text-secondary);
+      margin: 0 0.5rem;
+    }
+
+    .navigation-wrapper {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 2rem;
+    }
+
+    /* Study Selection Panel */
+    .study-selection-panel {
+      background: var(--card-background);
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow);
+      padding: 1.5rem;
+      margin: 1.5rem auto 0 auto;
+      max-width: 1200px;
+    }
+
+    .study-selection-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 1.5rem;
+      align-items: end;
+    }
+
+    .study-info {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .study-label {
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    .study-value {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      padding: 0.75rem;
+      background: var(--background-color);
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
     }
 
     /* Universal Settings Panel */
@@ -265,6 +337,21 @@
       border-left: 4px solid var(--warning-color);
     }
 
+    .variable-card.not-mappable {
+      border-left: 4px solid #ff9800;
+      background: #f5f5f5;
+      opacity: 0.7;
+    }
+
+    .variable-card.not-mappable .variable-content {
+      opacity: 0.6;
+    }
+
+    .variable-card.not-mappable .source-attribute-details,
+    .variable-card.not-mappable .mapping-form {
+      filter: grayscale(50%);
+    }
+
     .variable-header {
       padding: 1.5rem;
       border-bottom: 1px solid var(--border-color);
@@ -299,6 +386,198 @@
     .badge-incomplete {
       background: var(--warning-color);
       color: white;
+    }
+
+    .badge-not-mappable {
+      background: #ff9800;
+      color: white;
+    }
+
+    /* Source Attribute Details */
+    .source-attribute-details {
+      background: #f8f9fa;
+      padding: 1rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+    
+    .attribute-section-title {
+      color: var(--primary-color);
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    .attribute-info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+    
+    .info-item {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+    
+    .info-item.full-width {
+      grid-column: 1 / -1;
+    }
+    
+    .info-label {
+      font-weight: 600;
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+    }
+    
+    .info-value {
+      color: var(--text-primary);
+      font-size: 0.9rem;
+    }
+
+    /* Target Attribute Details */
+    .target-attribute-details {
+      background: #f0f8ff;
+      padding: 1rem;
+      margin: 1rem 0;
+      border-radius: 6px;
+      border: 1px solid #b3d9ff;
+    }
+    
+    .target-section-title {
+      color: var(--info-color);
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    .target-info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+      font-size: 0.875rem;
+    }
+
+    /* Not Mappable Section - Horizontal at Bottom */
+    .not-mappable-section-bottom {
+      background: #fff8f0;
+      padding: 1rem;
+      border-top: 1px solid #ffcc80;
+      border-radius: 0 0 8px 8px;
+      margin-top: 1rem;
+    }
+    
+    .checkbox-wrapper-horizontal {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+    
+    .checkbox-label-horizontal {
+      font-weight: 600;
+      color: #007AFF;
+      cursor: pointer;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      white-space: nowrap;
+    }
+    
+    .help-text-inline {
+      color: var(--text-secondary);
+      font-size: 0.8rem;
+      font-style: italic;
+      margin-left: auto;
+    }
+
+    /* Not Mappable Section */
+    .not-mappable-section {
+      background: #fff8f0;
+      padding: 1rem;
+      border-radius: 6px;
+      border: 1px solid #ffcc80;
+      margin-bottom: 1rem;
+    }
+    
+    .checkbox-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    .checkbox-label {
+      font-weight: 600;
+      color: #ff9800;
+      cursor: pointer;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    .not-mappable-checkbox {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+
+    /* Advanced Options */
+    .advanced-options {
+      background: #f5f5f5;
+      padding: 1rem;
+      border-radius: 6px;
+      margin: 1rem 0;
+      border: 1px solid #ddd;
+    }
+    
+    .advanced-title {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    /* Form Enhancements */
+    .form-label {
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    .help-text {
+      color: var(--text-secondary);
+      font-size: 0.8rem;
+      margin-top: 0.25rem;
+      line-height: 1.4;
+    }
+    
+    .code-help {
+      background: #f8f9fa;
+      padding: 0.75rem;
+      border-radius: 4px;
+      margin-top: 0.5rem;
+      border-left: 3px solid var(--info-color);
+    }
+    
+    .code-help code {
+      background: #e9ecef;
+      padding: 0.2rem 0.4rem;
+      border-radius: 3px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.85rem;
     }
 
     .variable-meta {
@@ -342,10 +621,6 @@
       background: #f8f9fa;
       border-radius: 8px;
       border: 1px solid var(--border-color);
-    }
-
-    .relationship-section.show {
-      display: block;
     }
 
     .variable-actions {
@@ -484,31 +759,6 @@
       font-size: 0.8rem;
       margin-top: 0.25rem;
     }
-
-    /* Messages styling */
-    .messages-container {
-      z-index: 100;
-    }
-    
-    .alert {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      font-weight: 500;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-      animation: slideDown 0.3s ease-out;
-    }
-    
-    @keyframes slideDown {
-      from {
-        opacity: 0;
-        transform: translateY(-10px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
   </style>
 {% endblock %}
 
@@ -516,11 +766,8 @@
 <div class="hero-section">
   <div class="hero-header">
     <div class="hero-content">
-      <h1>{{ schema.name }}</h1>
-      <p class="hero-subtitle">
-        Harmonizing {{ total_variables }} variables from {{ schema.source_study.name }}
-        to {{ schema.target_study.name }}
-      </p>
+      <h1>Harmonise Study Dashboard</h1>
+      <p class="hero-subtitle">Manage variable mappings and track harmonisation progress</p>
       
       <div class="progress-section">
         <div class="progress-header">
@@ -532,59 +779,63 @@
         </div>
       </div>
     </div>
-
   </div>
 </div>
 
-<!-- Messages Section -->
-{% if messages %}
-<div class="container">
-  <div class="messages-container" style="max-width: 1200px; margin: 2rem auto; padding: 0 2rem;">
-    {% for message in messages %}
-      <div class="alert alert-{{ message.tags }}" style="
-        padding: 1rem 1.5rem;
-        margin-bottom: 1rem;
-        border-radius: var(--border-radius);
-        border: 1px solid;
-        {% if message.tags == 'error' %}
-          background-color: #fee;
-          border-color: #fcc;
-          color: #c33;
-        {% elif message.tags == 'warning' %}
-          background-color: #fff3cd;
-          border-color: #ffeaa7;
-          color: #856404;
-        {% elif message.tags == 'success' %}
-          background-color: #d4edda;
-          border-color: #c3e6cb;
-          color: #155724;
-        {% elif message.tags == 'info' %}
-          background-color: #d1ecf1;
-          border-color: #bee5eb;
-          color: #0c5460;
-        {% else %}
-          background-color: #f8f9fa;
-          border-color: #dee2e6;
-          color: #6c757d;
-        {% endif %}
-      ">
-        <strong>
-          {% if message.tags == 'error' %}
-            <i class="fas fa-exclamation-triangle"></i> Error:
-          {% elif message.tags == 'warning' %}
-            <i class="fas fa-exclamation-circle"></i> Warning:
-          {% elif message.tags == 'success' %}
-            <i class="fas fa-check-circle"></i> Success:
-          {% elif message.tags == 'info' %}
-            <i class="fas fa-info-circle"></i> Info:
-          {% endif %}
-        </strong>
-        {{ message }}
+<!-- Study Selection Panel -->
+<div class="study-selection-panel">
+  <form method="post" id="study-selection-form">
+    {% csrf_token %}
+    <div class="study-selection-grid">
+      <div class="study-info">
+        <label class="study-label">Source Study</label>
+        <div class="study-value">{{ schema.source_study.name }}</div>
       </div>
-    {% endfor %}
-  </div>
+      
+      <div class="form-group" style="margin: 0;">
+        <label class="form-label study-label">Target Database</label>
+        {{ universal_form.target_study }}
+        {% if universal_form.target_study.errors %}
+          <div class="error-message">
+            {% for error in universal_form.target_study.errors %}
+              <span>{{ error }}</span>
+            {% endfor %}
+          </div>
+        {% endif %}
+      </div>
+      
+      <div>
+        <button type="submit" name="update_universal_settings" class="btn btn-primary">
+          <i class="fas fa-save"></i>
+          Update
+        </button>
+      </div>
+    </div>
+    
+    <!-- Hidden fields to preserve other universal settings -->
+    {{ universal_form.universal_patient_id.as_hidden }}
+    {{ universal_form.universal_datetime.as_hidden }}
+    {{ universal_form.universal_relation_type.as_hidden }}
+    {{ universal_form.comments.as_hidden }}
+  </form>
 </div>
-{% endif %}
+
+
+
+<!-- Navigation Breadcrumbs -->
+<div class="navigation-wrapper">
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">Dashboard</a></li>
+      {% if schema.source_study.project %}
+        <li class="breadcrumb-item"><a href="{% url 'core:project_list' %}">Projects</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'core:project_detail' schema.source_study.project.pk %}">{{ schema.source_study.project.name }}</a></li>
+      {% endif %}
+      <li class="breadcrumb-item"><a href="{% url 'core:study_detail' schema.source_study.pk %}">{{ schema.source_study.name }}</a></li>
+      <li class="breadcrumb-item active">Harmonise Dashboard</li>
+    </ol>
+  </nav>
+</div>
 
 <div class="main-container">
   <!-- Universal Settings Panel -->
@@ -603,17 +854,6 @@
     <form method="post" id="universal-settings-form" style="display: none;">
       {% csrf_token %}
       <div class="settings-grid">
-        <div class="form-group">
-          <label class="form-label">Target Study</label>
-          {{ universal_form.target_study }}
-          {% if universal_form.target_study.errors %}
-            <div class="error-message">
-              {% for error in universal_form.target_study.errors %}
-                <span>{{ error }}</span>
-              {% endfor %}
-            </div>
-          {% endif %}
-        </div>
         <div class="form-group">
           <label class="form-label">Default Patient ID Variable</label>
           {{ universal_form.universal_patient_id }}
@@ -649,6 +889,9 @@
         </div>
       </div>
 
+      <!-- Hidden field to preserve target_study when updating universal settings -->
+      {{ universal_form.target_study.as_hidden }}
+
       <div class="variable-actions">
         <button type="button" class="btn btn-secondary btn-small" onclick="toggleSettingsForm()">Cancel</button>
         <button type="submit" name="update_universal_settings" class="btn btn-success btn-small">
@@ -661,10 +904,6 @@
     <!-- Current Settings Display -->
     <div id="settings-display">
       <div class="settings-grid">
-        <div class="stat-item">
-          <span class="stat-label">Target Study</span>
-          <span class="stat-value">{{ schema.target_study.name|default:"Not set" }}</span>
-        </div>
         <div class="stat-item">
           <span class="stat-label">Patient ID</span>
           <span class="stat-value">{{ schema.universal_patient_id.variable_name|default:"Not set" }}</span>
@@ -690,6 +929,7 @@
           <option value="all">All Variables</option>
           <option value="complete">Mapped Only</option>
           <option value="incomplete">Unmapped Only</option>
+          <option value="not-mappable">Not Mappable Only</option>
         </select>
         <input type="text" class="search-input" id="search-variables" placeholder="Search variables...">
       </div>
@@ -699,118 +939,221 @@
       {% csrf_token %}
       
       {% for variable_form in variable_forms %}
-      <div class="variable-card {% if variable_form.is_complete %}complete{% else %}incomplete{% endif %}" 
+      <div class="variable-card {% if variable_form.is_complete %}complete{% elif variable_form.instance.not_mappable %}not-mappable{% else %}incomplete{% endif %}" 
            data-variable-name="{{ variable_form.attribute.variable_name|lower }}"
-           data-completion="{{ variable_form.is_complete|yesno:'complete,incomplete' }}">
+           data-completion="{% if variable_form.is_complete %}complete{% elif variable_form.instance.not_mappable %}not-mappable{% else %}incomplete{% endif %}">
         
         <div class="variable-header">
           <div class="variable-title">
-            <span class="variable-name">{{ variable_form.attribute.variable_name }}</span>
-            <span class="completion-badge {% if variable_form.is_complete %}badge-complete{% else %}badge-incomplete{% endif %}">
+            <span class="variable-name">{{ variable_form.attribute.display_name|default:variable_form.attribute.variable_name }}</span>
+            <span class="completion-badge {% if variable_form.is_complete %}badge-complete{% elif variable_form.instance.not_mappable %}badge-not-mappable{% else %}badge-incomplete{% endif %}">
               {% if variable_form.is_complete %}
                 <i class="fas fa-check"></i> Mapped
+              {% elif variable_form.instance.not_mappable %}
+                <i class="fas fa-ban"></i> Not Mappable
               {% else %}
                 <i class="fas fa-exclamation-triangle"></i> Needs Mapping
               {% endif %}
             </span>
           </div>
-          {% if variable_form.attribute.variable_label %}
-          <div class="variable-meta">{{ variable_form.attribute.variable_label }}</div>
-          {% endif %}
-          <div class="variable-meta">
-            Type: {{ variable_form.attribute.data_type|default:"Unknown" }}
+        </div>
+
+        <!-- Source Attribute Details -->
+        <div class="source-attribute-details">
+          <h4 class="attribute-section-title">
+            <i class="fas fa-upload"></i> Source Attribute
+          </h4>
+          <div class="attribute-info-grid">
+            <div class="info-item">
+              <span class="info-label">Variable Name:</span>
+              <span class="info-value">{{ variable_form.attribute.variable_name }}</span>
+            </div>
+            {% if variable_form.attribute.display_name %}
+            <div class="info-item">
+              <span class="info-label">Display Name:</span>
+              <span class="info-value">{{ variable_form.attribute.display_name }}</span>
+            </div>
+            {% endif %}
+            {% if variable_form.attribute.description %}
+            <div class="info-item full-width">
+              <span class="info-label">Description:</span>
+              <span class="info-value">{{ variable_form.attribute.description }}</span>
+            </div>
+            {% endif %}
+            <div class="info-item">
+              <span class="info-label">Data Type:</span>
+              <span class="info-value">{{ variable_form.attribute.variable_type|default:"Unknown" }}</span>
+            </div>
+            {% if variable_form.attribute.unit %}
+            <div class="info-item">
+              <span class="info-label">Unit:</span>
+              <span class="info-value">{{ variable_form.attribute.unit }}</span>
+            </div>
+            {% endif %}
+            {% if variable_form.attribute.ontology_code %}
+            <div class="info-item">
+              <span class="info-label">Ontology Code:</span>
+              <span class="info-value">{{ variable_form.attribute.ontology_code }}</span>
+            </div>
+            {% endif %}
             {% if variable_form.attribute.values_count %}
-              | {{ variable_form.attribute.values_count }} unique values
+            <div class="info-item">
+              <span class="info-label">Unique Values:</span>
+              <span class="info-value">{{ variable_form.attribute.values_count }}</span>
+            </div>
             {% endif %}
           </div>
         </div>
 
         <div class="variable-content">
           <div class="mapping-form">
-            <div class="form-group">
-              <label class="form-label">Role</label>
-              {{ variable_form.form.role }}
-              {% if variable_form.form.role.errors %}
-                <div class="error-message">
-                  {% for error in variable_form.form.role.errors %}
-                    <span>{{ error }}</span>
-                  {% endfor %}
-                </div>
-              {% endif %}
-            </div>
-            
-            <div class="form-group">
-              <label class="form-label">Target Attribute</label>
-              {{ variable_form.form.target_attribute }}
-              {% if variable_form.form.target_attribute.errors %}
-                <div class="error-message">
-                  {% for error in variable_form.form.target_attribute.errors %}
-                    <span>{{ error }}</span>
-                  {% endfor %}
-                </div>
-              {% endif %}
-            </div>
-            
-            <div class="form-group">
-              <label class="form-label">Patient ID Attribute</label>
-              {{ variable_form.form.patient_id_attribute }}
-              {% if variable_form.form.patient_id_attribute.errors %}
-                <div class="error-message">
-                  {% for error in variable_form.form.patient_id_attribute.errors %}
-                    <span>{{ error }}</span>
-                  {% endfor %}
-                </div>
-              {% endif %}
-            </div>
-            
-            <div class="form-group">
-              <label class="form-label">DateTime Attribute</label>
-              {{ variable_form.form.datetime_attribute }}
-              {% if variable_form.form.datetime_attribute.errors %}
-                <div class="error-message">
-                  {% for error in variable_form.form.datetime_attribute.errors %}
-                    <span>{{ error }}</span>
-                  {% endfor %}
-                </div>
-              {% endif %}
-            </div>
-            
-            <div class="relationship-section" id="relationship-{{ variable_form.attribute.id }}">
+            <div class="mapping-fields" style="{% if variable_form.instance.not_mappable %}display: none;{% endif %}">
+              <!-- Target Attribute Selection -->
               <div class="form-group">
-                <label class="form-label">Relationship Type</label>
-                {{ variable_form.form.related_relation_type }}
-                {% if variable_form.form.related_relation_type.errors %}
+                <label class="form-label">
+                  <i class="fas fa-download"></i> Target Variable
+                </label>
+                {{ variable_form.form.target_attribute }}
+                {% if variable_form.form.target_attribute.errors %}
                   <div class="error-message">
-                    {% for error in variable_form.form.related_relation_type.errors %}
+                    {% for error in variable_form.form.target_attribute.errors %}
                       <span>{{ error }}</span>
                     {% endfor %}
                   </div>
                 {% endif %}
+                <small class="help-text">Select the target variable this source variable maps to</small>
               </div>
-            </div>
-            
-            <div class="form-group full-width">
-              <label class="form-label">Transform Code (Optional)</label>
-              {{ variable_form.form.transform_code }}
-              {% if variable_form.form.transform_code.errors %}
-                <div class="error-message">
-                  {% for error in variable_form.form.transform_code.errors %}
-                    <span>{{ error }}</span>
-                  {% endfor %}
+
+              <!-- Target Attribute Details (populated via JavaScript) -->
+              <div class="target-attribute-details" id="target-details-{{ variable_form.attribute.id }}" style="display: none;">
+                <h5 class="target-section-title">
+                  <i class="fas fa-download"></i> Target Variable Details
+                </h5>
+                <div class="target-info-grid">
+                  <!-- This will be populated by JavaScript when target is selected -->
                 </div>
-              {% endif %}
-            </div>
-            
-            <div class="form-group full-width">
-              <label class="form-label">Comments (Optional)</label>
-              {{ variable_form.form.comments }}
-              {% if variable_form.form.comments.errors %}
-                <div class="error-message">
-                  {% for error in variable_form.form.comments.errors %}
-                    <span>{{ error }}</span>
-                  {% endfor %}
+              </div>
+              
+              <!-- Role Selection -->
+              <div class="form-group">
+                <label class="form-label">
+                  <i class="fas fa-tag"></i> Mapping Role
+                </label>
+                {{ variable_form.form.role }}
+                {% if variable_form.form.role.errors %}
+                  <div class="error-message">
+                    {% for error in variable_form.form.role.errors %}
+                      <span>{{ error }}</span>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+                <small class="help-text">
+                  <strong>Value:</strong> Map to target variable (most common) | 
+                  <strong>Patient ID:</strong> Use as patient identifier | 
+                  <strong>Date/Time:</strong> Use as timestamp | 
+                  <strong>Related Patient ID:</strong> For family/related person data
+                </small>
+              </div>
+
+              <!-- Custom Settings Checkbox -->
+              <div class="form-group">
+                <div class="checkbox-wrapper">
+                  {{ variable_form.form.use_custom_settings }}
+                  <label for="{{ variable_form.form.use_custom_settings.id_for_label }}" class="checkbox-label-horizontal">
+                    <i class="fas fa-cogs"></i> Use custom settings
+                  </label>
                 </div>
-              {% endif %}
+                <small class="help-text">{{ variable_form.form.use_custom_settings.help_text }}</small>
+              </div>
+
+              <!-- Custom Settings (override universal settings) -->
+              <div class="advanced-options" id="custom-settings-{{ variable_form.attribute.id }}" style="{% if not variable_form.form.use_custom_settings.value %}display: none;{% endif %}">
+                <h5 class="advanced-title">
+                  <i class="fas fa-cog"></i> Custom Settings (Override Universal)
+                </h5>
+                
+                <div class="form-group">
+                  <label class="form-label">Custom Patient ID</label>
+                  {{ variable_form.form.patient_id_attribute }}
+                  {% if variable_form.form.patient_id_attribute.errors %}
+                    <div class="error-message">
+                      {% for error in variable_form.form.patient_id_attribute.errors %}
+                        <span>{{ error }}</span>
+                      {% endfor %}
+                    </div>
+                  {% endif %}
+                  <small class="help-text">Override universal patient ID setting for this specific mapping</small>
+                </div>
+                
+                <div class="form-group">
+                  <label class="form-label">Custom DateTime</label>
+                  {{ variable_form.form.datetime_attribute }}
+                  {% if variable_form.form.datetime_attribute.errors %}
+                    <div class="error-message">
+                      {% for error in variable_form.form.datetime_attribute.errors %}
+                        <span>{{ error }}</span>
+                      {% endfor %}
+                    </div>
+                  {% endif %}
+                  <small class="help-text">Override universal datetime setting for this specific mapping</small>
+                </div>
+                
+                <!-- Relationship Type (only for related patient role) -->
+                <div class="form-group" id="relationship-{{ variable_form.attribute.id }}" style="{% if variable_form.form.role.value != 'related_patient_id' %}display: none;{% endif %}">
+                  <label class="form-label">Relationship Type</label>
+                  {{ variable_form.form.related_relation_type }}
+                  {% if variable_form.form.related_relation_type.errors %}
+                    <div class="error-message">
+                      {% for error in variable_form.form.related_relation_type.errors %}
+                        <span>{{ error }}</span>
+                      {% endfor %}
+                    </div>
+                  {% endif %}
+                  <small class="help-text">Required when role is 'Related Patient ID'</small>
+                </div>
+              </div>
+              
+              <!-- Transform Code -->
+              <div class="form-group full-width">
+                <label class="form-label">
+                  <i class="fas fa-code"></i> Transform Code (Optional)
+                </label>
+                {{ variable_form.form.transform_code }}
+                {% if variable_form.form.transform_code.errors %}
+                  <div class="error-message">
+                    {% for error in variable_form.form.transform_code.errors %}
+                      <span>{{ error }}</span>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+                <div class="code-help">
+                  <small class="help-text">
+                    <strong>Transform Examples:</strong><br>
+                    Text: <code>lambda value: value.upper().strip()</code><br>
+                    Split: <code>lambda value: value.split(',')[0] if value else None</code><br>
+                    Units: <code>lambda value: float(value) * 2.54 if value else None</code><br>
+                    Replace: <code>lambda value: value.replace('old', 'new')</code><br>
+                    Complex: Use <code>def transform(value): ...</code> for multi-line logic<br>
+                    <strong>Safe methods:</strong> <code>.upper()</code>, <code>.lower()</code>, <code>.strip()</code>, <code>.split()</code>, <code>.replace()</code>, <code>.join()</code>, and more string/list methods
+                  </small>
+                </div>
+              </div>
+              
+              <!-- Comments -->
+              <div class="form-group full-width">
+                <label class="form-label">
+                  <i class="fas fa-comment"></i> Comments (Optional)
+                </label>
+                {{ variable_form.form.comments }}
+                {% if variable_form.form.comments.errors %}
+                  <div class="error-message">
+                    {% for error in variable_form.form.comments.errors %}
+                      <span>{{ error }}</span>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+                <small class="help-text">Optional notes about this mapping</small>
+              </div>
             </div>
           </div>
 
@@ -823,6 +1166,17 @@
               <i class="fas fa-save"></i>
               Save
             </button>
+          </div>
+
+          <!-- Not Mappable Option - Horizontal Layout at Bottom -->
+          <div class="not-mappable-section-bottom">
+            <div class="checkbox-wrapper-horizontal">
+              {{ variable_form.form.not_mappable }}
+              <label for="{{ variable_form.form.not_mappable.id_for_label }}" class="checkbox-label-horizontal">
+                <i class="fas fa-ban"></i> Mark as not mappable
+              </label>
+              <small class="help-text-inline">This variable cannot be mapped to any target variable</small>
+            </div>
           </div>
         </div>
       </div>
@@ -842,7 +1196,11 @@
         </div>
         <div class="stat-item">
           <span class="stat-label">Mapped</span>
-          <span class="stat-value">{{ completed_rules }}</span>
+          <span class="stat-value">{{ completed_rules|add:"-"|add:not_mappable_count }}</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Not Mappable</span>
+          <span class="stat-value">{{ not_mappable_count }}</span>
         </div>
         <div class="stat-item">
           <span class="stat-label">Remaining</span>
@@ -912,9 +1270,9 @@ function initializeRoleDependentSections() {
         
         function toggleRelationshipSection() {
             if (select.value === 'related_patient_id') {
-                relationshipSection.classList.add('show');
+                relationshipSection.style.display = 'block';
             } else {
-                relationshipSection.classList.remove('show');
+                relationshipSection.style.display = 'none';
             }
         }
         
@@ -1170,7 +1528,7 @@ function clearAllMappings() {
 }
 
 function validateAllMappings() {
-    // This could check for required fields, validate transforms, etc.
+    // This could check for required fields, validate transforms, etc. TO DO
     const incompleteVariables = document.querySelectorAll('.variable-card.incomplete').length;
     
     if (incompleteVariables > 0) {
@@ -1266,5 +1624,256 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
+// Enhanced functionality for improved harmonization cards
+
+// Handle not mappable checkbox changes
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize target details for existing selections
+    document.querySelectorAll('select[name*="target_attribute"]').forEach(targetSelect => {
+        if (targetSelect.value) {
+            // Trigger change event to populate details for existing selections
+            targetSelect.dispatchEvent(new Event('change'));
+        }
+    });
+    
+    // Add event listeners for not mappable checkboxes
+    document.querySelectorAll('.not-mappable-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const variableCard = this.closest('.variable-card');
+            const mappingFields = variableCard.querySelector('.mapping-fields');
+            
+            if (this.checked) {
+                // Hide mapping fields and grey out card when not mappable is checked
+                mappingFields.style.display = 'none';
+                variableCard.classList.remove('complete', 'incomplete');
+                variableCard.classList.add('not-mappable');
+                
+                // Update badge
+                const badge = variableCard.querySelector('.completion-badge');
+                badge.className = 'completion-badge badge-not-mappable';
+                badge.innerHTML = '<i class="fas fa-ban"></i> Not Mappable';
+                
+                // Clear target attribute selection
+                const targetSelect = variableCard.querySelector('select[name*="target_attribute"]');
+                if (targetSelect) targetSelect.selectedIndex = 0;
+                
+            } else {
+                // Show mapping fields and remove grey-out when not mappable is unchecked
+                mappingFields.style.display = 'block';
+                variableCard.classList.remove('not-mappable');
+                variableCard.classList.add('incomplete');
+                
+                // Update badge
+                const badge = variableCard.querySelector('.completion-badge');
+                badge.className = 'completion-badge badge-incomplete';
+                badge.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Needs Mapping';
+            }
+        });
+    });
+    
+    // Add event listeners for role changes
+    document.querySelectorAll('select[name*="role"]').forEach(roleSelect => {
+        roleSelect.addEventListener('change', function() {
+            const variableCard = this.closest('.variable-card');
+            const relationshipSection = variableCard.querySelector('[id^="relationship-"]');
+            
+            if (this.value === 'related_patient_id') {
+                // Show relationship type for related patient ID role
+                relationshipSection.style.display = 'block';
+            } else {
+                // Hide relationship type for other roles
+                relationshipSection.style.display = 'none';
+            }
+        });
+    });
+    
+    // Add event listeners for custom settings checkbox
+    document.querySelectorAll('input[name*="use_custom_settings"]').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const variableCard = this.closest('.variable-card');
+            const customSettingsSection = variableCard.querySelector('[id^="custom-settings-"]');
+            
+            if (this.checked) {
+                // Show custom settings when checkbox is checked
+                customSettingsSection.style.display = 'block';
+            } else {
+                // Hide custom settings when checkbox is unchecked
+                customSettingsSection.style.display = 'none';
+            }
+        });
+    });
+    
+    // Add event listeners for custom settings checkbox
+    document.querySelectorAll('.custom-settings-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const variableCard = this.closest('.variable-card');
+            const customSettingsSection = variableCard.querySelector('[id^="custom-settings-"]');
+            
+            if (this.checked) {
+                // Show custom settings when checkbox is checked
+                customSettingsSection.style.display = 'block';
+            } else {
+                // Hide custom settings when checkbox is unchecked
+                customSettingsSection.style.display = 'none';
+                
+                // Clear the custom settings fields when hiding
+                const patientIdField = customSettingsSection.querySelector('select[name*="patient_id_attribute"]');
+                const datetimeField = customSettingsSection.querySelector('select[name*="datetime_attribute"]');
+                const relationField = customSettingsSection.querySelector('select[name*="related_relation_type"]');
+                
+                if (patientIdField) patientIdField.selectedIndex = 0;
+                if (datetimeField) datetimeField.selectedIndex = 0;
+                if (relationField) relationField.selectedIndex = 0;
+            }
+        });
+    });
+    
+    // Add event listeners for target attribute changes
+    document.querySelectorAll('select[name*="target_attribute"]').forEach(targetSelect => {
+        targetSelect.addEventListener('change', function() {
+            const variableCard = this.closest('.variable-card');
+            const targetDetails = variableCard.querySelector('.target-attribute-details');
+            
+            if (this.value) {
+                // Show target details and populate them with actual metadata
+                targetDetails.style.display = 'block';
+                
+                // Get selected option details
+                const selectedOption = this.options[this.selectedIndex];
+                if (selectedOption && selectedOption.value) {
+                    // Extract data attributes from the option if available
+                    const infoGrid = targetDetails.querySelector('.target-info-grid');
+                    
+                    // Get target variable data from the option's data attributes or text
+                    const variableName = selectedOption.text;
+                    const displayName = selectedOption.getAttribute('data-display-name') || '';
+                    const unit = selectedOption.getAttribute('data-unit') || '';
+                    const variableType = selectedOption.getAttribute('data-variable-type') || '';
+                    const description = selectedOption.getAttribute('data-description') || '';
+                    const ontologyCode = selectedOption.getAttribute('data-ontology-code') || '';
+                    
+                    let infoHtml = `
+                        <div class="info-item">
+                            <span class="info-label">Variable Name:</span>
+                            <span class="info-value">${variableName}</span>
+                        </div>`;
+                    
+                    if (displayName) {
+                        infoHtml += `
+                        <div class="info-item">
+                            <span class="info-label">Display Name:</span>
+                            <span class="info-value">${displayName}</span>
+                        </div>`;
+                    }
+                    
+                    if (variableType) {
+                        infoHtml += `
+                        <div class="info-item">
+                            <span class="info-label">Data Type:</span>
+                            <span class="info-value">${variableType}</span>
+                        </div>`;
+                    }
+                    
+                    if (unit) {
+                        infoHtml += `
+                        <div class="info-item">
+                            <span class="info-label">Unit:</span>
+                            <span class="info-value">${unit}</span>
+                        </div>`;
+                    }
+                    
+                    if (ontologyCode) {
+                        infoHtml += `
+                        <div class="info-item">
+                            <span class="info-label">Ontology Code:</span>
+                            <span class="info-value">${ontologyCode}</span>
+                        </div>`;
+                    }
+                    
+                    if (description) {
+                        infoHtml += `
+                        <div class="info-item full-width">
+                            <span class="info-label">Description:</span>
+                            <span class="info-value">${description}</span>
+                        </div>`;
+                    }
+                    
+                    infoGrid.innerHTML = infoHtml;
+                }
+                
+                // Update completion status
+                updateVariableCompletionStatus(variableCard);
+            } else {
+                // Hide target details if no target selected
+                targetDetails.style.display = 'none';
+            }
+        });
+    });
+});
+
+// Function to update variable completion status
+function updateVariableCompletionStatus(variableCard) {
+    const notMappableCheck = variableCard.querySelector('.not-mappable-checkbox');
+    const targetSelect = variableCard.querySelector('select[name*="target_attribute"]');
+    const badge = variableCard.querySelector('.completion-badge');
+    
+    if (notMappableCheck && notMappableCheck.checked) {
+        // Already handled in the checkbox event listener
+        return;
+    }
+    
+    if (targetSelect && targetSelect.value) {
+        // Variable is mapped
+        variableCard.classList.remove('incomplete', 'not-mappable');
+        variableCard.classList.add('complete');
+        badge.className = 'completion-badge badge-complete';
+        badge.innerHTML = '<i class="fas fa-check"></i> Mapped';
+    } else {
+        // Variable needs mapping
+        variableCard.classList.remove('complete', 'not-mappable');
+        variableCard.classList.add('incomplete');
+        badge.className = 'completion-badge badge-incomplete';
+        badge.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Needs Mapping';
+    }
+}
+
+// Enhanced clear mapping function
+function clearMapping(variableId) {
+    if (confirm('Are you sure you want to clear this mapping?')) {
+        // Clear form fields for this variable
+        const variableCard = document.querySelector(`[data-variable-name*="${variableId}"]`).closest('.variable-card');
+        
+        // Clear all form inputs
+        variableCard.querySelectorAll('select, textarea, input[type="text"]').forEach(field => {
+            if (field.type === 'select-one') {
+                field.selectedIndex = 0;
+            } else if (field.type === 'checkbox') {
+                field.checked = false;
+            } else {
+                field.value = '';
+            }
+        });
+        
+        // Hide custom settings and relationship sections when cleared
+        const customSettingsSection = variableCard.querySelector('[id^="custom-settings-"]');
+        const relationshipSection = variableCard.querySelector('[id^="relationship-"]');
+        const mappingFields = variableCard.querySelector('.mapping-fields');
+        
+        if (customSettingsSection) customSettingsSection.style.display = 'none';
+        if (relationshipSection) relationshipSection.style.display = 'none';
+        if (mappingFields) mappingFields.style.display = 'block';
+        
+        // Hide target details
+        const targetDetails = variableCard.querySelector('.target-attribute-details');
+        if (targetDetails) targetDetails.style.display = 'none';
+        
+        // Update completion status
+        updateVariableCompletionStatus(variableCard);
+        
+        // Save the cleared mapping
+        saveMapping(variableId);
+    }
+}
+
 </script>
 {% endblock %}

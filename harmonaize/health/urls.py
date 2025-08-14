@@ -28,19 +28,9 @@ urlpatterns = [
     ),
     # Harmonisation mapping workflow
     path(
-        "studies/<int:study_id>/mapping/",
-        views.mapping_schemas,
-        name="mapping_schemas",
-    ),
-    path(
-        "studies/<int:study_id>/mapping/start/",
+        "studies/<int:study_id>/start-harmonisation/",
         views.start_harmonisation,
         name="start_harmonisation",
-    ),
-    path(
-        "mapping/<int:schema_id>/edit/",
-        views.edit_mapping,
-        name="edit_mapping",
     ),
     path(
         "mapping/<int:schema_id>/dashboard/",
@@ -56,10 +46,5 @@ urlpatterns = [
         "mapping/<int:schema_id>/approve/",
         views.approve_mapping,
         name="approve_mapping",
-    ),
-    path(
-        "mapping/<int:schema_id>/universal-settings/",
-        views.update_universal_settings,
-        name="update_universal_settings",
     ),
 ]
