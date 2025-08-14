@@ -414,8 +414,8 @@
   <div class="hero-content">
     <h1 class="hero-title">Climate Data Integration</h1>
     <p class="hero-subtitle">
-      Seamlessly integrate climate and environmental data with your health studies. 
-      Access curated climate datasets, automate data retrieval, and accelerate your climate-health research with our AI-powered platform.
+      Seamlessly integrate climate and environmental data with your health studies through our intuitive interface. 
+      Browse Earth Engine datasets, configure data requests, and enrich your research with environmental context - no programming required.
     </p>
     <div class="hero-actions">
       <a href="{% url 'climate:dashboard' %}" class="btn-hero btn-hero-primary">
@@ -539,9 +539,9 @@
             <polyline points="8 6 2 12 8 18"></polyline>
           </svg>
         </div>
-        <h3 class="feature-title">API Access</h3>
+        <h3 class="feature-title">Earth Engine Integration</h3>
         <p class="feature-description">
-          Programmatic access to climate data through RESTful APIs. Integrate climate data retrieval directly into your research workflows and analysis pipelines.
+          Access Google Earth Engine's vast catalog of climate and environmental datasets through our intuitive interface. No programming required - just point, click, and analyze.
         </p>
       </div>
     </div>
@@ -591,8 +591,22 @@
 
   <!-- Available Data Sources -->
   <div class="section">
-    <h2 class="section-title">Available Climate Data Sources</h2>
-    <p class="section-subtitle">Access to leading climate and environmental datasets from trusted international sources</p>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <div>
+        <h2 class="section-title">Available Climate Data Sources</h2>
+        <p class="section-subtitle">Access to leading climate and environmental datasets from trusted international sources</p>
+      </div>
+      <div>
+        <a href="{% url 'climate:earth_engine_datasets' %}" class="btn-hero btn-hero-secondary" style="display: inline-flex; align-items: center; gap: 0.5rem; text-decoration: none; font-size: 0.9rem;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M12 1v6m0 6v6"></path>
+            <path d="m21 12-6-6-6 6-6-6"></path>
+          </svg>
+          View Earth Engine Datasets
+        </a>
+      </div>
+    </div>
     
     {% if data_sources %}
       <div class="data-sources-grid">
@@ -622,6 +636,28 @@
             </div>
           </div>
         {% endfor %}
+      </div>
+      
+      <!-- Earth Engine Highlight -->
+      <div class="mt-4 p-3 rounded" style="background: linear-gradient(135deg, #E3F2FD 0%, #F3E5F5 100%); border: 1px solid #E1F5FE;">
+        <div class="d-flex align-items-center mb-2">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1976D2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="me-2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M12 1v6m0 6v6"></path>
+            <path d="m21 12-6-6-6 6-6-6"></path>
+          </svg>
+          <strong style="color: #1976D2;">Google Earth Engine Integration</strong>
+        </div>
+        <p class="mb-2" style="color: #424242; font-size: 0.9rem; line-height: 1.5;">
+          Access 40+ years of satellite imagery and geospatial datasets including climate data, air quality measurements, 
+          vegetation indices, and socioeconomic indicators — all optimized for health research applications.
+        </p>
+        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem;">
+          <span class="badge" style="background-color: #E8F5E8; color: #2E7D32; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.7rem;">Temperature & Climate</span>
+          <span class="badge" style="background-color: #FFF3E0; color: #F57C00; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.7rem;">Air Quality</span>
+          <span class="badge" style="background-color: #E0F2F1; color: #00695C; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.7rem;">Vegetation & Land Use</span>
+          <span class="badge" style="background-color: #E3F2FD; color: #1565C0; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.7rem;">Demographics & Socioeconomics</span>
+        </div>
       </div>
     {% else %}
       <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
@@ -675,12 +711,12 @@
             <polyline points="8 6 2 12 8 18"></polyline>
           </svg>
         </div>
-        <h3 class="feature-title">API Documentation</h3>
+        <h3 class="feature-title">Dataset Catalog</h3>
         <p class="feature-description">
-          Complete API reference for programmatic access to climate data. Includes authentication, endpoints, and code examples in multiple programming languages.
+          Browse our comprehensive catalog of climate, air quality, vegetation, and socioeconomic datasets. Each dataset includes detailed descriptions and usage examples.
         </p>
-        <a href="{% url 'climate:api_docs' %}" style="color: var(--primary-color); text-decoration: none; font-weight: 600; margin-top: 1rem; display: inline-block;">
-          View API Documentation →
+        <a href="{% url 'climate:earth_engine_datasets' %}" style="color: var(--primary-color); text-decoration: none; font-weight: 600; margin-top: 1rem; display: inline-block;">
+          View Dataset Catalog →
         </a>
       </div>
 

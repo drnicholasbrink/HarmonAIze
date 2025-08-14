@@ -19,7 +19,7 @@ from .models import (
     ClimateDataRequest,
     ClimateDataCache,
 )
-from .services import ClimateDataProcessor, GEEDataService, SpatioTemporalMatcher
+from .services import ClimateDataProcessor, EarthEngineDataService, SpatioTemporalMatcher
 
 User = get_user_model()
 
@@ -245,8 +245,8 @@ class ClimateServicesTestCase(TestCase):
         )
     
     def test_gee_data_service_validation(self):
-        """Test GEE data service location validation."""
-        service = GEEDataService(self.source)
+        """Test Earth Engine data service location validation."""
+        service = EarthEngineDataService(self.source)
         
         # Valid location
         self.assertTrue(service.validate_location(self.location))
@@ -256,8 +256,8 @@ class ClimateServicesTestCase(TestCase):
         self.assertFalse(service.validate_location(invalid_location))
     
     def test_gee_data_service_date_validation(self):
-        """Test GEE data service date range validation."""
-        service = GEEDataService(self.source)
+        """Test Earth Engine data service date range validation."""
+        service = EarthEngineDataService(self.source)
         
         start_date = datetime(2023, 1, 1)
         end_date = datetime(2023, 12, 31)
@@ -269,8 +269,8 @@ class ClimateServicesTestCase(TestCase):
         self.assertFalse(service.validate_date_range(end_date, start_date))
     
     def test_gee_data_service_fetch_data(self):
-        """Test fetching data from GEE service (mock implementation)."""
-        service = GEEDataService(self.source)
+        """Test fetching data from Earth Engine service (mock implementation)."""
+        service = EarthEngineDataService(self.source)
         
         start_date = datetime(2023, 6, 1)
         end_date = datetime(2023, 6, 3)

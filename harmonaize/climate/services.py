@@ -54,16 +54,16 @@ class BaseClimateDataService:
         return start_date <= end_date
 
 
-class GEEDataService(BaseClimateDataService):
+class EarthEngineDataService(BaseClimateDataService):
     """
     Google Earth Engine data service for satellite-based climate data.
-    Note: This is a simplified implementation. Real GEE integration would require
+    Note: This is a simplified implementation. Real Earth Engine integration would require
     the earthengine-api package and proper authentication.
     """
     
     def __init__(self, data_source: ClimateDataSource):
         super().__init__(data_source)
-        # In production, initialize GEE here:
+        # In production, initialize Earth Engine here:
         # import ee
         # ee.Initialize(credentials)
     
@@ -85,7 +85,7 @@ class GEEDataService(BaseClimateDataService):
         if not self.validate_date_range(start_date, end_date):
             raise ValueError(f"Invalid date range for data source")
         
-        # Get variable mapping for GEE
+        # Get variable mapping for Earth Engine
         try:
             mapping = ClimateVariableMapping.objects.get(
                 variable=variable,
@@ -95,11 +95,11 @@ class GEEDataService(BaseClimateDataService):
             raise ValueError(f"Variable {variable} not available in {self.data_source}")
         
         # Mock data generation for MVP
-        # In production, this would use the GEE Python API
+        # In production, this would use the Earth Engine Python API
         data = []
         current_date = start_date
         while current_date <= end_date:
-            # Simulate fetching data from GEE
+            # Simulate fetching data from Earth Engine
             value = self._simulate_climate_value(variable, location, current_date)
             
             # Apply scaling and offset from mapping
@@ -109,7 +109,7 @@ class GEEDataService(BaseClimateDataService):
                 'date': current_date.date(),
                 'value': value,
                 'quality_flag': 'good',
-                'source': 'GEE',
+                'source': 'Earth Engine',
             })
             
             current_date += timedelta(days=1)
@@ -124,7 +124,7 @@ class GEEDataService(BaseClimateDataService):
     ) -> float:
         """
         Simulate climate values for MVP demonstration.
-        In production, this would be replaced with actual GEE data retrieval.
+        In production, this would be replaced with actual Earth Engine data retrieval.
         """
         # Simple simulation based on variable type and location
         base_value = 0
@@ -214,7 +214,7 @@ class ClimateDataProcessor:
     def _get_data_service(self) -> BaseClimateDataService:
         """Get appropriate data service based on source type."""
         if self.request.data_source.source_type == 'gee':
-            return GEEDataService(self.request.data_source)
+            return EarthEngineDataService(self.request.data_source)
         else:
             # Add other services as needed
             raise NotImplementedError(

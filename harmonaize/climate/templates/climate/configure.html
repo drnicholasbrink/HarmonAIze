@@ -50,19 +50,37 @@
                     
                     {% if available_sources %}
                     <div class="mt-3">
-                      <small class="text-muted">Available sources:</small>
+                      <div class="d-flex justify-content-between align-items-center mb-2">
+                        <small class="text-muted">Available sources:</small>
+                        <a href="{% url 'climate:earth_engine_datasets' %}" class="btn btn-sm btn-outline-info" target="_blank">
+                          <i class="fas fa-satellite me-1"></i>View Earth Engine Datasets
+                        </a>
+                      </div>
                       <ul class="list-unstyled mt-2">
                         {% for source in available_sources %}
-                        <li>
-                          <small>
-                            <strong>{{ source.name }}</strong> - {{ source.get_source_type_display }}
+                        <li class="mb-2">
+                          <div class="d-flex align-items-center">
+                            <strong class="me-2">{{ source.name }}</strong>
+                            <span class="badge bg-primary me-2">{{ source.get_source_type_display }}</span>
                             {% if source.spatial_resolution_m %}
-                              ({{ source.spatial_resolution_m }}m resolution)
+                              <span class="badge bg-info me-2">{{ source.spatial_resolution_m }}m resolution</span>
                             {% endif %}
-                          </small>
+                            {% if source.global_coverage %}
+                              <span class="badge bg-success">Global Coverage</span>
+                            {% endif %}
+                          </div>
+                          {% if source.description %}
+                            <small class="text-muted d-block">{{ source.description|truncatewords:15 }}</small>
+                          {% endif %}
                         </li>
                         {% endfor %}
                       </ul>
+                      <div class="mt-2">
+                        <small class="text-info">
+                          <i class="fas fa-info-circle me-1"></i>
+                          Earth Engine provides 40+ years of climate and environmental data for health research.
+                        </small>
+                      </div>
                     </div>
                     {% endif %}
                   </div>
@@ -161,17 +179,8 @@ document.addEventListener('DOMContentLoaded', function() {
     dataSourceSelect.addEventListener('change', function() {
       const sourceId = this.value;
       if (sourceId) {
-        // Fetch available variables for this data source
-        fetch(`{% url 'climate:variables_api' %}?source_id=${sourceId}`)
-          .then(response => response.json())
-          .then(data => {
-            if (data.variables) {
-              // Update variables display
-              console.log('Available variables:', data.variables);
-              // You could dynamically filter the variables checkboxes here
-            }
-          })
-          .catch(error => console.error('Error fetching variables:', error));
+        // Note: Variable filtering could be implemented here
+        console.log('Data source changed to:', sourceId);
       }
     });
   }

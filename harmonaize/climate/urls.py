@@ -25,10 +25,6 @@ urlpatterns = [
     
     # Demo and documentation
     path('demo/', views.climate_demo_view, name='demo'),
-    path('api-docs/', views.climate_api_docs_view, name='api_docs'),
+    path('earth-engine-datasets/', views.earth_engine_datasets_view, name='earth_engine_datasets'),
     path('improvements/', views.climate_improvements_view, name='improvements'),
-    
-    # API endpoints
-    path('api/variables/', views.climate_variables_api_view, name='variables_api'),
-    path('api/request/<int:request_id>/status/', views.climate_status_api_view, name='status_api'),
 ]

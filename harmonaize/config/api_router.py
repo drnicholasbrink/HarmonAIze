@@ -11,7 +11,4 @@ router.register("users", UserViewSet)
 
 
 app_name = "api"
-urlpatterns = router.urls + [
-    # Climate API endpoints
-    path("climate/", include("climate.api.urls", namespace="climate_api")),
-]
+urlpatterns = router.urls

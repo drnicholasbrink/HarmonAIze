@@ -368,33 +368,6 @@ def climate_data_export_view(request, request_id):
     return response
 
 
-@login_required
-def climate_variables_api_view(request):
-    """
-    API endpoint to get available climate variables for a data source.
-    """
-    source_id = request.GET.get('source_id')
-    
-    if not source_id:
-        return JsonResponse({'error': 'source_id parameter required'}, status=400)
-    
-    try:
-        data_source = ClimateDataSource.objects.get(pk=source_id, is_active=True)
-        variables = data_source.variables.all().values(
-            'id',
-            'name',
-            'display_name',
-            'category',
-            'unit_symbol',
-            'description'
-        )
-        
-        return JsonResponse({
-            'source': data_source.name,
-            'variables': list(variables)
-        })
-    except ClimateDataSource.DoesNotExist:
-        return JsonResponse({'error': 'Data source not found'}, status=404)
 
 
 @login_required
@@ -438,50 +411,6 @@ def climate_demo_view(request):
     return render(request, 'climate/demo.html', context)
 
 
-@login_required
-def climate_api_docs_view(request):
-    """
-    API documentation page for climate endpoints.
-    """
-    # Sample API endpoints and their documentation
-    api_endpoints = [
-        {
-            'method': 'GET',
-            'endpoint': '/climate/api/variables/',
-            'description': 'List available climate variables for a data source',
-            'parameters': [
-                {'name': 'source_id', 'type': 'integer', 'required': True, 'description': 'ID of the climate data source'}
-            ],
-            'response_example': {
-                'source': 'ERA5 Reanalysis',
-                'variables': [
-                    {'id': 1, 'name': 'temperature_2m', 'display_name': 'Temperature at 2m', 'category': 'temperature', 'unit_symbol': '°C'}
-                ]
-            }
-        },
-        {
-            'method': 'GET',
-            'endpoint': '/climate/api/request/{request_id}/status/',
-            'description': 'Check the processing status of a climate data request',
-            'parameters': [
-                {'name': 'request_id', 'type': 'integer', 'required': True, 'description': 'ID of the climate data request'}
-            ],
-            'response_example': {
-                'status': 'processing',
-                'progress': 75,
-                'processed_locations': 15,
-                'total_locations': 20,
-                'total_observations': 1250
-            }
-        }
-    ]
-    
-    context = {
-        'api_endpoints': api_endpoints,
-        'base_url': request.build_absolute_uri('/').rstrip('/'),
-    }
-    
-    return render(request, 'climate/api_docs.html', context)
 
 
 @login_required  
@@ -500,12 +429,12 @@ def climate_improvements_view(request):
         'new_features': [
             'Created comprehensive climate module landing page',
             'Built interactive demo showcasing climate data integration workflow',
-            'Added API documentation with interactive testing interface',
-            'Implemented code examples in Python, JavaScript, R, and cURL',
+            'Added Earth Engine datasets catalog with comprehensive coverage',
+            'Implemented guided workflow for climate data selection',
             'Created step-by-step guided demo with sample data'
         ],
         'documentation': [
-            'Added comprehensive API reference with live examples',
+            'Added comprehensive Earth Engine datasets catalog',
             'Created user guides for climate data integration',
             'Built FAQ section for common climate module questions',
             'Added tooltips and contextual help throughout interface',
@@ -527,24 +456,16 @@ def climate_improvements_view(request):
     return render(request, 'climate/improvements.html', context)
 
 
+
+
 @login_required
-def climate_status_api_view(request, request_id):
+def earth_engine_datasets_view(request):
     """
-    API endpoint to check climate request processing status.
+    Comprehensive guide to Google Earth Engine datasets available for climate and health research.
     """
-    try:
-        climate_request = ClimateDataRequest.objects.get(
-            pk=request_id,
-            study__created_by=request.user
-        )
-        
-        return JsonResponse({
-            'status': climate_request.status,
-            'progress': climate_request.progress_percentage,
-            'processed_locations': climate_request.processed_locations,
-            'total_locations': climate_request.total_locations,
-            'total_observations': climate_request.total_observations,
-            'error_message': climate_request.error_message,
-        })
-    except ClimateDataRequest.DoesNotExist:
-        return JsonResponse({'error': 'Request not found'}, status=404)
+    context = {
+        'page_title': 'Google Earth Engine Datasets - Climate & Health Data',
+        'meta_description': 'Comprehensive guide to Google Earth Engine datasets for climate, environmental health, and socioeconomic research in HarmonAIze',
+    }
+    
+    return render(request, 'climate/earth_engine_datasets.html', context)
