@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from core.models import Study, Attribute
+import os
 
 User = get_user_model()
 
@@ -294,4 +295,204 @@ class MappingRule(models.Model):
 
 		if errors:
 			raise ValidationError(errors)
+
+
+class RawDataFile(models.Model):
+    """
+    Stores uploaded raw data files with metadata for processing.
+    Links to Study and tracks patient ID and date columns.
+    """
+    # Basic file information
+    study = models.ForeignKey(
+        Study,
+        on_delete=models.CASCADE,
+        related_name="raw_data_files",
+        help_text="Study this raw data belongs to"
+    )
+    file = models.FileField(
+        upload_to='raw_data/%Y/%m/%d/',
+        help_text="Raw data file (CSV, Excel, etc.)"
+    )
+    original_filename = models.CharField(
+        max_length=255,
+        help_text="Original filename when uploaded"
+    )
+    
+    # File metadata
+    file_format = models.CharField(
+        max_length=20,
+        choices=[
+            ('csv', 'CSV'),
+            ('xlsx', 'Excel (XLSX)'),
+            ('xls', 'Excel (XLS)'),
+            ('json', 'JSON'),
+            ('txt', 'Text'),
+        ],
+        help_text="Detected or specified file format"
+    )
+    file_size = models.PositiveIntegerField(
+        help_text="File size in bytes"
+    )
+    rows_count = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Number of data rows in the file"
+    )
+    columns_count = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Number of columns in the file"
+    )
+    
+    # Key column identification for data linkage
+    patient_id_column = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Column name containing patient identifiers"
+    )
+    date_column = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Column name containing dates/timestamps"
+    )
+    
+    # Processing status
+    PROCESSING_STATUS_CHOICES = [
+        ('uploaded', 'Uploaded'),
+        ('validated', 'Validated'),
+        ('processed', 'Processed'),
+        ('error', 'Processing Error'),
+    ]
+    processing_status = models.CharField(
+        max_length=20,
+        choices=PROCESSING_STATUS_CHOICES,
+        default='uploaded'
+    )
+    processing_message = models.TextField(
+        blank=True,
+        help_text="Status messages or error details"
+    )
+    
+    # Timestamps and user tracking
+    uploaded_by = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="uploaded_raw_data"
+    )
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    processed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the file was last processed"
+    )
+    
+    class Meta:
+        ordering = ['-uploaded_at']
+        verbose_name = "Raw Data File"
+        verbose_name_plural = "Raw Data Files"
+    
+    def __str__(self):
+        return f"{self.original_filename} ({self.study.name})"
+    
+    def save(self, *args, **kwargs):
+        # Auto-detect file format if not set
+        if not self.file_format and self.file:
+            ext = os.path.splitext(self.original_filename or self.file.name)[1].lower()
+            format_map = {
+                '.csv': 'csv',
+                '.xlsx': 'xlsx',
+                '.xls': 'xls',
+                '.json': 'json',
+                '.txt': 'txt',
+            }
+            self.file_format = format_map.get(ext, 'csv')
+        
+        # Set file size if not set
+        if self.file and not self.file_size:
+            self.file_size = self.file.size
+        
+        # Set original filename if not set
+        if not self.original_filename and self.file:
+            self.original_filename = self.file.name
+            
+        super().save(*args, **kwargs)
+
+
+class RawDataColumn(models.Model):
+    """
+    Metadata about columns in raw data files.
+    Discovered during file validation/processing.
+    """
+    raw_data_file = models.ForeignKey(
+        RawDataFile,
+        on_delete=models.CASCADE,
+        related_name="columns"
+    )
+    column_name = models.CharField(
+        max_length=200,
+        help_text="Original column name from the file"
+    )
+    column_index = models.PositiveIntegerField(
+        help_text="0-based column index in the file"
+    )
+    
+    # Inferred column metadata
+    sample_values = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Sample values from this column for preview"
+    )
+    inferred_type = models.CharField(
+        max_length=50,
+        choices=[
+            ('text', 'Text'),
+            ('integer', 'Integer'),
+            ('float', 'Float'),
+            ('date', 'Date'),
+            ('datetime', 'Date/Time'),
+            ('boolean', 'Boolean'),
+            ('categorical', 'Categorical'),
+        ],
+        default='text'
+    )
+    non_null_count = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of non-null values in this column"
+    )
+    unique_count = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of unique values in this column"
+    )
+    
+    # Potential mapping hints
+    is_potential_patient_id = models.BooleanField(
+        default=False,
+        help_text="Could this be a patient ID column?"
+    )
+    is_potential_date = models.BooleanField(
+        default=False,
+        help_text="Could this be a date/time column?"
+    )
+    
+    # Variable mapping
+    mapped_variable = models.ForeignKey(
+        "core.Attribute",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="Study variable this column maps to"
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['column_index']
+        unique_together = ['raw_data_file', 'column_name']
+        verbose_name = "Raw Data Column"
+        verbose_name_plural = "Raw Data Columns"
+    
+    def __str__(self):
+        return f"{self.column_name} ({self.raw_data_file.original_filename})"
 

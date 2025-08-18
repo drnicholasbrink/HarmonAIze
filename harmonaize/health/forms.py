@@ -1,8 +1,9 @@
 from django import forms
 from django.forms import formset_factory
+from django.core.exceptions import ValidationError
 
 from core.models import Attribute, Study
-from .models import MappingRule, MappingSchema, validate_safe_transform_code
+from .models import MappingRule, MappingSchema, validate_safe_transform_code, RawDataFile
 
 
 class TargetAttributeWidget(forms.Select):
@@ -184,3 +185,191 @@ class MappingRuleForm(forms.ModelForm):
 
 
 MappingRuleFormSet = formset_factory(MappingRuleForm, extra=0)
+
+
+class RawDataUploadForm(forms.ModelForm):
+    """
+    Form for uploading raw data files.
+    Includes participant ID and date column selectors based on study variables.
+    """
+    
+    # Override fields to use ChoiceField instead of ModelChoiceField
+    patient_id_column = forms.ChoiceField(
+        required=True,
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        help_text="Select the variable from your codebook that contains participant identifiers"
+    )
+    date_column = forms.ChoiceField(
+        required=True,
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        help_text="Select the variable from your codebook that contains dates or timestamps"
+    )
+    
+    class Meta:
+        model = RawDataFile
+        fields = ['study', 'file']  # Remove patient_id_column and date_column from Meta
+        widgets = {
+            'study': forms.Select(attrs={
+                'class': 'form-control',
+                'help_text': 'Select the study this data belongs to'
+            }),
+            'file': forms.FileInput(attrs={
+                'class': 'form-control',
+                'accept': '.csv,.xlsx,.xls,.json,.txt'
+            }),
+        }
+    
+    def __init__(self, *args, **kwargs):
+        # Allow filtering studies by user or other criteria
+        user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+        
+        # Only show source studies (ones that can have raw data)
+        self.fields['study'].queryset = Study.objects.filter(
+            study_purpose='source'
+        ).order_by('name')
+        
+        # Set up patient ID and date column choices based on selected study
+        self.fields['patient_id_column'].choices = [('', 'Select participant ID variable...')]
+        self.fields['date_column'].choices = [('', 'Select date/time variable...')]
+        
+        # Update field labels
+        self.fields['patient_id_column'].label = "Participant ID Variable"
+        self.fields['date_column'].label = "Date/Time Variable"
+        
+        # If study is already selected (e.g., from initial data or GET parameter)
+        if 'study' in self.data:
+            try:
+                study_id = int(self.data.get('study'))
+                study = Study.objects.get(pk=study_id)
+                self._update_column_choices(study)
+            except (ValueError, TypeError, Study.DoesNotExist):
+                pass
+        elif self.instance and self.instance.pk and self.instance.study:
+            # If we're editing an existing instance
+            study = self.instance.study
+            self._update_column_choices(study)
+            
+            # Set initial values for existing instance
+            if self.instance.patient_id_column:
+                self.initial['patient_id_column'] = self.instance.patient_id_column
+            if self.instance.date_column:
+                self.initial['date_column'] = self.instance.date_column
+    
+    def _update_column_choices(self, study):
+        """Update the column choice fields based on the selected study."""
+        # Filter to only show string/categorical variables for patient ID
+        patient_id_variables = study.variables.filter(
+            variable_type__in=['string', 'categorical']
+        )
+        patient_id_choices = [('', 'Select participant ID variable...')]
+        patient_id_choices.extend([
+            (var.variable_name, f"{var.display_name or var.variable_name} ({var.variable_name})")
+            for var in patient_id_variables
+        ])
+        self.fields['patient_id_column'].choices = patient_id_choices
+        
+        # Filter to show datetime or string variables for date column  
+        date_variables = study.variables.filter(
+            variable_type__in=['datetime', 'string']
+        )
+        date_choices = [('', 'Select date/time variable...')]
+        date_choices.extend([
+            (var.variable_name, f"{var.display_name or var.variable_name} ({var.variable_name})")
+            for var in date_variables
+        ])
+        self.fields['date_column'].choices = date_choices
+    
+    def clean_file(self):
+        file = self.cleaned_data.get('file')
+        if not file:
+            return file
+        
+        # Basic file validation
+        max_size = 50 * 1024 * 1024  # 50MB
+        if file.size > max_size:
+            raise ValidationError(f"File size ({file.size / 1024 / 1024:.1f}MB) exceeds maximum allowed size (50MB).")
+        
+        # Check file extension
+        allowed_extensions = ['.csv', '.xlsx', '.xls', '.json', '.txt']
+        file_ext = '.' + file.name.split('.')[-1].lower()
+        if file_ext not in allowed_extensions:
+            raise ValidationError(f"File type '{file_ext}' not supported. Allowed types: {', '.join(allowed_extensions)}")
+        
+        return file
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        study = cleaned_data.get('study')
+        file = cleaned_data.get('file')
+        patient_id_column = cleaned_data.get('patient_id_column')
+        date_column = cleaned_data.get('date_column')
+        
+        if study and file:
+            # Validate that the selected columns are actually part of the study
+            study_variable_names = list(study.variables.values_list('variable_name', flat=True))
+            
+            if patient_id_column and patient_id_column not in study_variable_names:
+                raise ValidationError({
+                    'patient_id_column': 'Selected participant ID variable is not part of this study\'s codebook.'
+                })
+            
+            if date_column and date_column not in study_variable_names:
+                raise ValidationError({
+                    'date_column': 'Selected date variable is not part of this study\'s codebook.'
+                })
+            
+            # Validate file content against codebook
+            try:
+                from health.utils import validate_raw_data_against_codebook
+                validation_result = validate_raw_data_against_codebook(file, study)
+                if not validation_result['is_valid']:
+                    raise ValidationError(f"Data validation failed: {validation_result['message']}")
+            except Exception as e:
+                # Don't block upload if validation utility fails, but log the issue
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Raw data validation failed for file {file.name}: {str(e)}")
+        
+        return cleaned_data
+    
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        
+        # Set the original filename
+        if instance.file:
+            instance.original_filename = instance.file.name
+        
+        # Set patient_id_column and date_column from the form data
+        instance.patient_id_column = self.cleaned_data.get('patient_id_column', '')
+        instance.date_column = self.cleaned_data.get('date_column', '')
+        
+        if commit:
+            instance.save()
+        return instance
+
+
+class ColumnMappingForm(forms.Form):
+    """
+    Form for mapping columns after file upload.
+    This will be used in a future step to configure patient ID and date columns.
+    """
+    patient_id_column = forms.ChoiceField(
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        help_text="Select the column containing patient identifiers"
+    )
+    date_column = forms.ChoiceField(
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        help_text="Select the column containing dates/timestamps"
+    )
+    
+    def __init__(self, *args, **kwargs):
+        columns = kwargs.pop('columns', [])
+        super().__init__(*args, **kwargs)
+        
+        # Create choices from column names
+        column_choices = [('', '-- Select Column --')] + [(col, col) for col in columns]
+        self.fields['patient_id_column'].choices = column_choices
+        self.fields['date_column'].choices = column_choices

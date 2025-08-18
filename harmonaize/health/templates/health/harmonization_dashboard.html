@@ -769,6 +769,7 @@
       <h1>Harmonise Study Dashboard</h1>
       <p class="hero-subtitle">Manage variable mappings and track harmonisation progress</p>
       
+      {% if not creating_new %}
       <div class="progress-section">
         <div class="progress-header">
           <span>Progress</span>
@@ -778,6 +779,7 @@
           <div class="progress-bar" style="width: {{ progress_percent }}%"></div>
         </div>
       </div>
+      {% endif %}
     </div>
   </div>
 </div>
@@ -789,7 +791,7 @@
     <div class="study-selection-grid">
       <div class="study-info">
         <label class="study-label">Source Study</label>
-        <div class="study-value">{{ schema.source_study.name }}</div>
+        <div class="study-value">{% if creating_new %}{{ study.name }}{% else %}{{ schema.source_study.name }}{% endif %}</div>
       </div>
       
       <div class="form-group" style="margin: 0;">
@@ -827,16 +829,121 @@
   <nav aria-label="breadcrumb">
     <ol class="breadcrumb">
       <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">Dashboard</a></li>
-      {% if schema.source_study.project %}
-        <li class="breadcrumb-item"><a href="{% url 'core:project_list' %}">Projects</a></li>
-        <li class="breadcrumb-item"><a href="{% url 'core:project_detail' schema.source_study.project.pk %}">{{ schema.source_study.project.name }}</a></li>
+      {% if creating_new %}
+        {% if study.project %}
+          <li class="breadcrumb-item"><a href="{% url 'core:project_list' %}">Projects</a></li>
+          <li class="breadcrumb-item"><a href="{% url 'core:project_detail' study.project.pk %}">{{ study.project.name }}</a></li>
+        {% endif %}
+        <li class="breadcrumb-item"><a href="{% url 'core:study_detail' study.pk %}">{{ study.name }}</a></li>
+      {% else %}
+        {% if schema.source_study.project %}
+          <li class="breadcrumb-item"><a href="{% url 'core:project_list' %}">Projects</a></li>
+          <li class="breadcrumb-item"><a href="{% url 'core:project_detail' schema.source_study.project.pk %}">{{ schema.source_study.project.name }}</a></li>
+        {% endif %}
+        <li class="breadcrumb-item"><a href="{% url 'core:study_detail' schema.source_study.pk %}">{{ schema.source_study.name }}</a></li>
       {% endif %}
-      <li class="breadcrumb-item"><a href="{% url 'core:study_detail' schema.source_study.pk %}">{{ schema.source_study.name }}</a></li>
       <li class="breadcrumb-item active">Harmonise Dashboard</li>
     </ol>
   </nav>
 </div>
 
+{% if creating_new %}
+<!-- Schema Creation Form -->
+<div class="main-container" style="grid-template-columns: 1fr;">
+  <div class="settings-panel">
+    <div class="settings-header">
+      <h2 class="settings-title">
+        <i class="fas fa-plus-circle"></i>
+        Create Harmonization Schema
+      </h2>
+      <p class="hero-subtitle">Set up the mapping configuration for {{ study.name }}</p>
+    </div>
+
+    <form method="post">
+      {% csrf_token %}
+      <div class="settings-grid">
+        <div class="form-group">
+          <label class="form-label">Target Study</label>
+          {{ form.target_study }}
+          {% if form.target_study.errors %}
+            <div class="error-message">
+              {% for error in form.target_study.errors %}
+                <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+          <small class="help-text">Select the target database to harmonize this study with</small>
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">Default Patient ID Variable</label>
+          {{ form.universal_patient_id }}
+          {% if form.universal_patient_id.errors %}
+            <div class="error-message">
+              {% for error in form.universal_patient_id.errors %}
+                <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+          <small class="help-text">Default patient identifier for all mappings</small>
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">Default DateTime Variable</label>
+          {{ form.universal_datetime }}
+          {% if form.universal_datetime.errors %}
+            <div class="error-message">
+              {% for error in form.universal_datetime.errors %}
+                <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+          <small class="help-text">Default timestamp variable for all mappings</small>
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">Default Relationship Type</label>
+          {{ form.universal_relation_type }}
+          {% if form.universal_relation_type.errors %}
+            <div class="error-message">
+              {% for error in form.universal_relation_type.errors %}
+                <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+          <small class="help-text">Default relationship type for all mappings</small>
+        </div>
+        
+        <div class="form-group full-width">
+          <label class="form-label">Comments</label>
+          {{ form.comments }}
+          {% if form.comments.errors %}
+            <div class="error-message">
+              {% for error in form.comments.errors %}
+                <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+          <small class="help-text">Optional notes about this harmonization schema</small>
+        </div>
+      </div>
+
+      <div class="variable-actions">
+        <a href="{% url 'core:study_detail' study.pk %}" class="btn btn-secondary">
+          <i class="fas fa-arrow-left"></i>
+          Cancel
+        </a>
+        <button type="submit" class="btn btn-success">
+          <i class="fas fa-plus-circle"></i>
+          Create Schema
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% else %}
+<!-- Existing Harmonization Dashboard -->
 <div class="main-container">
   <!-- Universal Settings Panel -->
   <div class="settings-panel">
@@ -851,6 +958,7 @@
       </button>
     </div>
 
+    {% if universal_form %}
     <form method="post" id="universal-settings-form" style="display: none;">
       {% csrf_token %}
       <div class="settings-grid">
@@ -900,8 +1008,10 @@
         </button>
       </div>
     </form>
+    {% endif %}
 
     <!-- Current Settings Display -->
+    {% if universal_form %}
     <div id="settings-display">
       <div class="settings-grid">
         <div class="stat-item">
@@ -918,6 +1028,7 @@
         </div>
       </div>
     </div>
+    {% endif %}
   </div>
 
   <!-- Variables Section -->
@@ -1231,9 +1342,8 @@
         </button>
       </div>
     </div>
-  </div>
-</div>
-  <!-- Navigation -->
+
+    <!-- Navigation -->
     <div class="sidebar-section">
       <h3 class="sidebar-title">Navigation</h3>
       <div class="bulk-actions">
@@ -1246,6 +1356,9 @@
         {% endif %}
       </div>
     </div>
+  </div>
+</div>
+{% endif %}
 <!-- Auto-save indicator -->
 <div class="auto-save-indicator" id="auto-save-indicator">
   <i class="fas fa-save"></i> Saving...
