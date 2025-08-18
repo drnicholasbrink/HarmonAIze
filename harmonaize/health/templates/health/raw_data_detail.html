@@ -129,9 +129,19 @@
       color: #155724;
     }
 
-    .status-error {
-      background-color: rgba(255, 59, 48, 0.2);
-      color: #721c24;
+    .status-processing {
+      background-color: rgba(0, 122, 255, 0.2);
+      color: #0056b3;
+    }
+
+    .status-ingested {
+      background-color: rgba(52, 199, 89, 0.2);
+      color: #155724;
+    }
+
+    .status-processed_with_errors {
+      background-color: rgba(255, 149, 0, 0.2);
+      color: #856404;
     }
 
     .processing-steps {
@@ -187,6 +197,11 @@
 
     .step-icon.pending {
       background-color: var(--text-secondary);
+      color: white;
+    }
+
+    .step-icon.error {
+      background-color: var(--error-color);
       color: white;
     }
 
@@ -506,10 +521,12 @@
         </div>
 
         <!-- Step 2: Validation -->
-        <div class="step-item {% if raw_data_file.processing_status == 'validated' or raw_data_file.processing_status == 'processed' %}completed{% elif raw_data_file.processing_status == 'uploaded' %}active{% else %}pending{% endif %}">
-          <div class="step-icon {% if raw_data_file.processing_status == 'validated' or raw_data_file.processing_status == 'processed' %}completed{% elif raw_data_file.processing_status == 'uploaded' %}active{% else %}pending{% endif %}">
-            {% if raw_data_file.processing_status == 'validated' or raw_data_file.processing_status == 'processed' %}
+        <div class="step-item {% if validation_completed %}completed{% elif raw_data_file.processing_status == 'uploaded' %}active{% elif raw_data_file.processing_status == 'validation_error' %}error{% else %}pending{% endif %}">
+          <div class="step-icon {% if validation_completed %}completed{% elif raw_data_file.processing_status == 'uploaded' %}active{% elif raw_data_file.processing_status == 'validation_error' %}error{% else %}pending{% endif %}">
+            {% if validation_completed %}
               <i class="fas fa-check"></i>
+            {% elif raw_data_file.processing_status == 'validation_error' %}
+              <i class="fas fa-times"></i>
             {% elif raw_data_file.processing_status == 'uploaded' %}
               2
             {% else %}
@@ -527,7 +544,7 @@
                   <i class="fas fa-check-circle me-1"></i>Start Validation
                 </a>
               </div>
-            {% elif raw_data_file.processing_status == 'error' %}
+            {% elif raw_data_file.processing_status == 'validation_error' %}
               <div class="alert alert-warning mt-2 p-2">
                 <small><strong>Validation failed:</strong> {{ raw_data_file.processing_message }}</small>
                 <div class="mt-1">
@@ -536,18 +553,24 @@
                   </a>
                 </div>
               </div>
-            {% elif raw_data_file.processing_status == 'validated' or raw_data_file.processing_status == 'processed' %}
+            {% elif validation_completed %}
               <div class="text-success mt-2">
-                <small><i class="fas fa-check"></i> {{ raw_data_file.processing_message }}</small>
+                <small><i class="fas fa-check"></i> 
+                  {% if raw_data_file.processing_status == 'validated' or raw_data_file.processing_status == 'processed' %}
+                    {{ raw_data_file.processing_message }}
+                  {% else %}
+                    Validation completed successfully
+                  {% endif %}
+                </small>
               </div>
             {% endif %}
           </div>
         </div>
 
         <!-- Step 3: Column Mapping -->
-        <div class="step-item {% if raw_data_file.processing_status == 'processed' %}completed{% elif raw_data_file.processing_status == 'validated' %}active{% else %}pending{% endif %}">
-          <div class="step-icon {% if raw_data_file.processing_status == 'processed' %}completed{% elif raw_data_file.processing_status == 'validated' %}active{% else %}pending{% endif %}">
-            {% if raw_data_file.processing_status == 'processed' %}
+        <div class="step-item {% if mapping_completed %}completed{% elif raw_data_file.processing_status == 'validated' %}active{% else %}pending{% endif %}">
+          <div class="step-icon {% if mapping_completed %}completed{% elif raw_data_file.processing_status == 'validated' %}active{% else %}pending{% endif %}">
+            {% if mapping_completed %}
               <i class="fas fa-check"></i>
             {% elif raw_data_file.processing_status == 'validated' %}
               3
@@ -566,7 +589,7 @@
                   <i class="fas fa-link me-1"></i>Map Columns
                 </a>
               </div>
-            {% elif raw_data_file.processing_status == 'processed' %}
+            {% elif mapping_completed %}
               <div class="text-success mt-2 mb-2">
                 <small><i class="fas fa-check"></i> Column mapping completed</small>
               </div>
@@ -592,25 +615,96 @@
           </div>
         </div>
 
-        <!-- Step 4: Integration -->
-        <div class="step-item {% if raw_data_file.processing_status == 'processed' %}active{% else %}pending{% endif %}">
-          <div class="step-icon {% if raw_data_file.processing_status == 'processed' %}completed{% else %}pending{% endif %}">
-            {% if raw_data_file.processing_status == 'processed' %}
+        <!-- Step 4: Data Ingestion -->
+        <div class="step-item {% if raw_data_file.processing_status == 'ingested' or raw_data_file.processing_status == 'processed_with_errors' %}completed{% elif raw_data_file.processing_status == 'processing' %}active{% elif raw_data_file.processing_status == 'processed' %}active{% elif raw_data_file.processing_status == 'ingestion_error' %}error{% else %}pending{% endif %}">
+          <div class="step-icon {% if raw_data_file.processing_status == 'ingested' or raw_data_file.processing_status == 'processed_with_errors' %}completed{% elif raw_data_file.processing_status == 'processing' %}active{% elif raw_data_file.processing_status == 'processed' %}active{% elif raw_data_file.processing_status == 'ingestion_error' %}error{% else %}pending{% endif %}">
+            {% if raw_data_file.processing_status == 'ingested' or raw_data_file.processing_status == 'processed_with_errors' %}
               <i class="fas fa-check"></i>
+            {% elif raw_data_file.processing_status == 'processing' %}
+              <i class="fas fa-spinner fa-spin"></i>
+            {% elif raw_data_file.processing_status == 'ingestion_error' %}
+              <i class="fas fa-times"></i>
+            {% elif raw_data_file.processing_status == 'processed' %}
+              4
             {% else %}
               4
             {% endif %}
           </div>
           <div class="step-content">
-            <div class="step-title">Data Integration</div>
+            <div class="step-title">Data Ingestion</div>
             <div class="step-description">
-              Integrate harmonized data into study database for analysis
+              Create observations from raw data using column mappings
             </div>
-            {% if raw_data_file.processing_status == 'processed' %}
-              <div class="text-success mt-2 mb-2">
-                <small><i class="fas fa-check"></i> Ready for analysis integration</small>
+            {% if raw_data_file.processing_status == 'processing' %}
+              <div class="alert alert-info mt-2 p-2">
+                <small><strong>Processing in progress:</strong> {{ raw_data_file.processing_message }}</small>
+                <div class="mt-2">
+                  <button class="btn btn-primary btn-sm" onclick="checkIngestionStatus()" id="status-check-btn">
+                    <i class="fas fa-sync-alt me-1"></i>Check Status
+                  </button>
+                </div>
               </div>
-              <div class="action-buttons">
+            {% elif raw_data_file.processing_status == 'processed' %}
+              <div class="action-buttons mt-2">
+                <form method="post" action="{% url 'health:start_data_ingestion' raw_data_file.id %}" style="display: inline;">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-primary btn-sm" onclick="return confirm('Are you sure you want to start data ingestion? This will create observations in the database.')">
+                    <i class="fas fa-database me-1"></i>Start Data Ingestion
+                  </button>
+                </form>
+              </div>
+            {% elif raw_data_file.processing_status == 'ingested' %}
+              <div class="text-success mt-2">
+                <small><i class="fas fa-check"></i> {{ raw_data_file.processing_message }}</small>
+              </div>
+            {% elif raw_data_file.processing_status == 'processed_with_errors' %}
+              <div class="alert alert-warning mt-2 p-2">
+                <small><strong>Completed with errors:</strong> {{ raw_data_file.processing_message }}</small>
+                <div class="mt-1">
+                  <form method="post" action="{% url 'health:start_data_ingestion' raw_data_file.id %}" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-warning btn-sm" onclick="return confirm('Re-ingestion may create duplicate observations. Continue?')">
+                      <i class="fas fa-sync-alt me-1"></i>Retry Ingestion
+                    </button>
+                  </form>
+                </div>
+              </div>
+            {% elif raw_data_file.processing_status == 'ingestion_error' %}
+              <div class="alert alert-danger mt-2 p-2">
+                <small><strong>Ingestion failed:</strong> {{ raw_data_file.processing_message }}</small>
+                <div class="mt-1">
+                  <form method="post" action="{% url 'health:start_data_ingestion' raw_data_file.id %}" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to retry data ingestion?')">
+                      <i class="fas fa-sync-alt me-1"></i>Retry Ingestion
+                    </button>
+                  </form>
+                </div>
+              </div>
+            {% else %}
+              <div class="text-muted mt-2">
+                <small><i class="fas fa-clock"></i> Complete column mapping first</small>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Step 5: Integration -->
+        <div class="step-item {% if raw_data_file.processing_status == 'ingested' or raw_data_file.processing_status == 'processed_with_errors' %}active{% else %}pending{% endif %}">
+          <div class="step-icon {% if raw_data_file.processing_status == 'ingested' or raw_data_file.processing_status == 'processed_with_errors' %}completed{% else %}pending{% endif %}">
+            {% if raw_data_file.processing_status == 'ingested' or raw_data_file.processing_status == 'processed_with_errors' %}
+              <i class="fas fa-check"></i>
+            {% else %}
+              5
+            {% endif %}
+          </div>
+          <div class="step-content">
+            <div class="step-title">Data Analysis</div>
+            <div class="step-description">
+              Analyze harmonized data and generate insights
+            </div>
+            {% if raw_data_file.processing_status == 'ingested' or raw_data_file.processing_status == 'processed_with_errors' %}
+              <div class="action-buttons mt-2">
                 {% if raw_data_file.study.source_mappings.exists %}
                   <a href="{% url 'health:study_harmonization_dashboard' raw_data_file.study.id %}" class="btn btn-success btn-sm">
                     <i class="fas fa-chart-line me-1"></i>View Harmonization Dashboard
@@ -623,7 +717,7 @@
               </div>
             {% else %}
               <div class="text-muted mt-2">
-                <small><i class="fas fa-clock"></i> Complete column mapping first</small>
+                <small><i class="fas fa-clock"></i> Complete data ingestion first</small>
               </div>
             {% endif %}
           </div>
@@ -785,11 +879,54 @@
 
   <script>
     function confirmDelete() {
-      if (confirm('Are you sure you want to delete this raw data file? This action cannot be undone.')) {
-        // TODO: Implement delete functionality
-        alert('TODO: Implement file deletion');
-      }
+      // Redirect to comprehensive delete page instead of simple confirm
+      window.location.href = "{% url 'health:delete_raw_data' raw_data_file.id %}";
     }
+
+    function checkIngestionStatus() {
+      const btn = document.getElementById('status-check-btn');
+      const originalText = btn.innerHTML;
+      
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Checking...';
+      btn.disabled = true;
+      
+      fetch('{% url "health:ingestion_status" raw_data_file.id %}')
+        .then(response => response.json())
+        .then(data => {
+          if (data.status !== 'processing') {
+            // Reload the page to show updated status
+            location.reload();
+          } else {
+            // Update the message if still processing
+            const alertMsg = document.querySelector('.alert small');
+            if (alertMsg && data.message) {
+              alertMsg.innerHTML = '<strong>Processing in progress:</strong> ' + data.message;
+            }
+          }
+        })
+        .catch(error => {
+          console.error('Error checking status:', error);
+          alert('Error checking ingestion status');
+        })
+        .finally(() => {
+          btn.innerHTML = originalText;
+          btn.disabled = false;
+        });
+    }
+
+    // Auto-refresh status if processing
+    {% if raw_data_file.processing_status == 'processing' %}
+    setInterval(function() {
+      fetch('{% url "health:ingestion_status" raw_data_file.id %}')
+        .then(response => response.json())
+        .then(data => {
+          if (data.status !== 'processing') {
+            location.reload();
+          }
+        })
+        .catch(error => console.error('Auto-refresh error:', error));
+    }, 10000); // Check every 10 seconds
+    {% endif %}
   </script>
 
 {% endblock content %}

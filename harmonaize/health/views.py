@@ -5,7 +5,9 @@ from django.contrib import messages
 from django.utils import timezone
 from django.forms import formset_factory
 from django.views.decorators.http import require_http_methods
-from core.models import Study, Attribute
+import logging
+
+from core.models import Study, Attribute, Observation
 from .models import MappingSchema, MappingRule, RawDataFile, RawDataColumn
 from core.forms import VariableConfirmationFormSetFactory
 from .forms import MappingSchemaForm, MappingRuleForm, RawDataUploadForm
@@ -14,6 +16,9 @@ from .utils import (
     analyze_raw_data_columns,
     suggest_column_mappings,
 )
+from .tasks import ingest_raw_data_file
+
+logger = logging.getLogger(__name__)
 
 
 @login_required
@@ -818,10 +823,17 @@ def raw_data_detail(request, file_id):
     # Get column information if available
     columns = raw_data_file.columns.all().order_by('column_index')
     
+    # Status flags for cleaner template logic
+    status = raw_data_file.processing_status
+    validation_completed = status in ['validated', 'processed', 'processing', 'ingestion_error', 'ingested', 'processed_with_errors']
+    mapping_completed = status in ['processed', 'processing', 'ingestion_error', 'ingested', 'processed_with_errors']
+    
     context = {
         'raw_data_file': raw_data_file,
         'columns': columns,
         'page_title': f'Raw Data: {raw_data_file.original_filename}',
+        'validation_completed': validation_completed,
+        'mapping_completed': mapping_completed,
     }
     
     return render(request, 'health/raw_data_detail.html', context)
@@ -857,6 +869,7 @@ def validate_raw_data(request, file_id):
                 # Update file status
                 raw_data_file.processing_status = "validated"
                 raw_data_file.processing_message = validation_result["message"]
+                raw_data_file.save()  # Save status immediately
                 
                 # Analyze and store column information
                 analysis_result = analyze_raw_data_columns(raw_data_file.file.path)
@@ -864,7 +877,7 @@ def validate_raw_data(request, file_id):
                     # Store column metadata
                     raw_data_file.rows_count = analysis_result["total_rows"]
                     raw_data_file.columns_count = analysis_result["total_columns"]
-                    raw_data_file.save()
+                    raw_data_file.save()  # Save additional metadata
                     
                     # Create or update RawDataColumn objects
                     for idx, col_name in enumerate(analysis_result["columns"]):
@@ -881,18 +894,24 @@ def validate_raw_data(request, file_id):
                                 "unique_count": col_analysis.get("unique_count", 0),
                             },
                         )
+                else:
+                    # Analysis failed, but validation was successful
+                    logger.warning(
+                        "File validation succeeded but column analysis failed for file %s: %s",
+                        raw_data_file.id, analysis_result.get("message", "Unknown error")
+                    )
                 
                 messages.success(request, f"File validated successfully! {validation_result['message']}")
                 return redirect("health:map_raw_data_columns", file_id=raw_data_file.id)
 
-            raw_data_file.processing_status = "error"
+            raw_data_file.processing_status = "validation_error"
             raw_data_file.processing_message = validation_result["message"]
             raw_data_file.save()
             
             messages.error(request, f"Validation failed: {validation_result['message']}")
                 
         except Exception as e:
-            raw_data_file.processing_status = "error"
+            raw_data_file.processing_status = "validation_error"
             raw_data_file.processing_message = f"Validation error: {str(e)}"
             raw_data_file.save()
             
@@ -917,7 +936,7 @@ def map_raw_data_columns(request, file_id):
         RawDataFile, 
         id=file_id, 
         uploaded_by=request.user,
-        processing_status__in=["validated", "processed"],
+        processing_status__in=["validated", "processed", "processing", "ingestion_error", "ingested", "processed_with_errors"],
     )
     
     columns = raw_data_file.columns.all().order_by("column_index")
@@ -1027,3 +1046,313 @@ def study_variables_api(request, study_id):
         return JsonResponse({'error': 'Study not found'}, status=404)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["POST"])
+def start_data_ingestion(request, file_id):
+    """
+    Start the data ingestion process for a raw data file.
+    This queues the ingestion task with Celery for background processing.
+    """
+    raw_data_file = get_object_or_404(
+        RawDataFile, 
+        id=file_id, 
+        uploaded_by=request.user,
+        processing_status__in=["processed", "ingestion_error", "ingested", "processed_with_errors"],
+    )
+    
+    # Check prerequisites
+    if not raw_data_file.study.variables.exists():
+        messages.error(
+            request,
+            "Study must have variables extracted from codebook before ingesting data.",
+        )
+        return redirect("health:raw_data_detail", file_id=file_id)
+    
+    # Check that columns have been mapped
+    mapped_columns = raw_data_file.columns.filter(mapped_variable__isnull=False)
+    if not mapped_columns.exists():
+        messages.error(
+            request,
+            "No columns have been mapped to study variables. Please map columns first.",
+        )
+        return redirect("health:map_raw_data_columns", file_id=file_id)
+    
+    # Check if already ingesting
+    if raw_data_file.processing_status == "processing":
+        messages.info(request, "Data ingestion is already in progress for this file.")
+        return redirect("health:raw_data_detail", file_id=file_id)
+    
+    # Check if already ingested
+    if raw_data_file.processing_status in ["ingested", "processed_with_errors"]:
+        messages.warning(
+            request,
+            "This file has already been ingested. "
+            "Are you sure you want to re-ingest? This will create duplicate observations.",
+        )
+        # Could add a confirmation step here if needed
+    
+    try:
+        # Queue the ingestion task
+        task = ingest_raw_data_file.delay(raw_data_file.id)
+        
+        # Update file status
+        raw_data_file.processing_status = "processing"
+        raw_data_file.processing_message = f"Queued for ingestion. Task ID: {task.id}"
+        raw_data_file.save(update_fields=["processing_status", "processing_message"])
+        
+        messages.success(
+            request,
+            f"Data ingestion started for {raw_data_file.original_filename}. "
+            f"Processing will continue in the background. "
+            f"You can check the progress on the file detail page.",
+        )
+        
+        logger.info(
+            f"Started data ingestion task {task.id} for file {raw_data_file.id} "
+            f"({raw_data_file.original_filename}) by user {request.user.username}"
+        )
+        
+    except Exception as exc:
+        logger.error(f"Error starting data ingestion for file {file_id}: {exc}")
+        messages.error(
+            request,
+            f"Failed to start data ingestion: {str(exc)}",
+        )
+    
+    return redirect("health:raw_data_detail", file_id=file_id)
+
+
+@login_required
+def ingestion_status(request, file_id):
+    """
+    API endpoint to check the ingestion status of a raw data file.
+    Returns JSON with current status and progress information.
+    """
+    try:
+        raw_data_file = get_object_or_404(
+            RawDataFile,
+            id=file_id,
+            uploaded_by=request.user,
+        )
+        
+        # Get observation count for this file's data
+        observation_count = 0
+        if raw_data_file.processing_status in ["ingested", "processed_with_errors"]:
+            # Count observations created from this file's mapped columns
+            mapped_attributes = raw_data_file.columns.filter(
+                mapped_variable__isnull=False,
+            ).values_list("mapped_variable", flat=True)
+            
+            if mapped_attributes:
+                observation_count = Observation.objects.filter(
+                    attribute__in=mapped_attributes,
+                ).count()
+        
+        response_data = {
+            "file_id": raw_data_file.id,
+            "filename": raw_data_file.original_filename,
+            "status": raw_data_file.processing_status,
+            "message": raw_data_file.processing_message or "",
+            "processed_at": (
+                raw_data_file.processed_at.isoformat()
+                if raw_data_file.processed_at
+                else None
+            ),
+            "observation_count": observation_count,
+            "file_info": {
+                "rows": raw_data_file.rows_count,
+                "columns": raw_data_file.columns_count,
+                "mapped_columns": raw_data_file.columns.filter(
+                    mapped_variable__isnull=False,
+                ).count(),
+            },
+        }
+        
+        return JsonResponse(response_data)
+        
+    except RawDataFile.DoesNotExist:
+        return JsonResponse({"error": "File not found"}, status=404)
+    except Exception as exc:
+        logger.error(f"Error checking ingestion status for file {file_id}: {exc}")
+        return JsonResponse({"error": str(exc)}, status=500)
+
+
+@login_required
+def delete_raw_data(request, file_id):
+    """
+    Delete a raw data file with comprehensive impact analysis and warnings.
+    Provides detailed information about what will be deleted and what will remain.
+    """
+    raw_data_file = get_object_or_404(
+        RawDataFile, 
+        id=file_id, 
+        uploaded_by=request.user,
+    )
+    
+    if request.method == "GET":
+        # Calculate deletion impact
+        deletion_impact = _calculate_deletion_impact(raw_data_file)
+        
+        context = {
+            "raw_data_file": raw_data_file,
+            "deletion_impact": deletion_impact,
+            "page_title": f"Delete {raw_data_file.original_filename}",
+        }
+        
+        return render(request, "health/delete_raw_data.html", context)
+    
+    # POST request - process deletion
+    # Validate confirmation checkboxes
+    required_confirmations = ["confirm_understand", "confirm_no_undo"]
+    
+    # Add observation confirmation if there are observations
+    deletion_impact = _calculate_deletion_impact(raw_data_file)
+    if deletion_impact["observations_count"] > 0:
+        required_confirmations.append("confirm_observations")
+    
+    # Check all required confirmations
+    missing_confirmations = [
+        confirmation for confirmation in required_confirmations
+        if not request.POST.get(confirmation)
+    ]
+    
+    # Validate study name confirmation
+    study_name_confirmation = request.POST.get("study_name_confirmation", "").strip()
+    study_name_valid = study_name_confirmation == raw_data_file.study.name
+    
+    if missing_confirmations:
+        messages.error(
+            request,
+            "Please confirm all checkboxes before proceeding with deletion.",
+        )
+        return redirect("health:delete_raw_data", file_id=file_id)
+    
+    if not study_name_valid:
+        messages.error(
+            request,
+            f"Study name confirmation failed. Please type '{raw_data_file.study.name}' exactly as shown.",
+        )
+        return redirect("health:delete_raw_data", file_id=file_id)
+    
+    # Perform the deletion
+    try:
+        deletion_result = _perform_raw_data_deletion(raw_data_file)
+        
+        messages.success(
+            request,
+            f"Raw data file '{raw_data_file.original_filename}' has been "
+            f"permanently deleted. {deletion_result['summary']}",
+        )
+        
+        # Log the deletion for audit purposes
+        logger.warning(
+            "Raw data file deleted: %s (ID: %s) by user %s. Impact: %s",
+            raw_data_file.original_filename,
+            raw_data_file.id,
+            request.user.username,
+            deletion_result["details"],
+        )
+        
+        return redirect("health:raw_data_list")
+        
+    except (OSError, IOError, ValueError) as e:
+        logger.exception("Error deleting raw data file %s", file_id)
+        messages.error(
+            request,
+            f"An error occurred while deleting the file: {e!s}",
+        )
+        return redirect("health:delete_raw_data", file_id=file_id)
+
+
+def _calculate_deletion_impact(raw_data_file):
+    """
+    Calculate the impact of deleting a raw data file.
+    Returns information about what will be deleted and what will remain.
+    """
+    from core.models import Observation, Patient
+    
+    # Direct deletions (CASCADE relationships)
+    columns_count = raw_data_file.columns.count()
+    
+    # Indirect impact analysis
+    study = raw_data_file.study
+    
+    # Observations are not directly linked to raw data files, but we can estimate
+    # by looking at observations created around the ingestion time
+    observations_count = 0
+    patients_count = 0
+    
+    if raw_data_file.processing_status in ['ingested', 'processed_with_errors']:
+        # Estimate observations created from this file
+        # This is an approximation based on study observations created after file upload
+        study_observations = Observation.objects.filter(
+            attribute__study=study,
+            created_at__gte=raw_data_file.uploaded_at
+        )
+        observations_count = study_observations.count()
+        
+        # Count patients in the study
+        study_patients = Patient.objects.filter(study=study)
+        patients_count = study_patients.count()
+    
+    return {
+        'columns_count': columns_count,
+        'observations_count': observations_count,
+        'patients_count': patients_count,
+        'file_size': raw_data_file.file_size,
+        'has_physical_file': bool(raw_data_file.file and raw_data_file.file.name),
+    }
+
+
+def _perform_raw_data_deletion(raw_data_file):
+    """
+    Perform the actual deletion of a raw data file and related data.
+    Returns a summary of what was deleted.
+    """
+    import os
+    from django.conf import settings
+    
+    filename = raw_data_file.original_filename
+    file_id = raw_data_file.id
+    columns_count = raw_data_file.columns.count()
+    
+    # Track physical file deletion
+    physical_file_deleted = False
+    physical_file_path = None
+    
+    # Delete physical file if it exists
+    if raw_data_file.file and raw_data_file.file.name:
+        try:
+            physical_file_path = raw_data_file.file.path
+            if os.path.exists(physical_file_path):
+                os.remove(physical_file_path)
+                physical_file_deleted = True
+        except Exception as e:
+            logger.warning(f"Could not delete physical file {physical_file_path}: {e}")
+    
+    # Delete the database record (this will CASCADE to RawDataColumn)
+    raw_data_file.delete()
+    
+    # Prepare summary
+    summary_parts = []
+    if physical_file_deleted:
+        summary_parts.append("Physical file removed from storage")
+    if columns_count > 0:
+        summary_parts.append(f"{columns_count} column mappings deleted")
+    
+    summary = ". ".join(summary_parts) + "." if summary_parts else "File record removed."
+    
+    details = {
+        'file_id': file_id,
+        'filename': filename,
+        'columns_deleted': columns_count,
+        'physical_file_deleted': physical_file_deleted,
+        'physical_file_path': physical_file_path,
+    }
+    
+    return {
+        'summary': summary,
+        'details': details,
+    }
