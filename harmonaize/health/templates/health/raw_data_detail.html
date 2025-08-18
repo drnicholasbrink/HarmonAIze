@@ -1,0 +1,795 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ raw_data_file.original_filename }} - HarmonAIze{% endblock %}
+
+{% block css %}
+  {{ block.super }}
+  <style>
+    :root {
+      --primary-color: #007AFF;
+      --secondary-color: #5AC8FA;
+      --accent-color: #34C759;
+      --warning-color: #FF9500;
+      --error-color: #FF3B30;
+      --background-color: #F2F2F7;
+      --card-background: #FFFFFF;
+      --text-primary: #1C1C1E;
+      --text-secondary: #8E8E93;
+      --border-color: #C6C6C8;
+      --shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+      --border-radius: 12px;
+    }
+
+    body {
+      background-color: var(--background-color);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--text-primary);
+      line-height: 1.5;
+    }
+
+    .header-section {
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      color: white;
+      padding: 2rem 0;
+      margin: -1rem -15px 0 -15px;
+    }
+
+    .file-header {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 1rem;
+    }
+
+    .file-title {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .file-meta {
+      opacity: 0.9;
+      font-size: 1rem;
+    }
+
+    .content-wrapper {
+      max-width: 1200px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+
+    .info-card {
+      background: var(--card-background);
+      border-radius: var(--border-radius);
+      padding: 2rem;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border-color);
+      margin-bottom: 2rem;
+    }
+
+    .card-title {
+      font-size: 1.3rem;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+      color: var(--text-primary);
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid var(--primary-color);
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .info-item {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .info-label {
+      font-weight: 600;
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      margin-bottom: 0.25rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .info-value {
+      color: var(--text-primary);
+      font-size: 1rem;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .status-uploaded {
+      background-color: rgba(255, 193, 7, 0.2);
+      color: #856404;
+    }
+
+    .status-validated {
+      background-color: rgba(0, 122, 255, 0.2);
+      color: #0056b3;
+    }
+
+    .status-processed {
+      background-color: rgba(52, 199, 89, 0.2);
+      color: #155724;
+    }
+
+    .status-error {
+      background-color: rgba(255, 59, 48, 0.2);
+      color: #721c24;
+    }
+
+    .processing-steps {
+      margin: 2rem 0;
+    }
+
+    .step-item {
+      display: flex;
+      align-items: center;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      border-radius: 8px;
+      border: 2px solid var(--border-color);
+      transition: all 0.3s ease;
+    }
+
+    .step-item.completed {
+      border-color: var(--accent-color);
+      background-color: rgba(52, 199, 89, 0.1);
+    }
+
+    .step-item.active {
+      border-color: var(--primary-color);
+      background-color: rgba(0, 122, 255, 0.1);
+    }
+
+    .step-item.pending {
+      border-color: var(--border-color);
+      background-color: var(--card-background);
+      opacity: 0.7;
+    }
+
+    .step-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 1rem;
+      font-weight: bold;
+    }
+
+    .step-icon.completed {
+      background-color: var(--accent-color);
+      color: white;
+    }
+
+    .step-icon.active {
+      background-color: var(--primary-color);
+      color: white;
+    }
+
+    .step-icon.pending {
+      background-color: var(--text-secondary);
+      color: white;
+    }
+
+    .step-content {
+      flex: 1;
+    }
+
+    .step-title {
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+
+    .step-description {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+
+    .columns-table {
+      margin-top: 1rem;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border-color);
+    }
+
+    .columns-table table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .columns-table th {
+      background: var(--background-color);
+      padding: 1rem;
+      text-align: left;
+      font-weight: 600;
+      color: var(--text-primary);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .columns-table td {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .columns-table tr:hover {
+      background-color: var(--background-color);
+    }
+
+    .column-name {
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      background: var(--background-color);
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.9rem;
+    }
+
+    .data-type-badge {
+      padding: 0.25rem 0.75rem;
+      border-radius: 15px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .type-string { background: #34C759; color: white; }
+    .type-number { background: #007AFF; color: white; }
+    .type-integer { background: #5AC8FA; color: white; }
+    .type-float { background: #007AFF; color: white; }
+    .type-boolean { background: #FF6B6B; color: white; }
+    .type-datetime { background: #AF52DE; color: white; }
+    .type-object { background: #8E8E93; color: white; }
+
+    .action-buttons {
+      display: flex;
+      gap: 1rem;
+      margin-top: 2rem;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.3s ease;
+      border: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+      color: white;
+      box-shadow: 0 4px 15px rgba(0, 122, 255, 0.3);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 122, 255, 0.4);
+      color: white;
+      text-decoration: none;
+    }
+
+    .btn-secondary {
+      background: var(--card-background);
+      color: var(--text-primary);
+      border: 2px solid var(--border-color);
+    }
+
+    .btn-secondary:hover {
+      background: var(--background-color);
+      text-decoration: none;
+      color: var(--text-primary);
+      border-color: var(--primary-color);
+    }
+
+    .btn-warning {
+      background: linear-gradient(135deg, var(--warning-color), #FF6B35);
+      color: white;
+      box-shadow: 0 4px 15px rgba(255, 149, 0, 0.3);
+    }
+
+    .btn-warning:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(255, 149, 0, 0.4);
+      color: white;
+      text-decoration: none;
+    }
+
+    .btn-danger {
+      background: linear-gradient(135deg, var(--error-color), #c82333);
+      color: white;
+      box-shadow: 0 4px 15px rgba(255, 59, 48, 0.3);
+    }
+
+    .btn-danger:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(255, 59, 48, 0.4);
+      color: white;
+      text-decoration: none;
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .btn:disabled:hover {
+      transform: none;
+      box-shadow: none;
+    }
+
+    .alert {
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      border-left: 4px solid;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+    }
+
+    .alert-info {
+      background: rgba(0, 122, 255, 0.1);
+      border-left-color: var(--primary-color);
+      color: #0056b3;
+    }
+
+    .alert-warning {
+      background: rgba(255, 149, 0, 0.1);
+      border-left-color: var(--warning-color);
+      color: #856404;
+    }
+
+    .alert-success {
+      background: rgba(52, 199, 89, 0.1);
+      border-left-color: var(--accent-color);
+      color: #155724;
+    }
+
+    .alert-error {
+      background: rgba(255, 59, 48, 0.1);
+      border-left-color: var(--error-color);
+      color: #721c24;
+    }
+
+    .todo-note {
+      background: #fff3cd;
+      border: 1px solid #ffeaa7;
+      border-radius: 6px;
+      padding: 0.75rem;
+      margin: 0.5rem 0;
+      font-size: 0.9rem;
+      color: #856404;
+    }
+
+    .todo-note strong {
+      color: #6c5ce7;
+    }
+
+    @media (max-width: 768px) {
+      .info-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .action-buttons {
+        flex-direction: column;
+      }
+      
+      .file-title {
+        font-size: 1.5rem;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+      }
+    }
+  </style>
+{% endblock css %}
+
+{% block content %}
+  <!-- Header Section -->
+  <div class="header-section">
+    <div class="file-header">
+      <h1 class="file-title">
+        <i class="fas fa-file-{{ raw_data_file.file_format }}"></i>
+        {{ raw_data_file.original_filename }}
+      </h1>
+      <div class="file-meta">
+        Uploaded for study: <strong>{{ raw_data_file.study.name }}</strong> • 
+        {{ raw_data_file.uploaded_at|date:"F j, Y at g:i A" }}
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="content-wrapper">
+    
+    <!-- File Overview -->
+    <div class="info-card">
+      <h2 class="card-title">File Overview</h2>
+      <div class="info-grid">
+        <div class="info-item">
+          <div class="info-label">Status</div>
+          <div class="info-value">
+            <span class="status-badge status-{{ raw_data_file.processing_status }}">
+              {{ raw_data_file.get_processing_status_display }}
+            </span>
+          </div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">File Format</div>
+          <div class="info-value">{{ raw_data_file.file_format|upper }}</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">File Size</div>
+          <div class="info-value">{{ raw_data_file.file_size|filesizeformat }}</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Rows</div>
+          <div class="info-value">
+            {% if raw_data_file.rows_count %}
+              {{ raw_data_file.rows_count|floatformat:0 }}
+            {% else %}
+              <span class="text-muted">Not analyzed</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Columns</div>
+          <div class="info-value">
+            {% if raw_data_file.columns_count %}
+              {{ raw_data_file.columns_count }}
+            {% else %}
+              <span class="text-muted">Not analyzed</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Patient ID Column</div>
+          <div class="info-value">
+            {% if raw_data_file.patient_id_column %}
+              <code class="column-name">{{ raw_data_file.patient_id_column }}</code>
+            {% else %}
+              <span class="text-muted">Not set</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Date Column</div>
+          <div class="info-value">
+            {% if raw_data_file.date_column %}
+              <code class="column-name">{{ raw_data_file.date_column }}</code>
+            {% else %}
+              <span class="text-muted">Not set</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Processing Steps -->
+    <div class="info-card">
+      <h2 class="card-title">Data Processing Pipeline</h2>
+      <div class="processing-steps">
+        
+        <!-- Step 1: Upload -->
+        <div class="step-item completed">
+          <div class="step-icon completed">
+            <i class="fas fa-check"></i>
+          </div>
+          <div class="step-content">
+            <div class="step-title">File Upload Complete</div>
+            <div class="step-description">
+              File successfully uploaded and basic metadata extracted
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2: Validation -->
+        <div class="step-item {% if raw_data_file.processing_status == 'validated' or raw_data_file.processing_status == 'processed' %}completed{% elif raw_data_file.processing_status == 'uploaded' %}active{% else %}pending{% endif %}">
+          <div class="step-icon {% if raw_data_file.processing_status == 'validated' or raw_data_file.processing_status == 'processed' %}completed{% elif raw_data_file.processing_status == 'uploaded' %}active{% else %}pending{% endif %}">
+            {% if raw_data_file.processing_status == 'validated' or raw_data_file.processing_status == 'processed' %}
+              <i class="fas fa-check"></i>
+            {% elif raw_data_file.processing_status == 'uploaded' %}
+              2
+            {% else %}
+              2
+            {% endif %}
+          </div>
+          <div class="step-content">
+            <div class="step-title">Data Validation</div>
+            <div class="step-description">
+              Validate column structure against study codebook and check data types
+            </div>
+            {% if raw_data_file.processing_status == 'uploaded' %}
+              <div class="action-buttons mt-2">
+                <a href="{% url 'health:validate_raw_data' raw_data_file.id %}" class="btn btn-primary btn-sm">
+                  <i class="fas fa-check-circle me-1"></i>Start Validation
+                </a>
+              </div>
+            {% elif raw_data_file.processing_status == 'error' %}
+              <div class="alert alert-warning mt-2 p-2">
+                <small><strong>Validation failed:</strong> {{ raw_data_file.processing_message }}</small>
+                <div class="mt-1">
+                  <a href="{% url 'health:validate_raw_data' raw_data_file.id %}" class="btn btn-warning btn-sm">
+                    <i class="fas fa-sync-alt me-1"></i>Retry Validation
+                  </a>
+                </div>
+              </div>
+            {% elif raw_data_file.processing_status == 'validated' or raw_data_file.processing_status == 'processed' %}
+              <div class="text-success mt-2">
+                <small><i class="fas fa-check"></i> {{ raw_data_file.processing_message }}</small>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Step 3: Column Mapping -->
+        <div class="step-item {% if raw_data_file.processing_status == 'processed' %}completed{% elif raw_data_file.processing_status == 'validated' %}active{% else %}pending{% endif %}">
+          <div class="step-icon {% if raw_data_file.processing_status == 'processed' %}completed{% elif raw_data_file.processing_status == 'validated' %}active{% else %}pending{% endif %}">
+            {% if raw_data_file.processing_status == 'processed' %}
+              <i class="fas fa-check"></i>
+            {% elif raw_data_file.processing_status == 'validated' %}
+              3
+            {% else %}
+              3
+            {% endif %}
+          </div>
+          <div class="step-content">
+            <div class="step-title">Column Mapping & Harmonization</div>
+            <div class="step-description">
+              Map raw data columns to harmonized study variables
+            </div>
+            {% if raw_data_file.processing_status == 'validated' %}
+              <div class="action-buttons mt-2">
+                <a href="{% url 'health:map_raw_data_columns' raw_data_file.id %}" class="btn btn-primary btn-sm">
+                  <i class="fas fa-link me-1"></i>Map Columns
+                </a>
+              </div>
+            {% elif raw_data_file.processing_status == 'processed' %}
+              <div class="text-success mt-2 mb-2">
+                <small><i class="fas fa-check"></i> Column mapping completed</small>
+              </div>
+              <div class="action-buttons">
+                <a href="{% url 'health:map_raw_data_columns' raw_data_file.id %}" class="btn btn-outline-primary btn-sm me-2">
+                  <i class="fas fa-edit me-1"></i>Edit Mappings
+                </a>
+                {% if raw_data_file.study.source_mappings.exists %}
+                  <a href="{% url 'health:study_harmonization_dashboard' raw_data_file.study.id %}" class="btn btn-success btn-sm">
+                    <i class="fas fa-chart-line me-1"></i>View Analysis
+                  </a>
+                {% else %}
+                  <a href="{% url 'health:start_harmonisation' raw_data_file.study.id %}" class="btn btn-success btn-sm">
+                    <i class="fas fa-cogs me-1"></i>Setup Harmonization
+                  </a>
+                {% endif %}
+              </div>
+            {% else %}
+              <div class="text-muted mt-2">
+                <small><i class="fas fa-clock"></i> Complete validation first</small>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Step 4: Integration -->
+        <div class="step-item {% if raw_data_file.processing_status == 'processed' %}active{% else %}pending{% endif %}">
+          <div class="step-icon {% if raw_data_file.processing_status == 'processed' %}completed{% else %}pending{% endif %}">
+            {% if raw_data_file.processing_status == 'processed' %}
+              <i class="fas fa-check"></i>
+            {% else %}
+              4
+            {% endif %}
+          </div>
+          <div class="step-content">
+            <div class="step-title">Data Integration</div>
+            <div class="step-description">
+              Integrate harmonized data into study database for analysis
+            </div>
+            {% if raw_data_file.processing_status == 'processed' %}
+              <div class="text-success mt-2 mb-2">
+                <small><i class="fas fa-check"></i> Ready for analysis integration</small>
+              </div>
+              <div class="action-buttons">
+                {% if raw_data_file.study.source_mappings.exists %}
+                  <a href="{% url 'health:study_harmonization_dashboard' raw_data_file.study.id %}" class="btn btn-success btn-sm">
+                    <i class="fas fa-chart-line me-1"></i>View Harmonization Dashboard
+                  </a>
+                {% else %}
+                  <a href="{% url 'health:start_harmonisation' raw_data_file.study.id %}" class="btn btn-primary btn-sm">
+                    <i class="fas fa-cogs me-1"></i>Setup Harmonization Mappings
+                  </a>
+                {% endif %}
+              </div>
+            {% else %}
+              <div class="text-muted mt-2">
+                <small><i class="fas fa-clock"></i> Complete column mapping first</small>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Column Information -->
+    {% if columns %}
+    <div class="info-card">
+      <h2 class="card-title">Column Details ({{ columns|length }} columns)</h2>
+      <div class="columns-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Column Name</th>
+              <th>Data Type</th>
+              <th>Sample Values</th>
+              <th>Missing Count</th>
+              <th>Study Variable Match</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for column in columns %}
+              <tr>
+                <td>
+                  <span class="column-name">{{ column.column_name }}</span>
+                </td>
+                <td>
+                  <span class="data-type-badge type-{{ column.data_type|default:'object' }}">
+                    {{ column.data_type|default:'Unknown'|title }}
+                  </span>
+                </td>
+                <td>
+                  {% if column.sample_values %}
+                    <small class="text-muted">{{ column.sample_values|truncatewords:5 }}</small>
+                  {% else %}
+                    <small class="text-muted">No samples</small>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if column.missing_count is not None %}
+                    <span class="badge bg-warning">{{ column.missing_count }}</span>
+                  {% else %}
+                    <small class="text-muted">Unknown</small>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if column.mapped_variable %}
+                    <small class="text-success">
+                      <i class="fas fa-link"></i> {{ column.mapped_variable.display_name|default:column.mapped_variable.variable_name }}
+                    </small>
+                  {% else %}
+                    <small class="text-muted">
+                      <i class="fas fa-question-circle"></i> Not mapped
+                    </small>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Study Context -->
+    <div class="info-card">
+      <h2 class="card-title">Study Context</h2>
+      <div class="info-grid">
+        <div class="info-item">
+          <div class="info-label">Study Name</div>
+          <div class="info-value">
+            <a href="{% url 'core:study_detail' pk=raw_data_file.study.pk %}" class="text-decoration-none">
+              {{ raw_data_file.study.name }}
+            </a>
+          </div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Study Type</div>
+          <div class="info-value">{{ raw_data_file.study.get_study_purpose_display }}</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Total Variables</div>
+          <div class="info-value">{{ raw_data_file.study.variables.count }}</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Principal Investigator</div>
+          <div class="info-value">{{ raw_data_file.study.principal_investigator|default:"Not specified" }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Error Information -->
+    {% if raw_data_file.processing_status == 'error' %}
+    <div class="info-card">
+      <h2 class="card-title">Error Information</h2>
+      <div class="alert alert-error">
+        <i class="fas fa-exclamation-triangle"></i>
+        <div>
+          <strong>Processing Error:</strong>
+          {% if raw_data_file.error_message %}
+            {{ raw_data_file.error_message }}
+          {% else %}
+            An error occurred during file processing. Please contact support.
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Action Buttons -->
+    <div class="action-buttons">
+      <a href="{% url 'core:study_detail' pk=raw_data_file.study.pk %}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> Back to Study
+      </a>
+      
+      <a href="{% url 'health:raw_data_list' %}" class="btn btn-secondary">
+        <i class="fas fa-list"></i> All Raw Data Files
+      </a>
+
+      {% if raw_data_file.processing_status == 'uploaded' %}
+        <button class="btn btn-primary" disabled>
+          <i class="fas fa-cog"></i> Validate Data
+          <div class="todo-note" style="display: inline; margin-left: 0.5rem;">
+            <strong>TODO:</strong> Implement validation
+          </div>
+        </button>
+      {% elif raw_data_file.processing_status == 'validated' %}
+        <button class="btn btn-primary" disabled>
+          <i class="fas fa-map"></i> Map Columns
+          <div class="todo-note" style="display: inline; margin-left: 0.5rem;">
+            <strong>TODO:</strong> Implement mapping
+          </div>
+        </button>
+      {% elif raw_data_file.processing_status == 'processed' %}
+        <button class="btn btn-primary" disabled>
+          <i class="fas fa-chart-bar"></i> View Analysis
+          <div class="todo-note" style="display: inline; margin-left: 0.5rem;">
+            <strong>TODO:</strong> Implement analysis
+          </div>
+        </button>
+      {% endif %}
+
+      <button class="btn btn-warning" disabled>
+        <i class="fas fa-download"></i> Download Processed Data
+        <div class="todo-note" style="display: inline; margin-left: 0.5rem;">
+          <strong>TODO:</strong> Implement export
+        </div>
+      </button>
+
+      <button class="btn btn-danger" onclick="confirmDelete()">
+        <i class="fas fa-trash"></i> Delete File
+      </button>
+    </div>
+
+  </div>
+
+  <script>
+    function confirmDelete() {
+      if (confirm('Are you sure you want to delete this raw data file? This action cannot be undone.')) {
+        // TODO: Implement delete functionality
+        alert('TODO: Implement file deletion');
+      }
+    }
+  </script>
+
+{% endblock content %}

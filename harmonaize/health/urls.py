@@ -47,4 +47,43 @@ urlpatterns = [
         views.approve_mapping,
         name="approve_mapping",
     ),
+    
+    # Data ingestion URLs
+    path(
+        "upload-raw-data/",
+        views.upload_raw_data,
+        name="upload_raw_data",
+    ),
+    path(
+        "studies/<int:study_id>/upload-raw-data/",
+        views.upload_raw_data,
+        name="upload_raw_data_for_study",
+    ),
+    path(
+        "raw-data/",
+        views.raw_data_list,
+        name="raw_data_list",
+    ),
+    path(
+        "raw-data/<int:file_id>/",
+        views.raw_data_detail,
+        name="raw_data_detail",
+    ),
+    path(
+        "raw-data/<int:file_id>/validate/",
+        views.validate_raw_data,
+        name="validate_raw_data",
+    ),
+    path(
+        "raw-data/<int:file_id>/map-columns/",
+        views.map_raw_data_columns,
+        name="map_raw_data_columns",
+    ),
+    
+    # API endpoints
+    path(
+        "api/study/<int:study_id>/variables/",
+        views.study_variables_api,
+        name="study_variables_api",
+    ),
 ]

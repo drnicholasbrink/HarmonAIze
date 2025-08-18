@@ -1,0 +1,284 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">{{ page_title }}</h4>
+                    {% if study %}
+                        <a href="{% url 'core:study_detail' pk=study.pk %}" class="btn btn-outline-secondary btn-sm">
+                            <i class="fas fa-arrow-left"></i> Back to Study
+                        </a>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    {% if study %}
+                        <div class="alert alert-info">
+                            <h6><i class="fas fa-info-circle"></i> Study Information</h6>
+                            <p class="mb-0">
+                                <strong>{{ study.name }}</strong><br>
+                                <small class="text-muted">{{ study.description|default:"No description available" }}</small>
+                            </p>
+                        </div>
+                    {% endif %}
+
+                    <div class="alert alert-light">
+                        <h6><i class="fas fa-upload"></i> Upload Instructions</h6>
+                        <ul class="mb-0">
+                            <li>Upload your raw data file (CSV, Excel, JSON, or text format)</li>
+                            <li>File size limit: 50MB</li>
+                            <li>Optionally specify patient ID and date column names for faster processing</li>
+                            <li>The file will be processed and linked to your study's codebook</li>
+                        </ul>
+                    </div>
+
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        
+                        <div class="row">
+                            {% if not study %}
+                                <div class="col-md-12 mb-3">
+                                    <label for="{{ form.study.id_for_label }}" class="form-label">Study</label>
+                                    {{ form.study }}
+                                    <div class="form-text">Select the study this raw data belongs to</div>
+                                    {% if form.study.errors %}
+                                        <div class="text-danger mt-1">
+                                            {% for error in form.study.errors %}
+                                                <small>{{ error }}</small><br>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            {% else %}
+                                <!-- Hidden study field when pre-selected -->
+                                <input type="hidden" name="study" value="{{ study.pk }}" id="{{ form.study.id_for_label }}">
+                            {% endif %}
+                            
+                            <div class="col-md-12 mb-3">
+                                <label for="{{ form.file.id_for_label }}" class="form-label">
+                                    <i class="fas fa-file-upload"></i> Raw Data File
+                                </label>
+                                {{ form.file }}
+                                {% if form.file.errors %}
+                                    <div class="text-danger mt-1">
+                                        {% for error in form.file.errors %}
+                                            <small>{{ error }}</small><br>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                                <div class="form-text">
+                                    Accepted formats: CSV, Excel (.xlsx, .xls), JSON, Text
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.patient_id_column.id_for_label }}" class="form-label">
+                                    <i class="fas fa-id-card"></i> Participant ID Variable
+                                    <span class="text-danger">*</span>
+                                </label>
+                                {{ form.patient_id_column }}
+                                {% if form.patient_id_column.errors %}
+                                    <div class="text-danger mt-1">
+                                        {% for error in form.patient_id_column.errors %}
+                                            <small>{{ error }}</small><br>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                                <div class="form-text">
+                                    Select the variable from your study's codebook that contains participant identifiers
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.date_column.id_for_label }}" class="form-label">
+                                    <i class="fas fa-calendar-alt"></i> Date/Time Variable
+                                    <span class="text-danger">*</span>
+                                </label>
+                                {{ form.date_column }}
+                                {% if form.date_column.errors %}
+                                    <div class="text-danger mt-1">
+                                        {% for error in form.date_column.errors %}
+                                            <small>{{ error }}</small><br>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                                <div class="form-text">
+                                    Select the variable from your study's codebook that contains dates or timestamps
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Column Selection Help -->
+                        <div class="alert alert-info" id="column-help" style="display: none;">
+                            <h6><i class="fas fa-lightbulb"></i> Column Selection Help</h6>
+                            <p class="mb-0">
+                                <strong>No variables available?</strong> Make sure you have extracted variables from your study's codebook first. 
+                                You can do this from the study detail page using the "Extract Variables from Codebook" button.
+                            </p>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="text-muted">
+                                <small>
+                                    <i class="fas fa-shield-alt"></i>
+                                    Your data is securely uploaded and processed
+                                </small>
+                            </div>
+                            <div>
+                                {% if study %}
+                                    <a href="{% url 'core:study_detail' pk=study.pk %}" class="btn btn-outline-secondary me-2">
+                                        Cancel
+                                    </a>
+                                {% else %}
+                                    <a href="{% url 'health:raw_data_list' %}" class="btn btn-outline-secondary me-2">
+                                        Cancel
+                                    </a>
+                                {% endif %}
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-upload"></i> Upload Raw Data
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Dynamic column selection and form validation
+document.addEventListener('DOMContentLoaded', function() {
+    const fileInput = document.getElementById('{{ form.file.id_for_label }}');
+    const studySelect = document.getElementById('{{ form.study.id_for_label }}');
+    const patientIdSelect = document.getElementById('{{ form.patient_id_column.id_for_label }}');
+    const dateSelect = document.getElementById('{{ form.date_column.id_for_label }}');
+    const columnHelp = document.getElementById('column-help');
+    
+    // File validation
+    if (fileInput) {
+        fileInput.addEventListener('change', function() {
+            const file = this.files[0];
+            if (file) {
+                const maxSize = 50 * 1024 * 1024; // 50MB
+                const allowedTypes = ['text/csv', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/json', 'text/plain'];
+                
+                if (file.size > maxSize) {
+                    alert('File size (' + (file.size / 1024 / 1024).toFixed(1) + 'MB) exceeds maximum allowed size (50MB).');
+                    this.value = '';
+                    return;
+                }
+                
+                const fileType = file.type;
+                const fileName = file.name.toLowerCase();
+                const isValidType = allowedTypes.includes(fileType) || 
+                                 fileName.endsWith('.csv') || 
+                                 fileName.endsWith('.xlsx') || 
+                                 fileName.endsWith('.xls') || 
+                                 fileName.endsWith('.json') || 
+                                 fileName.endsWith('.txt');
+                
+                if (!isValidType) {
+                    alert('Invalid file type. Please upload a CSV, Excel, JSON, or text file.');
+                    this.value = '';
+                    return;
+                }
+                
+                console.log('File validated:', file.name, '(' + (file.size / 1024 / 1024).toFixed(1) + 'MB)');
+            }
+        });
+    }
+    
+    // Dynamic column selection when study changes
+    if (studySelect) {
+        studySelect.addEventListener('change', function() {
+            const studyId = this.value;
+            
+            if (studyId) {
+                // Show loading state
+                patientIdSelect.innerHTML = '<option value="">Loading...</option>';
+                dateSelect.innerHTML = '<option value="">Loading...</option>';
+                patientIdSelect.disabled = true;
+                dateSelect.disabled = true;
+                
+                // Fetch study variables
+                fetch(`/health/api/study/${studyId}/variables/`)
+                    .then(response => response.json())
+                    .then(data => {
+                        // Update participant ID options
+                        patientIdSelect.innerHTML = '<option value="">Select participant ID variable...</option>';
+                        data.participant_id_variables.forEach(variable => {
+                            const option = document.createElement('option');
+                            option.value = variable.variable_name;
+                            option.textContent = `${variable.display_name || variable.variable_name} (${variable.variable_name})`;
+                            patientIdSelect.appendChild(option);
+                        });
+                        
+                        // Update date options
+                        dateSelect.innerHTML = '<option value="">Select date/time variable...</option>';
+                        data.date_variables.forEach(variable => {
+                            const option = document.createElement('option');
+                            option.value = variable.variable_name;
+                            option.textContent = `${variable.display_name || variable.variable_name} (${variable.variable_name})`;
+                            dateSelect.appendChild(option);
+                        });
+                        
+                        // Re-enable selects
+                        patientIdSelect.disabled = false;
+                        dateSelect.disabled = false;
+                        
+                        // Show help if no variables available
+                        const hasVariables = data.participant_id_variables.length > 0 || data.date_variables.length > 0;
+                        if (!hasVariables && columnHelp) {
+                            columnHelp.style.display = 'block';
+                        } else if (columnHelp) {
+                            columnHelp.style.display = 'none';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching study variables:', error);
+                        patientIdSelect.innerHTML = '<option value="">Error loading variables</option>';
+                        dateSelect.innerHTML = '<option value="">Error loading variables</option>';
+                        patientIdSelect.disabled = false;
+                        dateSelect.disabled = false;
+                        
+                        if (columnHelp) {
+                            columnHelp.style.display = 'block';
+                        }
+                    });
+            } else {
+                // Reset dropdowns when no study selected
+                patientIdSelect.innerHTML = '<option value="">Select study first...</option>';
+                dateSelect.innerHTML = '<option value="">Select study first...</option>';
+                patientIdSelect.disabled = true;
+                dateSelect.disabled = true;
+                
+                if (columnHelp) {
+                    columnHelp.style.display = 'none';
+                }
+            }
+        });
+    }
+    
+    // Initialize based on current study selection
+    if (studySelect && studySelect.value) {
+        studySelect.dispatchEvent(new Event('change'));
+    } else if (!studySelect) {
+        // Study is pre-selected, check if variables are available
+        const hasPatientIdOptions = patientIdSelect && patientIdSelect.options.length > 1;
+        const hasDateOptions = dateSelect && dateSelect.options.length > 1;
+        
+        if ((!hasPatientIdOptions || !hasDateOptions) && columnHelp) {
+            columnHelp.style.display = 'block';
+        }
+    }
+});
+</script>
+{% endblock %}

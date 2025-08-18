@@ -839,6 +839,186 @@
       </div>
     </div>
 
+    <!-- Data Ingestion Section (only for source studies) -->
+    {% if study.study_purpose == 'source' %}
+    <div class="info-card">
+      <h2 class="card-title">
+        <i class="fas fa-database"></i>
+        Raw Data Management
+      </h2>
+      <div class="codebook-management">
+        <div class="info-grid">
+          <div class="info-item">
+            <div class="info-label">Upload Raw Data</div>
+            <div class="info-value">
+              <p class="text-muted mb-2">Upload CSV, Excel, or other data files containing patient records.</p>
+              <div class="codebook-actions">
+                <a href="{% url 'health:upload_raw_data_for_study' study_id=study.id %}" class="btn btn-primary">
+                  <i class="fas fa-upload"></i> Upload Raw Data File
+                </a>
+                <a href="{% url 'health:raw_data_list' %}" class="btn btn-outline-secondary">
+                  <i class="fas fa-list"></i> View All Files
+                </a>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Display uploaded raw data files count -->
+          {% if study.raw_data_files.count > 0 %}
+          <div class="info-item">
+            <div class="info-label">Uploaded Files</div>
+            <div class="info-value">
+              <span class="badge" style="background: rgba(0, 122, 255, 0.2); color: #0056b3; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 600;">
+                {{ study.raw_data_files.count }} file{{ study.raw_data_files.count|pluralize }}
+              </span>
+              <small class="text-muted d-block" style="margin-top: 0.25rem;">
+                Last uploaded: {{ study.raw_data_files.first.uploaded_at|date:"M d, Y" }}
+              </small>
+            </div>
+          </div>
+          
+          <div class="info-item">
+            <div class="info-label">Processing Status</div>
+            <div class="info-value">
+              <!-- Simple status count display -->
+              {% if study.raw_data_files.all %}
+                <div style="display: flex; flex-wrap: wrap; gap: 0.25rem;">
+                  {% for file in study.raw_data_files.all %}
+                    {% if file.processing_status == 'processed' %}
+                      <span class="badge" style="background: rgba(52, 199, 89, 0.2); color: #155724; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 600;" title="Processed file: {{ file.original_filename }}">
+                        ✓
+                      </span>
+                    {% elif file.processing_status == 'validated' %}
+                      <span class="badge" style="background: rgba(0, 122, 255, 0.2); color: #0056b3; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 600;" title="Validated file: {{ file.original_filename }}">
+                        ~
+                      </span>
+                    {% elif file.processing_status == 'uploaded' %}
+                      <span class="badge" style="background: rgba(255, 193, 7, 0.2); color: #856404; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 600;" title="Uploaded file: {{ file.original_filename }}">
+                        ○
+                      </span>
+                    {% elif file.processing_status == 'error' %}
+                      <span class="badge" style="background: rgba(255, 59, 48, 0.2); color: #721c24; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 600;" title="Error in file: {{ file.original_filename }}">
+                        ✗
+                      </span>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              {% else %}
+                <small class="text-muted">No files uploaded</small>
+              {% endif %}
+            </div>
+          </div>
+          {% endif %}
+        </div>
+        
+        <div class="alert alert-info">
+          <i class="fas fa-info-circle"></i>
+          <strong>Data Ingestion Process:</strong> Upload your raw data files to link patient records with your study's harmonized variables. 
+          Files will be processed to identify patient IDs, dates, and data columns for mapping.
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Raw Data Files Section (only for source studies) -->
+    {% if study.study_purpose == 'source' and study.raw_data_files.count > 0 %}
+    <div class="info-card">
+      <h2 class="card-title">
+        <i class="fas fa-database"></i>
+        Uploaded Data Files ({{ study.raw_data_files.count }})
+      </h2>
+      
+      <div class="table-responsive" style="margin-top: 1rem;">
+        <table class="table" style="margin: 0;">
+          <thead style="background: var(--background-color);">
+            <tr>
+              <th style="padding: 0.75rem; border: 1px solid var(--border-color);">File Name</th>
+              <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Status</th>
+              <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Size</th>
+              <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Rows/Cols</th>
+              <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Uploaded</th>
+              <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for file in study.raw_data_files.all|slice:":5" %}
+              <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">
+                  <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <i class="fas fa-file-{{ file.file_format }}" style="color: var(--text-secondary);"></i>
+                    <a href="{% url 'health:raw_data_detail' file_id=file.id %}" style="text-decoration: none; color: var(--primary-color); font-weight: 500;">
+                      {{ file.original_filename|truncatechars:30 }}
+                    </a>
+                  </div>
+                </td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">
+                  {% if file.processing_status == 'uploaded' %}
+                    <span style="background: rgba(255, 193, 7, 0.2); color: #856404; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 600;">Uploaded</span>
+                  {% elif file.processing_status == 'validated' %}
+                    <span style="background: rgba(0, 122, 255, 0.2); color: #0056b3; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 600;">Validated</span>
+                  {% elif file.processing_status == 'processed' %}
+                    <span style="background: rgba(52, 199, 89, 0.2); color: #155724; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 600;">Processed</span>
+                  {% elif file.processing_status == 'error' %}
+                    <span style="background: rgba(255, 59, 48, 0.2); color: #721c24; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 600;">Error</span>
+                  {% endif %}
+                </td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">
+                  <small style="color: var(--text-secondary);">{{ file.file_size|filesizeformat }}</small>
+                </td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">
+                  {% if file.rows_count and file.columns_count %}
+                    <small style="color: var(--text-secondary);">{{ file.rows_count|floatformat:0 }} × {{ file.columns_count }}</small>
+                  {% else %}
+                    <small style="color: var(--text-secondary);">-</small>
+                  {% endif %}
+                </td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">
+                  <small style="color: var(--text-secondary);">{{ file.uploaded_at|date:"M d" }}</small>
+                </td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">
+                  <a href="{% url 'health:raw_data_detail' file_id=file.id %}" 
+                     style="color: var(--primary-color); text-decoration: none; font-size: 0.9rem;"
+                     title="View Details">
+                    <i class="fas fa-eye"></i>
+                  </a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      
+      {% if study.raw_data_files.count > 5 %}
+        <div style="text-align: center; margin-top: 1rem;">
+          <a href="{% url 'health:raw_data_list' %}?study={{ study.id }}" class="btn btn-outline-secondary">
+            <i class="fas fa-list"></i> View All {{ study.raw_data_files.count }} Files
+          </a>
+        </div>
+      {% endif %}
+      
+      <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
+        <div class="alert alert-info">
+          <i class="fas fa-info-circle"></i>
+          <div>
+            <strong>Next Steps:</strong> 
+            {% if study.raw_data_files.all %}
+              {% with uploaded_files=study.raw_data_files.all %}
+                {% if uploaded_files|length == 1 %}
+                  Your single data file is ready for processing.
+                {% else %}
+                  You have {{ uploaded_files|length }} data files uploaded.
+                {% endif %}
+                Check individual file status above to see what needs attention.
+              {% endwith %}
+            {% else %}
+              Upload your first data file to begin processing.
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
     <!-- Variables Summary & Statistics -->
     <div class="info-card">
       <h2 class="card-title">
