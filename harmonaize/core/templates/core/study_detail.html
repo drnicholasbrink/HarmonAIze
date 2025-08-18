@@ -856,7 +856,7 @@
                 <a href="{% url 'health:upload_raw_data_for_study' study_id=study.id %}" class="btn btn-primary">
                   <i class="fas fa-upload"></i> Upload Raw Data File
                 </a>
-                <a href="{% url 'health:raw_data_list' %}" class="btn btn-outline-secondary">
+                <a href="{% url 'health:raw_data_list' %}?study={{ study.id }}" class="btn btn-outline-secondary">
                   <i class="fas fa-list"></i> View All Files
                 </a>
               </div>
@@ -954,12 +954,24 @@
                 <td style="padding: 0.75rem; border: 1px solid var(--border-color);">
                   {% if file.processing_status == 'uploaded' %}
                     <span style="background: rgba(255, 193, 7, 0.2); color: #856404; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 600;">Uploaded</span>
+                  {% elif file.processing_status == 'validation_error' %}
+                    <span style="background: rgba(255, 59, 48, 0.2); color: #721c24; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 600;">Validation Error</span>
                   {% elif file.processing_status == 'validated' %}
                     <span style="background: rgba(0, 122, 255, 0.2); color: #0056b3; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 600;">Validated</span>
                   {% elif file.processing_status == 'processed' %}
                     <span style="background: rgba(52, 199, 89, 0.2); color: #155724; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 600;">Processed</span>
+                  {% elif file.processing_status == 'processing' %}
+                    <span style="background: rgba(0, 122, 255, 0.15); color: #0056b3; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 600;">Processing</span>
+                  {% elif file.processing_status == 'ingestion_error' %}
+                    <span style="background: rgba(255, 59, 48, 0.2); color: #721c24; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 600;">Ingestion Error</span>
+                  {% elif file.processing_status == 'ingested' %}
+                    <span style="background: rgba(52, 199, 89, 0.2); color: #155724; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 600;">Ingested</span>
+                  {% elif file.processing_status == 'processed_with_errors' %}
+                    <span style="background: rgba(142, 142, 147, 0.2); color: #3a3a3c; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 600;">Processed w/ Errors</span>
                   {% elif file.processing_status == 'error' %}
-                    <span style="background: rgba(255, 59, 48, 0.2); color: #721c24; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 600;">Error</span>
+                    <span style="background: rgba(44, 44, 46, 0.2); color: #1c1c1e; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 600;">Error</span>
+                  {% else %}
+                    <span style="background: rgba(142, 142, 147, 0.2); color: #3a3a3c; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 600;">{{ file.processing_status|capfirst }}</span>
                   {% endif %}
                 </td>
                 <td style="padding: 0.75rem; border: 1px solid var(--border-color);">
@@ -976,11 +988,86 @@
                   <small style="color: var(--text-secondary);">{{ file.uploaded_at|date:"M d" }}</small>
                 </td>
                 <td style="padding: 0.75rem; border: 1px solid var(--border-color);">
-                  <a href="{% url 'health:raw_data_detail' file_id=file.id %}" 
-                     style="color: var(--primary-color); text-decoration: none; font-size: 0.9rem;"
-                     title="View Details">
-                    <i class="fas fa-eye"></i>
-                  </a>
+                  <div style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center;">
+                    <a href="{% url 'health:raw_data_detail' file_id=file.id %}"
+                       style="color: var(--primary-color); text-decoration: none; font-size: 0.9rem;"
+                       title="View Details">View</a>
+
+                    {% if file.processing_status == 'uploaded' %}
+                      <span>•</span>
+                      <a href="{% url 'health:validate_raw_data' file_id=file.id %}" style="text-decoration:none; font-size:0.9rem;">Validate</a>
+                      <span>•</span>
+                      <a href="{% url 'health:delete_raw_data' file_id=file.id %}" style="text-decoration:none; color:#c82333; font-size:0.9rem;">Delete</a>
+
+                    {% elif file.processing_status == 'validation_error' %}
+                      <span>•</span>
+                      <a href="{% url 'health:validate_raw_data' file_id=file.id %}" style="text-decoration:none; font-size:0.9rem;">Re-Validate</a>
+                      <span>•</span>
+                      <a href="{% url 'health:delete_raw_data' file_id=file.id %}" style="text-decoration:none; color:#c82333; font-size:0.9rem;">Delete</a>
+
+                    {% elif file.processing_status == 'validated' %}
+                      <span>•</span>
+                      <a href="{% url 'health:map_raw_data_columns' file_id=file.id %}" style="text-decoration:none; font-size:0.9rem;">Map Columns</a>
+                      <span>•</span>
+                      <a href="{% url 'health:delete_raw_data' file_id=file.id %}" style="text-decoration:none; color:#c82333; font-size:0.9rem;">Delete</a>
+
+                    {% elif file.processing_status == 'processed' %}
+                      <span>•</span>
+                      <a href="{% url 'health:map_raw_data_columns' file_id=file.id %}" style="text-decoration:none; font-size:0.9rem;">Map Columns</a>
+                      <span>•</span>
+                      <form method="post" action="{% url 'health:start_data_ingestion' file_id=file.id %}" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" style="border:none; background:none; color: var(--primary-color); padding:0; font-size:0.9rem; cursor:pointer;">Start Ingestion</button>
+                      </form>
+                      <span>•</span>
+                      <a href="{% url 'health:delete_raw_data' file_id=file.id %}" style="text-decoration:none; color:#c82333; font-size:0.9rem;">Delete</a>
+
+                    {% elif file.processing_status == 'processing' %}
+                      <span>•</span>
+                      <a href="{% url 'health:raw_data_detail' file_id=file.id %}" style="text-decoration:none; font-size:0.9rem;">View Status</a>
+                      <span>•</span>
+                      <a href="{% url 'health:delete_raw_data' file_id=file.id %}" style="text-decoration:none; color:#c82333; font-size:0.9rem;">Delete</a>
+
+                    {% elif file.processing_status == 'ingestion_error' %}
+                      <span>•</span>
+                      <a href="{% url 'health:raw_data_detail' file_id=file.id %}" style="text-decoration:none; font-size:0.9rem;">View Status</a>
+                      <span>•</span>
+                      <form method="post" action="{% url 'health:start_data_ingestion' file_id=file.id %}" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" style="border:none; background:none; color: var(--primary-color); padding:0; font-size:0.9rem; cursor:pointer;">Retry Ingestion</button>
+                      </form>
+                      <span>•</span>
+                      <a href="{% url 'health:map_raw_data_columns' file_id=file.id %}" style="text-decoration:none; font-size:0.9rem;">Map Columns</a>
+                      <span>•</span>
+                      <a href="{% url 'health:delete_raw_data' file_id=file.id %}" style="text-decoration:none; color:#c82333; font-size:0.9rem;">Delete</a>
+
+                    {% elif file.processing_status == 'ingested' %}
+                      <span>•</span>
+                      <a href="{% url 'health:raw_data_detail' file_id=file.id %}" style="text-decoration:none; font-size:0.9rem;">View Status</a>
+                      <span>•</span>
+                      <form method="post" action="{% url 'health:start_data_ingestion' file_id=file.id %}" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" style="border:none; background:none; color: var(--primary-color); padding:0; font-size:0.9rem; cursor:pointer;">Re-ingest</button>
+                      </form>
+                      <span>•</span>
+                      <a href="{% url 'health:delete_raw_data' file_id=file.id %}" style="text-decoration:none; color:#c82333; font-size:0.9rem;">Delete</a>
+
+                    {% elif file.processing_status == 'processed_with_errors' %}
+                      <span>•</span>
+                      <a href="{% url 'health:raw_data_detail' file_id=file.id %}" style="text-decoration:none; font-size:0.9rem;">View Status</a>
+                      <span>•</span>
+                      <form method="post" action="{% url 'health:start_data_ingestion' file_id=file.id %}" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" style="border:none; background:none; color: var(--primary-color); padding:0; font-size:0.9rem; cursor:pointer;">Re-ingest</button>
+                      </form>
+                      <span>•</span>
+                      <a href="{% url 'health:delete_raw_data' file_id=file.id %}" style="text-decoration:none; color:#c82333; font-size:0.9rem;">Delete</a>
+
+                    {% else %}
+                      <span>•</span>
+                      <a href="{% url 'health:delete_raw_data' file_id=file.id %}" style="text-decoration:none; color:#c82333; font-size:0.9rem;">Delete</a>
+                    {% endif %}
+                  </div>
                 </td>
               </tr>
             {% endfor %}

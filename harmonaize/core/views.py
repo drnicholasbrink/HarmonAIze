@@ -7,6 +7,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 import pandas as pd
 from .models import Study, Project
 from .forms import StudyCreationForm, ProjectCreationForm
+from health.models import RawDataFile
 
 
 @login_required
@@ -198,6 +199,20 @@ def study_dashboard(request):
     for study in all_studies:
         total_variables += study.variables.count()
     
+    # Raw data file stats
+    user_files = RawDataFile.objects.filter(uploaded_by=request.user)
+    raw_data_status_counts = {
+        'uploaded': user_files.filter(processing_status='uploaded').count(),
+        'validation_error': user_files.filter(processing_status='validation_error').count(),
+        'validated': user_files.filter(processing_status='validated').count(),
+        'processed': user_files.filter(processing_status='processed').count(),
+        'processing': user_files.filter(processing_status='processing').count(),
+        'ingestion_error': user_files.filter(processing_status='ingestion_error').count(),
+        'ingested': user_files.filter(processing_status='ingested').count(),
+        'processed_with_errors': user_files.filter(processing_status='processed_with_errors').count(),
+        'error': user_files.filter(processing_status='error').count(),
+    }
+
     context = {
         'source_studies': recent_source_studies,
         'source_studies_count': source_studies.count(),
@@ -208,6 +223,8 @@ def study_dashboard(request):
         'total_variables': total_variables,
         'total_projects': all_projects.count(),
         'recent_projects': recent_projects,
+        'raw_data_status_counts': raw_data_status_counts,
+        'raw_data_total_files': user_files.count(),
     }
     
     return render(request, 'core/dashboard.html', context)

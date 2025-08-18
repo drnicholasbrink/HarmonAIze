@@ -792,8 +792,13 @@ def raw_data_list(request):
     total_size = sum([f.file_size for f in raw_data_files if f.file_size])
     status_counts = {
         'uploaded': raw_data_files.filter(processing_status='uploaded').count(),
+        'validation_error': raw_data_files.filter(processing_status='validation_error').count(),
         'validated': raw_data_files.filter(processing_status='validated').count(),
         'processed': raw_data_files.filter(processing_status='processed').count(),
+        'processing': raw_data_files.filter(processing_status='processing').count(),
+        'ingestion_error': raw_data_files.filter(processing_status='ingestion_error').count(),
+        'ingested': raw_data_files.filter(processing_status='ingested').count(),
+        'processed_with_errors': raw_data_files.filter(processing_status='processed_with_errors').count(),
         'error': raw_data_files.filter(processing_status='error').count(),
     }
     
