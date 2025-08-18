@@ -47,6 +47,11 @@ urlpatterns = [
         views.approve_mapping,
         name="approve_mapping",
     ),
+    path(
+        "mapping/<int:schema_id>/finalize/",
+        views.finalize_harmonisation,
+        name="finalize_harmonisation",
+    ),
     
     # Data ingestion URLs
     path(

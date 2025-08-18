@@ -768,6 +768,16 @@
     <div class="hero-content">
       <h1>Harmonise Study Dashboard</h1>
       <p class="hero-subtitle">Manage variable mappings and track harmonisation progress</p>
+      {% if schema and schema.source_study.status == 'harmonised' %}
+      <div class="alert alert-success mt-3" role="alert">
+        This study has been <strong>harmonised</strong>.
+        <a class="alert-link" href="{% url 'core:study_detail' schema.source_study.pk %}">View study details</a>
+      </div>
+      {% elif schema and schema.status == 'approved' %}
+      <div class="alert alert-info mt-3" role="alert">
+        Mapping approved. Transformation running in background. You can <a class="alert-link" href="{% url 'core:study_detail' schema.source_study.pk %}">monitor from study page</a> or finalize when ready below.
+      </div>
+      {% endif %}
       
       {% if not creating_new %}
       <div class="progress-section">
@@ -1049,19 +1059,19 @@
     <form method="post" id="mappings-form">
       {% csrf_token %}
       
-      {% for variable_form in variable_forms %}
-      <div class="variable-card {% if variable_form.is_complete %}complete{% elif variable_form.instance.not_mappable %}not-mappable{% else %}incomplete{% endif %}" 
-           data-variable-name="{{ variable_form.attribute.variable_name|lower }}"
-           data-completion="{% if variable_form.is_complete %}complete{% elif variable_form.instance.not_mappable %}not-mappable{% else %}incomplete{% endif %}">
+  {% for variable_form in variable_forms %}
+  <div class="variable-card {% if variable_form.instance.not_mappable %}not-mappable{% elif variable_form.is_complete %}complete{% else %}incomplete{% endif %}" 
+       data-variable-name="{{ variable_form.attribute.variable_name|lower }}"
+       data-completion="{% if variable_form.instance.not_mappable %}not-mappable{% elif variable_form.is_complete %}complete{% else %}incomplete{% endif %}">
         
         <div class="variable-header">
           <div class="variable-title">
             <span class="variable-name">{{ variable_form.attribute.display_name|default:variable_form.attribute.variable_name }}</span>
-            <span class="completion-badge {% if variable_form.is_complete %}badge-complete{% elif variable_form.instance.not_mappable %}badge-not-mappable{% else %}badge-incomplete{% endif %}">
-              {% if variable_form.is_complete %}
-                <i class="fas fa-check"></i> Mapped
-              {% elif variable_form.instance.not_mappable %}
+            <span class="completion-badge {% if variable_form.instance.not_mappable %}badge-not-mappable{% elif variable_form.is_complete %}badge-complete{% else %}badge-incomplete{% endif %}">
+              {% if variable_form.instance.not_mappable %}
                 <i class="fas fa-ban"></i> Not Mappable
+              {% elif variable_form.is_complete %}
+                <i class="fas fa-check"></i> Mapped
               {% else %}
                 <i class="fas fa-exclamation-triangle"></i> Needs Mapping
               {% endif %}
@@ -1347,11 +1357,35 @@
     <div class="sidebar-section">
       <h3 class="sidebar-title">Navigation</h3>
       <div class="bulk-actions">
-        <!--greyed out until 100%-->
-        {% if progress_percent < 100 %}
+        <!-- Approve Mapping -->
+        {% if schema.status != 'approved' %}
+          <form method="post" action="{% url 'health:approve_mapping' schema.id %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-primary action-btn" {% if progress_percent < 1 %}disabled{% endif %}>
+              <i class="fas fa-check-circle"></i>
+              Approve Mapping
+            </button>
+          </form>
+        {% else %}
+          <div class="stat-item">
+            <span class="stat-label">Status</span>
+            <span class="stat-value">Approved</span>
+          </div>
+        {% endif %}
+        
+        <!-- Finalize (mark study harmonised) -->
+        {% if schema.status == 'approved' %}
+          <form method="post" action="{% url 'health:finalize_harmonisation' schema.id %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-success action-btn">
+              <i class="fas fa-flag-checkered"></i>
+              Finalize Harmonisation
+            </button>
+          </form>
+        {% else %}
           <button type="button" class="btn btn-secondary action-btn" disabled>
-            <i class="fas fa-check"></i>
-            Approve & Finalize
+            <i class="fas fa-flag"></i>
+            Finalize Harmonisation
           </button>
         {% endif %}
       </div>
@@ -1760,6 +1794,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 mappingFields.style.display = 'none';
                 variableCard.classList.remove('complete', 'incomplete');
                 variableCard.classList.add('not-mappable');
+                variableCard.dataset.completion = 'not-mappable';
                 
                 // Update badge
                 const badge = variableCard.querySelector('.completion-badge');
@@ -1775,6 +1810,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 mappingFields.style.display = 'block';
                 variableCard.classList.remove('not-mappable');
                 variableCard.classList.add('incomplete');
+                variableCard.dataset.completion = 'incomplete';
                 
                 // Update badge
                 const badge = variableCard.querySelector('.completion-badge');
@@ -1914,11 +1950,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     infoGrid.innerHTML = infoHtml;
                 }
                 
-                // Update completion status
-                updateVariableCompletionStatus(variableCard);
+        // Update completion status
+        updateVariableCompletionStatus(variableCard);
             } else {
                 // Hide target details if no target selected
                 targetDetails.style.display = 'none';
+        // If not marked as not-mappable, set incomplete state
+        const notMappable = variableCard.classList.contains('not-mappable');
+        if (!notMappable) {
+          variableCard.dataset.completion = 'incomplete';
+        }
             }
         });
     });
@@ -1939,12 +1980,14 @@ function updateVariableCompletionStatus(variableCard) {
         // Variable is mapped
         variableCard.classList.remove('incomplete', 'not-mappable');
         variableCard.classList.add('complete');
+  variableCard.dataset.completion = 'complete';
         badge.className = 'completion-badge badge-complete';
         badge.innerHTML = '<i class="fas fa-check"></i> Mapped';
     } else {
         // Variable needs mapping
         variableCard.classList.remove('complete', 'not-mappable');
         variableCard.classList.add('incomplete');
+  variableCard.dataset.completion = 'incomplete';
         badge.className = 'completion-badge badge-incomplete';
         badge.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Needs Mapping';
     }
