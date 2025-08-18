@@ -1,0 +1,362 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}About - HarmonAIze{% endblock title %}
+
+{% block css %}
+  {{ block.super }}
+  <style>
+    :root {
+      --primary-color: #007AFF;
+      --secondary-color: #5AC8FA;
+      --accent-color: #34C759;
+      --background-color: #F2F2F7;
+      --card-background: #FFFFFF;
+      --text-primary: #1C1C1E;
+      --text-secondary: #8E8E93;
+      --border-color: #C6C6C8;
+      --shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+      --border-radius: 12px;
+    }
+
+    body {
+      background-color: var(--background-color);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--text-primary);
+      line-height: 1.5;
+    }
+
+    .hero-section {
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      color: white;
+      padding: 4rem 0;
+      margin: -1rem -15px 0 -15px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-section::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") repeat;
+      opacity: 0.5;
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 1;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 0 1rem;
+    }
+
+    .hero-title {
+      font-size: 3.5rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      letter-spacing: -0.02em;
+    }
+
+    .hero-subtitle {
+      font-size: 1.3rem;
+      font-weight: 400;
+      opacity: 0.9;
+      margin-bottom: 2rem;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .content-section {
+      padding: 3rem 0;
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 2rem;
+      margin: 3rem 0;
+    }
+
+    .feature-card {
+      background: var(--card-background);
+      border-radius: var(--border-radius);
+      padding: 2rem;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border-color);
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+    }
+
+    .feature-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+    }
+
+    .feature-icon {
+      width: 60px;
+      height: 60px;
+      background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1.5rem;
+      font-size: 1.5rem;
+      color: white;
+    }
+
+    .feature-icon svg {
+      width: 32px;
+      height: 32px;
+      stroke: currentColor;
+    }
+
+    .feature-title {
+      font-size: 1.4rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      color: var(--text-primary);
+    }
+
+    .feature-description {
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    .section-title {
+      font-size: 2.5rem;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 1rem;
+      color: var(--text-primary);
+      letter-spacing: -0.02em;
+    }
+
+    .section-subtitle {
+      font-size: 1.2rem;
+      text-align: center;
+      color: var(--text-secondary);
+      margin-bottom: 3rem;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .cta-section {
+      background: var(--card-background);
+      border-radius: var(--border-radius);
+      padding: 3rem 2rem;
+      text-align: center;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border-color);
+      margin: 3rem 0;
+    }
+
+    .stats-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 2rem;
+      margin: 3rem 0;
+    }
+
+    .stat-item {
+      text-align: center;
+      padding: 1.5rem;
+      background: var(--card-background);
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border-color);
+    }
+
+    .stat-number {
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: var(--primary-color);
+      display: block;
+    }
+
+    .stat-label {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      margin-top: 0.5rem;
+    }
+
+    @media (max-width: 768px) {
+      .hero-title {
+        font-size: 2.5rem;
+      }
+      
+      .hero-subtitle {
+        font-size: 1.1rem;
+      }
+      
+      .section-title {
+        font-size: 2rem;
+      }
+      
+      .feature-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .hero-section {
+        padding: 2rem 0;
+      }
+    }
+  </style>
+{% endblock css %}
+
+{% block content %}
+  <!-- Hero Section -->
+  <div class="hero-section">
+    <div class="hero-content">
+      <h1 class="hero-title">HarmonAIze</h1>
+      <p class="hero-subtitle">
+        An open-source toolkit that streamlines climate and health data harmonisation, 
+        leveraging AI-assisted workflows for accelerated research insights.
+      </p>
+    </div>
+  </div>
+      <!-- Mission Statement -->
+      <div class="cta-section">
+        <h3 class="section-title" style="margin-bottom: 1rem; font-size: 2rem;">Our Mission</h3>
+        <p style="color: var(--text-secondary); margin-bottom: 0; font-size: 1.1rem; line-height: 1.6;">
+          We're building HarmonAIze to democratise climate-health research by providing researchers worldwide 
+          with powerful, accessible tools for data harmonisation. Our goal is to accelerate scientific 
+          discovery and enable evidence-based insights that can inform policy and improve global health outcomes.
+        </p>
+      </div>
+      <!-- Core Modules -->
+      <div class="row">
+        <div class="col-12">
+          <h2 class="section-title">Core Modules</h2>
+          <p class="section-subtitle">
+            Three specialised modules work together to provide comprehensive data harmonisation capabilities
+          </p>
+        </div>
+      </div>
+
+      <div class="feature-grid">
+        <div class="feature-card">
+          <div class="feature-icon">
+            {% include 'components/svg_icon.html' with icon='hospital' size='64' color='white' %}
+          </div>
+          <h3 class="feature-title">Health Module</h3>
+          <p class="feature-description">
+            Specialized tools for harmonising health variables across diverse datasets. 
+            Standardizes medical terminology, units, and coding systems while maintaining 
+            data integrity for cross-study comparisons.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            {% include 'components/svg_icon.html' with icon='globe' size='64' color='white' %}
+          </div>
+          <h3 class="feature-title">Climate Module</h3>
+          <p class="feature-description">
+            Secure linkage and integration of climate data with health records. 
+            Provides access to curated environmental datasets while ensuring 
+            privacy-preserving connections between climate and health variables.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            {% include 'components/svg_icon.html' with icon='map-pin' size='64' color='white' %}
+          </div>
+          <h3 class="feature-title">Geolocation Module</h3>
+          <p class="feature-description">
+            Secure geolocation services for health facilities and addresses. 
+            Enables spatial analysis while protecting sensitive location data 
+            through privacy-preserving federated approaches to geocoding.
+          </p>
+        </div>
+      </div>
+
+      <!-- Platform Features -->
+      <div class="row">
+        <div class="col-12">
+          <h2 class="section-title">Platform Features</h2>
+          <p class="section-subtitle">
+            Advanced capabilities that power research acceleration and data integration
+          </p>
+        </div>
+      </div>
+
+      <div class="feature-grid">
+        <div class="feature-card">
+          <div class="feature-icon">
+            {% include 'components/svg_icon.html' with icon='link' size='32' color='white' %}
+          </div>
+          <h3 class="feature-title">Data Integration</h3>
+          <p class="feature-description">
+            Seamlessly map, clean, and unify heterogeneous datasets from multiple sources 
+            with intelligent AI-assisted workflows that preserve data integrity.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            {% include 'components/svg_icon.html' with icon='shield' size='32' color='white' %}
+          </div>
+          <h3 class="feature-title">Privacy-First</h3>
+          <p class="feature-description">
+            Built with federated approaches that maintain data privacy and security, 
+            ensuring sensitive health information remains protected throughout the process.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            {% include 'components/svg_icon.html' with icon='robot' size='32' color='white' %}
+          </div>
+          <h3 class="feature-title">AI-Powered</h3>
+          <p class="feature-description">
+            Leverage advanced AI algorithms to automate complex data harmonisation tasks, 
+            reducing manual effort and improving accuracy.
+          </p>
+        </div>
+      </div>
+
+      <!-- Statistics Section -->
+      <div class="row">
+        <div class="col-12">
+          <h2 class="section-title">Research Impact</h2>
+          <p class="section-subtitle">
+            Empowering researchers worldwide with cutting-edge data harmonisation capabilities
+          </p>
+        </div>
+      </div>
+
+      <div class="stats-container">
+        <div class="stat-item">
+          <span class="stat-number">100%</span>
+          <div class="stat-label">Open Source</div>
+        </div>
+        <div class="stat-item">
+          <span class="stat-number">∞</span>
+          <div class="stat-label">Research Possibilities</div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock content %}
+
+
