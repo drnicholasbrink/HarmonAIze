@@ -176,7 +176,7 @@ def _apply_universal_mappings(schema):
         for rule in patient_id_rules:
             if not rule.target_attribute:
                 patient_id_attr = Attribute.objects.filter(
-                    study=schema.target_study,
+                    studies=schema.target_study,
                     variable_name="patient_id",
                 ).first()
 
@@ -190,7 +190,7 @@ def _apply_universal_mappings(schema):
         for rule in datetime_rules:
             if not rule.target_attribute:
                 datetime_attr = Attribute.objects.filter(
-                    study=schema.target_study,
+                    studies=schema.target_study,
                     variable_name="datetime",
                 ).first()
 
