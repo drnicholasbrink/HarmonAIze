@@ -79,6 +79,21 @@ urlpatterns = [
         views.map_raw_data_columns,
         name="map_raw_data_columns",
     ),
+    path(
+        "raw-data/<int:file_id>/start-ingestion/",
+        views.start_data_ingestion,
+        name="start_data_ingestion",
+    ),
+    path(
+        "raw-data/<int:file_id>/ingestion-status/",
+        views.ingestion_status,
+        name="ingestion_status",
+    ),
+    path(
+        "raw-data/<int:file_id>/delete/",
+        views.delete_raw_data,
+        name="delete_raw_data",
+    ),
     
     # API endpoints
     path(

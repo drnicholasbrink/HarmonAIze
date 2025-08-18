@@ -358,15 +358,20 @@ class RawDataFile(models.Model):
     
     # Processing status
     PROCESSING_STATUS_CHOICES = [
-        ('uploaded', 'Uploaded'),
-        ('validated', 'Validated'),
-        ('processed', 'Processed'),
-        ('error', 'Processing Error'),
+        ("uploaded", "Uploaded"),
+        ("validation_error", "Validation Error"),
+        ("validated", "Validated"),
+        ("processed", "Processed"),
+        ("processing", "Processing"),
+        ("ingestion_error", "Ingestion Error"),
+        ("ingested", "Ingested"),
+        ("processed_with_errors", "Processed with Errors"),
+        ("error", "Processing Error"),  # Generic fallback
     ]
     processing_status = models.CharField(
-        max_length=20,
+        max_length=30,
         choices=PROCESSING_STATUS_CHOICES,
-        default='uploaded'
+        default="uploaded",
     )
     processing_message = models.TextField(
         blank=True,
@@ -386,9 +391,45 @@ class RawDataFile(models.Model):
         blank=True,
         help_text="When the file was last processed"
     )
+
+    # Content fingerprint for duplicate detection
+    checksum = models.CharField(
+        max_length=64,
+        blank=True,
+        help_text="SHA256 checksum of the uploaded file content",
+    )
+
+    # Column comparison snapshot at upload time
+    detected_columns = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Detected column names from the file header",
+    )
+    expected_attributes = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Expected attribute names from the study's codebook at upload time",
+    )
+    extra_columns = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Columns present in the file but not found in the study's attributes",
+    )
+    missing_attributes = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Attributes expected by the study but missing from the file",
+    )
+    has_attribute_mismatches = models.BooleanField(
+        default=False,
+        help_text="Whether detected columns differ from expected attributes",
+    )
     
     class Meta:
         ordering = ['-uploaded_at']
+        indexes = [
+            models.Index(fields=['study', 'checksum'], name='rdfile_study_checksum_idx'),
+        ]
         verbose_name = "Raw Data File"
         verbose_name_plural = "Raw Data Files"
     

@@ -1,0 +1,708 @@
+"""
+Celery tasks for health data ingestion and processing.
+Handles large file processing in the background.
+"""
+
+import logging
+import pandas as pd
+import numpy as np
+from typing import Any
+from datetime import datetime
+from django.utils import timezone
+from django.db import transaction, IntegrityError, DatabaseError
+from celery import shared_task
+from celery.exceptions import Retry
+from dateutil.parser import ParserError
+
+from .models import RawDataFile, RawDataColumn
+from core.models import Study, Attribute, Patient, Observation, TimeDimension
+
+logger = logging.getLogger(__name__)
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+def ingest_raw_data_file(self, raw_data_file_id: int) -> dict[str, Any]:
+    """
+    Main task to ingest a raw data file and create observations.
+    
+    Args:
+        raw_data_file_id: ID of the RawDataFile to process
+        
+    Returns:
+        Dict with processing results and statistics
+    """
+    try:
+        # Get the raw data file
+        raw_data_file = RawDataFile.objects.select_related("study", "uploaded_by").get(
+            id=raw_data_file_id,
+        )
+        
+        logger.info(
+            "Starting ingestion of file %s",
+            raw_data_file.original_filename,
+        )
+
+        # Validate prerequisites while preserving current status
+        validation_result = _validate_file_for_ingestion(raw_data_file)
+        if not validation_result["valid"]:
+            raw_data_file.processing_status = "ingestion_error"
+            raw_data_file.processing_message = validation_result["message"]
+            raw_data_file.save(
+                update_fields=["processing_status", "processing_message"],
+            )
+            return {
+                "success": False,
+                "message": validation_result["message"],
+                "file_id": raw_data_file_id,
+            }
+
+        # Set status to processing after successful pre-checks
+        raw_data_file.processing_status = "processing"
+        raw_data_file.processing_message = "Starting data ingestion..."
+        raw_data_file.save(
+            update_fields=["processing_status", "processing_message"],
+        )
+        
+        # Load and process the data
+        df_result = _load_data_file(raw_data_file)
+        if not df_result["success"]:
+            raw_data_file.processing_status = "ingestion_error"
+            raw_data_file.processing_message = df_result["message"]
+            raw_data_file.save(
+                update_fields=["processing_status", "processing_message"],
+            )
+            return {
+                "success": False,
+                "message": df_result["message"],
+                "file_id": raw_data_file_id,
+            }
+        
+        df = df_result['dataframe']
+        
+        # Process data in chunks to handle large files
+        chunk_size = 1000  # Process 1000 rows at a time
+        total_rows = len(df)
+        processed_rows = 0
+        created_observations = 0
+        errors = []
+        
+        logger.info(f"Processing {total_rows} rows in chunks of {chunk_size}")
+        
+        for chunk_start in range(0, total_rows, chunk_size):
+            chunk_end = min(chunk_start + chunk_size, total_rows)
+            chunk_df = df.iloc[chunk_start:chunk_end]
+            
+            # Update progress
+            progress = int((chunk_start / total_rows) * 100)
+            raw_data_file.processing_message = (
+                f"Processing rows {chunk_start + 1}-{chunk_end} of {total_rows} "
+                f"({progress}%)"
+            )
+            raw_data_file.save(update_fields=["processing_message"])
+            
+            # Process chunk
+            chunk_result = _process_data_chunk(raw_data_file, chunk_df, chunk_start)
+            processed_rows += chunk_result["processed_rows"]
+            created_observations += chunk_result["created_observations"]
+            errors.extend(chunk_result["errors"])
+            
+            # Log progress
+            obs_count = chunk_result["created_observations"]
+            logger.info(
+                f"Processed chunk {chunk_start}-{chunk_end}: "
+                f"{obs_count} observations created"
+            )
+        
+        # Final status update
+        if errors:
+            first_errors = "; ".join(errors[:3])
+            error_summary = (
+                f"Completed with {len(errors)} errors. First few errors: "
+                f"{first_errors}"
+            )
+            if len(errors) > 3:
+                error_summary += f" (and {len(errors) - 3} more)"
+            
+            raw_data_file.processing_status = "processed_with_errors"
+            raw_data_file.processing_message = error_summary
+        else:
+            raw_data_file.processing_status = "ingested"
+            raw_data_file.processing_message = (
+                "Successfully ingested "
+                f"{created_observations} observations from {processed_rows} rows"
+            )
+        
+        raw_data_file.processed_at = timezone.now()
+        raw_data_file.save(
+            update_fields=[
+                "processing_status",
+                "processing_message",
+                "processed_at",
+            ]
+        )
+        
+        result = {
+            'success': True,
+            'message': raw_data_file.processing_message,
+            'file_id': raw_data_file_id,
+            'processed_rows': processed_rows,
+            'created_observations': created_observations,
+            'errors': errors,
+            'total_rows': total_rows,
+        }
+        
+        logger.info(
+            f"Completed ingestion of file {raw_data_file.original_filename}: {result}"
+        )
+        
+        return result
+        
+    except RawDataFile.DoesNotExist:
+        error_msg = f"RawDataFile with ID {raw_data_file_id} not found"
+        logger.error(error_msg)
+        return {"success": False, "message": error_msg, "file_id": raw_data_file_id}
+        
+    except Exception as exc:
+        logger.exception(f"Error processing raw data file {raw_data_file_id}: {exc}")
+        
+        # Create detailed error message based on exception type
+        error_details = _get_detailed_error_message(exc, raw_data_file_id)
+        
+        # Update file status
+        try:
+            raw_data_file = RawDataFile.objects.get(id=raw_data_file_id)
+            raw_data_file.processing_status = "ingestion_error"
+            raw_data_file.processing_message = error_details
+            raw_data_file.save(
+                update_fields=["processing_status", "processing_message"],
+            )
+        except Exception:
+            pass
+        
+        # Retry on certain types of errors
+        if (
+            isinstance(exc, (ConnectionError, TimeoutError))
+            and self.request.retries < self.max_retries
+        ):
+            logger.info(f"Retrying task due to {type(exc).__name__}")
+            raise self.retry(countdown=60, exc=exc)
+        
+        return {
+            "success": False,
+            "message": error_details,
+            "file_id": raw_data_file_id,
+        }
+
+
+def _validate_file_for_ingestion(raw_data_file: RawDataFile) -> dict[str, Any]:
+    """Validate that a file is ready for ingestion."""
+    
+    # Check that file is not in a clearly pre-validation state
+    # Allow statuses like processed (mapped), processing (queued/started),
+    # ingestion_error (retry), ingested, processed_with_errors.
+    if raw_data_file.processing_status in ['uploaded', 'validation_error', 'error']:
+        return {
+            "valid": False,
+            "message": (
+                "File must be validated and mapped before ingestion. "
+                f"Current status: {raw_data_file.processing_status}"
+            ),
+        }
+    
+    # Check that study has variables
+    if not raw_data_file.study.variables.exists():
+        return {
+            "valid": False,
+            "message": (
+                "Study must have variables extracted from codebook "
+                "before ingesting data"
+            ),
+        }
+    
+    # Check that columns have been mapped
+    mapped_columns = raw_data_file.columns.filter(mapped_variable__isnull=False)
+    if not mapped_columns.exists():
+        return {
+            "valid": False,
+            "message": (
+                "No columns have been mapped to study variables. "
+                "Please map columns first."
+            ),
+        }
+    
+    # Check that essential columns are mapped
+    # Note: raw_data_file.patient_id_column stores the VARIABLE NAME from the codebook
+    # We must resolve it to the actual raw column that is mapped to this variable.
+    if raw_data_file.patient_id_column:
+        pid_mapping = raw_data_file.columns.filter(
+            mapped_variable__variable_name=raw_data_file.patient_id_column,
+        ).first()
+        if not pid_mapping:
+            return {
+                "valid": False,
+                "message": (
+                    "Selected participant ID variable "
+                    f'"{raw_data_file.patient_id_column}" is not mapped to any file column.'
+                ),
+            }
+
+    # Validate date column mapping if provided (date_column stores variable name)
+    if raw_data_file.date_column:
+        date_mapping = raw_data_file.columns.filter(
+            mapped_variable__variable_name=raw_data_file.date_column,
+        ).first()
+        if not date_mapping:
+            return {
+                "valid": False,
+                "message": (
+                    "Selected date/time variable "
+                    f'"{raw_data_file.date_column}" is not mapped to any file column.'
+                ),
+            }
+    
+    return {"valid": True, "message": "File validation passed"}
+
+
+def _load_data_file(raw_data_file: RawDataFile) -> dict[str, Any]:
+    """Load data file into a pandas DataFrame."""
+    
+    try:
+        file_path = raw_data_file.file.path
+        
+        # Load based on file format
+        if raw_data_file.file_format == 'csv':
+            df = pd.read_csv(file_path, low_memory=False)
+        elif raw_data_file.file_format in ['xlsx', 'xls']:
+            df = pd.read_excel(file_path)
+        elif raw_data_file.file_format == 'json':
+            df = pd.read_json(file_path)
+        elif raw_data_file.file_format == 'txt':
+            # Assume tab-separated
+            df = pd.read_csv(file_path, sep='\t', low_memory=False)
+        else:
+            return {
+                "success": False,
+                "message": f"Unsupported file format: {raw_data_file.file_format}",
+            }
+        
+        # Basic validation
+        if df.empty:
+            return {
+                "success": False,
+                "message": "Data file is empty",
+            }
+        
+        logger.info(f"Loaded {len(df)} rows and {len(df.columns)} columns from {raw_data_file.original_filename}")
+        
+        return {
+            "success": True,
+            "dataframe": df,
+            "rows": len(df),
+            "columns": len(df.columns),
+        }
+        
+    except Exception as exc:
+        logger.error(f"Error loading data file {raw_data_file.original_filename}: {exc}")
+        return {
+            "success": False,
+            "message": f"Error loading file: {str(exc)}",
+        }
+
+
+def _process_data_chunk(
+    raw_data_file: RawDataFile,
+    chunk_df: pd.DataFrame,
+    chunk_start: int,
+) -> dict[str, Any]:
+    """Process a chunk of data rows."""
+    
+    processed_rows = 0
+    created_observations = 0
+    errors = []
+    
+    # Get column mappings
+    column_mappings = {}
+    for column in raw_data_file.columns.filter(mapped_variable__isnull=False):
+        column_mappings[column.column_name] = column.mapped_variable
+    
+    # Resolve patient ID column name from selected variable (stored on RawDataFile)
+    patient_id_column_name = None
+    if raw_data_file.patient_id_column:
+        pid_mapping = raw_data_file.columns.filter(
+            mapped_variable__variable_name=raw_data_file.patient_id_column,
+        ).first()
+        if pid_mapping:
+            patient_id_column_name = pid_mapping.column_name
+    # Fallback: if not explicitly selected, try any column mapped to a 'patient_id' variable
+    if not patient_id_column_name:
+        pid_fallback = raw_data_file.columns.filter(
+            mapped_variable__variable_name="patient_id",
+        ).first()
+        if pid_fallback:
+            patient_id_column_name = pid_fallback.column_name
+
+    # Resolve date column name from selected variable (stored on RawDataFile)
+    date_column_name = None
+    if raw_data_file.date_column:
+        date_mapping = raw_data_file.columns.filter(
+            mapped_variable__variable_name=raw_data_file.date_column,
+        ).first()
+        if date_mapping:
+            date_column_name = date_mapping.column_name
+    
+    # Process each row in the chunk
+    for idx, row in chunk_df.iterrows():
+        row_num = chunk_start + idx + 1
+        
+        try:
+            with transaction.atomic():
+                # Extract patient ID
+                patient_id = None
+                if patient_id_column_name and patient_id_column_name in row:
+                    patient_id = str(row[patient_id_column_name]).strip()
+                    if patient_id and patient_id.lower() not in ['nan', 'none', 'null', '']:
+                        # Get or create patient
+                        patient, _ = Patient.objects.get_or_create(unique_id=patient_id)
+                    else:
+                        patient = None
+                else:
+                    # Use row number as patient ID if no patient ID column
+                    patient_id = f"patient_{row_num}"
+                    patient, _ = Patient.objects.get_or_create(unique_id=patient_id)
+                
+                # Extract date/time
+                time_dimension = None
+                if date_column_name and date_column_name in row:
+                    date_value = row[date_column_name]
+                    if pd.notna(date_value):
+                        try:
+                            # Best-effort parse for time; if it fails, skip time (ingest raw data only)
+                            parsed_date = pd.to_datetime(date_value)
+                            time_dimension, _ = TimeDimension.objects.get_or_create(
+                                timestamp=parsed_date,
+                            )
+                        except (ValueError, TypeError, OverflowError, ParserError):
+                            time_dimension = None
+                
+                # Process each mapped column
+                row_observations = 0
+                for column_name, variable in column_mappings.items():
+                    if column_name in row:
+                        value = row[column_name]
+                        
+                        # Skip null/empty values
+                        if pd.isna(value) or str(value).strip() == "":
+                            continue
+                        
+                        # Create observation
+                        obs_result = _create_observation(
+                            patient=patient,
+                            attribute=variable,
+                            value=value,
+                            time_dimension=time_dimension,
+                            row_num=row_num,
+                        )
+                        
+                        if obs_result["success"]:
+                            row_observations += 1
+                        else:
+                            errors.append(obs_result["error"])
+                
+                created_observations += row_observations
+                processed_rows += 1
+
+        except (DatabaseError, IntegrityError, ValueError, TypeError, KeyError) as exc:
+            error_msg = _format_row_error(
+                exc, row_num, patient_id_column_name or "", row
+            )
+            errors.append(error_msg)
+            logger.warning(error_msg)
+    
+    return {
+    "processed_rows": processed_rows,
+    "created_observations": created_observations,
+    "errors": errors,
+    }
+
+
+def _create_observation(
+    patient: Patient | None,
+    attribute: Attribute,
+    value: Any,
+    time_dimension: TimeDimension | None,
+    row_num: int,
+) -> dict[str, Any]:
+    """Create a single observation from a data value."""
+    
+    try:
+        # Prepare observation data; ingest raw values, try type when safe, fallback to text
+        obs_data = {
+            "patient": patient,
+            "attribute": attribute,
+            "time": time_dimension,
+        }
+        raw_text = str(value)
+        try:
+            if attribute.variable_type == "float":
+                obs_data["float_value"] = float(value)
+            elif attribute.variable_type == "int":
+                obs_data["int_value"] = int(float(value))
+            elif attribute.variable_type in ["string", "categorical"]:
+                obs_data["text_value"] = raw_text
+            elif attribute.variable_type == "boolean":
+                if isinstance(value, bool):
+                    obs_data["boolean_value"] = value
+                else:
+                    lv = raw_text.lower()
+                    if lv in ["true", "1", "yes", "y"]:
+                        obs_data["boolean_value"] = True
+                    elif lv in ["false", "0", "no", "n"]:
+                        obs_data["boolean_value"] = False
+                    else:
+                        obs_data["text_value"] = raw_text
+            elif attribute.variable_type == "datetime":
+                try:
+                    obs_data["datetime_value"] = pd.to_datetime(value)
+                except (ValueError, TypeError, OverflowError, ParserError):
+                    obs_data["text_value"] = raw_text
+            else:
+                obs_data["text_value"] = raw_text
+        except (ValueError, TypeError):
+            obs_data["text_value"] = raw_text
+        
+        # Create observation
+        observation = Observation.objects.create(**obs_data)
+        
+        return {
+            'success': True,
+            'observation_id': observation.id,
+        }
+        
+    except IntegrityError as exc:
+        # Handle duplicate observations gracefully
+        if 'unique_together' in str(exc).lower():
+            return {
+                'success': False,
+                'error': (
+                    f"Row {row_num}: Duplicate observation for "
+                    f"{attribute.variable_name}"
+                ),
+            }
+        return {
+            "success": False,
+            "error": (
+                f"Row {row_num}: Database error creating observation for "
+                f"{attribute.variable_name}: {str(exc)}"
+            ),
+        }
+            
+    except (DatabaseError, ValueError, TypeError) as exc:
+        return {
+            'success': False,
+            'error': (
+                f"Row {row_num}: Unexpected error creating observation for "
+                f"{attribute.variable_name}: {str(exc)}"
+            ),
+        }
+
+
+def _get_detailed_error_message(exception: Exception, file_id: int) -> str:
+    """
+    Convert various exception types to user-friendly error messages with specific guidance.
+    """
+    error_mappings = _get_error_mappings()
+    
+    exc_type = type(exception)
+    exc_str = str(exception)
+    
+    # Check specific exception types first
+    for error_type, handler in error_mappings.items():
+        if isinstance(exception, error_type):
+            return handler(exc_str)
+    
+    # Check exception type name for database errors
+    database_message = _handle_database_errors(exc_type, exc_str)
+    if database_message:
+        return database_message
+    
+    # Check content-based patterns
+    content_message = _handle_content_based_errors(exc_str)
+    if content_message:
+        return content_message
+    
+    # Generic fallback
+    return _format_generic_error(exc_str, file_id)
+
+
+def _get_error_mappings():
+    """Return mapping of exception types to handler functions."""
+    return {
+        FileNotFoundError: lambda _: "File could not be found. Please re-upload the file and try again.",
+        PermissionError: lambda _: "Unable to access the file due to permission restrictions. Please check file permissions or re-upload.",
+        pd.errors.EmptyDataError: lambda _: "The uploaded file appears to be empty or contains no readable data. Please check the file content.",
+        pd.errors.ParserError: _handle_parser_error,
+        UnicodeDecodeError: lambda _: "The file encoding is not supported. Please save your file in UTF-8 encoding and try again.",
+        MemoryError: lambda _: "The file is too large to process. Please split your data into smaller files (recommended: under 100MB each).",
+        (ConnectionError, TimeoutError): lambda _: "Connection timeout occurred. This may be due to system load. The process will automatically retry.",
+    }
+
+
+def _handle_parser_error(exc_str: str) -> str:
+    """Handle pandas parser errors with specific guidance."""
+    if "delimiter" in exc_str.lower() or "separator" in exc_str.lower():
+        return "Unable to parse the file format. Please ensure your CSV file uses commas as separators or try a different file format."
+    return "The file format appears to be corrupted or invalid. Please check the file and try uploading again."
+
+
+def _handle_database_errors(exc_type: type, exc_str: str) -> str | None:
+    """Handle database-related errors."""
+    type_name = exc_type.__name__
+    
+    if "IntegrityError" in type_name:
+        if "duplicate" in exc_str.lower() or "unique" in exc_str.lower():
+            return "Data contains duplicate entries that violate database constraints. Please check for duplicate patient IDs or timestamps."
+        return "Data integrity issue detected. Please check your data for invalid references or constraint violations."
+    
+    if "DatabaseError" in type_name or "OperationalError" in type_name:
+        return "Database error occurred during processing. Please try again in a few minutes or contact system administrator if the problem persists."
+    
+    if "ValidationError" in type_name:
+        return f"Data validation failed: {exc_str}"
+    
+    return None
+
+
+def _handle_content_based_errors(exc_str: str) -> str | None:
+    """Handle errors based on content patterns in the error string."""
+    exc_lower = exc_str.lower()
+    
+    # Column mapping errors
+    if "column" in exc_lower and ("not found" in exc_lower or "missing" in exc_lower):
+        return "One or more required columns are missing from the file. Please check your column mappings and file structure."
+    
+    # Date parsing errors
+    if "datetime" in exc_lower or "date" in exc_lower:
+        return "Unable to parse date/time values in the file. Please ensure dates are in a recognized format (e.g., YYYY-MM-DD or MM/DD/YYYY)."
+    
+    # Type conversion errors
+    if "convert" in exc_lower and ("float" in exc_lower or "int" in exc_lower):
+        return "Data type mismatch detected. Please check that numeric columns contain only numbers and fix any text values in numeric fields."
+    
+    return None
+
+
+def _format_generic_error(exc_str: str, file_id: int) -> str:
+    """Format a generic error message with truncation if needed."""
+    MAX_ERROR_LENGTH = 200
+    
+    if len(exc_str) > MAX_ERROR_LENGTH:
+        exc_str = exc_str[:MAX_ERROR_LENGTH] + "..."
+    
+    return f"Processing error occurred: {exc_str}. If this error persists, please contact support with error ID {file_id}."
+
+
+def _format_row_error(exception: Exception, row_num: int, patient_id_column: str, row_data) -> str:
+    """Format row-specific error messages with context."""
+    exc_str = str(exception)
+    exc_type = type(exception).__name__
+    
+    # Try to get patient ID for context
+    patient_context = ""
+    if patient_id_column and patient_id_column in row_data:
+        patient_id = row_data[patient_id_column]
+        patient_context = f" (Patient ID: {patient_id})"
+    
+    # Provide specific guidance based on error type
+    if "IntegrityError" in exc_type and "duplicate" in exc_str.lower():
+        return f"Row {row_num}{patient_context}: Duplicate data detected. This patient may already have data for this time period."
+    
+    if "ValidationError" in exc_type:
+        return f"Row {row_num}{patient_context}: Data validation failed - {exc_str}"
+    
+    if "DoesNotExist" in exc_str:
+        return f"Row {row_num}{patient_context}: Reference to non-existent record. Check your data mappings."
+    
+    if "null value" in exc_str.lower():
+        return f"Row {row_num}{patient_context}: Required field is missing. Please check for empty values in required columns."
+    
+    # Generic row error
+    return f"Row {row_num}{patient_context}: {exc_str}"
+
+
+@shared_task(bind=True)
+def process_multiple_files(self, file_ids: list[int]) -> dict[str, Any]:
+    """
+    Process multiple raw data files sequentially.
+    
+    Args:
+        file_ids: List of RawDataFile IDs to process
+        
+    Returns:
+        Dict with overall results
+    """
+    results = []
+    total_files = len(file_ids)
+    
+    for i, file_id in enumerate(file_ids, 1):
+        logger.info(f"Processing file {i}/{total_files}: ID {file_id}")
+        
+        try:
+            result = ingest_raw_data_file.delay(file_id)
+            # Wait for completion
+            file_result = result.get()
+            results.append(file_result)
+            
+        except Exception as exc:
+            logger.error(f"Error processing file {file_id}: {exc}")
+            results.append({
+                'success': False,
+                'message': f'Error processing file {file_id}: {str(exc)}',
+                'file_id': file_id,
+            })
+    
+    # Calculate summary
+    successful = sum(1 for r in results if r.get('success', False))
+    total_observations = sum(r.get('created_observations', 0) for r in results)
+    total_rows = sum(r.get('processed_rows', 0) for r in results)
+    
+    return {
+        'success': True,
+        'message': f'Processed {total_files} files: {successful} successful, {total_files - successful} failed',
+        'total_files': total_files,
+        'successful_files': successful,
+        'failed_files': total_files - successful,
+        'total_observations': total_observations,
+        'total_rows': total_rows,
+        'file_results': results,
+    }
+
+
+@shared_task
+def cleanup_failed_ingestions():
+    """
+    Cleanup task to handle failed ingestion attempts.
+    Resets files that have been stuck in 'processing' status.
+    """
+    from django.utils import timezone
+    from datetime import timedelta
+    
+    # Find files stuck in processing for more than 1 hour
+    cutoff_time = timezone.now() - timedelta(hours=1)
+    stuck_files = RawDataFile.objects.filter(
+        processing_status="processing",
+        updated_at__lt=cutoff_time,
+    )
+    
+    updated_count = 0
+    for file in stuck_files:
+        file.processing_status = "ingestion_error"
+        file.processing_message = "Processing timed out and was reset"
+        file.save(update_fields=["processing_status", "processing_message"])
+        updated_count += 1
+        logger.warning(f"Reset stuck processing file: {file.original_filename}")
+    
+    return {
+        "success": True,
+        "message": f"Reset {updated_count} stuck files",
+        "updated_count": updated_count,
+    }
