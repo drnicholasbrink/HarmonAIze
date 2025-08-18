@@ -643,6 +643,86 @@ def upload_raw_data(request, study_id=None):
             # If study was pre-selected, use it
             if study:
                 raw_data_file.study = study
+            else:
+                raw_data_file.study = form.cleaned_data.get("study")
+
+            # Persist selected column names onto the model
+            raw_data_file.patient_id_column = form.cleaned_data.get("patient_id_column") or ""
+            raw_data_file.date_column = form.cleaned_data.get("date_column") or ""
+
+            # Compute checksum for duplicate detection
+            import hashlib
+            upload = request.FILES.get('file')
+            checksum = ''
+            if upload:
+                pos = upload.tell() if hasattr(upload, 'tell') else None
+                try:
+                    upload.seek(0)
+                except Exception:
+                    pass
+                hasher = hashlib.sha256()
+                for chunk in upload.chunks():
+                    hasher.update(chunk)
+                checksum = hasher.hexdigest()
+                # reset pointer for subsequent reads and save
+                try:
+                    upload.seek(0)
+                except Exception:
+                    pass
+                raw_data_file.checksum = checksum
+
+            # Duplicate check within same study by checksum
+            duplicate = None
+            if raw_data_file.study and checksum:
+                duplicate = RawDataFile.objects.filter(
+                    study=raw_data_file.study,
+                    checksum=checksum,
+                ).first()
+            if duplicate:
+                messages.warning(
+                    request,
+                    f"An identical file ('{duplicate.original_filename}') was already uploaded for this study on {duplicate.uploaded_at:%Y-%m-%d %H:%M}. Upload cancelled.",
+                )
+                context = {
+                    'form': form,
+                    'study': raw_data_file.study,
+                    'page_title': f"Upload Raw Data{' for ' + raw_data_file.study.name if raw_data_file.study else ''}",
+                    'duplicate_found': True,
+                }
+                return render(request, 'health/upload_raw_data.html', context)
+
+            # Basic validation and column comparison against codebook
+            mismatch_details = None
+            if upload and raw_data_file.study:
+                try:
+                    validation_result = validate_raw_data_against_codebook(upload, raw_data_file.study)
+                    details = validation_result.get('details') or {}
+                    expected = details.get('expected_variables') or []
+                    actual = details.get('actual_columns') or []
+                    raw_data_file.detected_columns = actual
+                    raw_data_file.expected_attributes = expected
+                    # Compute simple mismatches
+                    expected_set = {e.strip() for e in expected}
+                    actual_set = {a.strip() for a in actual}
+                    missing = sorted(list(expected_set - actual_set))
+                    extra = sorted(list(actual_set - expected_set))
+                    raw_data_file.missing_attributes = missing
+                    raw_data_file.extra_columns = extra
+                    raw_data_file.has_attribute_mismatches = bool(missing or extra)
+                    if raw_data_file.has_attribute_mismatches:
+                        mismatch_details = {
+                            'missing': missing,
+                            'extra': extra,
+                            'expected_count': len(expected_set),
+                            'actual_count': len(actual_set),
+                        }
+                        messages.warning(
+                            request,
+                            "The uploaded file's columns do not fully match the study's attributes. Review differences below.",
+                        )
+                except Exception as exc:
+                    # Non-fatal: proceed but note issue
+                    raw_data_file.processing_message = f"Validation warning: {exc}"
             
             raw_data_file.save()
             
@@ -654,9 +734,11 @@ def upload_raw_data(request, study_id=None):
             
             # Redirect to file detail view (to be created) or back to study
             if raw_data_file.study:
+                if mismatch_details:
+                    # Show detail page with mismatches
+                    return redirect('health:raw_data_detail', file_id=raw_data_file.id)
                 return redirect('core:study_detail', pk=raw_data_file.study.pk)
-            else:
-                return redirect('health:raw_data_list')
+            return redirect('health:raw_data_list')
         else:
             messages.error(request, "Please correct the errors below.")
     else:
@@ -835,7 +917,7 @@ def map_raw_data_columns(request, file_id):
         RawDataFile, 
         id=file_id, 
         uploaded_by=request.user,
-        processing_status="validated",
+        processing_status__in=["validated", "processed"],
     )
     
     columns = raw_data_file.columns.all().order_by("column_index")
