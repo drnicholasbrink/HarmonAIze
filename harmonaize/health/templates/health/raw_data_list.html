@@ -17,6 +17,18 @@
                 </div>
                 <div class="card-body">
                     {% if raw_data_files %}
+                        <!-- Status Summary -->
+                        <div class="row g-2 mb-3">
+                            <div class="col-auto"><span class="badge bg-warning">Uploaded: {{ status_counts.uploaded }}</span></div>
+                            <div class="col-auto"><span class="badge bg-danger">Validation Error: {{ status_counts.validation_error }}</span></div>
+                            <div class="col-auto"><span class="badge bg-info">Validated: {{ status_counts.validated }}</span></div>
+                            <div class="col-auto"><span class="badge bg-success">Processed: {{ status_counts.processed }}</span></div>
+                            <div class="col-auto"><span class="badge bg-primary">Processing: {{ status_counts.processing }}</span></div>
+                            <div class="col-auto"><span class="badge bg-danger">Ingestion Error: {{ status_counts.ingestion_error }}</span></div>
+                            <div class="col-auto"><span class="badge bg-success">Ingested: {{ status_counts.ingested }}</span></div>
+                            <div class="col-auto"><span class="badge bg-secondary">Processed w/ Errors: {{ status_counts.processed_with_errors }}</span></div>
+                            <div class="col-auto"><span class="badge bg-dark">Error: {{ status_counts.error }}</span></div>
+                        </div>
                         <div class="table-responsive">
                             <table class="table table-hover">
                                 <thead>
@@ -89,12 +101,22 @@
                                             <td>
                                                 {% if file.processing_status == 'uploaded' %}
                                                     <span class="badge bg-warning">Uploaded</span>
+                                                {% elif file.processing_status == 'validation_error' %}
+                                                    <span class="badge bg-danger">Validation Error</span>
                                                 {% elif file.processing_status == 'validated' %}
                                                     <span class="badge bg-info">Validated</span>
                                                 {% elif file.processing_status == 'processed' %}
                                                     <span class="badge bg-success">Processed</span>
+                                                {% elif file.processing_status == 'processing' %}
+                                                    <span class="badge bg-primary">Processing</span>
+                                                {% elif file.processing_status == 'ingestion_error' %}
+                                                    <span class="badge bg-danger">Ingestion Error</span>
+                                                {% elif file.processing_status == 'ingested' %}
+                                                    <span class="badge bg-success">Ingested</span>
+                                                {% elif file.processing_status == 'processed_with_errors' %}
+                                                    <span class="badge bg-secondary">Processed w/ Errors</span>
                                                 {% elif file.processing_status == 'error' %}
-                                                    <span class="badge bg-danger">Error</span>
+                                                    <span class="badge bg-dark">Error</span>
                                                 {% else %}
                                                     <span class="badge bg-secondary">{{ file.processing_status|capfirst }}</span>
                                                 {% endif %}
@@ -106,11 +128,111 @@
                                                 </small>
                                             </td>
                                             <td>
-                                                <div class="btn-group btn-group-sm" role="group">
-                                                    <a href="{% url 'health:raw_data_detail' file_id=file.id %}" 
-                                                       class="btn btn-outline-primary btn-sm" title="View Details">
-                                                        <i class="fas fa-eye"></i>
-                                                    </a>
+                                                <div class="dropdown">
+                                                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                                        Actions
+                                                    </button>
+                                                    <ul class="dropdown-menu">
+                                                        <!-- Common action -->
+                                                        <li>
+                                                            <a class="dropdown-item" href="{% url 'health:raw_data_detail' file_id=file.id %}">
+                                                                View Details
+                                                            </a>
+                                                        </li>
+                                                        <li><hr class="dropdown-divider"></li>
+
+                                                        {% if file.processing_status == 'uploaded' %}
+                                                            <li>
+                                                                <a class="dropdown-item" href="{% url 'health:validate_raw_data' file_id=file.id %}">Validate</a>
+                                                            </li>
+                                                            <li>
+                                                                <a class="dropdown-item text-danger" href="{% url 'health:delete_raw_data' file_id=file.id %}">Delete</a>
+                                                            </li>
+                                                        {% elif file.processing_status == 'validation_error' %}
+                                                            <li>
+                                                                <a class="dropdown-item" href="{% url 'health:validate_raw_data' file_id=file.id %}">Re-Validate</a>
+                                                            </li>
+                                                            <li>
+                                                                <a class="dropdown-item text-danger" href="{% url 'health:delete_raw_data' file_id=file.id %}">Delete</a>
+                                                            </li>
+                                                        {% elif file.processing_status == 'validated' %}
+                                                            <li>
+                                                                <a class="dropdown-item" href="{% url 'health:map_raw_data_columns' file_id=file.id %}">Map Columns</a>
+                                                            </li>
+                                                            <li>
+                                                                <a class="dropdown-item text-danger" href="{% url 'health:delete_raw_data' file_id=file.id %}">Delete</a>
+                                                            </li>
+                                                        {% elif file.processing_status == 'processed' %}
+                                                            <li>
+                                                                <a class="dropdown-item" href="{% url 'health:map_raw_data_columns' file_id=file.id %}">Map Columns</a>
+                                                            </li>
+                                                            <li>
+                                                                <form method="post" action="{% url 'health:start_data_ingestion' file_id=file.id %}" style="display:inline;">
+                                                                    {% csrf_token %}
+                                                                    <button type="submit" class="dropdown-item">Start Ingestion</button>
+                                                                </form>
+                                                            </li>
+                                                            <li>
+                                                                <a class="dropdown-item text-danger" href="{% url 'health:delete_raw_data' file_id=file.id %}">Delete</a>
+                                                            </li>
+                                                        {% elif file.processing_status == 'processing' %}
+                                                            <li>
+                                                                <a class="dropdown-item" href="{% url 'health:raw_data_detail' file_id=file.id %}">View Status</a>
+                                                            </li>
+                                                            <li>
+                                                                <a class="dropdown-item text-danger" href="{% url 'health:delete_raw_data' file_id=file.id %}">Delete</a>
+                                                            </li>
+                                                        {% elif file.processing_status == 'ingestion_error' %}
+                                                            <li>
+                                                                <a class="dropdown-item" href="{% url 'health:raw_data_detail' file_id=file.id %}">View Status</a>
+                                                            </li>
+                                                            <li>
+                                                                <form method="post" action="{% url 'health:start_data_ingestion' file_id=file.id %}" style="display:inline;">
+                                                                    {% csrf_token %}
+                                                                    <button type="submit" class="dropdown-item">Retry Ingestion</button>
+                                                                </form>
+                                                            </li>
+                                                            <li>
+                                                                <a class="dropdown-item" href="{% url 'health:map_raw_data_columns' file_id=file.id %}">Map Columns</a>
+                                                            </li>
+                                                            <li>
+                                                                <a class="dropdown-item text-danger" href="{% url 'health:delete_raw_data' file_id=file.id %}">Delete</a>
+                                                            </li>
+                                                        {% elif file.processing_status == 'ingested' %}
+                                                            <li>
+                                                                <a class="dropdown-item" href="{% url 'health:raw_data_detail' file_id=file.id %}">View Status</a>
+                                                            </li>
+                                                            <li>
+                                                                <form method="post" action="{% url 'health:start_data_ingestion' file_id=file.id %}" style="display:inline;">
+                                                                    {% csrf_token %}
+                                                                    <button type="submit" class="dropdown-item">Re-ingest (creates duplicates)</button>
+                                                                </form>
+                                                            </li>
+                                                            <li>
+                                                                <a class="dropdown-item text-danger" href="{% url 'health:delete_raw_data' file_id=file.id %}">Delete</a>
+                                                            </li>
+                                                        {% elif file.processing_status == 'processed_with_errors' %}
+                                                            <li>
+                                                                <a class="dropdown-item" href="{% url 'health:raw_data_detail' file_id=file.id %}">View Status</a>
+                                                            </li>
+                                                            <li>
+                                                                <form method="post" action="{% url 'health:start_data_ingestion' file_id=file.id %}" style="display:inline;">
+                                                                    {% csrf_token %}
+                                                                    <button type="submit" class="dropdown-item">Re-ingest</button>
+                                                                </form>
+                                                            </li>
+                                                            <li>
+                                                                <a class="dropdown-item text-danger" href="{% url 'health:delete_raw_data' file_id=file.id %}">Delete</a>
+                                                            </li>
+                                                        {% else %}
+                                                            <li>
+                                                                <a class="dropdown-item" href="{% url 'health:raw_data_detail' file_id=file.id %}">View Details</a>
+                                                            </li>
+                                                            <li>
+                                                                <a class="dropdown-item text-danger" href="{% url 'health:delete_raw_data' file_id=file.id %}">Delete</a>
+                                                            </li>
+                                                        {% endif %}
+                                                    </ul>
                                                 </div>
                                             </td>
                                         </tr>
