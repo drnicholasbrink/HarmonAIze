@@ -320,10 +320,19 @@ def _process_data_chunk(
     created_observations = 0
     errors = []
     
-    # Get column mappings
+    # Get column mappings (only SOURCE attributes should be ingested here)
     column_mappings = {}
     for column in raw_data_file.columns.filter(mapped_variable__isnull=False):
-        column_mappings[column.column_name] = column.mapped_variable
+        attr = column.mapped_variable
+        if getattr(attr, "source_type", "source") != "source":
+            logger.debug(
+                "Skipping mapped column %s -> %s because attribute is not source (source_type=%s)",
+                column.column_name,
+                getattr(attr, "variable_name", "<unknown>"),
+                getattr(attr, "source_type", None),
+            )
+            continue
+        column_mappings[column.column_name] = attr
     
     # Resolve patient ID column name from selected variable (stored on RawDataFile)
     patient_id_column_name = None
@@ -395,6 +404,15 @@ def _process_data_chunk(
                             continue
                         
                         # Create observation
+                        # Safety: ensure we're only creating observations for SOURCE attributes
+                        if getattr(variable, "source_type", "source") != "source":
+                            logger.debug(
+                                "Not creating observation for non-source attribute %s (source_type=%s)",
+                                getattr(variable, "variable_name", "<unknown>"),
+                                getattr(variable, "source_type", None),
+                            )
+                            continue
+
                         obs_result = _create_observation(
                             patient=patient,
                             attribute=variable,
@@ -706,3 +724,154 @@ def cleanup_failed_ingestions():
         "message": f"Reset {updated_count} stuck files",
         "updated_count": updated_count,
     }
+
+
+def _compile_transform_callable(code: str):
+    """Compile transform code into a callable. Supports lambda or def transform(value)."""
+    if not code or not code.strip():
+        return None
+
+    safe_builtins = {
+        "int": int,
+        "float": float,
+        "str": str,
+        "bool": bool,
+        "round": round,
+        "abs": abs,
+        "min": min,
+        "max": max,
+        "len": len,
+        "sum": sum,
+        "any": any,
+        "all": all,
+        "sorted": sorted,
+        "reversed": reversed,
+    }
+    safe_globals = {"__builtins__": safe_builtins}
+
+    code_str = code.strip()
+    try:
+        if code_str.startswith("lambda"):
+            func = eval(code_str, safe_globals, {})
+            return func
+        # Expect a def transform(value): ...
+        local_ns = {}
+        exec(code_str, safe_globals, local_ns)
+        if "transform" in local_ns and callable(local_ns["transform"]):
+            return local_ns["transform"]
+    except Exception:
+        logger.exception("Failed to compile transform code")
+        return None
+    return None
+
+
+@shared_task(bind=True, max_retries=1, default_retry_delay=30)
+def transform_observations_for_schema(self, schema_id: int) -> dict[str, Any]:
+    """Apply MappingRules to existing observations to create harmonised target observations."""
+    try:
+        from .models import MappingSchema, MappingRule
+
+        schema = MappingSchema.objects.select_related(
+            "source_study", "target_study"
+        ).get(id=schema_id)
+
+        rules = (
+            MappingRule.objects.select_related("source_attribute", "target_attribute")
+            .filter(
+                schema=schema,
+                not_mappable=False,
+                target_attribute__isnull=False,
+                source_attribute__source_type="source",
+                target_attribute__source_type="target",
+            )
+        )
+
+        transformed = 0
+        skipped = 0
+        errors: list[str] = []
+
+        # Determine time window: transform observations created after schema creation
+        window_start = schema.created_at
+
+        for rule in rules:
+            transform_func = _compile_transform_callable(rule.transform_code or "")
+            # Source observations for this attribute
+            qs = Observation.objects.filter(attribute=rule.source_attribute)
+            if window_start:
+                qs = qs.filter(created_at__gte=window_start)
+
+            for src_obs in qs.iterator():
+                try:
+                    value = src_obs.value
+                    if value is None:
+                        skipped += 1
+                        continue
+                    if transform_func:
+                        try:
+                            value = transform_func(value)
+                        except Exception as te:
+                            skipped += 1
+                            logger.debug("Transform error on obs %s: %s", src_obs.id, te)
+                            continue
+                    if value is None:
+                        skipped += 1
+                        continue
+
+                    # Prepare defaults according to target attribute type
+                    defaults: dict[str, Any] = {"patient": src_obs.patient, "location": src_obs.location, "time": src_obs.time}
+                    tgt_type = rule.target_attribute.variable_type
+                    try:
+                        if tgt_type == "float":
+                            defaults["float_value"] = float(value)
+                        elif tgt_type == "int":
+                            defaults["int_value"] = int(float(value))
+                        elif tgt_type in ["string", "categorical"]:
+                            defaults["text_value"] = str(value)
+                        elif tgt_type == "boolean":
+                            if isinstance(value, bool):
+                                defaults["boolean_value"] = value
+                            else:
+                                lv = str(value).lower()
+                                if lv in ["true", "1", "yes", "y"]:
+                                    defaults["boolean_value"] = True
+                                elif lv in ["false", "0", "no", "n"]:
+                                    defaults["boolean_value"] = False
+                                else:
+                                    defaults["text_value"] = str(value)
+                        elif tgt_type == "datetime":
+                            try:
+                                defaults["datetime_value"] = pd.to_datetime(value)
+                            except Exception:
+                                defaults["text_value"] = str(value)
+                        else:
+                            defaults["text_value"] = str(value)
+                    except (ValueError, TypeError):
+                        defaults["text_value"] = str(value)
+
+                    # Upsert target observation
+                    obj, created = Observation.objects.get_or_create(
+                        patient=src_obs.patient,
+                        location=src_obs.location,
+                        attribute=rule.target_attribute,
+                        time=src_obs.time,
+                        defaults=defaults,
+                    )
+                    if not created:
+                        # Update values if existing
+                        for k, v in defaults.items():
+                            setattr(obj, k, v)
+                        obj.save(update_fields=list(defaults.keys()))
+                    transformed += 1
+                except Exception as exc:
+                    errors.append(str(exc))
+                    logger.debug("Error transforming obs %s: %s", src_obs.id, exc)
+
+        message = (
+            f"Transformed {transformed} observations; skipped {skipped}; "
+            f"rules applied: {rules.count()}"
+        )
+        logger.info("%s for schema %s", message, schema_id)
+        return {"success": True, "message": message, "transformed": transformed, "skipped": skipped, "rules": rules.count(), "errors": errors[:10]}
+    except Exception as exc:
+        logger.exception("Failed transforming observations for schema %s: %s", schema_id, exc)
+        return {"success": False, "message": str(exc)}

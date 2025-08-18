@@ -142,8 +142,8 @@ def approve_mapping(request, schema_id):
         )
         return redirect("health:harmonization_dashboard", schema_id=schema.id)
     
-    # Check for required patient ID mapping
-    if not complete_rules.filter(role="patient_id").exists():
+    # Check for required patient ID mapping (allow without target_attribute)
+    if not schema.rules.filter(role="patient_id").exists():
         messages.error(
             request,
             "You must map at least one patient ID field before approval.",
@@ -164,11 +164,33 @@ def approve_mapping(request, schema_id):
     schema.approved_by = request.user
     schema.approved_at = timezone.now()
     schema.save(update_fields=["status", "approved_by", "approved_at"])
+    # Trigger background transformation of observations based on mapping schema
+    try:
+        from .tasks import transform_observations_for_schema
+        transform_observations_for_schema.delay(schema.id)
+        messages.info(request, "Started background transformation using approved mapping.")
+    except Exception as e:
+        messages.warning(request, f"Mapping approved, but failed to start transformation: {e}")
+
     messages.success(
         request, 
         f"Mapping approved with {complete_rules.count()} complete rules.",
     )
     return redirect("core:study_detail", pk=schema.source_study_id)
+
+
+@login_required
+def finalize_harmonisation(request, schema_id):
+    """Mark the study as harmonised after approval."""
+    schema = get_object_or_404(MappingSchema, id=schema_id, created_by=request.user)
+    if schema.status != "approved":
+        messages.error(request, "You must approve the mapping before finalising.")
+        return redirect("health:harmonization_dashboard", schema_id=schema.id)
+    study = schema.source_study
+    study.status = "harmonised"
+    study.save(update_fields=["status"])
+    messages.success(request, f"Study '{study.name}' marked as harmonised.")
+    return redirect("core:study_detail", pk=study.pk)
 
 
 def _apply_universal_mappings(schema):

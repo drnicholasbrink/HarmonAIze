@@ -75,13 +75,15 @@ class MappingRuleForm(forms.ModelForm):
         queryset=Attribute.objects.none(),
         disabled=True,
     )
-    
+
     # Form-only field for toggling custom settings visibility
     use_custom_settings = forms.BooleanField(
         required=False,
-        widget=forms.CheckboxInput(attrs={'class': 'custom-settings-toggle'}),
+        widget=forms.CheckboxInput(attrs={"class": "custom-settings-toggle"}),
         label="Use custom settings",
-        help_text="Check to override universal settings for this specific mapping"
+        help_text=(
+            "Check to override universal settings for this specific mapping"
+        ),
     )
 
     class Meta:
@@ -103,59 +105,86 @@ class MappingRuleForm(forms.ModelForm):
                     "rows": 3,
                 }
             ),
-            "comments": forms.Textarea(attrs={"rows": 2, "placeholder": "Optional notes about this mapping..."}),
-            "not_mappable": forms.CheckboxInput(attrs={"class": "not-mappable-checkbox"}),
-            "use_custom_settings": forms.CheckboxInput(attrs={"class": "custom-settings-checkbox"}),
+            "comments": forms.Textarea(
+                attrs={"rows": 2, "placeholder": "Optional notes about this mapping..."}
+            ),
+            "not_mappable": forms.CheckboxInput(
+                attrs={"class": "not-mappable-checkbox"}
+            ),
+            "use_custom_settings": forms.CheckboxInput(
+                attrs={"class": "custom-settings-checkbox"}
+            ),
             "target_attribute": TargetAttributeWidget(),
         }
 
     def __init__(self, *args, **kwargs):
         schema: MappingSchema = kwargs.pop("schema")
         super().__init__(*args, **kwargs)
+
         src_qs = schema.source_study.variables.all().order_by("variable_name")
-        self.fields["source_attribute"].queryset = src_qs
         tgt_qs = schema.target_study.variables.all().order_by("variable_name")
+
+        self.fields["source_attribute"].queryset = src_qs
         self.fields["target_attribute"].queryset = tgt_qs
         self.fields["target_attribute"].required = False  # Allow provisional saves
-        
-        # Default role to "value" for standard mapping to target variable
+
+        # Default role to "value"; do not require
         self.fields["role"].initial = "value"
-        
+        self.fields["role"].required = False
+
         # Set up patient_id and datetime attribute fields (for custom overrides)
         self.fields["patient_id_attribute"].queryset = src_qs
         self.fields["patient_id_attribute"].required = False
-        self.fields["patient_id_attribute"].empty_label = "Use universal setting (recommended)"
-        self.fields["patient_id_attribute"].help_text = "Override universal patient ID setting for this specific mapping"
-        
+        self.fields["patient_id_attribute"].empty_label = (
+            "Use universal setting (recommended)"
+        )
+        self.fields["patient_id_attribute"].help_text = (
+            "Override universal patient ID setting for this specific mapping"
+        )
+
         self.fields["datetime_attribute"].queryset = src_qs
         self.fields["datetime_attribute"].required = False
-        self.fields["datetime_attribute"].empty_label = "Use universal setting (recommended)"
-        self.fields["datetime_attribute"].help_text = "Override universal datetime setting for this specific mapping"
-        
+        self.fields["datetime_attribute"].empty_label = (
+            "Use universal setting (recommended)"
+        )
+        self.fields["datetime_attribute"].help_text = (
+            "Override universal datetime setting for this specific mapping"
+        )
+
         # Relation type for related patient mappings
         self.fields["related_relation_type"].required = False
-        self.fields["related_relation_type"].empty_label = "Use universal setting (recommended)"
-        self.fields["related_relation_type"].help_text = "Only needed when role is not 'Value'"
-        
+        self.fields["related_relation_type"].empty_label = (
+            "Use universal setting (recommended)"
+        )
+        self.fields["related_relation_type"].help_text = (
+            "Only needed when role is not 'Value'"
+        )
+
         # Pre-populate from universal settings if enabled and no custom value set
         if schema.auto_populate_enabled:
-            # For patient_id field
-            if (schema.universal_patient_id and
-                not getattr(self.instance, "patient_id_attribute_id", None)):
+            if (
+                schema.universal_patient_id
+                and not getattr(self.instance, "patient_id_attribute_id", None)
+            ):
                 self.fields["patient_id_attribute"].initial = (
-                    schema.universal_patient_id)
+                    schema.universal_patient_id
+                )
 
-            # For datetime field
-            if (schema.universal_datetime and
-                not getattr(self.instance, "datetime_attribute_id", None)):
+            if (
+                schema.universal_datetime
+                and not getattr(self.instance, "datetime_attribute_id", None)
+            ):
                 self.fields["datetime_attribute"].initial = (
-                    schema.universal_datetime)
+                    schema.universal_datetime
+                )
 
-            # For relation type
-            if (schema.universal_relation_type and
-                not getattr(self.instance, "related_relation_type", None)):
+            if (
+                schema.universal_relation_type
+                and not getattr(self.instance, "related_relation_type", None)
+            ):
                 self.fields["related_relation_type"].initial = (
-                    schema.universal_relation_type)
+                    schema.universal_relation_type
+                )
 
         # Help text for better UX
         self.fields["not_mappable"].help_text = (
@@ -175,7 +204,13 @@ class MappingRuleForm(forms.ModelForm):
         )
 
     def clean(self):
-        return super().clean()
+        cleaned = super().clean()
+        # If variable marked as not mappable, do not enforce role/target
+        if cleaned.get("not_mappable"):
+            cleaned["role"] = cleaned.get("role") or "value"
+            # target_attribute can remain empty
+            return cleaned
+        return cleaned
 
     def clean_transform_code(self):
         code = self.cleaned_data.get("transform_code", "") or ""
