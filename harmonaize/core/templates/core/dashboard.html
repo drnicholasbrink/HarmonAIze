@@ -3,463 +3,6 @@
 
 {% block title %}Dashboard - HarmonAIze{% endblock title %}
 
-{% block css %}
-  {{ block.super }}
-  <style>
-    :root {
-      --primary-color: #007AFF;
-      --secondary-color: #5AC8FA;
-      --accent-color: #34C759;
-      --background-color: #F2F2F7;
-      --card-background: #FFFFFF;
-      --text-primary: #1C1C1E;
-      --text-secondary: #8E8E93;
-      --border-color: #C6C6C8;
-      --shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
-      --border-radius: 12px;
-    }
-
-    body {
-      background-color: var(--background-color);
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      color: var(--text-primary);
-      line-height: 1.5;
-    }
-
-    .header-section {
-      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
-      color: white;
-      padding: 3rem 0;
-      margin: -1rem -15px 0 -15px;
-      text-align: center;
-    }
-
-    .header-title {
-      font-size: 2.5rem;
-      font-weight: 700;
-      margin-bottom: 0.5rem;
-    }
-
-    .header-subtitle {
-      font-size: 1.1rem;
-      opacity: 0.9;
-    }
-
-    .content-wrapper {
-      max-width: 1200px;
-      margin: 2rem auto;
-      padding: 0 1rem;
-    }
-
-    .creation-flow-panel {
-      background: var(--card-background);
-      border-radius: var(--border-radius);
-      padding: 2.5rem;
-      box-shadow: var(--shadow);
-      border: 1px solid var(--border-color);
-      margin-bottom: 3rem;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .creation-flow-panel::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 4px;
-      background: linear-gradient(90deg, var(--primary-color), var(--secondary-color), var(--accent-color));
-    }
-
-    .flow-title {
-      font-size: 1.8rem;
-      font-weight: 700;
-      margin-bottom: 0.5rem;
-      color: var(--text-primary);
-      text-align: center;
-    }
-
-    .flow-subtitle {
-      font-size: 1.1rem;
-      color: var(--text-secondary);
-      text-align: center;
-      margin-bottom: 2rem;
-    }
-
-    .flow-options {
-      display: grid;
-      grid-template-columns: 1fr auto 1fr;
-      gap: 2rem;
-      align-items: center;
-      margin-bottom: 2rem;
-    }
-
-    .flow-option {
-      display: flex;
-      justify-content: center;
-    }
-
-    .flow-card {
-      background: var(--background-color);
-      border: 2px solid var(--border-color);
-      border-radius: 12px;
-      padding: 2rem;
-      text-align: center;
-      transition: all 0.3s ease;
-      width: 100%;
-      max-width: 300px;
-      position: relative;
-    }
-
-    .flow-card:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-    }
-
-    .source-card {
-      border-color: var(--primary-color);
-    }
-
-    .source-card:hover {
-      border-color: var(--primary-color);
-      background: rgba(0, 122, 255, 0.05);
-    }
-
-    .target-card {
-      border-color: var(--secondary-color);
-    }
-
-    .target-card:hover {
-      border-color: var(--secondary-color);
-      background: rgba(90, 200, 250, 0.05);
-    }
-
-    .existing-target {
-      border-color: var(--accent-color);
-      background: rgba(52, 199, 89, 0.05);
-    }
-
-    .existing-target:hover {
-      border-color: var(--accent-color);
-      background: rgba(52, 199, 89, 0.1);
-    }
-
-    .flow-icon {
-      color: var(--primary-color);
-      margin-bottom: 1rem;
-    }
-
-    .target-card .flow-icon {
-      color: var(--secondary-color);
-    }
-
-    .existing-target .flow-icon {
-      color: var(--accent-color);
-    }
-
-    .flow-card-title {
-      font-size: 1.3rem;
-      font-weight: 600;
-      margin-bottom: 0.75rem;
-      color: var(--text-primary);
-    }
-
-    .flow-card-description {
-      color: var(--text-secondary);
-      margin-bottom: 1.5rem;
-      line-height: 1.5;
-      font-size: 0.95rem;
-    }
-
-    .flow-btn {
-      width: 100%;
-      padding: 0.875rem 1.5rem;
-      font-weight: 600;
-    }
-
-    .flow-divider {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 600;
-      color: var(--text-secondary);
-      font-size: 0.9rem;
-      background: var(--background-color);
-      border: 2px solid var(--border-color);
-      border-radius: 50%;
-      width: 60px;
-      height: 60px;
-      margin: 0 auto;
-    }
-
-    .flow-info {
-      border-top: 1px solid var(--border-color);
-      padding-top: 1.5rem;
-    }
-
-    .info-box {
-      background: rgba(0, 122, 255, 0.1);
-      border-left: 4px solid var(--primary-color);
-      padding: 1rem;
-      border-radius: 6px;
-      color: var(--text-primary);
-      text-align: center;
-      font-size: 0.95rem;
-    }
-
-    .dashboard-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 2rem;
-      margin-bottom: 3rem;
-    }
-
-    .stat-card {
-      background: var(--card-background);
-      border-radius: var(--border-radius);
-      padding: 2rem;
-      box-shadow: var(--shadow);
-      border: 1px solid var(--border-color);
-      text-align: center;
-      transition: all 0.3s ease;
-    }
-
-    .stat-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-    }
-
-    .stat-icon {
-      font-size: 3rem;
-      margin-bottom: 1rem;
-    }
-
-    .stat-number {
-      font-size: 2.5rem;
-      font-weight: 700;
-      color: var(--primary-color);
-      margin-bottom: 0.5rem;
-    }
-
-    .stat-label {
-      color: var(--text-secondary);
-      font-size: 1rem;
-      font-weight: 500;
-    }
-
-    .section-card {
-      background: var(--card-background);
-      border-radius: var(--border-radius);
-      padding: 2rem;
-      box-shadow: var(--shadow);
-      border: 1px solid var(--border-color);
-      margin-bottom: 2rem;
-    }
-
-    .section-title {
-      font-size: 1.5rem;
-      font-weight: 600;
-      margin-bottom: 1.5rem;
-      color: var(--text-primary);
-      padding-bottom: 0.5rem;
-      border-bottom: 2px solid var(--primary-color);
-    }
-
-    .quick-actions {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 1rem;
-    }
-
-    .action-btn {
-      background: var(--background-color);
-      border: 1px solid var(--border-color);
-      border-radius: var(--border-radius);
-      padding: 1.5rem;
-      text-align: center;
-      text-decoration: none;
-      color: var(--text-primary);
-      transition: all 0.3s ease;
-      display: block;
-    }
-
-    .action-btn:hover {
-      background: white;
-      border-color: var(--primary-color);
-      color: var(--text-primary);
-      text-decoration: none;
-      transform: translateY(-2px);
-      box-shadow: 0 4px 15px rgba(0, 122, 255, 0.2);
-    }
-
-    .action-icon {
-      font-size: 2rem;
-      margin-bottom: 0.5rem;
-      display: block;
-    }
-
-    .action-title {
-      font-weight: 600;
-      margin-bottom: 0.25rem;
-    }
-
-    .action-description {
-      font-size: 0.9rem;
-      color: var(--text-secondary);
-    }
-
-    .recent-studies {
-      list-style: none;
-      padding: 0;
-      margin: 0;
-    }
-
-    .study-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 1rem 0;
-      border-bottom: 1px solid var(--border-color);
-    }
-
-    .study-item:last-child {
-      border-bottom: none;
-    }
-
-    .study-info {
-      flex: 1;
-    }
-
-    .study-name {
-      font-weight: 600;
-      color: var(--text-primary);
-      margin-bottom: 0.25rem;
-    }
-
-    .study-name a {
-      color: inherit;
-      text-decoration: none;
-    }
-
-    .study-name a:hover {
-      color: var(--primary-color);
-    }
-
-    .study-meta {
-      font-size: 0.9rem;
-      color: var(--text-secondary);
-    }
-
-    .study-status {
-      padding: 0.25rem 0.75rem;
-      border-radius: 20px;
-      font-size: 0.8rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    .status-draft {
-      background-color: rgba(255, 193, 7, 0.2);
-      color: #856404;
-    }
-
-    .status-processing {
-      background-color: rgba(0, 122, 255, 0.2);
-      color: #0056b3;
-    }
-
-    .status-completed {
-      background-color: rgba(52, 199, 89, 0.2);
-      color: #155724;
-    }
-
-    .empty-state {
-      text-align: center;
-      padding: 3rem 2rem;
-      color: var(--text-secondary);
-    }
-
-    .empty-icon {
-      font-size: 3rem;
-      margin-bottom: 1rem;
-    }
-
-    .btn {
-      padding: 0.75rem 1.5rem;
-      border-radius: 8px;
-      font-weight: 600;
-      text-decoration: none;
-      transition: all 0.3s ease;
-      border: none;
-      cursor: pointer;
-      display: inline-block;
-    }
-
-    .btn-primary {
-      background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-      color: white;
-      box-shadow: 0 4px 15px rgba(0, 122, 255, 0.3);
-    }
-
-    .btn-primary:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(0, 122, 255, 0.4);
-      color: white;
-      text-decoration: none;
-    }
-
-    .btn-outline {
-      background: transparent;
-      color: var(--primary-color);
-      border: 1px solid var(--primary-color);
-    }
-
-    .btn-outline:hover {
-      background: var(--primary-color);
-      color: white;
-      text-decoration: none;
-    }
-
-    @media (max-width: 768px) {
-      .dashboard-grid {
-        grid-template-columns: 1fr;
-      }
-      
-      .quick-actions {
-        grid-template-columns: 1fr;
-      }
-      
-      .study-item {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 0.5rem;
-      }
-      
-      .creation-flow-panel {
-        padding: 1.5rem;
-      }
-      
-      .flow-options {
-        grid-template-columns: 1fr;
-        gap: 1.5rem;
-      }
-      
-      .flow-divider {
-        transform: rotate(90deg);
-      }
-      
-      .flow-title {
-        font-size: 1.5rem;
-      }
-      
-      .flow-subtitle {
-        font-size: 1rem;
-      }
-    }
-  </style>
-{% endblock css %}
 
 {% block content %}
   <!-- Header Section -->
@@ -487,8 +30,8 @@
         </div>
       </div>
       
-      <div style="text-align: center; margin-top: 2rem;">
-        <a href="{% url 'core:create_project' %}" class="btn btn-primary" style="font-size: 1.1rem; padding: 1rem 2rem;">
+      <div class="text-center mt-8">
+        <a href="{% url 'core:create_project' %}" class="btn btn-primary fs-11 btn-cta">
           Create Your First Project
         </a>
       </div>
@@ -507,8 +50,8 @@
         </div>
       </div>
       
-      <div style="text-align: center; margin-top: 2rem;">
-        <a href="{% url 'core:create_target_study' %}" class="btn btn-primary" style="font-size: 1.1rem; padding: 1rem 2rem;">
+      <div class="text-center mt-8">
+        <a href="{% url 'core:create_target_study' %}" class="btn btn-primary fs-11 btn-cta">
           Create Target Database
         </a>
       </div>
@@ -586,7 +129,7 @@
           <div class="action-description">Upload source data for harmonisation</div>
         </a>
         {% else %}
-        <div class="action-btn" style="opacity: 0.5; cursor: not-allowed;" title="Create a project first">
+        <div class="action-btn disabled-action" title="Create a project first">
           <span class="action-icon">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -611,7 +154,7 @@
           <div class="action-description">Define harmonisation targets</div>
         </a>
         {% else %}
-        <div class="action-btn" style="opacity: 0.5; cursor: not-allowed;" title="Create a project first">
+        <div class="action-btn disabled-action" title="Create a project first">
           <span class="action-icon">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="10"></circle>
@@ -741,7 +284,7 @@
       </ul>
       
       {% if total_projects > 3 %}
-        <div style="text-align: center; margin-top: 1.5rem;">
+        <div class="text-center mt-4">
           <a href="{% url 'core:project_list' %}" class="btn btn-outline">
             View All Projects ({{ total_projects }})
           </a>
@@ -773,14 +316,14 @@
       </ul>
       
       {% if target_studies_count > 3 %}
-        <div style="text-align: center; margin-top: 1.5rem;">
+        <div class="text-center mt-4">
           <a href="{% url 'core:study_list' %}?purpose=target" class="btn btn-outline">
             View All Target Databases ({{ target_studies_count }})
           </a>
         </div>
       {% endif %}
       
-      <div style="text-align: center; margin-top: 1.5rem;">
+      <div class="text-center mt-4">
         <a href="{% url 'core:create_target_study' %}" class="btn btn-primary">
           Create New Target Database
         </a>
@@ -811,7 +354,7 @@
         </ul>
         
         {% if source_studies_count > 5 %}
-          <div style="text-align: center; margin-top: 1.5rem;">
+          <div class="text-center mt-4">
             <a href="{% url 'core:study_list' %}?purpose=source" class="btn btn-outline">
               View All Source Studies ({{ source_studies_count }})
             </a>
