@@ -424,6 +424,42 @@ class RawDataFile(models.Model):
         default=False,
         help_text="Whether detected columns differ from expected attributes",
     )
+
+    # Harmonisation transformation tracking (set when started from harmonisation dashboard)
+    TRANSFORMATION_STATUS_CHOICES = [
+        ("not_started", "Not Started"),
+        ("in_progress", "Transformation In Progress"),
+        ("completed", "Transformed"),
+        ("failed", "Transformation Failed"),
+    ]
+    transformation_status = models.CharField(
+        max_length=20,
+        choices=TRANSFORMATION_STATUS_CHOICES,
+        default="not_started",
+        help_text="Status of harmonisation transformation for this file",
+    )
+    transformation_message = models.TextField(
+        blank=True,
+        help_text="Notes or errors from the last harmonisation transformation run",
+    )
+    last_transformation_schema = models.ForeignKey(
+        'MappingSchema',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='transformed_files',
+        help_text="The mapping schema used in the last harmonisation transformation",
+    )
+    transformation_started_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When harmonisation transformation started for this file",
+    )
+    transformed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When harmonisation transformation completed for this file",
+    )
     
     class Meta:
         ordering = ['-uploaded_at']

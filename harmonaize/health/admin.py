@@ -77,13 +77,17 @@ class RawDataFileAdmin(admin.ModelAdmin):
 		"uploaded_by",
 		"uploaded_at",
 		"processed_at",
+		"transformation_status",
+		"transformed_at",
 	)
 	list_filter = (
 		"processing_status",
+		"transformation_status",
 		"file_format",
 		"study",
 		"uploaded_at",
 		"processed_at",
+		"transformed_at",
 	)
 	search_fields = (
 		"original_filename",

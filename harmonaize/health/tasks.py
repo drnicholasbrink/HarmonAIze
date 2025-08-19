@@ -790,6 +790,19 @@ def transform_observations_for_schema(self, schema_id: int) -> dict[str, Any]:
         skipped = 0
         errors: list[str] = []
 
+        # Mark all raw files for this source study as transformation in progress
+        try:
+            source_files = RawDataFile.objects.filter(study=schema.source_study)
+            now = timezone.now()
+            source_files.update(
+                transformation_status="in_progress",
+                transformation_started_at=now,
+                transformation_message="Applying approved mapping schema...",
+                last_transformation_schema=schema,
+            )
+        except Exception:
+            logger.debug("Unable to mark raw files as in_progress for schema %s", schema_id)
+
         # Determine time window: transform observations created after schema creation
         window_start = schema.created_at
 
@@ -871,7 +884,26 @@ def transform_observations_for_schema(self, schema_id: int) -> dict[str, Any]:
             f"rules applied: {rules.count()}"
         )
         logger.info("%s for schema %s", message, schema_id)
+        # Mark files as completed
+        try:
+            done_time = timezone.now()
+            updates = {
+                "transformation_status": "completed",
+                "transformed_at": done_time,
+                "transformation_message": message,
+            }
+            RawDataFile.objects.filter(study=schema.source_study).update(**updates)
+        except Exception:
+            logger.debug("Unable to mark raw files as completed for schema %s", schema_id)
         return {"success": True, "message": message, "transformed": transformed, "skipped": skipped, "rules": rules.count(), "errors": errors[:10]}
     except Exception as exc:
         logger.exception("Failed transforming observations for schema %s: %s", schema_id, exc)
+        # Mark files as failed
+        try:
+            RawDataFile.objects.filter(last_transformation_schema_id=schema_id).update(
+                transformation_status="failed",
+                transformation_message=str(exc),
+            )
+        except Exception:
+            pass
         return {"success": False, "message": str(exc)}
