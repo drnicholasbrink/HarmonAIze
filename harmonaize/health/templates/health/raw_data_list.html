@@ -42,6 +42,7 @@
                                         <th>Patient ID Column</th>
                                         <th>Date Column</th>
                                         <th>Status</th>
+                                        <th>Transformation</th>
                                         <th>Uploaded</th>
                                         <th>Actions</th>
                                     </tr>
@@ -119,6 +120,26 @@
                                                     <span class="badge bg-dark">Error</span>
                                                 {% else %}
                                                     <span class="badge bg-secondary">{{ file.processing_status|capfirst }}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if file.transformation_status == 'completed' %}
+                                                    <span class="badge bg-success">Transformed</span>
+                                                    {% if file.transformed_at %}
+                                                        <br><small class="text-muted">{{ file.transformed_at|date:"M d, Y" }} {{ file.transformed_at|time:"H:i" }}</small>
+                                                    {% endif %}
+                                                {% elif file.transformation_status == 'in_progress' %}
+                                                    <span class="badge bg-primary">Transforming</span>
+                                                    {% if file.transformation_started_at %}
+                                                        <br><small class="text-muted">since {{ file.transformation_started_at|time:"H:i" }}</small>
+                                                    {% endif %}
+                                                {% elif file.transformation_status == 'failed' %}
+                                                    <span class="badge bg-danger">Transform Failed</span>
+                                                    {% if file.transformation_message %}
+                                                        <br><small class="text-muted">{{ file.transformation_message|truncatewords:8 }}</small>
+                                                    {% endif %}
+                                                {% else %}
+                                                    <span class="badge bg-secondary">Not Transformed</span>
                                                 {% endif %}
                                             </td>
                                             <td>

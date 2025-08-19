@@ -499,12 +499,35 @@
             {% endif %}
           </div>
         </div>
+        <div class="info-item">
+          <div class="info-label">Transformation</div>
+          <div class="info-value">
+            {% if raw_data_file.transformation_status == 'completed' %}
+              <span class="status-badge status-processed">Transformed</span>
+              {% if raw_data_file.transformed_at %}
+                <div class="text-muted mt-1"><small>on {{ raw_data_file.transformed_at|date:"F j, Y" }} at {{ raw_data_file.transformed_at|time:"H:i" }}</small></div>
+              {% endif %}
+            {% elif raw_data_file.transformation_status == 'in_progress' %}
+              <span class="status-badge status-processing">Transforming</span>
+              {% if raw_data_file.transformation_started_at %}
+                <div class="text-muted mt-1"><small>since {{ raw_data_file.transformation_started_at|date:"F j, Y" }} at {{ raw_data_file.transformation_started_at|time:"H:i" }}</small></div>
+              {% endif %}
+            {% elif raw_data_file.transformation_status == 'failed' %}
+              <span class="status-badge status-processed_with_errors">Transform Failed</span>
+              {% if raw_data_file.transformation_message %}
+                <div class="text-muted mt-1"><small>{{ raw_data_file.transformation_message }}</small></div>
+              {% endif %}
+            {% else %}
+              <span class="status-badge status-uploaded">Not Transformed</span>
+            {% endif %}
+          </div>
+        </div>
       </div>
     </div>
 
     <!-- Processing Steps -->
     <div class="info-card">
-      <h2 class="card-title">Data Processing Pipeline</h2>
+  <h2 class="card-title">Data Processing Pipeline</h2>
       <div class="processing-steps">
         
         <!-- Step 1: Upload -->
@@ -689,35 +712,39 @@
           </div>
         </div>
 
-        <!-- Step 5: Integration -->
-        <div class="step-item {% if raw_data_file.processing_status == 'ingested' or raw_data_file.processing_status == 'processed_with_errors' %}active{% else %}pending{% endif %}">
-          <div class="step-icon {% if raw_data_file.processing_status == 'ingested' or raw_data_file.processing_status == 'processed_with_errors' %}completed{% else %}pending{% endif %}">
-            {% if raw_data_file.processing_status == 'ingested' or raw_data_file.processing_status == 'processed_with_errors' %}
+        <!-- Step 5: Harmonization Transformation (from dashboard approval) -->
+        <div class="step-item {% if raw_data_file.transformation_status == 'completed' %}completed{% elif raw_data_file.transformation_status == 'in_progress' %}active{% elif raw_data_file.transformation_status == 'failed' %}error{% else %}pending{% endif %}">
+          <div class="step-icon {% if raw_data_file.transformation_status == 'completed' %}completed{% elif raw_data_file.transformation_status == 'in_progress' %}active{% elif raw_data_file.transformation_status == 'failed' %}error{% else %}pending{% endif %}">
+            {% if raw_data_file.transformation_status == 'completed' %}
               <i class="fas fa-check"></i>
+            {% elif raw_data_file.transformation_status == 'in_progress' %}
+              <i class="fas fa-spinner fa-spin"></i>
+            {% elif raw_data_file.transformation_status == 'failed' %}
+              <i class="fas fa-times"></i>
             {% else %}
               5
             {% endif %}
           </div>
           <div class="step-content">
-            <div class="step-title">Data Analysis</div>
+            <div class="step-title">Harmonization Transformation</div>
             <div class="step-description">
-              Analyze harmonized data and generate insights
+              Apply approved mapping rules to create harmonized observations
             </div>
-            {% if raw_data_file.processing_status == 'ingested' or raw_data_file.processing_status == 'processed_with_errors' %}
-              <div class="action-buttons mt-2">
-                {% if raw_data_file.study.source_mappings.exists %}
-                  <a href="{% url 'health:study_harmonization_dashboard' raw_data_file.study.id %}" class="btn btn-success btn-sm">
-                    <i class="fas fa-chart-line me-1"></i>View Harmonization Dashboard
-                  </a>
-                {% else %}
-                  <a href="{% url 'health:start_harmonisation' raw_data_file.study.id %}" class="btn btn-primary btn-sm">
-                    <i class="fas fa-cogs me-1"></i>Setup Harmonization Mappings
-                  </a>
-                {% endif %}
+            {% if raw_data_file.transformation_status == 'in_progress' %}
+              <div class="alert alert-info mt-2 p-2">
+                <small><strong>Transformation in progress</strong>{% if raw_data_file.transformation_message %}: {{ raw_data_file.transformation_message }}{% endif %}</small>
+              </div>
+            {% elif raw_data_file.transformation_status == 'completed' %}
+              <div class="text-success mt-2">
+                <small><i class="fas fa-check"></i> Transformation completed{% if raw_data_file.transformed_at %} on {{ raw_data_file.transformed_at|date:"F j, Y" }} at {{ raw_data_file.transformed_at|time:"H:i" }}{% endif %}</small>
+              </div>
+            {% elif raw_data_file.transformation_status == 'failed' %}
+              <div class="alert alert-warning mt-2 p-2">
+                <small><strong>Transformation failed:</strong> {{ raw_data_file.transformation_message }}</small>
               </div>
             {% else %}
               <div class="text-muted mt-2">
-                <small><i class="fas fa-clock"></i> Complete data ingestion first</small>
+                <small><i class="fas fa-clock"></i> Will start when mappings are approved in the Harmonization Dashboard</small>
               </div>
             {% endif %}
           </div>
@@ -926,6 +953,20 @@
         })
         .catch(error => console.error('Auto-refresh error:', error));
     }, 10000); // Check every 10 seconds
+    {% endif %}
+
+    // Auto-refresh transformation status if in progress
+    {% if raw_data_file.transformation_status == 'in_progress' %}
+    setInterval(function() {
+      fetch('{% url "health:ingestion_status" raw_data_file.id %}')
+        .then(response => response.json())
+        .then(data => {
+          if (!data.transformation || data.transformation.status !== 'in_progress') {
+            location.reload();
+          }
+        })
+        .catch(error => console.error('Auto-refresh transform error:', error));
+    }, 10000);
     {% endif %}
   </script>
 

@@ -1187,6 +1187,26 @@ def ingestion_status(request, file_id):
                 if raw_data_file.processed_at
                 else None
             ),
+            "transformation": {
+                "status": raw_data_file.transformation_status,
+                "status_display": raw_data_file.get_transformation_status_display(),
+                "message": raw_data_file.transformation_message or "",
+                "started_at": (
+                    raw_data_file.transformation_started_at.isoformat()
+                    if raw_data_file.transformation_started_at
+                    else None
+                ),
+                "completed_at": (
+                    raw_data_file.transformed_at.isoformat()
+                    if raw_data_file.transformed_at
+                    else None
+                ),
+                "schema_id": (
+                    raw_data_file.last_transformation_schema_id
+                    if raw_data_file.last_transformation_schema_id
+                    else None
+                ),
+            },
             "observation_count": observation_count,
             "file_info": {
                 "rows": raw_data_file.rows_count,
