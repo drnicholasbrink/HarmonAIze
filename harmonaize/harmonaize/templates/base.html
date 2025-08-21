@@ -29,6 +29,21 @@
   
   <link href="{% static 'css/project.css' %}" rel="stylesheet" />
 
+    <style>
+      /* Show dropdown on hover for About menu */
+      .navbar-nav .dropdown:hover .dropdown-menu {
+        display: block;
+        margin-top: 0;
+      }
+      .navbar-nav .dropdown .dropdown-toggle:after {
+        transition: transform 0.2s;
+      }
+      .navbar-nav .dropdown.show .dropdown-toggle:after,
+      .navbar-nav .dropdown:hover .dropdown-toggle:after {
+        transform: rotate(180deg);
+      }
+    </style>
+
 
 {% endblock css %}
 <!-- Le javascript
@@ -55,6 +70,27 @@
 {% endblock javascript %}
 </head>
 <body class="{% block bodyclass %}{% endblock bodyclass %}">
+  <script>
+    // Make About and Dashboard parent links go to their pages on click (except on dropdown toggle)
+    document.addEventListener('DOMContentLoaded', function() {
+      var aboutDropdown = document.getElementById('aboutDropdown');
+      if (aboutDropdown) {
+        aboutDropdown.addEventListener('click', function(e) {
+          if (!aboutDropdown.parentElement.classList.contains('show')) {
+            window.location = aboutDropdown.getAttribute('href');
+          }
+        });
+      }
+      var dashboardDropdown = document.getElementById('dashboardDropdown');
+      if (dashboardDropdown) {
+        dashboardDropdown.addEventListener('click', function(e) {
+          if (!dashboardDropdown.parentElement.classList.contains('show')) {
+            window.location = dashboardDropdown.getAttribute('href');
+          }
+        });
+      }
+    });
+  </script>
   {% block body %}
   <div class="mb-1">
     <nav class="navbar navbar-expand-md navbar-light bg-light">
@@ -74,14 +110,32 @@
             <li class="nav-item active">
               <a class="nav-link" href="{% url 'home' %}">Home <span class="visually-hidden">(current)</span></a>
             </li>
-            <li class="nav-item">
-              <a class="nav-link" href="{% url 'about' %}">About</a>
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="{% url 'about' %}" id="aboutDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                About
+              </a>
+              <ul class="dropdown-menu" aria-labelledby="aboutDropdown">
+                <li><a class="dropdown-item" href="{% url 'about' %}#our-mission">Our Mission</a></li>
+                <li><a class="dropdown-item" href="{% url 'about' %}#core-modules">Core Modules</a></li>
+                <li><a class="dropdown-item" href="{% url 'about' %}#platform-features">Platform Features</a></li>
+                <li><a class="dropdown-item" href="{% url 'about' %}#research-impact">Research Impact</a></li>
+                <li><a class="dropdown-item" href="{% url 'about' %}#meet-the-team">Meet the Team</a></li>
+              </ul>
             </li>
             {% if request.user.is_authenticated %}
-              <li class="nav-item">
-                <a class="nav-link fw-bold" href="{% url 'core:dashboard' %}">
+              <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle fw-bold" href="{% url 'core:dashboard' %}" id="dashboardDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                   {% include 'components/svg_icon.html' with icon='dashboard' size='16' class='inline-icon' %} Dashboard
                 </a>
+                <ul class="dropdown-menu" aria-labelledby="dashboardDropdown">
+                  <li><a class="dropdown-item" href="{% url 'core:upload' %}">Upload Study</a></li>
+                  <li><a class="dropdown-item" href="{% url 'core:study_list' %}?purpose=target">View Target Databases</a></li>
+                  <li><hr class="dropdown-divider"></li>
+                  <li><a class="dropdown-item" href="{% url 'core:project_list' %}">View All Projects</a></li>
+                  <li><a class="dropdown-item" href="{% url 'core:study_list' %}">View All Studies</a></li>
+                  <li><hr class="dropdown-divider"></li>
+                  <li><a class="dropdown-item" href="{% url 'core:create_project' %}">New Project</a></li>
+                </ul>
               </li>
               <li class="nav-item">
                 <a class="nav-link"
