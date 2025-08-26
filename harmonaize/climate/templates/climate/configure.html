@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}Configure Climate Data - {{ study.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <div class="row">
+    <div class="col-md-12">
+      <!-- Header -->
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+              <li class="breadcrumb-item"><a href="{% url 'core:project_list' %}">Projects</a></li>
+              <li class="breadcrumb-item"><a href="{% url 'core:project_detail' study.project.pk %}">{{ study.project.name }}</a></li>
+              <li class="breadcrumb-item"><a href="{% url 'core:study_detail' study.pk %}">{{ study.name }}</a></li>
+              <li class="breadcrumb-item active">Configure Climate Data</li>
+            </ol>
+          </nav>
+        </div>
+      </div>
+
+      <!-- Main Configuration Card -->
+      <div class="card shadow">
+        <div class="card-header bg-primary text-white">
+          <h4 class="mb-0">Climate Data Configuration</h4>
+        </div>
+        <div class="card-body">
+          <div class="row mb-4">
+            <div class="col-md-12">
+              <div class="alert alert-info">
+                <strong>Study Information:</strong> {{ study.name }} has {{ location_count }} location{{ location_count|pluralize }} available for climate data linkage.
+              </div>
+            </div>
+          </div>
+
+          <form method="post" class="needs-validation" novalidate>
+            {% csrf_token %}
+            
+            <div class="row">
+              <!-- Data Source Selection -->
+              <div class="col-md-6">
+                <div class="card mb-4">
+                  <div class="card-header">
+                    <h5 class="mb-0">Data Source</h5>
+                  </div>
+                  <div class="card-body">
+                    {{ form.data_source|as_crispy_field }}
+                    
+                    {% if available_sources %}
+                    <div class="mt-3">
+                      <div class="d-flex justify-content-between align-items-center mb-2">
+                        <small class="text-muted">Available sources:</small>
+                        <a href="{% url 'climate:earth_engine_datasets' %}" class="btn btn-sm btn-outline-info" target="_blank">
+                          <i class="fas fa-satellite me-1"></i>View Earth Engine Datasets
+                        </a>
+                      </div>
+                      <ul class="list-unstyled mt-2">
+                        {% for source in available_sources %}
+                        <li class="mb-2">
+                          <div class="d-flex align-items-center">
+                            <strong class="me-2">{{ source.name }}</strong>
+                            <span class="badge bg-primary me-2">{{ source.get_source_type_display }}</span>
+                            {% if source.spatial_resolution_m %}
+                              <span class="badge bg-info me-2">{{ source.spatial_resolution_m }}m resolution</span>
+                            {% endif %}
+                            {% if source.global_coverage %}
+                              <span class="badge bg-success">Global Coverage</span>
+                            {% endif %}
+                          </div>
+                          {% if source.description %}
+                            <small class="text-muted d-block">{{ source.description|truncatewords:15 }}</small>
+                          {% endif %}
+                        </li>
+                        {% endfor %}
+                      </ul>
+                      <div class="mt-2">
+                        <small class="text-info">
+                          <i class="fas fa-info-circle me-1"></i>
+                          Earth Engine provides 40+ years of climate and environmental data for health research.
+                        </small>
+                      </div>
+                    </div>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+
+              <!-- Temporal Configuration -->
+              <div class="col-md-6">
+                <div class="card mb-4">
+                  <div class="card-header">
+                    <h5 class="mb-0">Temporal Settings</h5>
+                  </div>
+                  <div class="card-body">
+                    <div class="row">
+                      <div class="col-md-6">
+                        {{ form.start_date|as_crispy_field }}
+                      </div>
+                      <div class="col-md-6">
+                        {{ form.end_date|as_crispy_field }}
+                      </div>
+                    </div>
+                    {{ form.temporal_aggregation|as_crispy_field }}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Climate Variables Selection -->
+            <div class="card mb-4">
+              <div class="card-header">
+                <h5 class="mb-0">Climate Variables</h5>
+              </div>
+              <div class="card-body">
+                <p class="text-muted">Select the climate variables you want to retrieve for your study locations.</p>
+                
+                {% if variable_categories %}
+                <div class="row">
+                  {% for category in variable_categories %}
+                  <div class="col-md-3">
+                    <h6 class="text-uppercase text-muted small">{{ category.category|title }}</h6>
+                    <span class="badge bg-secondary">{{ category.count }} variable{{ category.count|pluralize }}</span>
+                  </div>
+                  {% endfor %}
+                </div>
+                <hr>
+                {% endif %}
+                
+                <div class="variable-selection">
+                  {{ form.variables|as_crispy_field }}
+                </div>
+              </div>
+            </div>
+
+            <!-- Spatial Configuration -->
+            <div class="card mb-4">
+              <div class="card-header">
+                <h5 class="mb-0">Spatial Settings</h5>
+              </div>
+              <div class="card-body">
+                {{ form.spatial_buffer_km|as_crispy_field }}
+                <small class="text-muted">
+                  Use a buffer to get climate data for an area around each point location. 
+                  Set to 0 for exact point data.
+                </small>
+              </div>
+            </div>
+
+            <!-- Submit Buttons -->
+            <div class="d-flex justify-content-between">
+              <a href="{% url 'core:study_detail' study.pk %}" class="btn btn-secondary">
+                Cancel
+              </a>
+              <div>
+                <button type="submit" name="preview" class="btn btn-outline-primary me-2">
+                  Preview Configuration
+                </button>
+                <button type="submit" class="btn btn-primary">
+                  Create Climate Data Request
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Dynamic variable loading based on data source selection
+  const dataSourceSelect = document.getElementById('id_data_source');
+  const variablesContainer = document.querySelector('.variable-selection');
+  
+  if (dataSourceSelect) {
+    dataSourceSelect.addEventListener('change', function() {
+      const sourceId = this.value;
+      if (sourceId) {
+        // Note: Variable filtering could be implemented here
+        console.log('Data source changed to:', sourceId);
+      }
+    });
+  }
+  
+  // Form validation
+  const forms = document.querySelectorAll('.needs-validation');
+  Array.from(forms).forEach(form => {
+    form.addEventListener('submit', event => {
+      if (!form.checkValidity()) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      form.classList.add('was-validated');
+    }, false);
+  });
+});
+</script>
+{% endblock %}

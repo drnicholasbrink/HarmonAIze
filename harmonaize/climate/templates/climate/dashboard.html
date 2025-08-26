@@ -1,0 +1,609 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}Climate Data Dashboard{% endblock title %}
+
+{% block css %}
+  {{ block.super }}
+  <style>
+    :root {
+      --primary-color: #007AFF;
+      --secondary-color: #5AC8FA;
+      --accent-color: #34C759;
+      --background-color: #F2F2F7;
+      --card-background: #FFFFFF;
+      --text-primary: #1C1C1E;
+      --text-secondary: #8E8E93;
+      --border-color: #C6C6C8;
+      --shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+      --border-radius: 12px;
+    }
+
+    body {
+      background-color: var(--background-color);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--text-primary);
+      line-height: 1.5;
+    }
+
+    .climate-hero {
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      color: white;
+      padding: 3rem 0;
+      margin: -1rem -15px 0 -15px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .climate-hero::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") repeat;
+      opacity: 0.5;
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 1;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 0 1rem;
+    }
+
+    .hero-title {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      letter-spacing: -0.02em;
+    }
+
+    .hero-subtitle {
+      font-size: 1.1rem;
+      font-weight: 400;
+      opacity: 0.9;
+      margin-bottom: 0;
+    }
+
+    .workflow-section {
+      padding: 3rem 0;
+      background: white;
+      margin: 2rem 0;
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow);
+    }
+
+    .workflow-steps {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 2rem 0;
+      position: relative;
+    }
+
+    .workflow-step {
+      text-align: center;
+      flex: 1;
+      position: relative;
+    }
+
+    .step-icon {
+      width: 80px;
+      height: 80px;
+      background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 1rem;
+      color: white;
+      font-size: 2rem;
+      box-shadow: 0 4px 15px rgba(0, 122, 255, 0.3);
+    }
+
+    .step-title {
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: var(--text-primary);
+    }
+
+    .step-description {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      max-width: 200px;
+      margin: 0 auto;
+    }
+
+    .workflow-arrow {
+      position: absolute;
+      top: 40px;
+      right: -20px;
+      color: var(--text-secondary);
+      font-size: 1.5rem;
+    }
+
+    .workflow-step:last-child .workflow-arrow {
+      display: none;
+    }
+
+    .content-wrapper {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 1rem;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1.5rem;
+      margin: 2rem 0;
+    }
+
+    .stat-card {
+      background: var(--card-background);
+      border-radius: var(--border-radius);
+      padding: 2rem;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border-color);
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+    }
+
+    .stat-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+    }
+
+    .stat-number {
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: var(--primary-color);
+      margin-bottom: 0.5rem;
+      display: block;
+    }
+
+    .stat-label {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+
+    .section-card {
+      background: var(--card-background);
+      border-radius: var(--border-radius);
+      padding: 2rem;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border-color);
+      margin-bottom: 2rem;
+    }
+
+    .section-title {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+      color: var(--text-primary);
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid var(--primary-color);
+    }
+
+    .breadcrumb {
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 8px;
+      padding: 0.5rem 1rem;
+      margin: 0;
+    }
+
+    .breadcrumb-item a {
+      color: var(--primary-color);
+      text-decoration: none;
+    }
+
+    .breadcrumb-item.active {
+      color: var(--text-secondary);
+    }
+
+    .btn-climate-primary {
+      background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 600;
+      color: white;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(0, 122, 255, 0.3);
+      text-decoration: none;
+      display: inline-block;
+    }
+
+    .btn-climate-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 122, 255, 0.4);
+      color: white;
+      text-decoration: none;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 3rem 2rem;
+      color: var(--text-secondary);
+    }
+
+    .empty-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+      color: var(--text-secondary);
+    }
+
+    @media (max-width: 768px) {
+      .workflow-steps {
+        flex-direction: column;
+        gap: 2rem;
+      }
+      
+      .workflow-arrow {
+        display: none;
+      }
+      
+      .stats-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .hero-title {
+        font-size: 2rem;
+      }
+    }
+  </style>
+{% endblock css %}
+
+{% block content %}
+<!-- Climate Hero Section -->
+<div class="climate-hero">
+  <div class="hero-content">
+    <h1 class="hero-title">Climate Data Dashboard</h1>
+    <p class="hero-subtitle">
+      Integrate climate and environmental data with your health studies to unlock new research insights
+    </p>
+  </div>
+</div>
+
+<div class="content-wrapper">
+  <!-- Breadcrumb -->
+  <nav aria-label="breadcrumb" style="margin: 1rem 0;">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'home' %}">Home</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'climate:landing' %}">Climate</a></li>
+      <li class="breadcrumb-item active" aria-current="page">Dashboard</li>
+    </ol>
+  </nav>
+
+  <!-- Climate Data Integration Workflow -->
+  <div class="workflow-section">
+    <div class="text-center mb-4">
+      <h2 style="font-size: 2rem; font-weight: 700; color: var(--text-primary); margin-bottom: 1rem;">
+        Climate Data Integration Workflow
+      </h2>
+      <p style="color: var(--text-secondary); max-width: 600px; margin: 0 auto;">
+        Follow our streamlined process to seamlessly integrate climate data with your health studies
+      </p>
+    </div>
+    
+    <div class="workflow-steps">
+      <div class="workflow-step">
+        <div class="step-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
+          </svg>
+        </div>
+        <h3 class="step-title">1. Select Study</h3>
+        <p class="step-description">Choose a study with location data that needs climate linkage</p>
+        <div class="workflow-arrow">→</div>
+      </div>
+      
+      <div class="workflow-step">
+        <div class="step-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 3v18h18"></path>
+            <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"></path>
+          </svg>
+        </div>
+        <h3 class="step-title">2. Configure Variables</h3>
+        <p class="step-description">Select climate variables and data sources relevant to your research</p>
+        <div class="workflow-arrow">→</div>
+      </div>
+      
+      <div class="workflow-step">
+        <div class="step-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7,10 12,15 17,10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+        </div>
+        <h3 class="step-title">3. Retrieve Data</h3>
+        <p class="step-description">Automatically fetch climate data for your study locations and timeframes</p>
+        <div class="workflow-arrow">→</div>
+      </div>
+      
+      <div class="workflow-step">
+        <div class="step-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14,2 14,8 20,8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+          </svg>
+        </div>
+        <h3 class="step-title">4. Export Results</h3>
+        <p class="step-description">Download harmonised climate-health data for analysis</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Statistics Overview -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <span class="stat-number">{{ stats.active_sources }}</span>
+      <div class="stat-label">Active Data Sources</div>
+    </div>
+    
+    <div class="stat-card">
+      <span class="stat-number">{{ stats.completed_requests }}</span>
+      <div class="stat-label">Completed Requests</div>
+    </div>
+    
+    <div class="stat-card">
+      <span class="stat-number">{{ stats.total_variables }}</span>
+      <div class="stat-label">Available Variables</div>
+    </div>
+    
+    <div class="stat-card">
+      <span class="stat-number">{{ stats.pending_requests }}</span>
+      <div class="stat-label">Pending Requests</div>
+    </div>
+  </div>
+
+  <!-- Main Content Grid -->
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin: 2rem 0;">
+    <!-- Studies Needing Climate -->
+    <div class="section-card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+        <h2 class="section-title" style="margin-bottom: 0; border-bottom: none;">Studies Ready for Climate Data</h2>
+        <a href="{% url 'core:study_list' %}" class="btn-climate-primary" style="font-size: 0.9rem; padding: 0.5rem 1rem;">
+          View All Studies
+        </a>
+      </div>
+      
+      {% if studies_needing_climate %}
+        {% for study in studies_needing_climate %}
+          <div style="display: flex; align-items: center; padding: 1.5rem 0; {% if not forloop.last %}border-bottom: 1px solid var(--border-color);{% endif %}">
+            <div style="flex: 1;">
+              <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem;">{{ study.name }}</div>
+              <div style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.5rem;">{{ study.description|truncatechars:80 }}</div>
+              <div style="color: var(--text-secondary); font-size: 0.8rem;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 0.25rem;">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="16" y1="2" x2="16" y2="6"></line>
+                  <line x1="8" y1="2" x2="8" y2="6"></line>
+                  <line x1="3" y1="10" x2="21" y2="10"></line>
+                </svg>
+                {% if study.study_period_start %}
+                  {{ study.study_period_start }} to {{ study.study_period_end|default:"ongoing" }}
+                {% else %}
+                  Period not specified
+                {% endif %}
+              </div>
+            </div>
+            <div style="margin-left: 1rem;">
+              <a href="{% url 'climate:configure' study_id=study.pk %}" class="btn-climate-primary" style="font-size: 0.9rem; padding: 0.5rem 1rem;">
+                Configure Climate Data
+              </a>
+            </div>
+          </div>
+        {% endfor %}
+        {% if stats.studies_with_climate > 5 %}
+          <div style="text-align: center; margin-top: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+            Showing 5 of {{ stats.studies_with_climate }} studies
+          </div>
+        {% endif %}
+      {% else %}
+        <div class="empty-state">
+          <div class="empty-icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+          </div>
+          <p>No studies currently need climate data linkage.</p>
+          <a href="{% url 'core:study_list' %}" class="btn-climate-primary" style="margin-top: 1rem;">
+            Browse Studies
+          </a>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Recent Climate Requests -->
+    <div class="section-card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+        <h2 class="section-title" style="margin-bottom: 0; border-bottom: none;">Recent Climate Requests</h2>
+        <a href="{% url 'climate:request_list' %}" class="btn-climate-primary" style="font-size: 0.9rem; padding: 0.5rem 1rem;">
+          View All Requests
+        </a>
+      </div>
+      
+      {% if recent_requests %}
+        {% for request in recent_requests %}
+          <div style="display: flex; align-items: center; padding: 1.5rem 0; {% if not forloop.last %}border-bottom: 1px solid var(--border-color);{% endif %}">
+            <div style="flex: 1;">
+              <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem;">{{ request.study.name }}</div>
+              <div style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.5rem;">
+                {{ request.data_source.name }} • 
+                {{ request.variables.count }} variable{{ request.variables.count|pluralize }} •
+                {{ request.locations.count }} location{{ request.locations.count|pluralize }}
+              </div>
+              <div style="color: var(--text-secondary); font-size: 0.8rem;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 0.25rem;">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="16" y1="2" x2="16" y2="6"></line>
+                  <line x1="8" y1="2" x2="8" y2="6"></line>
+                  <line x1="3" y1="10" x2="21" y2="10"></line>
+                </svg>
+                {{ request.requested_at|date:"M d, Y" }}
+              </div>
+            </div>
+            <div style="margin-left: 1rem;">
+              {% if request.status == 'pending' %}
+                <span style="background: rgba(255, 193, 7, 0.2); color: #856404; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">Pending</span>
+              {% elif request.status == 'processing' %}
+                <span style="background: rgba(0, 122, 255, 0.2); color: #0056b3; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">Processing</span>
+              {% elif request.status == 'completed' %}
+                <span style="background: rgba(52, 199, 89, 0.2); color: #155724; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">Completed</span>
+              {% elif request.status == 'failed' %}
+                <span style="background: rgba(255, 59, 48, 0.2); color: #721c24; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">Failed</span>
+              {% else %}
+                <span style="background: var(--border-color); color: var(--text-secondary); padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">{{ request.get_status_display }}</span>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      {% else %}
+        <div class="empty-state">
+          <div class="empty-icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path>
+            </svg>
+          </div>
+          <p>No climate data requests yet.</p>
+          <p style="font-size: 0.9rem; margin-top: 0.5rem;">Configure climate data for your studies to get started.</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Available Climate Data Sources -->
+  <div class="section-card">
+    <h2 class="section-title">Available Climate Data Sources</h2>
+    {% if available_sources %}
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
+        {% for source in available_sources %}
+          <div style="background: var(--background-color); border: 1px solid var(--border-color); border-radius: var(--border-radius); padding: 1.5rem; transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 15px rgba(0,0,0,0.1)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
+            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
+              <h3 style="font-weight: 600; color: var(--text-primary); margin: 0; font-size: 1.1rem;">{{ source.name }}</h3>
+              <span style="background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: white; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">
+                {{ source.get_source_type_display }}
+              </span>
+            </div>
+            <p style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.5; margin-bottom: 1rem;">{{ source.description|truncatechars:120 }}</p>
+            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; font-size: 0.8rem; color: var(--text-secondary);">
+              {% if source.global_coverage %}
+                <div style="display: flex; align-items: center; gap: 0.25rem;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent-color);">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="2" y1="12" x2="22" y2="12"></line>
+                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                  </svg>
+                  Global Coverage
+                </div>
+              {% endif %}
+              {% if source.spatial_resolution_m %}
+                <div style="display: flex; align-items: center; gap: 0.25rem;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon>
+                    <line x1="8" y1="2" x2="8" y2="18"></line>
+                    <line x1="16" y1="6" x2="16" y2="22"></line>
+                  </svg>
+                  {{ source.spatial_resolution_m }}m resolution
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+      {% if stats.active_sources > 3 %}
+        <div style="text-align: center; margin-top: 2rem;">
+          <a href="{% url 'admin:climate_climatedatasource_changelist' %}" class="btn-climate-primary">
+            View All Data Sources
+          </a>
+        </div>
+      {% endif %}
+    {% else %}
+      <div class="empty-state">
+        <div class="empty-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+            <triangle points="10.29 3 21.71 21 2.71 21"></triangle>
+            <line x1="12" y1="9" x2="12" y2="13"></line>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+        </div>
+        <p>No active climate data sources configured.</p>
+        <a href="{% url 'admin:climate_climatedatasource_add' %}" class="btn-climate-primary" style="margin-top: 1rem;">
+          Add Data Source
+        </a>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Quick Actions Section -->
+  <div class="section-card">
+    <h2 class="section-title">Quick Actions</h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+      <a href="{% url 'climate:request_list' %}" style="background: var(--background-color); border: 1px solid var(--border-color); border-radius: var(--border-radius); padding: 1.5rem; text-align: center; text-decoration: none; color: inherit; transition: all 0.3s ease;" onmouseover="this.style.background='white'; this.style.borderColor='var(--primary-color)'; this.style.transform='translateY(-2px)'" onmouseout="this.style.background='var(--background-color)'; this.style.borderColor='var(--border-color)'; this.style.transform='translateY(0)'">
+        <div style="width: 60px; height: 60px; background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem; color: white;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="8" y1="6" x2="21" y2="6"></line>
+            <line x1="8" y1="12" x2="21" y2="12"></line>
+            <line x1="8" y1="18" x2="21" y2="18"></line>
+            <line x1="3" y1="6" x2="3.01" y2="6"></line>
+            <line x1="3" y1="12" x2="3.01" y2="12"></line>
+            <line x1="3" y1="18" x2="3.01" y2="18"></line>
+          </svg>
+        </div>
+        <div style="font-weight: 600; margin-bottom: 0.5rem;">View All Requests</div>
+        <div style="font-size: 0.9rem; color: var(--text-secondary);">Manage climate data requests</div>
+      </a>
+
+      <a href="{% url 'climate:demo' %}" style="background: var(--background-color); border: 1px solid var(--border-color); border-radius: var(--border-radius); padding: 1.5rem; text-align: center; text-decoration: none; color: inherit; transition: all 0.3s ease;" onmouseover="this.style.background='white'; this.style.borderColor='var(--primary-color)'; this.style.transform='translateY(-2px)'" onmouseout="this.style.background='var(--background-color)'; this.style.borderColor='var(--border-color)'; this.style.transform='translateY(0)'">
+        <div style="width: 60px; height: 60px; background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem; color: white;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+        </div>
+        <div style="font-weight: 600; margin-bottom: 0.5rem;">Interactive Demo</div>
+        <div style="font-size: 0.9rem; color: var(--text-secondary);">Try climate integration</div>
+      </a>
+
+      <a href="{% url 'climate:earth_engine_datasets' %}" style="background: var(--background-color); border: 1px solid var(--border-color); border-radius: var(--border-radius); padding: 1.5rem; text-align: center; text-decoration: none; color: inherit; transition: all 0.3s ease;" onmouseover="this.style.background='white'; this.style.borderColor='var(--primary-color)'; this.style.transform='translateY(-2px)'" onmouseout="this.style.background='var(--background-color)'; this.style.borderColor='var(--border-color)'; this.style.transform='translateY(0)'">
+        <div style="width: 60px; height: 60px; background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem; color: white;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M12 1v6m0 6v6"></path>
+            <path d="m21 12-6-6-6 6-6-6"></path>
+          </svg>
+        </div>
+        <div style="font-weight: 600; margin-bottom: 0.5rem;">Dataset Catalog</div>
+        <div style="font-size: 0.9rem; color: var(--text-secondary);">Browse Earth Engine datasets</div>
+      </a>
+    </div>
+  </div>
+</div>
+
+{% endblock content %}
