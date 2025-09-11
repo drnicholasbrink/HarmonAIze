@@ -89,11 +89,10 @@ services:
     container_name: harmonaize_local_nominatim
     environment:
       - NOMINATIM_PASSWORD=harmonaize_secure_pass_2024
-      
-      # Global dataset for comprehensive worldwide coverage
+    
       - PBF_URL=https://planet.openstreetmap.org/pbf/planet-latest.osm.pbf
       
-      # Import settings optimized for global dataset
+      # Import settings 
       - UPDATE_MODE=import
       - IMPORT_STYLE=street      # Includes health facilities
       - IMPORT_WIKIPEDIA=false
@@ -105,11 +104,11 @@ services:
       - REVERSE_ONLY=false
       - FREEZE=false
       
-      # Performance settings for global dataset
+      # Performance settings 
       - THREADS=8
       - GUNICORN_WORKERS=4
       
-      # Memory settings optimized for global dataset (requires 32GB+ RAM)
+      # Memory settings 
       - POSTGRES_SHARED_BUFFERS=8GB
       - POSTGRES_MAINTENANCE_WORK_MEM=16GB
       - POSTGRES_AUTOVACUUM_WORK_MEM=4GB
@@ -125,7 +124,7 @@ services:
       - POSTGRES_CHECKPOINT_SEGMENTS=256
       
     env_file:
-      - ./.envs/.local/.nominatim  # Store SCP credentials here
+      - ./.envs/.local/.nominatim  #SCP credentials
     ports:
       - "8080:8080"
     volumes:
@@ -135,14 +134,13 @@ services:
     deploy:
       resources:
         limits:
-          memory: 40G    # Global dataset requires significant RAM
-        reservations:
-          memory: 16G
+          memory: 32G  
+          
     
-    # Health check with extended timeout for global dataset
+   
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/status"]
       interval: 120s
       timeout: 60s
       retries: 15
-      start_period: 14400s # 4 hours startup time for global dataset
+      start_period: 14400s 

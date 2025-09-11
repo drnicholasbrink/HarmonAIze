@@ -75,6 +75,7 @@ CELERY_TASK_EAGER_PROPAGATES = True
 # Geocoding
 LOCAL_NOMINATIM_URL = 'http://nominatim:8080'
 GOOGLE_GEOCODING_API_KEY = env("GOOGLE_GEOCODING_API_KEY", default="")
+MAPBOX_ACCESS_TOKEN = env("MAPBOX_ACCESS_TOKEN", default="")
 # Geocoding timeouts
 GEOCODING_TIMEOUT_LOCAL = 5   # Local services should be fast
 GEOCODING_TIMEOUT_REMOTE = 10 # Remote services may be slower

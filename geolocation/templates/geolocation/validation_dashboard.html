@@ -404,7 +404,7 @@
 
       <div class="stat-card">
         <div class="stat-icon" style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);">
-          📍
+          •
         </div>
         <div class="stat-number" id="awaitingGeocoding" style="color: #dc3545;">-</div>
         <div class="stat-label">Awaiting Geocoding</div>
@@ -422,7 +422,7 @@
 
       <div class="stat-card">
         <div class="stat-icon" style="background: linear-gradient(135deg, var(--accent-color) 0%, #2ecc71 100%);">
-          ✅
+          ✓
         </div>
         <div class="stat-number" id="validatedComplete" style="color: var(--accent-color);">-</div>
         <div class="stat-label">Validated & Complete</div>
@@ -492,6 +492,9 @@
             <button onclick="autoValidateHighConfidence()" id="autoValidateBtn" class="btn btn-small btn-tertiary">
               ⚡ Auto-approve High Confidence (≥80%)
             </button>
+            <button onclick="updateCoordinatesFromValidation()" id="updateCoordsBtn" class="btn btn-small btn-secondary">
+              📍 Update Location Coordinates
+            </button>
 
             <a href="{% url 'geolocation:validated_locations_map' %}" class="btn btn-small btn-secondary">
               {% include 'components/svg_icon.html' with icon='map' size='16' class='inline-icon' %}
@@ -519,11 +522,11 @@
       <div style="background: #f8f9fa; padding: 1rem; border-bottom: 1px solid var(--border-color);">
         <div style="display: flex; flex-wrap: wrap; gap: 1rem; font-size: 0.8rem;">
           <div style="display: flex; align-items: center; gap: 0.5rem;">
-            <span class="status-badge status-awaiting_geocoding">📍 Awaiting Geocoding</span>
+            <span class="status-badge status-awaiting_geocoding">Awaiting Geocoding</span>
             <span style="color: var(--text-secondary);">- No coordinates found yet</span>
           </div>
           <div style="display: flex; align-items: center; gap: 0.5rem;">
-            <span class="status-badge status-geocoded">🔍 Awaiting Validation</span>
+            <span class="status-badge status-geocoded">Awaiting Validation</span>
             <span style="color: var(--text-secondary);">- Coordinates found, awaiting Validation</span>
           </div>
           <div style="display: flex; align-items: center; gap: 0.5rem;">
@@ -531,11 +534,11 @@
             <span style="color: var(--text-secondary);">- Good quality (≥60%), quick review</span>
           </div>
           <div style="display: flex; align-items: center; gap: 0.5rem;">
-            <span class="status-badge status-pending">🔍 Detailed Review</span>
+            <span class="status-badge status-pending">Detailed Review</span>
             <span style="color: var(--text-secondary);">- Lower quality (<60%), needs investigation</span>
           </div>
           <div style="display: flex; align-items: center; gap: 0.5rem;">
-            <span class="status-badge status-validated">✅ Validated</span>
+            <span class="status-badge status-validated">Validated</span>
             <span style="color: var(--text-secondary);">- Complete and ready for climate linkage</span>
           </div>
         </div>
@@ -580,7 +583,7 @@
           <tr>
             <td colspan="6" style="text-align: center; padding: 2rem;">
               <div style="color: var(--text-secondary);">
-                <div style="font-size: 2rem; margin-bottom: 1rem;">📍</div>
+                <div style="font-size: 2rem; margin-bottom: 1rem; font-weight: bold;">•</div>
                 <div>No locations found. Import location data to get started.</div>
               </div>
             </td>
@@ -635,7 +638,7 @@
                  {% include 'components/svg_icon.html' with icon='eye' size='14' class='inline-icon' %} Review
                </a>` : 
               location.status === 'validated' ? 
-                '<span style="color: var(--accent-color); font-weight: 500;">✅ Complete</span>' : 
+                '<span style="color: var(--accent-color); font-weight: 500;">Complete</span>' : 
                 '<span style="color: var(--text-secondary);">-</span>'
             }
           </td>
@@ -695,7 +698,6 @@
         }
       })
       .catch(error => {
-        console.error('Error fetching location status:', error);
         showMessage('Connection error while refreshing location status', 'error');
         
         const tableBody = document.getElementById('locationStatusTable');
@@ -746,7 +748,6 @@
         }
       })
       .catch(error => {
-        console.error('Error fetching stats:', error);
         showMessage('Unable to refresh statistics. Please check your connection.', 'error');
       });
     }
@@ -758,47 +759,31 @@
       document.getElementById('geocodingProgress').style.display = 'block';
       btn.disabled = true;
       btn.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><div class="loading-spinner" style="width: 16px; height: 16px; border-width: 2px;"></div><span>Processing...</span></div>';
-      document.getElementById('geocodingStatus').textContent = 'Initializing coordinate search...';
+      document.getElementById('geocodingStatus').textContent = 'Starting batch geocoding with Celery...';
       
-      let progress = 0;
-      const progressInterval = setInterval(() => {
-        progress += Math.random() * 15;
-        if (progress > 90) progress = 90;
-        document.getElementById('geocodingProgressBar').style.width = progress + '%';
-      }, 500);
-      
-      fetch('{% url "geolocation:geocoding_api" %}', {
+      // Use modern Celery-based batch processing instead of old API
+      fetch('{% url "geolocation:start_batch_geocoding" %}', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({action: 'run_geocoding', force: force})
+        body: JSON.stringify({
+          force_reprocess: force,
+          batch_size: 50
+        })
       })
       .then(response => response.json())
       .then(data => {
-        clearInterval(progressInterval);
-        document.getElementById('geocodingProgressBar').style.width = '100%';
-        
-        setTimeout(() => {
-          document.getElementById('geocodingProgress').style.display = 'none';
-          btn.disabled = false;
-          btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span>🔍</span><span>Start Coordinate Search</span></span>';
-          
-          if (data.success) {
-            showMessage('✅ Coordinate search completed successfully!', 'success');
-            setTimeout(() => {
-              refreshStats();
-              refreshLocationStatus();
-            }, 1000);
-          } else {
-            showMessage('❌ Coordinate Search failed: ' + (data.error || 'Unknown error occurred'), 'error');
-          }
-        }, 1000);
+        if (data.success) {
+          // Start monitoring Celery task progress
+          monitorGeocodingTask(data.task_id, btn);
+          showMessage('Batch geocoding started successfully!', 'success');
+        } else {
+          resetGeocodingUI(btn);
+          showMessage('Error: Failed to start geocoding - ' + (data.error || 'Unknown error occurred'), 'error');
+        }
       })
       .catch(error => {
-        clearInterval(progressInterval);
-        document.getElementById('geocodingProgress').style.display = 'none';
-        btn.disabled = false;
-        btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span>🔍</span><span>Start Coordinate Search</span></span>';
-        showMessage('❌ Connection error during coordinate search', 'error');
+        resetGeocodingUI(btn);
+        showMessage('Error: Connection error during geocoding start', 'error');
       });
     }
 
@@ -808,33 +793,32 @@
       if (confirm('🤖 Run auto-validation on all pending locations?\n\nThis will analyze coordinate accuracy with reverse geocoding (70%) and distance proximity (30%) validation.')) {
         btn.disabled = true;
         btn.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><div class="loading-spinner" style="width: 16px; height: 16px; border-width: 2px;"></div><span>Analyzing...</span></div>';
-        showMessage('🤖 Auto-validation started...', 'info');
+        showMessage('🤖 Auto-validation started with Celery...', 'info');
         
-        fetch('{% url "geolocation:bulk_validation_actions" %}', {
+        // Use modern Celery-based batch validation instead of old API
+        fetch('{% url "geolocation:start_batch_validation" %}', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({action: 'run_smart_validation_batch'})
+          body: JSON.stringify({
+            batch_size: 50
+          })
         })
         .then(response => response.json())
         .then(data => {
-          btn.disabled = false;
-          btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span>🧠</span><span>Run Auto-validation</span></span>';
-          
           if (data.success) {
-            showMessage('✅ Auto-validation completed: ' + data.message, 'success');
-            setTimeout(() => {
-              refreshStats();
-              refreshLocationStatus();
-              showMessage('📊 Dashboard updated with validation results', 'info');
-            }, 2000);
+            // Start monitoring Celery task progress
+            monitorValidationTask(data.task_id, btn);
+            showMessage('Batch validation started successfully!', 'success');
           } else {
-            showMessage('❌ Auto-validation failed: ' + (data.error || 'Processing error occurred'), 'error');
+            btn.disabled = false;
+            btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span>🧠</span><span>Run Auto-validation</span></span>';
+            showMessage('Error: Failed to start validation - ' + (data.error || 'Unknown error occurred'), 'error');
           }
         })
         .catch(error => {
           btn.disabled = false;
           btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span>🧠</span><span>Run Auto-validation</span></span>';
-          showMessage('❌ Connection error during Auto-validation', 'error');
+          showMessage('Error: Connection error during validation start', 'error');
         });
       }
     }
@@ -858,20 +842,57 @@
           btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span>⚡</span><span>Auto-approve High Confidence (≥80%)</span></span>';
           
           if (data.success) {
-            showMessage('✅ Auto-validation completed: ' + data.message, 'success');
+            showMessage('Auto-validation completed: ' + data.message, 'success');
             setTimeout(() => {
               refreshStats();
               refreshLocationStatus();
               showMessage('📊 Dashboard refreshed with updated status', 'info');
             }, 2000);
           } else {
-            showMessage('❌ Auto-validation failed: ' + (data.error || 'Processing error occurred'), 'error');
+            showMessage('Error: Auto-validation failed: ' + (data.error || 'Processing error occurred'), 'error');
           }
         })
         .catch(error => {
           btn.disabled = false;
           btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span>⚡</span><span>Auto-approve High Confidence (≥80%)</span></span>';
-          showMessage('❌ Connection error during auto-validation', 'error');
+          showMessage('Error: Connection error during auto-validation', 'error');
+        });
+      }
+    }
+    
+    function updateCoordinatesFromValidation() {
+      const btn = document.getElementById('updateCoordsBtn');
+      
+      if (confirm('📍 Update Location coordinates from validated results?\n\nThis will copy validated coordinates to core Location records.')) {
+        btn.disabled = true;
+        btn.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><div class="loading-spinner" style="width: 12px; height: 12px; border-width: 2px;"></div><span>Updating...</span></div>';
+        showMessage('📍 Updating coordinates from validated results...', 'info');
+        
+        fetch('{% url "geolocation:validation_dashboard" %}', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({action: 'update_coordinates'})
+        })
+        .then(response => response.json())
+        .then(data => {
+          btn.disabled = false;
+          btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span>📍</span><span>Update Location Coordinates</span></span>';
+          
+          if (data.success) {
+            showMessage('Coordinates updated: ' + data.message, 'success');
+            setTimeout(() => {
+              refreshStats();
+              refreshLocationStatus();
+              showMessage('📊 Dashboard refreshed with updated coordinates', 'info');
+            }, 2000);
+          } else {
+            showMessage('Error: Coordinate update failed: ' + (data.error || 'Update error occurred'), 'error');
+          }
+        })
+        .catch(error => {
+          btn.disabled = false;
+          btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span>📍</span><span>Update Location Coordinates</span></span>';
+          showMessage('Error: Connection error during coordinate update', 'error');
         });
       }
     }
@@ -912,6 +933,118 @@
         messageDiv.style.transform = 'translateX(100%)';
         setTimeout(() => messageDiv.remove(), 300);
       }, 5000);
+    }
+
+    // Celery task monitoring functions
+    function monitorGeocodingTask(taskId, btn) {
+      const poll = async () => {
+        try {
+          const response = await fetch(`/geolocation/batch-progress/${taskId}/`);
+          const data = await response.json();
+          
+          updateGeocodingProgress(data);
+          
+          if (data.status === 'completed' || data.status === 'failed') {
+            resetGeocodingUI(btn);
+            if (data.status === 'completed') {
+              showMessage('Batch geocoding completed successfully!', 'success');
+              setTimeout(() => {
+                refreshStats();
+                refreshLocationStatus();
+              }, 1000);
+            } else {
+              showMessage('Batch geocoding failed: ' + (data.error || 'Unknown error'), 'error');
+            }
+            return;
+          }
+          
+          setTimeout(poll, 2000); // Poll every 2 seconds
+        } catch (error) {
+          console.error('Error polling geocoding progress:', error);
+          resetGeocodingUI(btn);
+          showMessage('Error monitoring geocoding progress', 'error');
+        }
+      };
+      
+      poll();
+    }
+
+    function updateGeocodingProgress(data) {
+      const progress = data.progress || 0;
+      const progressBar = document.getElementById('geocodingProgressBar');
+      if (progressBar) {
+        progressBar.style.width = progress + '%';
+      }
+      
+      const statusElement = document.getElementById('geocodingStatus');
+      if (statusElement) {
+        let statusText = `Progress: ${progress}%`;
+        if (data.processed) {
+          statusText += ` | Processed: ${data.processed}/${data.total || 0}`;
+        }
+        if (data.successful !== undefined) {
+          statusText += ` | Success: ${data.successful} | Failed: ${data.failed || 0}`;
+        }
+        if (data.current_location) {
+          statusText += ` | Current: ${data.current_location}`;
+        }
+        statusElement.textContent = statusText;
+      }
+    }
+
+    function resetGeocodingUI(btn) {
+      const progressContainer = document.getElementById('geocodingProgress');
+      if (progressContainer) {
+        progressContainer.style.display = 'none';
+      }
+      
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = `
+          {% include 'components/svg_icon.html' with icon='search' size='16' class='inline-icon' %}
+          Start Coordinate Search
+        `;
+      }
+    }
+
+    function monitorValidationTask(taskId, btn) {
+      const poll = async () => {
+        try {
+          const response = await fetch(`/geolocation/batch-progress/${taskId}/`);
+          const data = await response.json();
+          
+          // Update progress display if needed
+          
+          if (data.status === 'completed' || data.status === 'failed') {
+            if (btn) {
+              btn.disabled = false;
+              btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span>🧠</span><span>Run Auto-validation</span></span>';
+            }
+            
+            if (data.status === 'completed') {
+              showMessage('Batch validation completed successfully!', 'success');
+              setTimeout(() => {
+                refreshStats();
+                refreshLocationStatus();
+              }, 1000);
+            } else {
+              showMessage('Batch validation failed: ' + (data.error || 'Unknown error'), 'error');
+            }
+            return;
+          }
+          
+          setTimeout(poll, 2000); // Poll every 2 seconds
+        } catch (error) {
+          console.error('Error polling validation progress:', error);
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span>🧠</span><span>Run Auto-validation</span></span>';
+          }
+          showMessage('Error monitoring validation progress', 'error');
+        }
+      };
+      
+      poll();
     }
 
     // Initialize dashboard

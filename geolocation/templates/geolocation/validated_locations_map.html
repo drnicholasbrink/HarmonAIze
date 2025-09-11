@@ -452,12 +452,12 @@
       
       <!-- Map Controls -->
       <div class="map-controls">
-        <h4>🗺️ Map Layers</h4>
+        <h4>Map Layers</h4>
         <button onclick="changeMapLayer('satellite')" class="layer-button active" id="satellite-btn">
-          🛰️ Satellite
+          Satellite
         </button>
         <button onclick="changeMapLayer('streets')" class="layer-button" id="streets-btn">
-          🗺️ Streets
+          Streets
         </button>
       </div>
       
@@ -622,7 +622,7 @@
           <div style="min-width: 250px;">
             <div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 1rem; color: ${locationColors[location.name]}">${location.name}</div>
             <div style="background: #f0fdf4; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
-              <div style="font-size: 0.8rem; color: #15803d; font-weight: 600; margin-bottom: 0.5rem;">✅ Validated Coordinates</div>
+              <div style="font-size: 0.8rem; color: #15803d; font-weight: 600; margin-bottom: 0.5rem;">Validated Coordinates</div>
               <div style="font-family: monospace; font-size: 0.9rem; color: #374151;">${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}</div>
             </div>
             <div style="background: #f8f9fa; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
@@ -631,7 +631,7 @@
             </div>
             <button onclick="zoomToLocation(${location.lat}, ${location.lng})" 
                     style="background: var(--accent-color); color: white; border: none; padding: 0.75rem 1rem; border-radius: 8px; width: 100%; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">
-              🔍 Zoom to Location
+              Zoom to Location
             </button>
           </div>
         `;
@@ -844,7 +844,7 @@
       pdf.save(`validated-locations-map-${new Date().toISOString().split('T')[0]}.pdf`);
       
       document.getElementById('downloadProgress').classList.remove('show');
-      showMessage('✅ Enhanced PDF downloaded!', 'success');
+      showMessage('Enhanced PDF downloaded!', 'success');
     }
 
     // Generate PNG
@@ -996,7 +996,7 @@
       link.click();
       
       document.getElementById('downloadProgress').classList.remove('show');
-      showMessage('✅ Enhanced PNG downloaded!', 'success');
+      showMessage('Enhanced PNG downloaded!', 'success');
     }
 
     // Helper functions
@@ -1208,7 +1208,7 @@
       pdf.save(`validated-locations-map-${new Date().toISOString().split('T')[0]}.pdf`);
       
       document.getElementById('downloadProgress').classList.remove('show');
-      showMessage('✅ Fallback PDF downloaded!', 'success');
+      showMessage('Fallback PDF downloaded!', 'success');
     }
 
     function generateFallbackPNG() {
@@ -1266,7 +1266,7 @@
       link.click();
       
       document.getElementById('downloadProgress').classList.remove('show');
-      showMessage('✅ Fallback PNG downloaded!', 'success');
+      showMessage('Fallback PNG downloaded!', 'success');
     }
 
     function hexToRgb(hex) {
@@ -1318,7 +1318,7 @@
     // Show initial message
     setTimeout(() => {
       if (locationsData.length > 0) {
-        showMessage(`🗺️ Map loaded with ${locationsData.length} validated locations`, 'info');
+        showMessage(`Map loaded with ${locationsData.length} validated locations`, 'info');
       } else {
         showMessage('No validated locations found. Complete validation process first.', 'info');
       }

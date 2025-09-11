@@ -136,3 +136,9 @@ __azurite_db*__.json
 
 #VS Code
 .vscode/
+
+# Claude Code settings
+.claude/
+
+# Environment variables
+.envs/

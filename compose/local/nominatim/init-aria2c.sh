@@ -1,14 +1,12 @@
 #!/bin/bash
 
-# Custom init script using aria2c for faster downloads
-# Based on the original mediagis/nominatim init.sh
 
 set -euo pipefail
 
 OSMFILE=/nominatim/data.osm.pbf
-CURL=("curl" "-L" "-A" "${USER_AGENT}" "--fail-with-body")
+CURL=("curl" "-L" "-A" "${USER_AGENT:-HarmonAIze-Nominatim/1.0}" "--fail-with-body")
 
-# Build SCP command as array for safety
+# Build secure SCP command array 
 if [ -n "${SCP_PASSWORD:-}" ] && [ -n "${SCP_HOST:-}" ] && [ -n "${SCP_USER:-}" ]; then
     SCP_CMD=("sshpass" "-p" "${SCP_PASSWORD}" "scp" "-o" "StrictHostKeyChecking=no" "${SCP_USER}@${SCP_HOST}")
 else
@@ -19,73 +17,50 @@ if [ -z "${THREADS:-}" ]; then
     THREADS=8
 fi
 
-if [ "${REVERSE_ONLY:-}" = "true" ]; then
-    echo "Reverse only mode"
-fi
-
-# Optional Wikipedia importance import
+# Import Wikipedia importance data if enabled
 if [ "${IMPORT_WIKIPEDIA:-}" = "true" ]; then
     if [ -f "${IMPORT_WIKIPEDIA}" ]; then
-        echo "Using local Wikipedia importance data"
         mv "${IMPORT_WIKIPEDIA}" /nominatim/wikimedia-importance.sql.gz
     else
-        echo "Downloading optional Wikipedia importance import"
-        curl -L https://nominatim.org/data/wikimedia-importance.sql.gz -o /nominatim/wikimedia-importance.sql.gz
+        curl -s -L https://nominatim.org/data/wikimedia-importance.sql.gz -o /nominatim/wikimedia-importance.sql.gz
     fi
-else
-    echo "Skipping optional Wikipedia importance import"
 fi
 
-# Optional GB postcodes import
+# Import GB postcode data if enabled
 if [ "${IMPORT_GB_POSTCODES:-}" = "true" ]; then
     if [ -f "${IMPORT_GB_POSTCODES}" ]; then
-        echo "Using local GB postcode data"
         mv "${IMPORT_GB_POSTCODES}" /nominatim/gb_postcodes.csv.gz
     else
-        echo "Downloading optional GB postcode data"
-        curl -L https://www.getthedata.com/downloads/open_postcode_geo.csv.zip -o /tmp/gb_postcodes.zip
-        unzip -o /tmp/gb_postcodes.zip -d /tmp/
+        curl -s -L https://www.getthedata.com/downloads/open_postcode_geo.csv.zip -o /tmp/gb_postcodes.zip
+        unzip -q /tmp/gb_postcodes.zip -d /tmp/
         gzip /tmp/open_postcode_geo.csv
         mv /tmp/open_postcode_geo.csv.gz /nominatim/gb_postcodes.csv.gz
     fi
-else
-    echo "Skipping optional GB postcode import"
 fi
 
-# Optional US postcodes import
+# Import US postcode data if enabled
 if [ "${IMPORT_US_POSTCODES:-}" = "true" ]; then
     if [ -f "${IMPORT_US_POSTCODES}" ]; then
-        echo "Using local US postcode data"
         mv "${IMPORT_US_POSTCODES}" /nominatim/us_postcodes.csv.gz
     else
-        echo "Downloading optional US postcode data"
-        curl -L https://download.geonames.org/export/zip/US.zip -o /tmp/us_postcodes.zip
-        unzip -o /tmp/us_postcodes.zip -d /tmp/
+        curl -s -L https://download.geonames.org/export/zip/US.zip -o /tmp/us_postcodes.zip
+        unzip -q /tmp/us_postcodes.zip -d /tmp/
         gzip /tmp/US.txt
         mv /tmp/US.txt.gz /nominatim/us_postcodes.csv.gz
     fi
-else
-    echo "Skipping optional US postcode import"
 fi
 
-# Optional Tiger addresses import
+# Import Tiger address data if enabled
 if [ "${IMPORT_TIGER_ADDRESSES:-}" = "true" ]; then
     if [ -f "${IMPORT_TIGER_ADDRESSES}" ]; then
-        echo "Using local Tiger address data"
         mv "${IMPORT_TIGER_ADDRESSES}" /nominatim/tiger-data
     else
-        echo "Downloading optional Tiger address data"
-        nominatim add-data --tiger-data /nominatim/tiger-data
+        nominatim add-data --tiger-data /nominatim/tiger-data > /dev/null 2>&1
     fi
-else
-    echo "Skipping optional Tiger addresses import"
 fi
 
-# Download OSM data using aria2c for faster downloads
+# Download OSM data using aria2c for faster parallel downloads
 if [ "${PBF_URL:-}" != "" ]; then
-    echo "Downloading OSM extract from $PBF_URL using aria2c (16 parallel connections)"
-    
-    # Use aria2c with multiple connections for faster download
     aria2c \
         --max-connection-per-server=16 \
         --split=16 \
@@ -100,39 +75,28 @@ if [ "${PBF_URL:-}" != "" ]; then
         --max-tries=5 \
         --timeout=60 \
         --connect-timeout=30 \
+        --quiet \
         "$PBF_URL"
     
     if [ $? -ne 0 ]; then
-        echo "Failed to download OSM data with aria2c, falling back to curl"
-        "${CURL[@]}" "$PBF_URL" -C - --create-dirs -o "$OSMFILE"
+        "${CURL[@]}" "$PBF_URL" -s -C - --create-dirs -o "$OSMFILE"
     fi
 elif [ "${PBF_PATH:-}" != "" ]; then
-    echo "Using local PBF file: $PBF_PATH"
     ln -s "$PBF_PATH" "$OSMFILE"
 elif [ "${SCP_SOURCE_PATH:-}" != "" ] && [ ${#SCP_CMD[@]} -gt 0 ]; then
-    echo "Downloading OSM extract from SCP server"
-    "${SCP_CMD[@]}" "$SCP_SOURCE_PATH" "$OSMFILE"
+    "${SCP_CMD[@]}" "$SCP_SOURCE_PATH" "$OSMFILE" > /dev/null 2>&1
 else
-    echo "No PBF_URL, PBF_PATH, or valid SCP configuration provided"
     exit 1
 fi
 
+# Verify OSM file exists
 if [ ! -f "$OSMFILE" ]; then
-    echo "ERROR: No OSM file found at $OSMFILE"
     exit 1
 fi
 
-echo "OSM file downloaded successfully!"
-echo "OSM file size: $(du -h $OSMFILE | cut -f1)"
-
-# Verify file integrity if osmium is available
+# Silent file integrity check
 if command -v osmium &> /dev/null; then
-    echo "Verifying OSM file integrity..."
-    if ! osmium fileinfo "$OSMFILE" > /dev/null 2>&1; then
-        echo "WARNING: OSM file appears to be corrupted, but continuing import..."
-    else
-        echo "OSM file integrity check passed"
-    fi
+    osmium fileinfo "$OSMFILE" > /dev/null 2>&1
 fi
 
 # Prepare import arguments
@@ -169,45 +133,42 @@ fi
 # Add postcodes as a single argument if any exist
 if [ ${#POSTCODE_FILES[@]} -gt 0 ]; then
     IMPORT_ARGS+=(--postcodes-file "${POSTCODE_FILES[0]}")
-    # Note: Nominatim typically handles one postcode file per import
-    # Additional files would need separate import runs
+   
 fi
 
-# Import data into Nominatim
-echo "Starting Nominatim import process..."
-echo "This will take several hours for the global dataset..."
-
-# Run the import with proper user context
-sudo -u nominatim nominatim import "${IMPORT_ARGS[@]}" 2>&1
+# Execute Nominatim import process
+if id -u nominatim >/dev/null 2>&1; then
+    su - nominatim -c "nominatim import $(printf '%q ' "${IMPORT_ARGS[@]}")" > /dev/null 2>&1
+else
+    # Run as current user if nominatim user doesn't exist
+    nominatim import "${IMPORT_ARGS[@]}" > /dev/null 2>&1
+fi
 
 IMPORT_EXIT_CODE=$?
 
 if [ $IMPORT_EXIT_CODE -eq 0 ]; then
-    echo "Import completed successfully!"
-    
-    # Add Tiger addresses if specified
+    # Add Tiger addresses if enabled and data exists
     if [ "${IMPORT_TIGER_ADDRESSES:-}" = "true" ] && [ -d "/nominatim/tiger-data" ]; then
-        echo "Adding Tiger address data..."
-        sudo -u nominatim nominatim add-data --tiger-data /nominatim/tiger-data
+        if id -u nominatim >/dev/null 2>&1; then
+            su - nominatim -c "nominatim add-data --tiger-data /nominatim/tiger-data" > /dev/null 2>&1
+        else
+            nominatim add-data --tiger-data /nominatim/tiger-data > /dev/null 2>&1
+        fi
     fi
     
-    # Create import finished marker
+    # Create import completion marker
     touch /var/lib/postgresql/14/main/import-finished
     
-    # Clean up downloaded files to save space
+    # Clean up temporary files to save disk space
     if [ "${PBF_URL:-}" != "" ]; then
-        echo "Cleaning up downloaded OSM file to save disk space"
         rm -f "$OSMFILE"
     fi
     
-    # Clean up optional data files
+    # Remove optional data files
     rm -f /nominatim/wikimedia-importance.sql.gz
     rm -f /nominatim/gb_postcodes.csv.gz
     rm -f /nominatim/us_postcodes.csv.gz
     rm -rf /nominatim/tiger-data
-    
-    echo "Nominatim initialization complete"
 else
-    echo "ERROR: Import failed with exit code $IMPORT_EXIT_CODE"
     exit $IMPORT_EXIT_CODE
 fi

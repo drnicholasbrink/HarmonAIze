@@ -33,7 +33,23 @@ class SmartGeocodingValidator:
         self.public_nominatim_url = 'https://nominatim.openstreetmap.org'
     
     def validate_geocoding_result(self, geocoding_result: GeocodingResult) -> ValidationResult:
-        """Main validation entry point with simplified two-component analysis."""
+        """
+        Main validation entry point with simplified two-component analysis.
+        
+        Validates geocoding results using a 2-component approach:
+        - 70% weight: Reverse geocoding name similarity analysis  
+        - 30% weight: Distance proximity clustering between sources
+        
+        Args:
+            geocoding_result: GeocodingResult instance with coordinates from multiple APIs
+            
+        Returns:
+            ValidationResult: Analysis with confidence score, recommended coordinates,
+                            and validation status (validated/needs_review/rejected)
+                            
+        Raises:
+            Exception: If validation analysis fails due to API errors or invalid data
+        """
         
         # Extract coordinates from all sources
         coordinates = self._extract_coordinates(geocoding_result)
@@ -118,7 +134,6 @@ class SmartGeocodingValidator:
         
         for source, (lat, lng) in coordinates.items():
             try:
-                print(f"Reverse geocoding {source} coordinates using Nominatim (local→public fallback)...")
                 
                 # Use Nominatim (local first, public fallback) for ALL sources
                 reverse_result = self._reverse_geocode_nominatim_with_fallback(lat, lng)
@@ -142,7 +157,6 @@ class SmartGeocodingValidator:
                     
                     # Show which Nominatim was used
                     nominatim_type = "LOCAL" if reverse_result.get('local_nominatim_used') else "PUBLIC"
-                    print(f"✓ {source.upper()} → Nominatim ({nominatim_type}) reverse geocoding successful")
                 else:
                     reverse_results[source] = {
                         'address': 'No address found',
@@ -153,13 +167,11 @@ class SmartGeocodingValidator:
                         'fallback_used': True,
                         'local_nominatim_used': False
                     }
-                    print(f"✗ {source.upper()} → Nominatim reverse geocoding failed")
                 
                 # Be respectful to APIs
                 time.sleep(0.3)
                 
             except Exception as e:
-                print(f"Reverse geocoding failed for {source}: {e}")
                 reverse_results[source] = {
                     'address': f'Error: {str(e)}',
                     'similarity_score': 0.0,
@@ -279,7 +291,6 @@ class SmartGeocodingValidator:
                 local_used = reverse_results[source].get('local_nominatim_used', False)
                 nominatim_info = f" (Nominatim: {'LOCAL' if local_used else 'PUBLIC'})"
             
-            print(f"Source {source}: Reverse={reverse_score:.2f}, Distance={distance_score:.2f}, Individual={individual_confidence:.2f}{nominatim_info}")
         
         return individual_scores
     
@@ -436,7 +447,7 @@ class SmartGeocodingValidator:
         location_lower = location_name.lower()
         address_lower = address.lower()
         
-        facility_keywords = ['hospital', 'clinic', 'health', 'center', 'centre', 'medical', 'facility']
+        facility_keywords = ['hospital', 'clinic', 'health', 'centre', 'medical', 'facility']
         is_facility = any(keyword in location_lower for keyword in facility_keywords)
         
         if not is_facility:
@@ -450,7 +461,7 @@ class SmartGeocodingValidator:
     
     def _extract_facility_core_name(self, facility_name: str) -> str:
         """Extract core name from facility."""
-        facility_words = ['hospital', 'clinic', 'health', 'center', 'centre', 'medical', 'facility', 'general', 'district']
+        facility_words = ['hospital', 'clinic', 'health', 'centre', 'medical', 'facility', 'general', 'district']
         words = facility_name.lower().split()
         core_words = [word for word in words if word not in facility_words]
         return ' '.join(core_words).strip()
@@ -569,7 +580,6 @@ def run_smart_validation(limit: int = None) -> Dict[str, int]:
                 stats['rejected'] += 1
         
         except Exception as e:
-            print(f"Error validating {result.location_name}: {e}")
             stats['rejected'] += 1
             continue
     

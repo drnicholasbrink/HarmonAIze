@@ -1,4 +1,4 @@
-# geolocation/admin.py
+
 from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
@@ -143,7 +143,7 @@ class GeocodingResultAdmin(admin.ModelAdmin):
             if sources:
                 colors = {
                     'hdx': '#2563eb',
-                    'arcgis': '#8b5cf6',  # Purple instead of green
+                    'arcgis': '#8b5cf6',  
                     'google': '#dc2626',
                     'nominatim': '#d97706'
                 }
@@ -246,7 +246,6 @@ class ValidationResultAdmin(admin.ModelAdmin):
             }
             color = colors.get(level, '#6b7280')
             
-            # Use .format() method instead of f-strings to avoid SafeString issues
             return format_html(
                 '<span style="background-color: {}; color: white; padding: 4px 8px; border-radius: 6px; font-weight: bold;">{} ({:.0f}%)</span>',
                 color, level, score
@@ -260,7 +259,7 @@ class ValidationResultAdmin(admin.ModelAdmin):
         try:
             if obj.validation_metadata:
                 summary = obj.validation_metadata.get('user_friendly_summary', 'No summary available')
-                # Ensure summary is a string before formatting
+               
                 summary_str = str(summary)
                 return format_html('<div style="max-width: 400px;">{}</div>', summary_str)
             return "No metadata"
@@ -283,7 +282,7 @@ class ValidationResultAdmin(admin.ModelAdmin):
             coords = obj.final_coordinates
             if coords:
                 lat, lng = coords
-                # Ensure coordinates are properly formatted as numbers
+               
                 lat_str = "{:.5f}".format(float(lat))
                 lng_str = "{:.5f}".format(float(lng))
                 map_url = "https://www.google.com/maps/@{},{},15z".format(lat_str, lng_str)

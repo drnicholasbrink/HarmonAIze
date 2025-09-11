@@ -91,39 +91,39 @@ services:
     environment:
       - NOMINATIM_PASSWORD=harmonaize_secure_pass_2024
       
-      # AUTO-DOWNLOAD: Full Africa continent with aria2c (FAST!)
-      - PBF_URL=https://download.geofabrik.de/africa-latest.osm.pbf
+   
+      - PBF_URL=https://download.geofabrik.de/planet/planet-latest.osm.pbf
       
-      # Import settings optimized for large dataset
+      
       - UPDATE_MODE=import
-      - IMPORT_STYLE=street      # Includes health facilities
+      - IMPORT_STYLE=street      
       - IMPORT_WIKIPEDIA=false
       - IMPORT_US_POSTCODES=false
       - IMPORT_GB_POSTCODES=false
       - IMPORT_TIGER_ADDRESSES=false
       
-      # Enable full geocoding (not just reverse)
+      
       - REVERSE_ONLY=false
       - FREEZE=false
       
-      # Performance settings for large dataset
-      - THREADS=8                # Increased for large dataset
-      - GUNICORN_WORKERS=4       # Increased for better performance
       
-      # Memory settings optimized for Africa dataset (requires 16GB+ RAM)
-      - POSTGRES_SHARED_BUFFERS=4GB           # Increased from 1GB
-      - POSTGRES_MAINTENANCE_WORK_MEM=8GB     # Increased from 2GB  
-      - POSTGRES_AUTOVACUUM_WORK_MEM=2GB      # Increased from 1GB
-      - POSTGRES_WORK_MEM=512MB               # Increased from 256MB
-      - POSTGRES_EFFECTIVE_CACHE_SIZE=12GB    # Increased from 4GB
+      - THREADS=8               
+      - GUNICORN_WORKERS=4     
+      
+      
+      - POSTGRES_SHARED_BUFFERS=4GB          
+      - POSTGRES_MAINTENANCE_WORK_MEM=8GB     
+      - POSTGRES_AUTOVACUUM_WORK_MEM=2GB      
+      - POSTGRES_WORK_MEM=512MB              
+      - POSTGRES_EFFECTIVE_CACHE_SIZE=12GB    
       - POSTGRES_SYNCHRONOUS_COMMIT=off
-      - POSTGRES_MAX_WAL_SIZE=4GB             # Increased from 1GB
-      - POSTGRES_CHECKPOINT_TIMEOUT=20min     # Increased from 10min
+      - POSTGRES_MAX_WAL_SIZE=4GB             
+      - POSTGRES_CHECKPOINT_TIMEOUT=20min    
       - POSTGRES_CHECKPOINT_COMPLETION_TARGET=0.9
-      - POSTGRES_WAL_BUFFERS=64MB             # Increased from 32MB
+      - POSTGRES_WAL_BUFFERS=64MB             
       - POSTGRES_RANDOM_PAGE_COST=1.1
       
-      # Additional settings for large import
+     
       - POSTGRES_MIN_WAL_SIZE=2GB
       - POSTGRES_CHECKPOINT_SEGMENTS=128
       
@@ -132,19 +132,19 @@ services:
     volumes:
       - nominatim_data:/var/lib/postgresql/14/main
       - nominatim_flatnode:/nominatim/flatnode
-      # Downloads automatically with aria2c - much faster than curl!
-    shm_size: '8gb'  # Increased from 2gb for large dataset
+     
+    shm_size: '8gb'  
     deploy:
       resources:
         limits:
-          memory: 20G    # Increased from 6G - Africa dataset needs more RAM
+          memory: 32G    
         reservations:
-          memory: 8G     # Increased from 2G
+          memory: 8G    
     
-    # Health check with longer timeout for large dataset
+    
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/status"]
-      interval: 60s      # Check every minute
-      timeout: 30s       # Longer timeout
-      retries: 10        # More retries
-      start_period: 7200s # 2 hours startup time for large dataset
+      interval: 60s      
+      timeout: 30s       
+      retries: 10        
+      start_period: 7200s 

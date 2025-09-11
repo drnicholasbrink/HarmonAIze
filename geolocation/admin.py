@@ -9,13 +9,13 @@ from .models import ValidationDataset, HDXHealthFacility, GeocodingResult, Valid
 @admin.register(ValidationDataset)
 class ValidationDatasetAdmin(admin.ModelAdmin):
     list_display = [
-        'location_name', 'country', 'final_lat', 'final_long', 
-        'source', 'validated_at', 'view_on_map'
+        'location_name', 'country', 'coordinates_display', 
+        'source', 'validated_at'
     ]
     list_filter = ['source', 'country', 'validated_at']
     search_fields = ['location_name', 'country', 'city_town']
     ordering = ['-validated_at']
-    readonly_fields = ['validated_at', 'view_on_map']
+    readonly_fields = ['validated_at']
     
     fieldsets = (
         ('Location Information', {
@@ -26,7 +26,7 @@ class ValidationDatasetAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
         ('Coordinates', {
-            'fields': ('final_lat', 'final_long', 'source', 'view_on_map')
+            'fields': ('final_lat', 'final_long', 'source')
         }),
         ('Metadata', {
             'fields': ('validated_at',),
@@ -34,32 +34,24 @@ class ValidationDatasetAdmin(admin.ModelAdmin):
         })
     )
     
-    def view_on_map(self, obj):
-        """Safe map link generation for ValidationDataset."""
-        try:
-            if obj.final_lat and obj.final_long:
-                lat_str = "{:.5f}".format(float(obj.final_lat))
-                lng_str = "{:.5f}".format(float(obj.final_long))
-                return format_html(
-                    '<a href="https://www.google.com/maps/@{},{},15z" target="_blank">📍 View on Map</a>',
-                    lat_str, lng_str
-                )
-            return "No coordinates"
-        except (ValueError, TypeError):
-            return "Invalid coordinates"
-    view_on_map.short_description = "Map Link"
+    def coordinates_display(self, obj):
+        """Simple coordinates display."""
+        if obj.final_lat and obj.final_long:
+            return f"{obj.final_lat:.5f}, {obj.final_long:.5f}"
+        return "No coordinates"
+    coordinates_display.short_description = "Coordinates"
 
 
 @admin.register(HDXHealthFacility)
 class HDXHealthFacilityAdmin(admin.ModelAdmin):
     list_display = [
         'facility_name', 'facility_type', 'district', 'country', 
-        'hdx_latitude', 'hdx_longitude', 'view_on_map'
+        'hdx_coordinates_display'
     ]
     list_filter = ['facility_type', 'ownership', 'country', 'province']
     search_fields = ['facility_name', 'district', 'city', 'country']
     ordering = ['country', 'province', 'district', 'facility_name']
-    readonly_fields = ['created_at', 'updated_at', 'view_on_map']
+    readonly_fields = ['created_at', 'updated_at']
     
     fieldsets = (
         ('Facility Information', {
@@ -69,7 +61,7 @@ class HDXHealthFacilityAdmin(admin.ModelAdmin):
             'fields': ('country', 'province', 'city', 'district', 'ward')
         }),
         ('Coordinates', {
-            'fields': ('hdx_latitude', 'hdx_longitude', 'view_on_map')
+            'fields': ('hdx_latitude', 'hdx_longitude')
         }),
         ('Metadata', {
             'fields': ('created_at', 'updated_at'),
@@ -77,20 +69,12 @@ class HDXHealthFacilityAdmin(admin.ModelAdmin):
         })
     )
     
-    def view_on_map(self, obj):
-        """Safe map link generation for HDXHealthFacility."""
-        try:
-            if obj.hdx_latitude and obj.hdx_longitude:
-                lat_str = "{:.5f}".format(float(obj.hdx_latitude))
-                lng_str = "{:.5f}".format(float(obj.hdx_longitude))
-                return format_html(
-                    '<a href="https://www.google.com/maps/@{},{},15z" target="_blank">📍 View on Map</a>',
-                    lat_str, lng_str
-                )
-            return "No coordinates"
-        except (ValueError, TypeError):
-            return "Invalid coordinates"
-    view_on_map.short_description = "Map Link"
+    def hdx_coordinates_display(self, obj):
+        """Simple HDX coordinates display."""
+        if obj.hdx_latitude and obj.hdx_longitude:
+            return f"{obj.hdx_latitude:.5f}, {obj.hdx_longitude:.5f}"
+        return "No coordinates"
+    hdx_coordinates_display.short_description = "HDX Coordinates"
 
 
 @admin.register(GeocodingResult)
@@ -141,7 +125,7 @@ class GeocodingResultAdmin(admin.ModelAdmin):
         try:
             sources = obj.successful_apis
             if sources:
-                colors = {
+                colours = {
                     'hdx': '#2563eb',
                     'arcgis': '#8b5cf6',  # Purple instead of green
                     'google': '#dc2626',
@@ -149,9 +133,9 @@ class GeocodingResultAdmin(admin.ModelAdmin):
                 }
                 badges = []
                 for source in sources:
-                    color = colors.get(source, '#6b7280')
-                    badge_html = '<span style="background-color: {}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px;">{}</span>'.format(
-                        color, str(source).upper()
+                    colour = colours.get(source, '#6b7280')
+                    badge_html = '<span style="background-colour: {}; colour: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px;">{}</span>'.format(
+                        colour, str(source).upper()
                     )
                     badges.append(badge_html)
                 return mark_safe(''.join(badges))
@@ -185,7 +169,7 @@ class GeocodingResultAdmin(admin.ModelAdmin):
         try:
             if hasattr(obj, 'validation'):
                 validation_url = reverse('admin:geolocation_validationresult_change', args=[obj.validation.id])
-                return format_html('<a href="{}">📊 View Validation</a>', validation_url)
+                return format_html('<a href="{}">View Validation</a>', validation_url)
             return "No validation"
         except Exception as e:
             return "Error loading validation"
@@ -203,7 +187,7 @@ class ValidationResultAdmin(admin.ModelAdmin):
     ordering = ['-confidence_score', '-created_at']
     readonly_fields = [
         'created_at', 'updated_at', 'confidence_level_display', 
-        'metadata_summary', 'view_geocoding_result', 'view_on_map'
+        'metadata_summary', 'view_geocoding_result'
     ]
     
     fieldsets = (
@@ -218,7 +202,7 @@ class ValidationResultAdmin(admin.ModelAdmin):
             )
         }),
         ('AI Recommendations', {
-            'fields': ('recommended_source', 'recommended_lat', 'recommended_lng', 'view_on_map')
+            'fields': ('recommended_source', 'recommended_lat', 'recommended_lng')
         }),
         ('Manual Review', {
             'fields': ('manual_review_notes', 'manual_lat', 'manual_lng'),
@@ -239,17 +223,17 @@ class ValidationResultAdmin(admin.ModelAdmin):
         try:
             level = obj.confidence_level
             score = obj.confidence_score * 100
-            colors = {
+            colours = {
                 'High': '#22c55e',
                 'Medium': '#f59e0b', 
                 'Low': '#ef4444'
             }
-            color = colors.get(level, '#6b7280')
+            colour = colours.get(level, '#6b7280')
             
             # Use .format() method instead of f-strings to avoid SafeString issues
             return format_html(
-                '<span style="background-color: {}; color: white; padding: 4px 8px; border-radius: 6px; font-weight: bold;">{} ({:.0f}%)</span>',
-                color, level, score
+                '<span style="background-colour: {}; colour: white; padding: 4px 8px; border-radius: 6px; font-weight: bold;">{} ({:.0f}%)</span>',
+                colour, level, score
             )
         except Exception as e:
             return "Error loading confidence"
@@ -272,29 +256,11 @@ class ValidationResultAdmin(admin.ModelAdmin):
         """Safe link to geocoding result."""
         try:
             geocoding_url = reverse('admin:geolocation_geocodingresult_change', args=[obj.geocoding_result.id])
-            return format_html('<a href="{}">🔍 View Geocoding Result</a>', geocoding_url)
+            return format_html('<a href="{}">View Geocoding Result</a>', geocoding_url)
         except Exception as e:
             return "Error loading link"
     view_geocoding_result.short_description = "Geocoding Result"
     
-    def view_on_map(self, obj):
-        """Safe map link generation."""
-        try:
-            coords = obj.final_coordinates
-            if coords:
-                lat, lng = coords
-                # Ensure coordinates are properly formatted as numbers
-                lat_str = "{:.5f}".format(float(lat))
-                lng_str = "{:.5f}".format(float(lng))
-                map_url = "https://www.google.com/maps/@{},{},15z".format(lat_str, lng_str)
-                return format_html(
-                    '<a href="{}" target="_blank">📍 View on Map</a>',
-                    map_url
-                )
-            return "No coordinates"
-        except Exception as e:
-            return "Coordinate error"
-    view_on_map.short_description = "Map Link"
 
 
 # Custom admin site configuration

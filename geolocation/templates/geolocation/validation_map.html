@@ -718,7 +718,7 @@
           {% if current_location.recommended_source %}
           <div style="background: rgba(52, 199, 89, 0.2); border: 1px solid rgba(52, 199, 89, 0.3); border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
             <div style="display: flex; align-items: center; gap: 0.5rem;">
-              <span style="font-size: 1.2rem;">🏆</span>
+              <span style="font-size: 1.2rem; font-weight: bold;">★</span>
               <span style="font-weight: 600;">Recommended Source: {{ current_location.recommended_source }}</span>
             </div>
           </div>
@@ -743,13 +743,13 @@
               <div class="source-marker" style="background-color: {{ coord.color }}"></div>
               <span>{{ coord.source }}</span>
               {% if coord.source == current_location.recommended_source %}
-              <span class="ai-badge">🏆 Best</span>
+              <span class="ai-badge">★ Best</span>
               {% endif %}
             </div>
             <button onclick="event.stopPropagation(); selectSource('{{ coord.source_key }}', {{ coord.lat }}, {{ coord.lng }})"
                     class="btn {% if coord.source == current_location.recommended_source %}btn-success{% else %}btn-secondary{% endif %}"
                     style="padding: 0.5rem 1rem; font-size: 0.8rem;">
-              {% if coord.source == current_location.recommended_source %}✅ Use Best{% else %}📍 Use This{% endif %}
+              {% if coord.source == current_location.recommended_source %}Use Best{% else %}Use This{% endif %}
             </button>
           </div>
           
@@ -780,7 +780,7 @@
           <div class="coordinate-info">
             <div class="coordinate-label">Reverse Lookup</div>
             <div style="color: {% if coord.name_similarity >= 80 %}#28a745{% elif coord.name_similarity >= 50 %}#ffc107{% else %}#6c757d{% endif %};">
-              {% if coord.name_similarity >= 80 %}✅{% elif coord.name_similarity >= 50 %}⚠️{% else %}❓{% endif %}
+              {% if coord.name_similarity >= 80 %}High{% elif coord.name_similarity >= 50 %}Medium{% else %}Low{% endif %}
               {{ coord.reverse_address|truncatechars:50 }}
             </div>
           </div>
@@ -801,22 +801,22 @@
       <div class="actions-section">
         {% if current_location.confidence >= 70 %}
         <button onclick="approveBestSource()" class="btn btn-success btn-action">
-          ✅ Accept Best Source Recommendation
+          Accept Best Source Recommendation
         </button>
         {% endif %}
         
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
           <button onclick="toggleManualEntry()" class="btn btn-warning">
-            📍 Manual Entry
+            Manual Entry
           </button>
           <button onclick="toggleRejectForm()" class="btn btn-danger">
-            ❌ Reject Location
+            Reject Location
           </button>
         </div>
         
         <!-- Manual Entry Form -->
         <div id="manualEntry" class="form-section">
-          <h4>🔧 Manual Coordinate Entry</h4>
+          <h4>Manual Coordinate Entry</h4>
           <div class="form-group">
             <input type="number" id="manualLat" placeholder="Latitude (e.g., -26.2041)" 
                    step="any" class="form-control">
@@ -826,30 +826,30 @@
                    step="any" class="form-control">
           </div>
           <button onclick="saveManualCoordinates()" class="btn btn-success">
-            💾 Save Coordinates
+            Save Coordinates
           </button>
         </div>
         
         <!-- Reject Form -->
         <div id="rejectForm" class="form-section">
-          <h4>❌ Reject Location</h4>
+          <h4>Reject Location</h4>
           <div class="form-group">
             <textarea id="rejectNotes" placeholder="Please provide a reason for rejection..." 
                       rows="3" class="form-control"></textarea>
           </div>
           <button onclick="rejectLocation()" class="btn btn-danger">
-            🗑️ Confirm Rejection
+            Confirm Rejection
           </button>
         </div>
       </div>
       {% else %}
       <div style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 2rem;">
         <div style="text-align: center;">
-          <div style="font-size: 4rem; margin-bottom: 1rem;">🎉</div>
+          <div style="font-size: 2rem; margin-bottom: 1rem; font-weight: bold; color: var(--accent-color);">✓</div>
           <h3 style="color: var(--text-primary); margin-bottom: 1rem;">All Caught Up!</h3>
           <p style="color: var(--text-secondary); margin-bottom: 2rem;">No locations currently need validation</p>
           <a href="{% url 'geolocation:validation_dashboard' %}" class="btn btn-secondary">
-            📊 Return to Dashboard
+            Return to Dashboard
           </a>
         </div>
       </div>
@@ -862,18 +862,18 @@
       
       <!-- Map Controls -->
       <div class="map-controls">
-        <h4>🗺️ Map Layers</h4>
+        <h4>Map Layers</h4>
         <button onclick="changeMapLayer('satellite')" class="layer-button active" id="satellite-btn">
-          🛰️ Satellite
+          Satellite
         </button>
         <button onclick="changeMapLayer('streets')" class="layer-button" id="streets-btn">
-          🗺️ Streets
+          Streets
         </button>
       </div>
       
       <!-- Map Legend -->
       <div class="map-legend">
-        <h4 style="margin-bottom: 1rem; font-size: 0.9rem; font-weight: 600;">📍 Data Sources</h4>
+        <h4 style="margin-bottom: 1rem; font-size: 0.9rem; font-weight: 600;">Data Sources</h4>
         <div class="legend-item">
           <div class="legend-color" style="background-color: #dc2626;"></div>
           <span>Google Maps</span>
@@ -923,7 +923,7 @@
     });
 
     const locationsData = {{ locations_data|safe }};
-    let currentLocationData = {% if current_location %}{{ current_location|safe }}{% else %}null{% endif %};
+    let currentLocationData = {% if current_location_json %}{{ current_location_json|safe }}{% else %}null{% endif %};
     let markers = [];
     let currentMapStyle = 'satellite';
 
@@ -986,7 +986,7 @@
           <div style="min-width: 250px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
               <span style="font-weight: 600; font-size: 1.1rem;">${coord.source}</span>
-              ${isBest ? '<span style="background: var(--accent-color); color: white; padding: 0.25rem 0.5rem; border-radius: 10px; font-size: 0.7rem; font-weight: 600;">🏆 Best</span>' : ''}
+              ${isBest ? '<span style="background: var(--accent-color); color: white; padding: 0.25rem 0.5rem; border-radius: 10px; font-size: 0.7rem; font-weight: 600;">★ Best</span>' : ''}
             </div>
             <div style="background: #f8f9fa; padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem;">
               <div style="font-size: 0.8rem; color: #6c757d; margin-bottom: 0.25rem;">Coordinates</div>
@@ -1013,7 +1013,7 @@
             <button onclick="selectSource('${coord.source_key}', ${coord.lat}, ${coord.lng})" 
                     class="btn ${isBest ? 'btn-success' : 'btn-secondary'}" 
                     style="width: 100%; padding: 0.75rem; font-size: 0.9rem;">
-              ${isBest ? '✅ Use Best Source' : '📍 Use This Source'}
+              ${isBest ? 'Use Best Source' : 'Use This Source'}
             </button>
           </div>
         `;
@@ -1080,7 +1080,7 @@
       .then(data => {
         showLoading(false);
         if (data.success) {
-          showMessage('✅ ' + data.message, 'success');
+          showMessage(data.message, 'success');
           setTimeout(() => {
             {% if navigation.has_next %}
             window.location.href = '{% url "geolocation:validation_map" %}?location_id={{ navigation.next_location_id }}';
@@ -1089,12 +1089,12 @@
             {% endif %}
           }, 2000);
         } else {
-          showMessage('❌ ' + (data.error || 'Failed to save selection'), 'error');
+          showMessage('Error: ' + (data.error || 'Failed to save selection'), 'error');
         }
       })
       .catch(error => {
         showLoading(false);
-        showMessage('❌ An error occurred while saving', 'error');
+        showMessage('Error: An error occurred while saving', 'error');
       });
     }
 
@@ -1114,7 +1114,7 @@
       .then(data => {
         showLoading(false);
         if (data.success) {
-          showMessage('🎉 ' + data.message, 'success');
+          showMessage(data.message, 'success');
           setTimeout(() => {
             {% if navigation.has_next %}
             window.location.href = '{% url "geolocation:validation_map" %}?location_id={{ navigation.next_location_id }}';
@@ -1123,12 +1123,12 @@
             {% endif %}
           }, 2000);
         } else {
-          showMessage('❌ ' + (data.error || 'Failed to approve best source'), 'error');
+          showMessage('Error: ' + (data.error || 'Failed to approve best source'), 'error');
         }
       })
       .catch(error => {
         showLoading(false);
-        showMessage('❌ An error occurred during approval', 'error');
+        showMessage('Error: An error occurred during approval', 'error');
       });
     }
 
@@ -1145,7 +1145,7 @@
       const lng = parseFloat(document.getElementById('manualLng').value);
 
       if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-        showMessage('❌ Please enter valid coordinates (lat: -90 to 90, lng: -180 to 180)', 'error');
+        showMessage('Error: Please enter valid coordinates (lat: -90 to 90, lng: -180 to 180)', 'error');
         return;
       }
 
@@ -1165,7 +1165,7 @@
       .then(data => {
         showLoading(false);
         if (data.success) {
-          showMessage('✅ ' + data.message, 'success');
+          showMessage(data.message, 'success');
           setTimeout(() => {
             {% if navigation.has_next %}
             window.location.href = '{% url "geolocation:validation_map" %}?location_id={{ navigation.next_location_id }}';
@@ -1174,12 +1174,12 @@
             {% endif %}
           }, 2000);
         } else {
-          showMessage('❌ ' + (data.error || 'Failed to save coordinates'), 'error');
+          showMessage('Error: ' + (data.error || 'Failed to save coordinates'), 'error');
         }
       })
       .catch(error => {
         showLoading(false);
-        showMessage('❌ An error occurred while saving', 'error');
+        showMessage('Error: An error occurred while saving', 'error');
       });
     }
 
@@ -1194,7 +1194,7 @@
     function rejectLocation() {
       const notes = document.getElementById('rejectNotes').value;
       if (!notes.trim()) {
-        showMessage('❌ Please provide a reason for rejection', 'error');
+        showMessage('Error: Please provide a reason for rejection', 'error');
         return;
       }
 
@@ -1212,7 +1212,7 @@
       .then(data => {
         showLoading(false);
         if (data.success) {
-          showMessage('✅ ' + data.message, 'success');
+          showMessage(data.message, 'success');
           setTimeout(() => {
             {% if navigation.has_next %}
             window.location.href = '{% url "geolocation:validation_map" %}?location_id={{ navigation.next_location_id }}';
@@ -1221,12 +1221,12 @@
             {% endif %}
           }, 2000);
         } else {
-          showMessage('❌ ' + (data.error || 'Failed to reject location'), 'error');
+          showMessage('Error: ' + (data.error || 'Failed to reject location'), 'error');
         }
       })
       .catch(error => {
         showLoading(false);
-        showMessage('❌ An error occurred during rejection', 'error');
+        showMessage('Error: An error occurred during rejection', 'error');
       });
     }
 
@@ -1271,7 +1271,7 @@
     document.addEventListener('DOMContentLoaded', function() {
       if (currentLocationData && currentLocationData.coordinates.length > 0) {
         setTimeout(() => {
-          showMessage('💡 Click on map markers or source cards to explore. Use keyboard arrows to navigate.', 'info');
+          showMessage('Tip: Click on map markers or source cards to explore. Use keyboard arrows to navigate.', 'info');
         }, 1000);
       }
     });

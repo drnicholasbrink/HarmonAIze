@@ -22,4 +22,9 @@ urlpatterns = [
     path('api/statistics/', views.validation_statistics, name='validation_statistics'),
     path('api/location-status/', views.location_status_api, name='location_status_api'),
     path('api/validation-queue/', views.validation_queue_api, name='validation_queue_api'),
+    
+    # Modern Celery-based batch processing
+    path('batch/geocoding/start/', views.start_batch_geocoding, name='start_batch_geocoding'),
+    path('batch/validation/start/', views.start_batch_validation, name='start_batch_validation'),
+    path('batch-progress/<str:task_id>/', views.batch_progress, name='batch_progress'),
 ]

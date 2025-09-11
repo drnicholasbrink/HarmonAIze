@@ -16,7 +16,7 @@ class SmartGeocodingValidator:
     """Simplified two-component geocoding validation with reverse geocoding (70%) and distance proximity (30%)."""
     
     def __init__(self):
-        # Simplified confidence thresholds
+       
         self.confidence_thresholds = {
             'needs_review': 0.60,    # 60% threshold for review
             'manual_review': 0.40,   # 40% threshold for manual review
