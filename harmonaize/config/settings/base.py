@@ -289,7 +289,7 @@ CELERY_RESULT_EXTENDED = True
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#result-backend-always-retry
 # https://github.com/celery/celery/pull/6122
 CELERY_RESULT_BACKEND_ALWAYS_RETRY = True
-# https://docs.celeryq.dev/en/stable/userguide/configuration.html#result-backend-max-retries
+#https://docs.celeryq.dev/en/stable/userguide/configuration.html#result-backend-max-retries
 CELERY_RESULT_BACKEND_MAX_RETRIES = 10
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#std:setting-accept_content
 CELERY_ACCEPT_CONTENT = ["json"]
@@ -359,3 +359,12 @@ SPECTACULAR_SETTINGS = {
 }
 # Your stuff...
 # ------------------------------------------------------------------------------
+
+# Geocoding Service Configuration
+# ------------------------------------------------------------------------------
+LOCAL_NOMINATIM_URL = env.str('LOCAL_NOMINATIM_URL', default='http://nominatim:8080')
+GOOGLE_GEOCODING_API_KEY = env.str('GOOGLE_GEOCODING_API_KEY', default=None)
+
+# Geocoding timeouts
+GEOCODING_TIMEOUT_LOCAL = env.int('GEOCODING_TIMEOUT_LOCAL', default=5)
+GEOCODING_TIMEOUT_REMOTE = env.int('GEOCODING_TIMEOUT_REMOTE', default=15)

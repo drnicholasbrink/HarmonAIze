@@ -1,0 +1,1474 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ study.name }} - HarmonAIze{% endblock title %}
+
+{% block css %}
+  {{ block.super }}
+  <style>
+    :root {
+      --primary-color: #007AFF;
+      --secondary-color: #5AC8FA;
+      --accent-color: #34C759;
+      --background-color: #F2F2F7;
+      --card-background: #FFFFFF;
+      --text-primary: #1C1C1E;
+      --text-secondary: #8E8E93;
+      --border-color: #C6C6C8;
+      --shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+      --border-radius: 12px;
+    }
+
+    body {
+      background-color: var(--background-color);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--text-primary);
+      line-height: 1.5;
+    }
+
+    .header-section {
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      color: white;
+      padding: 2rem 0;
+      margin: -1rem -15px 0 -15px;
+    }
+
+    .study-header {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 1rem;
+    }
+
+    .study-title {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    .study-meta {
+      opacity: 0.9;
+      font-size: 1rem;
+    }
+
+    .content-wrapper {
+      max-width: 1200px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+
+    .info-card {
+      background: var(--card-background);
+      border-radius: var(--border-radius);
+      padding: 2rem;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border-color);
+      margin-bottom: 2rem;
+    }
+
+    .card-title {
+      font-size: 1.3rem;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+      color: var(--text-primary);
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid var(--primary-color);
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .info-item {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .info-label {
+      font-weight: 600;
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      margin-bottom: 0.25rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .info-value {
+      color: var(--text-primary);
+      font-size: 1rem;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .status-draft {
+      background-color: rgba(255, 193, 7, 0.2);
+      color: #856404;
+    }
+
+    .status-processing {
+      background-color: rgba(0, 122, 255, 0.2);
+      color: #0056b3;
+    }
+
+    .status-completed {
+      background-color: rgba(52, 199, 89, 0.2);
+      color: #155724;
+    }
+
+    .characteristics-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+
+    .characteristic-tag {
+      background-color: var(--background-color);
+      color: var(--text-primary);
+      padding: 0.25rem 0.75rem;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      border: 1px solid var(--border-color);
+    }
+
+    .file-link {
+      color: var(--primary-color);
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .file-link:hover {
+      text-decoration: underline;
+    }
+
+    .action-buttons {
+      display: flex;
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+
+    .btn {
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.3s ease;
+      border: none;
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+      color: white;
+      box-shadow: 0 4px 15px rgba(0, 122, 255, 0.3);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 122, 255, 0.4);
+      color: white;
+      text-decoration: none;
+    }
+
+    .btn-secondary {
+      background: var(--card-background);
+      color: var(--text-primary);
+      border: 1px solid var(--border-color);
+    }
+
+    .btn-secondary:hover {
+      background: var(--background-color);
+      text-decoration: none;
+      color: var(--text-primary);
+    }
+
+    .btn-danger {
+      background: linear-gradient(135deg, #dc3545, #c82333);
+      color: white;
+      box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
+    }
+
+    .btn-danger:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(220, 53, 69, 0.4);
+      color: white;
+      text-decoration: none;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-secondary);
+    }
+
+    .empty-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+
+    .empty-state h3 {
+      margin-bottom: 0.5rem;
+      color: var(--text-primary);
+    }
+
+    /* Enhanced Variables Section Styles */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .stat-item {
+      text-align: center;
+      padding: 1rem;
+      background: var(--background-color);
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+    }
+
+    .stat-number {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--primary-color);
+      margin-bottom: 0.25rem;
+    }
+
+    .stat-label {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .type-distribution {
+      margin: 2rem 0;
+    }
+
+    .type-distribution h4 {
+      margin-bottom: 1rem;
+      color: var(--text-primary);
+    }
+
+    .type-breakdown {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .type-item {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .type-badge {
+      padding: 0.25rem 0.75rem;
+      border-radius: 15px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      min-width: 80px;
+      text-align: center;
+    }
+
+    .type-float { background: #007AFF; color: white; }
+    .type-int { background: #5AC8FA; color: white; }
+    .type-string { background: #34C759; color: white; }
+    .type-categorical { background: #FF9500; color: white; }
+    .type-boolean { background: #FF6B6B; color: white; }
+    .type-datetime { background: #AF52DE; color: white; }
+
+    .type-count {
+      font-weight: 600;
+      min-width: 30px;
+    }
+
+    .type-bar {
+      flex: 1;
+      height: 8px;
+      background: var(--background-color);
+      border-radius: 4px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .type-fill {
+      height: 100%;
+      background: var(--primary-color);
+      border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+
+    .variable-controls {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      margin: 2rem 0;
+      flex-wrap: wrap;
+    }
+
+    .search-box {
+      flex: 1;
+      min-width: 250px;
+    }
+
+    .search-box input {
+      width: 100%;
+      padding: 0.75rem;
+      border: 2px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 1rem;
+    }
+
+    .search-box input:focus {
+      outline: none;
+      border-color: var(--primary-color);
+    }
+
+    .filter-buttons {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .filter-btn {
+      padding: 0.5rem 1rem;
+      border: 2px solid var(--border-color);
+      background: var(--card-background);
+      color: var(--text-primary);
+      border-radius: 20px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+
+    .filter-btn:hover,
+    .filter-btn.active {
+      background: var(--primary-color);
+      color: white;
+      border-color: var(--primary-color);
+    }
+
+    .variables-list {
+      display: grid;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+
+    .variable-card {
+      background: var(--card-background);
+      border: 2px solid var(--border-color);
+      border-radius: 8px;
+      padding: 1rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .variable-card:hover {
+      border-color: var(--primary-color);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow);
+    }
+
+    .variable-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 0.5rem;
+    }
+
+    .variable-name {
+      flex: 1;
+    }
+
+    .variable-name strong {
+      color: var(--text-primary);
+      font-size: 1.1rem;
+    }
+
+    .variable-name small {
+      display: block;
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      margin-top: 0.25rem;
+    }
+
+    .variable-badges {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .unit-badge {
+      background: var(--background-color);
+      color: var(--text-primary);
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      border: 1px solid var(--border-color);
+    }
+
+    .variable-description {
+      color: var(--text-secondary);
+      margin: 0.5rem 0;
+      font-size: 0.95rem;
+    }
+
+    .variable-meta {
+      display: flex;
+      gap: 1rem;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      margin-top: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .meta-item {
+      padding: 0.25rem 0.5rem;
+      background: var(--background-color);
+      border-radius: 4px;
+    }
+
+    .codebook-management {
+      margin-top: 2rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .codebook-management h4 {
+      margin-bottom: 1rem;
+      color: var(--text-primary);
+    }
+
+    .codebook-actions {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .btn-outline {
+      background: transparent;
+      border: 2px solid var(--primary-color);
+      color: var(--primary-color);
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 500;
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+
+    .btn-outline:hover {
+      background: var(--primary-color);
+      color: white;
+      text-decoration: none;
+    }
+
+    /* Modal Styles */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(5px);
+    }
+
+    .modal-content {
+      background-color: var(--card-background);
+      margin: 5% auto;
+      padding: 0;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 600px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+      animation: modalSlideIn 0.3s ease;
+    }
+
+    @keyframes modalSlideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-50px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1.5rem;
+      border-bottom: 1px solid var(--border-color);
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      color: white;
+      border-radius: 12px 12px 0 0;
+    }
+
+    .modal-header h3 {
+      margin: 0;
+      font-size: 1.3rem;
+    }
+
+    .close {
+      font-size: 1.5rem;
+      font-weight: bold;
+      cursor: pointer;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      transition: background-color 0.3s;
+    }
+
+    .close:hover {
+      background-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .modal-body {
+      padding: 1.5rem;
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 1rem;
+      padding: 1rem 1.5rem;
+      border-top: 1px solid var(--border-color);
+      background: var(--background-color);
+      border-radius: 0 0 12px 12px;
+    }
+
+    .form-group {
+      margin-bottom: 1rem;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .form-control {
+      width: 100%;
+      padding: 0.75rem;
+      border: 2px solid var(--border-color);
+      border-radius: 6px;
+      font-size: 1rem;
+      transition: border-color 0.3s;
+    }
+
+    .form-control:focus {
+      outline: none;
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+    }
+
+    /* Variable Detail Modal Content */
+    .variable-detail-content {
+      line-height: 1.6;
+    }
+
+    .detail-row {
+      margin-bottom: 1rem;
+      padding: 0.75rem;
+      background: var(--background-color);
+      border-radius: 6px;
+      border-left: 3px solid var(--primary-color);
+    }
+
+    .detail-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .detail-row strong {
+      color: var(--text-primary);
+      display: inline-block;
+      min-width: 120px;
+    }
+
+    /* Alert Styles */
+    .alert {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 1rem;
+      border-radius: 8px;
+      font-weight: 500;
+      border-left: 4px solid;
+    }
+
+    @media (max-width: 768px) {
+      .action-buttons {
+        flex-direction: column;
+      }
+      
+      .info-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      
+      .variable-controls {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      
+      .search-box {
+        min-width: auto;
+      }
+      
+      .filter-buttons {
+        justify-content: center;
+      }
+      
+      .variable-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+      }
+      
+      .variable-badges {
+        align-self: flex-start;
+      }
+      
+      .codebook-actions {
+        flex-direction: column;
+      }
+      
+      .modal-content {
+        width: 95%;
+        margin: 2% auto;
+      }
+    }
+  </style>
+{% endblock css %}
+
+{% block content %}
+  <!-- Header Section -->
+  <div class="header-section">
+    <div class="study-header">
+      <h1 class="study-title">{{ study.name }}</h1>
+      <div class="study-meta">
+        Created by {{ study.created_by.name|default:study.created_by.email }} on {{ study.created_at|date:"F j, Y" }}
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="content-wrapper">
+    
+    <!-- Study Overview -->
+    <div class="info-card">
+      <h2 class="card-title">
+        {% if study.study_purpose == 'target' %}
+          Target Study Overview
+        {% else %}
+          Source Study Overview
+        {% endif %}
+      </h2>
+      <div class="info-grid">
+        <div class="info-item">
+          <div class="info-label">Study Purpose</div>
+          <div class="info-value">
+            {% if study.study_purpose == 'target' %}
+              Target (Harmonisation Standard)
+            {% else %}
+              Source (Data to Harmonise)
+            {% endif %}
+          </div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Study Type</div>
+          <div class="info-value">{{ study.get_study_type_display }}</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Status</div>
+          <div class="info-value">
+            <span class="status-badge status-{{ study.status }}">{{ study.get_status_display }}</span>
+          </div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Principal Investigator</div>
+          <div class="info-value">{{ study.principal_investigator|default:"Not specified" }}</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Sample Size</div>
+          <div class="info-value">{{ study.sample_size|default:"Not specified" }}</div>
+        </div>
+      </div>
+      
+      {% if study.description %}
+        <div style="margin-top: 1.5rem;">
+          <div class="info-label">Description</div>
+          <div class="info-value">{{ study.description }}</div>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Study Characteristics -->
+    <div class="info-card">
+      <h2 class="card-title">Study Characteristics</h2>
+      <div class="characteristics-list">
+        {% if study.has_dates %}
+          <span class="characteristic-tag">Date/Time Variables</span>
+        {% endif %}
+        {% if study.has_locations %}
+          <span class="characteristic-tag">Location Data</span>
+        {% endif %}
+        {% if study.needs_geolocation %}
+          <span class="characteristic-tag">Geolocation Required</span>
+        {% endif %}
+        {% if study.needs_climate_linkage %}
+          <span class="characteristic-tag">Climate Linkage</span>
+        {% endif %}
+        {% if not study.has_dates and not study.has_locations and not study.needs_geolocation and not study.needs_climate_linkage %}
+          <div class="empty-state">No specific characteristics selected</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Legal & Ethical Information -->
+    <div class="info-card">
+      <h2 class="card-title">Legal & Ethical Approval</h2>
+      <div class="info-grid">
+        <div class="info-item">
+          <div class="info-label">Ethical Approval</div>
+          <div class="info-value">
+            {% if study.has_ethical_approval %}
+              Approved
+            {% else %}
+              Not approved
+            {% endif %}
+          </div>
+        </div>
+        {% if study.ethics_approval_number %}
+          <div class="info-item">
+            <div class="info-label">Approval Number</div>
+            <div class="info-value">{{ study.ethics_approval_number }}</div>
+          </div>
+        {% endif %}
+        {% if study.geographic_scope %}
+          <div class="info-item">
+            <div class="info-label">Geographic Scope</div>
+            <div class="info-value">{{ study.geographic_scope }}</div>
+          </div>
+        {% endif %}
+      </div>
+      
+      {% if study.data_use_permissions.count > 0 %}
+        <div style="margin-top: 1.5rem;">
+          <div class="info-label">Data Use Permissions</div>
+          <div class="characteristics-list">
+            {% for permission in study.data_use_permissions.all %}
+              <span class="characteristic-tag">{{ permission }}</span>
+            {% endfor %}
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Files -->
+    <div class="info-card">
+      <h2 class="card-title">
+        {% if study.study_purpose == 'target' %}
+          Target Study Materials
+        {% else %}
+          Source Study Materials
+        {% endif %}
+      </h2>
+      <div class="info-grid">
+        {% if study.codebook %}
+          <div class="info-item">
+            <div class="info-label">
+              {% if study.study_purpose == 'target' %}
+                Target Codebook
+              {% else %}
+                Source Codebook
+              {% endif %}
+            </div>
+            <div class="info-value">
+              <a href="{{ study.codebook.url }}" class="file-link" target="_blank">
+                {{ study.codebook.name }} 
+                {% if study.codebook_format %}({{ study.codebook_format|upper }}){% endif %}
+              </a>
+            </div>
+          </div>
+        {% endif %}
+        
+        {% if study.protocol_file %}
+          <div class="info-item">
+            <div class="info-label">Protocol File</div>
+            <div class="info-value">
+              <a href="{{ study.protocol_file.url }}" class="file-link" target="_blank">
+                {{ study.protocol_file.name }}
+              </a>
+            </div>
+          </div>
+        {% endif %}
+        
+        {% if study.additional_files %}
+          <div class="info-item">
+            <div class="info-label">Additional Files</div>
+            <div class="info-value">
+              <a href="{{ study.additional_files.url }}" class="file-link" target="_blank">
+                {{ study.additional_files.name }}
+              </a>
+            </div>
+          </div>
+        {% endif %}
+        
+        {% if not study.codebook and not study.protocol_file and not study.additional_files %}
+          <div class="empty-state">No files uploaded</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Variables Summary & Statistics -->
+    <div class="info-card">
+      <h2 class="card-title">
+        {% if study.study_purpose == 'target' %}
+          Target Variables Summary & Statistics
+        {% else %}
+          Source Variables Summary & Statistics
+        {% endif %}
+      </h2>
+      {% if study.variables.count > 0 %}
+        <!-- Statistics Overview -->
+        <div class="stats-grid">
+          <div class="stat-item">
+            <div class="stat-number">{{ study.variables.count }}</div>
+            <div class="stat-label">Total Variables</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-number">{{ variable_types|length }}</div>
+            <div class="stat-label">Data Types</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-number">{{ variables_with_units }}</div>
+            <div class="stat-label">With Units</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-number">{{ variables_with_codes }}</div>
+            <div class="stat-label">With Ontology Codes</div>
+          </div>
+        </div>
+
+        <!-- Variable Type Distribution -->
+        <div class="type-distribution">
+          <h4>Variable Type Distribution</h4>
+          <div class="type-breakdown">
+            {% for type_name, type_data in variable_types.items %}
+              <div class="type-item">
+                <span class="type-badge type-{{ type_name }}">{{ type_name|title }}</span>
+                <span class="type-count">{{ type_data.count }}</span>
+                <div class="type-bar">
+                  <div class="type-fill" style="width: {{ type_data.percentage|floatformat:1 }}%"></div>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Filter & Search -->
+        <div class="variable-controls">
+          <div class="search-box">
+            <input type="text" id="variableSearch" placeholder="Search variables..." class="form-control">
+          </div>
+          <div class="filter-buttons">
+            <button class="filter-btn active" onclick="filterVariables('all')">All</button>
+            {% for type_name, type_data in variable_types.items %}
+              <button class="filter-btn" onclick="filterVariables('{{ type_name }}')">{{ type_name|title }}</button>
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Variables List -->
+        <div class="variables-list" id="variablesList">
+          {% for variable in study.variables.all %}
+            <div class="variable-card" 
+                 data-type="{{ variable.variable_type }}" 
+                 data-search="{{ variable.variable_name|lower }} {{ variable.display_name|lower }} {{ variable.description|lower }}"
+                 onclick="showVariableDetail({{ variable.id }})">
+              <div class="variable-header">
+                <div class="variable-name">
+                  <strong>{{ variable.display_name|default:variable.variable_name }}</strong>
+                  {% if variable.display_name and variable.variable_name != variable.display_name %}
+                    <small class="text-muted">{{ variable.variable_name }}</small>
+                  {% endif %}
+                </div>
+                <div class="variable-badges">
+                  <span class="type-badge type-{{ variable.variable_type }}">{{ variable.variable_type|title }}</span>
+                  {% if variable.unit %}
+                    <span class="unit-badge">{{ variable.unit }}</span>
+                  {% endif %}
+                </div>
+              </div>
+              
+              {% if variable.description %}
+                <div class="variable-description">{{ variable.description|truncatewords:20 }}</div>
+              {% endif %}
+              
+              <div class="variable-meta">
+                {% if variable.ontology_code %}
+                  <span class="meta-item">
+                    <strong>Code:</strong> {{ variable.ontology_code }}
+                  </span>
+                {% endif %}
+                <span class="meta-item">
+                  <strong>Created:</strong> {{ variable.created_at|date:"M j, Y" }}
+                </span>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+
+      {% else %}
+        <div class="empty-state">
+          <div class="empty-icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14,2 14,8 20,8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+              <polyline points="10,9 9,9 8,9"></polyline>
+            </svg>
+          </div>
+          <h3>No Variables Yet</h3>
+          <p>
+            {% if study.codebook %}
+              {% if study.study_purpose == 'target' %}
+                Start the target variable definition workflow to extract variables from your codebook.
+              {% else %}
+                Start the health data harmonisation workflow to extract variables from your codebook.
+              {% endif %}
+            {% else %}
+              Upload a codebook to begin extracting and managing variables for your study.
+            {% endif %}
+          </p>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="action-buttons">
+      <a href="{% url 'core:study_list' %}" class="btn btn-secondary">
+        ← Back to Studies
+      </a>
+      
+      {% if study.study_purpose == 'target' %}
+        <!-- Target Study Actions -->
+        {% if study.codebook %}
+          {% if study.variables.count > 0 %}
+            <!-- Target study with variables defined -->
+            <a href="{% url 'core:target_map_codebook' study.id %}" class="btn btn-primary">
+              View Target Variables →
+            </a>
+            <button class="btn btn-outline-secondary" onclick="showReuploadModal()">
+              {% include 'components/svg_icon.html' with icon='upload' size='16' class='inline-icon' %} Re-upload Target Codebook
+            </button>
+            <button class="btn btn-outline-warning" onclick="showResetModal()">
+              {% include 'components/svg_icon.html' with icon='refresh' size='16' class='inline-icon' %} Reset Target Variables
+            </button>
+          {% else %}
+            <!-- Target study with codebook but no variables selected -->
+            <a href="{% url 'core:target_map_codebook' study.id %}" class="btn btn-primary">
+              Define Target Variables →
+            </a>
+            <button class="btn btn-outline-secondary" onclick="showReuploadModal()">
+              {% include 'components/svg_icon.html' with icon='upload' size='16' class='inline-icon' %} Re-upload Target Codebook
+            </button>
+          {% endif %}
+        {% else %}
+          <!-- Target study with no codebook -->
+          <button class="btn btn-primary" onclick="showReuploadModal()">
+            {% include 'components/svg_icon.html' with icon='upload' size='16' class='inline-icon' %} Upload Target Codebook →
+          </button>
+        {% endif %}
+      {% else %}
+        <!-- Source Study Actions -->
+        {% if study.codebook %}
+          {% if study.variables.count > 0 %}
+            <!-- Source study with variables defined -->
+            <a href="#" class="btn btn-primary" onclick="showUpcomingFeature('Harmonisation Results'); return false;">
+              {% include 'components/svg_icon.html' with icon='refresh' size='16' class='inline-icon' %} View Harmonisation Results →
+            </a>
+            <button class="btn btn-outline-secondary" onclick="showReuploadModal()">
+              {% include 'components/svg_icon.html' with icon='upload' size='16' class='inline-icon' %} Re-upload Source Codebook
+            </button>
+            <a href="{% url 'health:reset_variables' study.id %}" class="btn btn-outline-warning" 
+               onclick="return confirm('Are you sure you want to reset all variables? This action cannot be undone.')">
+              {% include 'components/svg_icon.html' with icon='refresh' size='16' class='inline-icon' %} Reset Variables
+            </a>
+          {% else %}
+            <!-- Source study with codebook but no variables selected -->
+            <a href="{% url 'health:map_codebook' study.id %}" class="btn btn-primary">
+              {% include 'components/svg_icon.html' with icon='microscope' size='16' class='inline-icon' %} Start Health Data Harmonisation →
+            </a>
+            <button class="btn btn-outline-secondary" onclick="showReuploadModal()">
+              {% include 'components/svg_icon.html' with icon='upload' size='16' class='inline-icon' %} Re-upload Source Codebook
+            </button>
+          {% endif %}
+        {% else %}
+          <!-- Source study with no codebook -->
+          <button class="btn btn-primary" onclick="showReuploadModal()">
+            {% include 'components/svg_icon.html' with icon='upload' size='16' class='inline-icon' %} Upload Source Codebook →
+          </button>
+        {% endif %}
+      {% endif %}
+      
+      <!-- Delete Study Button -->
+      <button class="btn btn-danger" onclick="showDeleteModal()" style="margin-left: auto;">
+        {% include 'components/svg_icon.html' with icon='trash' size='16' class='inline-icon' %} Delete Study
+      </button>
+    </div>
+  </div>
+
+  <!-- Variable Detail Modal -->
+  <div id="variableDetailModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Variable Details</h3>
+        <span class="close" onclick="closeVariableModal()">&times;</span>
+      </div>
+      <div class="modal-body" id="variableDetailContent">
+        <!-- Content loaded dynamically -->
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeVariableModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reupload Codebook Modal -->
+  <div id="reuploadModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>
+          {% if study.study_purpose == 'target' %}
+            Upload New Target Codebook
+          {% else %}
+            Upload New Source Codebook
+          {% endif %}
+        </h3>
+        <span class="close" onclick="closeReuploadModal()">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div class="alert" style="background: #fff3cd; border-left-color: #ffc107; color: #856404; margin-bottom: 1rem;">
+          <strong>Warning:</strong> Uploading a new codebook will reset all current variables and mappings. This action cannot be undone.
+        </div>
+        <form id="reuploadForm" method="post" enctype="multipart/form-data" action="{% url 'core:upload' %}">
+          {% csrf_token %}
+          <input type="hidden" name="study_id" value="{{ study.id }}">
+          <input type="hidden" name="name" value="{{ study.name }}">
+          <input type="hidden" name="study_type" value="{{ study.study_type }}">
+          <input type="hidden" name="study_purpose" value="{{ study.study_purpose }}">
+          <input type="hidden" name="principal_investigator" value="{{ study.principal_investigator|default:'' }}">
+          <input type="hidden" name="sample_size" value="{{ study.sample_size|default:'' }}">
+          <input type="hidden" name="description" value="{{ study.description|default:'' }}">
+          {% if study.has_dates %}<input type="hidden" name="has_dates" value="on">{% endif %}
+          {% if study.has_locations %}<input type="hidden" name="has_locations" value="on">{% endif %}
+          {% if study.needs_geolocation %}<input type="hidden" name="needs_geolocation" value="on">{% endif %}
+          {% if study.needs_climate_linkage %}<input type="hidden" name="needs_climate_linkage" value="on">{% endif %}
+          {% if study.has_ethical_approval %}<input type="hidden" name="has_ethical_approval" value="on">{% endif %}
+          <input type="hidden" name="ethics_approval_number" value="{{ study.ethics_approval_number|default:'' }}">
+          <input type="hidden" name="geographic_scope" value="{{ study.geographic_scope|default:'' }}">
+          
+          <div class="form-group">
+            <label for="newCodebook">
+              {% if study.study_purpose == 'target' %}
+                Select New Target Codebook File:
+              {% else %}
+                Select New Source Codebook File:
+              {% endif %}
+            </label>
+            <input type="file" id="newCodebook" name="codebook" class="form-control" accept=".csv,.xlsx,.xls" required>
+            <small class="form-text text-muted">Supported formats: CSV, Excel (.xlsx, .xls)</small>
+          </div>
+          
+          <div class="form-group">
+            <label for="codebook_format">Codebook Format:</label>
+            <select id="codebook_format" name="codebook_format" class="form-control" required>
+              <option value="">Select format...</option>
+              <option value="csv" {% if study.codebook_format == 'csv' %}selected{% endif %}>CSV</option>
+              <option value="excel" {% if study.codebook_format == 'excel' %}selected{% endif %}>Excel</option>
+            </select>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeReuploadModal()">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="submitReupload()">
+          {% if study.study_purpose == 'target' %}
+            Upload & Reset Target
+          {% else %}
+            Upload & Reset Source
+          {% endif %}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reset Variables Modal (for target studies) -->
+  {% if study.study_purpose == 'target' %}
+  <div id="resetModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Reset Target Variables</h3>
+        <span class="close" onclick="closeResetModal()">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div class="alert" style="background: #f8d7da; border-left-color: #dc3545; color: #721c24; margin-bottom: 1rem;">
+          <strong>Warning:</strong> This will permanently delete all {{ study.variables.count }} target variables and reset your target study. This action cannot be undone.
+        </div>
+        <p>Are you sure you want to reset all target variables? You will need to re-define your harmonisation targets from the beginning.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeResetModal()">Cancel</button>
+        <button type="button" class="btn btn-danger" onclick="submitReset()">Reset Target Variables</button>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Delete Study Modal -->
+  <div id="deleteModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Delete Study</h3>
+        <span class="close" onclick="closeDeleteModal()">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div class="alert" style="background: #f8d7da; border-left-color: #dc3545; color: #721c24; margin-bottom: 1rem;">
+          <strong>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline; margin-right: 4px; color: #FF3B30;">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="15" y1="9" x2="9" y2="15"></line>
+                  <line x1="9" y1="9" x2="15" y2="15"></line>
+              </svg>
+              Danger Zone:
+          </strong> This action cannot be undone!
+        </div>
+        <p><strong>You are about to permanently delete:</strong></p>
+        <ul style="margin: 1rem 0; padding-left: 2rem;">
+          <li><strong>Study:</strong> "{{ study.name }}"</li>
+          <li><strong>Type:</strong> {{ study.get_study_purpose_display }}</li>
+          {% if study.variables.count > 0 %}
+            <li><strong>Variables:</strong> {{ study.variables.count }} variables will be deleted</li>
+          {% endif %}
+          {% if study.codebook %}
+            <li><strong>Codebook:</strong> Uploaded codebook file will be permanently removed</li>
+          {% endif %}
+          {% if study.protocol_file %}
+            <li><strong>Protocol:</strong> Protocol file will be permanently removed</li>
+          {% endif %}
+          {% if study.additional_files %}
+            <li><strong>Additional Files:</strong> Additional files will be permanently removed</li>
+          {% endif %}
+        </ul>
+        <p><strong>Are you absolutely sure?</strong> Type the study name "<strong>{{ study.name }}</strong>" to confirm deletion:</p>
+        <input type="text" id="deleteConfirmation" class="form-control" placeholder="Type study name here..." style="margin-top: 1rem;">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeDeleteModal()">Cancel</button>
+        <button type="button" class="btn btn-danger" id="confirmDeleteBtn" onclick="submitDelete()" disabled>
+          {% include 'components/svg_icon.html' with icon='trash' size='16' class='inline-icon' %} Delete Study Permanently
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Django Data for JavaScript -->
+  <script type="application/json" id="django-data">
+    {
+      "study": {
+        "id": {{ study.id }},
+        "name": "{{ study.name|escapejs }}",
+        "purpose": "{{ study.study_purpose }}",
+        "variableCount": {{ study.variables.count }}
+      },
+      "urls": {
+        "deleteStudy": "{% url 'core:delete_study' study.id %}",
+        "resetVariables": "{% url 'health:reset_variables' study.id %}"
+        {% if study.study_purpose == 'target' %}
+        ,"targetResetVariables": "{% url 'core:target_reset_variables' study.id %}"
+        {% endif %}
+      },
+      "isTargetStudy": {% if study.study_purpose == 'target' %}true{% else %}false{% endif %}
+    }
+  </script>
+
+  <script>
+    // Get Django data from JSON script
+    const djangoData = JSON.parse(document.getElementById('django-data').textContent);
+    const studyData = djangoData.study;
+    const urls = djangoData.urls;
+    const isTargetStudy = djangoData.isTargetStudy;
+
+    // Variable filtering and search functionality
+    function filterVariables(type) {
+      // Update active filter button
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      event.target.classList.add('active');
+      
+      // Filter variables
+      const variables = document.querySelectorAll('.variable-card');
+      const searchTerm = document.getElementById('variableSearch').value.toLowerCase();
+      
+      variables.forEach(variable => {
+        const variableType = variable.dataset.type;
+        const searchText = variable.dataset.search;
+        
+        const typeMatch = type === 'all' || variableType === type;
+        const searchMatch = !searchTerm || searchText.includes(searchTerm);
+        
+        if (typeMatch && searchMatch) {
+          variable.style.display = 'block';
+        } else {
+          variable.style.display = 'none';
+        }
+      });
+    }
+
+    // Search functionality
+    document.addEventListener('DOMContentLoaded', function() {
+      const searchInput = document.getElementById('variableSearch');
+      if (searchInput) {
+        searchInput.addEventListener('input', function() {
+          const searchTerm = this.value.toLowerCase();
+          const activeFilter = document.querySelector('.filter-btn.active').textContent.toLowerCase();
+          const variables = document.querySelectorAll('.variable-card');
+          
+          variables.forEach(variable => {
+            const variableType = variable.dataset.type;
+            const searchText = variable.dataset.search;
+            
+            const typeMatch = activeFilter === 'all' || variableType === activeFilter;
+            const searchMatch = !searchTerm || searchText.includes(searchTerm);
+            
+            if (typeMatch && searchMatch) {
+              variable.style.display = 'block';
+            } else {
+              variable.style.display = 'none';
+            }
+          });
+        });
+      }
+    });
+
+    // Variable detail modal functionality
+    function showVariableDetail(variableId) {
+      const modal = document.getElementById('variableDetailModal');
+      const content = document.getElementById('variableDetailContent');
+      
+      // Find the variable data from the DOM
+      const variableCard = document.querySelector(`[onclick="showVariableDetail(${variableId})"]`);
+      if (!variableCard) return;
+      
+      const variableName = variableCard.querySelector('.variable-name strong').textContent;
+      const variableType = variableCard.dataset.type;
+      const description = variableCard.querySelector('.variable-description')?.textContent || 'No description available';
+      
+      // Extract additional metadata
+      const metaItems = variableCard.querySelectorAll('.meta-item');
+      let ontologyCode = '';
+      let createdDate = '';
+      
+      metaItems.forEach(item => {
+        const text = item.textContent;
+        if (text.includes('Code:')) {
+          ontologyCode = text.replace('Code:', '').trim();
+        } else if (text.includes('Created:')) {
+          createdDate = text.replace('Created:', '').trim();
+        }
+      });
+      
+      const unit = variableCard.querySelector('.unit-badge')?.textContent || '';
+      
+      content.innerHTML = `
+        <div class="variable-detail-content">
+          <div class="detail-row">
+            <strong>Variable Name:</strong> ${variableName}
+          </div>
+          <div class="detail-row">
+            <strong>Type:</strong> <span class="type-badge type-${variableType}">${variableType.charAt(0).toUpperCase() + variableType.slice(1)}</span>
+          </div>
+          ${unit ? `<div class="detail-row"><strong>Unit:</strong> ${unit}</div>` : ''}
+          ${description !== 'No description available' ? `<div class="detail-row"><strong>Description:</strong> ${description}</div>` : ''}
+          ${ontologyCode ? `<div class="detail-row"><strong>Ontology Code:</strong> ${ontologyCode}</div>` : ''}
+          ${createdDate ? `<div class="detail-row"><strong>Created:</strong> ${createdDate}</div>` : ''}
+        </div>
+      `;
+      
+      modal.style.display = 'block';
+    }
+
+    function closeVariableModal() {
+      document.getElementById('variableDetailModal').style.display = 'none';
+    }
+
+    // Reupload modal functionality
+    function showReuploadModal() {
+      document.getElementById('reuploadModal').style.display = 'block';
+    }
+
+    function closeReuploadModal() {
+      document.getElementById('reuploadModal').style.display = 'none';
+    }
+
+    function submitReupload() {
+      const form = document.getElementById('reuploadForm');
+      const fileInput = document.getElementById('newCodebook');
+      const formatSelect = document.getElementById('codebook_format');
+      
+      if (!fileInput.files.length) {
+        alert('Please select a codebook file first.');
+        return;
+      }
+      
+      if (!formatSelect.value) {
+        alert('Please select the codebook format.');
+        return;
+      }
+      
+      const confirmMessage = isTargetStudy 
+        ? 'Are you sure you want to upload a new target codebook? This will reset all current target variables and cannot be undone.'
+        : 'Are you sure you want to upload a new source codebook? This will reset all current variables and cannot be undone.';
+      
+      if (confirm(confirmMessage)) {
+        form.submit();
+      }
+    }
+
+    // Reset variables modal functionality (target studies)
+    function showResetModal() {
+      if (isTargetStudy) {
+        document.getElementById('resetModal').style.display = 'block';
+      }
+    }
+
+    function closeResetModal() {
+      if (isTargetStudy) {
+        document.getElementById('resetModal').style.display = 'none';
+      }
+    }
+
+    function submitReset() {
+      // Create a form to submit the reset request
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = urls.targetResetVariables;
+      
+      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+      const csrfInput = document.createElement('input');
+      csrfInput.type = 'hidden';
+      csrfInput.name = 'csrfmiddlewaretoken';
+      csrfInput.value = csrfToken;
+      form.appendChild(csrfInput);
+      
+      document.body.appendChild(form);
+      form.submit();
+    }
+
+    // Delete study modal functionality
+    function showDeleteModal() {
+      document.getElementById('deleteModal').style.display = 'block';
+      // Reset the confirmation input
+      document.getElementById('deleteConfirmation').value = '';
+      document.getElementById('confirmDeleteBtn').disabled = true;
+    }
+
+    function closeDeleteModal() {
+      document.getElementById('deleteModal').style.display = 'none';
+    }
+
+    function submitDelete() {
+      // Create a form to submit the delete request
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = urls.deleteStudy;
+      
+      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+      const csrfInput = document.createElement('input');
+      csrfInput.type = 'hidden';
+      csrfInput.name = 'csrfmiddlewaretoken';
+      csrfInput.value = csrfToken;
+      form.appendChild(csrfInput);
+      
+      document.body.appendChild(form);
+      form.submit();
+    }
+
+    // Add event listener for delete confirmation input
+    document.addEventListener('DOMContentLoaded', function() {
+      const deleteInput = document.getElementById('deleteConfirmation');
+      const confirmBtn = document.getElementById('confirmDeleteBtn');
+      const studyName = studyData.name;
+      
+      if (deleteInput && confirmBtn) {
+        deleteInput.addEventListener('input', function() {
+          if (this.value === studyName) {
+            confirmBtn.disabled = false;
+          } else {
+            confirmBtn.disabled = true;
+          }
+        });
+      }
+    });
+
+    // Reset variables functionality
+    function resetVariables() {
+      if (confirm('Are you sure you want to reset all variables? This action cannot be undone.')) {
+        // Create a form to submit the reset request
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = urls.resetVariables;
+        
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = 'csrfmiddlewaretoken';
+        csrfInput.value = csrfToken;
+        form.appendChild(csrfInput);
+        
+        document.body.appendChild(form);
+        form.submit();
+      }
+    }
+
+    // Close modals when clicking outside
+    window.onclick = function(event) {
+      const variableModal = document.getElementById('variableDetailModal');
+      const reuploadModal = document.getElementById('reuploadModal');
+      const deleteModal = document.getElementById('deleteModal');
+      const resetModal = isTargetStudy ? document.getElementById('resetModal') : null;
+      
+      if (event.target === variableModal) {
+        closeVariableModal();
+      } else if (event.target === reuploadModal) {
+        closeReuploadModal();
+      } else if (event.target === deleteModal) {
+        closeDeleteModal();
+      } else if (resetModal && event.target === resetModal) {
+        closeResetModal();
+      }
+    }
+  </script>
+{% endblock content %}

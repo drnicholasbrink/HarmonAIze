@@ -1,0 +1,379 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Map Target Codebook - HarmonAIze{% endblock title %}
+
+{% block css %}
+  {{ block.super }}
+  <style>
+    :root {
+      --primary-color: #28a745;
+      --secondary-color: #20c997;
+      --background-color: #f8f9fa;
+      --card-background: #ffffff;
+      --text-primary: #212529;
+      --text-secondary: #6c757d;
+      --border-color: #dee2e6;
+      --success-color: #28a745;
+      --warning-color: #ffc107;
+      --shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    }
+
+    .hero-section {
+      background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+      color: white;
+      padding: 3rem 0;
+      margin-bottom: 2rem;
+    }
+
+    .content-card {
+      background: var(--card-background);
+      border-radius: 12px;
+      padding: 2rem;
+      box-shadow: var(--shadow);
+      margin-bottom: 2rem;
+    }
+
+    .section-title {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 1rem;
+      border-bottom: 2px solid var(--primary-color);
+      padding-bottom: 0.5rem;
+    }
+
+    .info-alert {
+      background: rgba(40, 167, 69, 0.1);
+      border: 1px solid rgba(40, 167, 69, 0.2);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+      color: var(--primary-color);
+    }
+
+    .sample-table {
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 2rem;
+    }
+
+    .sample-table th {
+      background: var(--primary-color);
+      color: white;
+      padding: 0.75rem;
+      font-weight: 600;
+    }
+
+    .sample-table td {
+      padding: 0.75rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .mapping-form {
+      background: #f8f9fa;
+      border-radius: 8px;
+      padding: 1.5rem;
+      border: 1px solid var(--border-color);
+    }
+
+    .mapping-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 1rem;
+      gap: 1rem;
+    }
+
+    .mapping-label {
+      min-width: 180px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .required-field {
+      color: var(--primary-color);
+    }
+
+    .form-select {
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 0.5rem;
+      font-size: 0.95rem;
+    }
+
+    .btn-primary {
+      background: var(--primary-color);
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    }
+
+    .btn-primary:hover {
+      background: #1e7e34;
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: var(--text-secondary);
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 600;
+      color: white;
+      text-decoration: none;
+    }
+
+    .btn-secondary:hover {
+      background: #545b62;
+      color: white;
+    }
+
+    @media (max-width: 768px) {
+      .mapping-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      
+      .mapping-label {
+        min-width: auto;
+        margin-bottom: 0.5rem;
+      }
+    }
+  </style>
+{% endblock css %}
+
+{% block content %}
+  <!-- Hero Section -->
+  <div class="hero-section">
+    <div class="container">
+      <div class="row">
+        <div class="col-lg-8 mx-auto text-center">
+          <h1 class="display-5 fw-bold mb-3">Map Target Database Codebook</h1>
+          <p class="lead">
+            Help us understand your target database structure by mapping columns to our target variable schema.
+          </p>
+          <div class="mt-3">
+            <span class="badge bg-light text-dark fs-6">
+              📁 {{ detected_format|upper }} Format Detected
+            </span>
+            <span class="badge bg-light text-dark fs-6 ms-2">
+              Target Database: {{ study.name }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- Information Alert -->
+    <div class="info-alert">
+      <h5><i class="fas fa-info-circle me-2"></i>Target Database Codebook Mapping</h5>
+      <p class="mb-0">
+        We've detected your target database codebook structure. Please map the columns to our target variable schema. 
+        This will help us extract and standardise your harmonisation targets correctly.
+      </p>
+    </div>
+
+    <!-- Sample Data Preview -->
+    <div class="content-card">
+      <h2 class="section-title">Preview of Your Target Database Codebook</h2>
+      <p class="text-muted mb-3">
+        Here are the first few rows of your target database codebook file. Use this to understand your data structure.
+      </p>
+      
+      <div class="table-responsive">
+        <table class="table sample-table">
+          <thead>
+            <tr>
+              {% for column in columns %}
+                <th>{{ column }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in sample_data %}
+              <tr>
+                {% for column in columns %}
+                  <td>
+                    {% for key, value in row.items %}
+                      {% if key == column %}
+                        {{ value|default:"—" }}
+                      {% endif %}
+                    {% endfor %}
+                  </td>
+                {% endfor %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Column Mapping Form -->
+    <div class="content-card">
+      <h2 class="section-title">🔗 Map Target Database Codebook Columns</h2>
+      <p class="text-muted mb-4">
+        Map your target database codebook columns to our target variable schema. Required fields are marked with 
+        <span class="required-field">*</span>.
+      </p>
+
+      <form method="post" class="mapping-form">
+        {% csrf_token %}
+        
+        <div class="mapping-row">
+          <label class="mapping-label required-field">
+            Variable Name *
+          </label>
+          <select name="variable_name_column" class="form-select flex-fill" required>
+            <option value="">-- Select Column --</option>
+            {% for column in columns %}
+              <option value="{{ column }}">{{ column }}</option>
+            {% endfor %}
+          </select>
+          <small class="text-muted">The column containing target variable names/identifiers</small>
+        </div>
+
+        <div class="mapping-row">
+          <label class="mapping-label">
+            Display Name
+          </label>
+          <select name="display_name_column" class="form-select flex-fill">
+            <option value="">-- Select Column (Optional) --</option>
+            {% for column in columns %}
+              <option value="{{ column }}">{{ column }}</option>
+            {% endfor %}
+          </select>
+          <small class="text-muted">Human-readable names for target variables</small>
+        </div>
+
+        <div class="mapping-row">
+          <label class="mapping-label">
+            Description
+          </label>
+          <select name="description_column" class="form-select flex-fill">
+            <option value="">-- Select Column (Optional) --</option>
+            {% for column in columns %}
+              <option value="{{ column }}">{{ column }}</option>
+            {% endfor %}
+          </select>
+          <small class="text-muted">Detailed descriptions of target variables</small>
+        </div>
+
+        <div class="mapping-row">
+          <label class="mapping-label">
+            Variable Type
+          </label>
+          <select name="variable_type_column" class="form-select flex-fill">
+            <option value="">-- Select Column (Optional) --</option>
+            {% for column in columns %}
+              <option value="{{ column }}">{{ column }}</option>
+            {% endfor %}
+          </select>
+          <small class="text-muted">Data types (float, int, string, categorical, etc.)</small>
+        </div>
+
+        <div class="mapping-row">
+          <label class="mapping-label">
+            Unit
+          </label>
+          <select name="unit_column" class="form-select flex-fill">
+            <option value="">-- Select Column (Optional) --</option>
+            {% for column in columns %}
+              <option value="{{ column }}">{{ column }}</option>
+            {% endfor %}
+          </select>
+          <small class="text-muted">Units of measurement (kg, cm, °C, etc.)</small>
+        </div>
+
+        <div class="d-flex gap-3 mt-4">
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-arrow-right me-2"></i>Continue to Target Variable Extraction
+          </button>
+          <a href="{% url 'core:study_detail' study.pk %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Back to Database
+          </a>
+        </div>
+      </form>
+    </div>
+
+    <!-- Help Section -->
+    <div class="content-card">
+      <h2 class="section-title">💡 Mapping Tips</h2>
+      <div class="row">
+        <div class="col-md-6">
+          <h5>Required Fields</h5>
+          <ul class="list-unstyled">
+            <li><i class="fas fa-check-circle text-success me-2"></i><strong>Variable Name:</strong> Must be mapped to proceed</li>
+          </ul>
+        </div>
+        <div class="col-md-6">
+          <h5>Optional Fields</h5>
+          <ul class="list-unstyled">
+            <li><i class="fas fa-info-circle text-info me-2"></i><strong>Display Name:</strong> Improves readability</li>
+            <li><i class="fas fa-info-circle text-info me-2"></i><strong>Description:</strong> Helps with understanding</li>
+            <li><i class="fas fa-info-circle text-info me-2"></i><strong>Variable Type:</strong> Ensures proper data handling</li>
+            <li><i class="fas fa-info-circle text-info me-2"></i><strong>Unit:</strong> Important for numeric variables</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock content %}
+
+{% block inline_javascript %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Auto-suggest column mappings based on common patterns
+    const columnMappings = {
+      'variable_name_column': ['variable', 'var_name', 'name', 'variable_name', 'varname', 'code'],
+      'display_name_column': ['display', 'label', 'display_name', 'title', 'description'],
+      'description_column': ['description', 'desc', 'definition', 'meaning', 'details'],
+      'variable_type_column': ['type', 'data_type', 'variable_type', 'datatype', 'format'],
+      'unit_column': ['unit', 'units', 'measurement', 'uom']
+    };
+
+    // Get available columns
+    const columns = [{% for column in columns %}'{{ column|lower }}'{% if not forloop.last %}, {% endif %}{% endfor %}];
+
+    // Auto-suggest mappings
+    Object.keys(columnMappings).forEach(function(selectName) {
+      const select = document.querySelector(`select[name="${selectName}"]`);
+      const patterns = columnMappings[selectName];
+      
+      for (let i = 0; i < columns.length; i++) {
+        const column = columns[i];
+        for (let j = 0; j < patterns.length; j++) {
+          if (column.includes(patterns[j])) {
+            // Find the option with this column value
+            const options = select.querySelectorAll('option');
+            for (let k = 0; k < options.length; k++) {
+              if (options[k].value.toLowerCase() === column) {
+                select.value = options[k].value;
+                break;
+              }
+            }
+            break;
+          }
+        }
+        if (select.value) break; // Stop if we found a match
+      }
+    });
+
+    // Form validation
+    const form = document.querySelector('form');
+    form.addEventListener('submit', function(e) {
+      const variableNameSelect = document.querySelector('select[name="variable_name_column"]');
+      
+      if (!variableNameSelect.value) {
+        e.preventDefault();
+        alert('Please select a column for Variable Name. This is required to proceed.');
+        variableNameSelect.focus();
+      }
+    });
+  });
+</script>
+{% endblock inline_javascript %}

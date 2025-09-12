@@ -1,0 +1,356 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block bodyclass %}home-page{% endblock bodyclass %}
+
+{% block css %}
+{{ block.super }}
+<style>
+:root {
+  --primary-gradient: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  --secondary-gradient: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+  --accent-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  
+  --primary-color: #495057;
+  --secondary-color: #6c757d;
+  --accent-color: #4facfe;
+  --text-light: rgba(73, 80, 87, 0.8);
+  --text-dark: rgba(33, 37, 41, 0.9);
+  
+  --shadow-soft: 0 5px 15px rgba(0, 0, 0, 0.08);
+  --shadow-strong: 0 10px 30px rgba(0, 0, 0, 0.15);
+  
+  --border-radius: 12px;
+  --border-radius-lg: 20px;
+}
+
+.hero-section {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 50%, #e9ecef 100%);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+
+.hero-content {
+  text-align: center;
+  z-index: 2;
+  position: relative;
+  max-width: 800px;
+  padding: 2rem;
+}
+
+.hero-title {
+  font-size: 4.5rem;
+  font-weight: 900;
+  color: var(--primary-color);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-bottom: 1.5rem;
+  line-height: 1.1;
+  animation: slideInUp 1s ease-out;
+}
+
+.hero-subtitle {
+  font-size: 1.4rem;
+  color: var(--text-light);
+  margin-bottom: 3rem;
+  font-weight: 400;
+  line-height: 1.6;
+  animation: slideInUp 1s ease-out 0.2s both;
+}
+
+.hero-cta {
+  display: flex;
+  gap: 1.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  animation: slideInUp 1s ease-out 0.4s both;
+}
+
+.btn-hero {
+  padding: 1rem 2.5rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  border: none;
+  border-radius: var(--border-radius);
+  text-decoration: none;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-hero-primary {
+  background: var(--primary-color);
+  color: white;
+  box-shadow: var(--shadow-soft);
+}
+
+.btn-hero-primary:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-strong);
+  color: white;
+  background: #343a40;
+}
+
+.btn-hero-secondary {
+  background: white;
+  color: var(--primary-color);
+  border: 2px solid #e9ecef;
+  box-shadow: var(--shadow-soft);
+}
+
+.btn-hero-secondary:hover {
+  background: #f8f9fa;
+  border-color: #dee2e6;
+  transform: translateY(-3px);
+  color: var(--primary-color);
+  box-shadow: var(--shadow-strong);
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(50px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.features-preview {
+  padding: 6rem 0;
+  background: #ffffff;
+}
+
+.feature-card {
+  background: white;
+  border-radius: var(--border-radius-lg);
+  padding: 3rem 2rem;
+  text-align: center;
+  box-shadow: var(--shadow-soft);
+  transition: all 0.3s ease;
+  height: 100%;
+  border: 1px solid #f8f9fa;
+}
+
+.feature-card:hover {
+  transform: translateY(-10px);
+  box-shadow: var(--shadow-strong);
+}
+
+.feature-icon {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 1.5rem;
+  background: var(--accent-gradient);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.feature-title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  color: var(--text-dark);
+}
+
+.feature-description {
+  color: var(--text-light);
+  line-height: 1.6;
+}
+
+.cta-section {
+  background: linear-gradient(135deg, #495057 0%, #6c757d 100%);
+  padding: 3rem;
+  border-radius: 20px;
+  color: white;
+}
+
+@media (max-width: 768px) {
+  .hero-title {
+    font-size: 3rem;
+  }
+  
+  .hero-subtitle {
+    font-size: 1.2rem;
+  }
+  
+  .hero-cta {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .btn-hero {
+    width: 100%;
+    max-width: 300px;
+  }
+}
+
+@media (max-width: 576px) {
+  .hero-title {
+    font-size: 2.5rem;
+  }
+  
+  .hero-content {
+    padding: 1rem;
+  }
+}
+
+.animate-delay-1 { animation: slideInUp 1s ease-out 0.1s both; }
+.animate-delay-2 { animation: slideInUp 1s ease-out 0.2s both; }
+.animate-delay-3 { animation: slideInUp 1s ease-out 0.3s both; }
+
+.home-page .navbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: rgba(255, 255, 255, 0.95) !important;
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.home-page .navbar-brand,
+.home-page .nav-link {
+  color: var(--primary-color) !important;
+  font-weight: 500;
+}
+
+.home-page .nav-link:hover {
+  color: var(--secondary-color) !important;
+}
+
+.inline-icon {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 0.5rem;
+}
+</style>
+{% endblock css %}
+
+{% block main %}
+<!-- Hero Section -->
+<section class="hero-section">
+  <!-- Main Hero Content -->
+  <div class="hero-content">
+    <h1 class="hero-title">
+      Harmon<span style="background: linear-gradient(45deg, #0e555c, #120f69); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">AI</span>ze
+    </h1>
+    
+    <p class="hero-subtitle">
+      Revolutionising climate-health research through AI-powered data harmonisation.<br>
+      <strong>Federated. Private. Powerful.</strong>
+    </p>
+    
+    <div class="hero-cta">
+      {% if user.is_authenticated %}
+        <a href="{% url 'core:dashboard' %}" class="btn btn-hero btn-hero-primary">
+          {% include 'components/svg_icon.html' with icon='zap' size='20' class='inline-icon' %}
+          Launch Dashboard
+        </a>
+        <a href="{% url 'about' %}" class="btn btn-hero btn-hero-secondary">
+          {% include 'components/svg_icon.html' with icon='lightbulb' size='20' class='inline-icon' %}
+          Learn More
+        </a>
+      {% else %}
+        <a href="{% url 'account_signup' %}" class="btn btn-hero btn-hero-primary">
+          {% include 'components/svg_icon.html' with icon='zap' size='20' class='inline-icon' %}
+          Get Started
+        </a>
+        <a href="{% url 'about' %}" class="btn btn-hero btn-hero-secondary">
+          {% include 'components/svg_icon.html' with icon='lightbulb' size='20' class='inline-icon' %}
+          Learn More
+        </a>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+<!-- Features Preview Section -->
+<section class="features-preview">
+  <div class="container">
+    <div class="row text-center mb-5">
+      <div class="col-12">
+        <h2 style="font-size: 2.5rem; font-weight: 700; color: #2c3e50; margin-bottom: 1rem;">
+          Accelerate Your Research
+        </h2>
+        <p style="font-size: 1.2rem; color: rgba(0,0,0,0.6); max-width: 600px; margin: 0 auto;">
+          Transform disparate climate and health datasets into unified, analysis-ready formats with the power of AI
+        </p>
+      </div>
+    </div>
+    
+    <div class="row g-4">
+      <div class="col-lg-4 col-md-6">
+        <div class="feature-card animate-delay-1">
+          <div class="feature-icon">
+            {% include 'components/svg_icon.html' with icon='shield' size='40' %}
+          </div>
+          <h3 class="feature-title">Privacy-First</h3>
+          <p class="feature-description">
+            Federated architecture ensures your sensitive data never leaves your infrastructure while enabling collaborative research
+          </p>
+        </div>
+      </div>
+      
+      <div class="col-lg-4 col-md-6">
+        <div class="feature-card animate-delay-2">
+          <div class="feature-icon">
+            {% include 'components/svg_icon.html' with icon='robot' size='40' %}
+          </div>
+          <h3 class="feature-title">AI-Powered</h3>
+          <p class="feature-description">
+            Advanced machine learning algorithms automatically map, clean, and harmonise heterogeneous datasets with minimal manual intervention
+          </p>
+        </div>
+      </div>
+      
+      <div class="col-lg-4 col-md-6">
+        <div class="feature-card animate-delay-3">
+          <div class="feature-icon">
+            {% include 'components/svg_icon.html' with icon='zap' size='40' %}
+          </div>
+          <h3 class="feature-title">Lightning Fast</h3>
+          <p class="feature-description">
+            Streamlined workflows reduce data preparation time from months to days, accelerating your path to insights
+          </p>
+        </div>
+      </div>
+    </div>
+    
+    <div class="row mt-5">
+      <div class="col-12 text-center">
+        <div class="cta-section">
+          <h3 style="font-size: 1.8rem; font-weight: 700; margin-bottom: 1rem;">
+            Ready to Transform Your Research?
+          </h3>
+          <p style="font-size: 1.1rem; margin-bottom: 2rem; opacity: 0.9;">
+            Join research teams worldwide who are accelerating climate-health discoveries
+          </p>
+          {% if not user.is_authenticated %}
+            <a href="{% url 'account_signup' %}" class="btn btn-light btn-lg" style="padding: 1rem 2rem; font-weight: 600;">
+              {% include 'components/svg_icon.html' with icon='zap' size='20' class='inline-icon' %}
+              Start Your Journey
+            </a>
+          {% else %}
+            <a href="{% url 'core:upload' %}" class="btn btn-light btn-lg" style="padding: 1rem 2rem; font-weight: 600;">
+              {% include 'components/svg_icon.html' with icon='upload' size='20' class='inline-icon' %}
+              Upload Study
+            </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock main %}
+
+
