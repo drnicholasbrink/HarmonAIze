@@ -957,6 +957,452 @@
       font-size: 0.8rem;
       margin-top: 0.25rem;
     }
+
+    /* Similarity Suggestions Styling */
+    .similarity-suggestions {
+      margin-top: 1rem;
+      padding: 1rem;
+      background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+      border: 1px solid var(--border-color);
+      border-radius: var(--border-radius);
+    }
+
+    .suggestions-title {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .suggestions-loading {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+
+    .loading-spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--border-color);
+      border-top: 2px solid var(--primary-color);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .suggestions-container {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .suggestion-item {
+      background: white;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.75rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+
+    .suggestion-item:hover {
+      border-color: var(--primary-color);
+      box-shadow: 0 2px 8px rgba(0, 122, 255, 0.15);
+      transform: translateY(-1px);
+    }
+
+    .suggestion-item.selected {
+      border-color: var(--primary-color);
+      background: rgba(0, 122, 255, 0.05);
+    }
+
+    .suggestion-header {
+      display: flex;
+      justify-content: between;
+      align-items: flex-start;
+      margin-bottom: 0.5rem;
+    }
+
+    .suggestion-name {
+      font-weight: 600;
+      color: var(--text-primary);
+      font-size: 0.9rem;
+    }
+
+    .confidence-badge {
+      padding: 0.2rem 0.5rem;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .confidence-badge.success {
+      background: rgba(52, 199, 89, 0.15);
+      color: #34c759;
+    }
+
+    .confidence-badge.info {
+      background: rgba(90, 200, 250, 0.15);
+      color: #5ac8fa;
+    }
+
+    .confidence-badge.warning {
+      background: rgba(255, 149, 0, 0.15);
+      color: #ff9500;
+    }
+
+    .confidence-badge.danger {
+      background: rgba(255, 59, 48, 0.15);
+      color: #ff3b30;
+    }
+
+    .confidence-badge.secondary {
+      background: rgba(142, 142, 147, 0.15);
+      color: #8e8e93;
+    }
+
+    .suggestion-details {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      line-height: 1.4;
+    }
+
+    .suggestion-scores {
+      margin-top: 0.5rem;
+      display: flex;
+      gap: 1rem;
+      font-size: 0.75rem;
+    }
+
+    .score-item {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    .score-value {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .suggestions-empty {
+      text-align: center;
+      color: var(--text-secondary);
+      font-style: italic;
+      padding: 1rem;
+    }
+
+    .suggestions-error {
+      text-align: center;
+      color: #dc3545;
+      padding: 1rem;
+      background: rgba(220, 53, 69, 0.05);
+      border-radius: 6px;
+    }
+
+    .show-suggestions-btn {
+      background: transparent;
+      border: 1px solid var(--primary-color);
+      color: var(--primary-color);
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-top: 0.5rem;
+    }
+
+    .show-suggestions-btn:hover {
+      background: var(--primary-color);
+      color: white;
+    }
+
+    .show-suggestions-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .ai-progress {
+        background: #f8f9fa;
+        border: 1px solid #e9ecef;
+        padding: 1rem;
+        border-radius: 12px;
+        margin-top: 1rem;
+    }
+    
+    .progress-info {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+        font-size: 0.875rem;
+        color: #495057;
+    }
+    
+    .progress {
+        height: 8px;
+        background: #e9ecef;
+        border-radius: 4px;
+        overflow: hidden;
+    }
+    
+    .progress-bar {
+        background: linear-gradient(90deg, #007bff 0%, #0056b3 100%);
+        height: 100%;
+        border-radius: 4px;
+        transition: width 0.3s ease;
+    }
+
+    /* Target Variable Details */
+    .target-variable-details {
+        background: linear-gradient(135deg, #e0f2fe 0%, #f1f8ff 100%);
+        border: 1px solid #b3e5fc;
+        border-radius: 12px;
+        padding: 1rem;
+        margin-top: 1rem;
+    }
+    
+    .target-details-title {
+        font-size: 1rem;
+        font-weight: 600;
+        margin-bottom: 0.75rem;
+        color: #1976d2;
+    }
+    
+    .target-details-content {
+        display: grid;
+        gap: 0.5rem;
+    }
+    
+    .detail-row {
+        display: grid;
+        grid-template-columns: 120px 1fr;
+        gap: 0.5rem;
+        align-items: start;
+    }
+    
+    .detail-label {
+        font-weight: 600;
+        color: #546e7a;
+        font-size: 0.875rem;
+    }
+    
+    .detail-value {
+        color: #37474f;
+        font-size: 0.875rem;
+        word-break: break-word;
+    }
+
+    /* AI Suggestions Dropdown */
+    .ai-suggestions-dropdown {
+        background: #fff;
+        border: 2px solid #e3f2fd;
+        border-radius: 12px;
+        margin-top: 1rem;
+        overflow: hidden;
+        transition: all 0.3s ease;
+    }
+    
+    .ai-suggestions-dropdown.has-suggestions {
+        border-color: #2196f3;
+        box-shadow: 0 4px 16px rgba(33, 150, 243, 0.1);
+    }
+    
+    .dropdown-header {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        padding: 1rem;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: all 0.2s ease;
+        border-bottom: 1px solid #dee2e6;
+    }
+    
+    .dropdown-header:hover {
+        background: linear-gradient(135deg, #e9ecef 0%, #dee2e6 100%);
+    }
+    
+    .dropdown-title {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 600;
+        color: #495057;
+    }
+    
+    .dropdown-arrow {
+        color: #6c757d;
+        transition: transform 0.2s ease;
+    }
+    
+    .dropdown-header.expanded .dropdown-arrow {
+        transform: rotate(180deg);
+    }
+    
+    .dropdown-content {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease;
+    }
+    
+    .dropdown-content.expanded {
+        max-height: 400px;
+    }
+    
+    .suggestions-list {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    
+    .suggestion-item {
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid #f1f3f4;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .suggestion-item:hover {
+        background-color: #f8f9fa;
+        border-left: 4px solid #2196f3;
+        padding-left: calc(1rem - 4px);
+    }
+    
+    .suggestion-item:last-child {
+        border-bottom: none;
+    }
+    
+    .suggestion-main {
+        flex: 1;
+    }
+    
+    .suggestion-name {
+        font-weight: 600;
+        color: #212529;
+        margin-bottom: 0.25rem;
+    }
+    
+    .suggestion-description {
+        font-size: 0.875rem;
+        color: #6c757d;
+        line-height: 1.4;
+        margin-bottom: 0.5rem;
+    }
+    
+    .suggestion-scores {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        margin-top: 0.5rem;
+        padding-top: 0.5rem;
+        border-top: 1px solid #e9ecef;
+    }
+    
+    .score-detail {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        font-size: 0.75rem;
+        color: #6c757d;
+    }
+    
+    .score-detail i {
+        width: 12px;
+        opacity: 0.7;
+    }
+    
+    .score-detail.combined-score {
+        color: #495057;
+        font-weight: 600;
+    }
+    
+    .score-detail strong {
+        color: #212529;
+    }
+    
+    .suggestion-confidence {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 0.25rem;
+    }
+    
+    .confidence-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .confidence-score {
+        font-size: 0.75rem;
+        color: #6c757d;
+        font-weight: 500;
+    }
+    
+    .dropdown-help {
+        padding: 0.75rem 1rem;
+        background: #f8f9fa;
+        font-size: 0.875rem;
+        color: #6c757d;
+        border-top: 1px solid #dee2e6;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    /* Confidence indicator styles */
+    .confidence-indicator {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 12px;
+        margin-left: 0.5rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .confidence-excellent {
+        background-color: #d1e7dd;
+        color: #0f5132;
+        border: 1px solid #badbcc;
+    }
+    
+    .confidence-good {
+        background-color: #d1ecf1;
+        color: #055160;
+        border: 1px solid #b8daff;
+    }
+    
+    .confidence-fair {
+        background-color: #fff3cd;
+        color: #664d03;
+        border: 1px solid #ffdf7e;
+    }
+    
+    .confidence-poor {
+        background-color: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f1aeb5;
+    }
   </style>
 {% endblock %}
 
@@ -1331,6 +1777,7 @@
               <div class="form-group">
                 <label class="form-label">
                   <i class="fas fa-download"></i> Target Variable
+                  <span class="confidence-indicator" id="confidence-{{ variable_form.attribute.id }}" style="display: none;"></span>
                 </label>
                 {{ variable_form.form.target_attribute }}
                 {% if variable_form.form.target_attribute.errors %}
@@ -1342,14 +1789,63 @@
                 {% endif %}
                 <small class="help-text">Select the target variable this source variable maps to</small>
               </div>
-
               <!-- Target Attribute Details (populated via JavaScript) -->
               <div class="target-attribute-details" id="target-details-{{ variable_form.attribute.id }}" style="display: none;">
                 <h5 class="target-section-title">
                   <i class="fas fa-download"></i> Target Variable Details
                 </h5>
                 <div class="target-info-grid">
-                  <!-- This will be populated by JavaScript when target is selected -->
+                  <div class="info-item">
+                    <span class="info-label">Variable Name:</span>
+                    <span class="info-value" id="target-name-{{ variable_form.attribute.id }}">-</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">Display Name:</span>
+                    <span class="info-value" id="target-display-name-{{ variable_form.attribute.id }}">-</span>
+                  </div>
+                  <div class="info-item full-width">
+                    <span class="info-label">Description:</span>
+                    <span class="info-value" id="target-description-{{ variable_form.attribute.id }}">-</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">Data Type:</span>
+                    <span class="info-value" id="target-type-{{ variable_form.attribute.id }}">-</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">Unit:</span>
+                    <span class="info-value" id="target-unit-{{ variable_form.attribute.id }}">-</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">Ontology Code:</span>
+                    <span class="info-value" id="target-ontology-{{ variable_form.attribute.id }}">-</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">Values Count:</span>
+                    <span class="info-value" id="target-values-count-{{ variable_form.attribute.id }}">-</span>
+                  </div>
+                </div>
+              </div>
+              <!-- AI Similarity Suggestions Dropdown -->
+              <div class="ai-suggestions-dropdown" id="ai-dropdown-{{ variable_form.attribute.id }}" style="display: none;">
+                <div class="dropdown-header" onclick="toggleAISuggestions({{ variable_form.attribute.id }})">
+                  <div class="dropdown-title">
+                    <i class="fas fa-robot text-info"></i> AI Suggestions
+                    <span class="suggestions-count" id="count-{{ variable_form.attribute.id }}"></span>
+                  </div>
+                  <i class="fas fa-chevron-down dropdown-arrow" id="arrow-{{ variable_form.attribute.id }}"></i>
+                </div>
+                <div class="dropdown-content" id="dropdown-content-{{ variable_form.attribute.id }}" style="display: none;">
+                  <div class="suggestions-loading" id="loading-{{ variable_form.attribute.id }}" style="display: none;">
+                    <div class="loading-spinner"></div>
+                    <span>Analyzing similarity...</span>
+                  </div>
+                  <div class="suggestions-list" id="suggestions-list-{{ variable_form.attribute.id }}">
+                    <!-- AI suggestions will be populated here -->
+                  </div>
+                  <div class="dropdown-help">
+                    <i class="fas fa-lightbulb"></i>
+                    Click any suggestion to automatically apply it as the target variable
+                  </div>
                 </div>
               </div>
               
@@ -1585,6 +2081,10 @@
     <div class="sidebar-section">
       <h3 class="sidebar-title">Bulk Actions</h3>
       <div class="bulk-actions">
+        <button type="button" class="btn btn-primary action-btn" onclick="processAllVariablesWithAI()">
+          <i class="fas fa-robot"></i>
+          AI Process All
+        </button>
         <button type="button" class="btn btn-outline action-btn" onclick="applyUniversalSettings()">
           <i class="fas fa-magic"></i>
           Apply Universal Settings
@@ -1597,6 +2097,17 @@
           <i class="fas fa-check-circle"></i>
           Validate All
         </button>
+      </div>
+      
+      <!-- AI Progress Bar -->
+      <div class="ai-progress" id="ai-progress" style="display: none;">
+        <div class="progress-info">
+          <span class="progress-text" id="progress-text">Processing variables...</span>
+          <span class="progress-count" id="progress-count">0/0</span>
+        </div>
+        <div class="progress">
+          <div class="progress-bar" id="progress-bar" role="progressbar" style="width: 0%"></div>
+        </div>
       </div>
     </div>
 
@@ -1660,7 +2171,68 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize auto-save
     initializeAutoSave();
+    
+    // Initialize target attribute change handlers
+    initializeTargetAttributeHandlers();
+    
+    // Initialize not mappable checkbox handlers
+    initializeNotMappableHandlers();
+    
+    // Load similarity suggestions
+    loadSimilaritySuggestions();
 });
+
+function initializeNotMappableHandlers() {
+    // Initialize target details for existing selections
+    document.querySelectorAll('select[name*="target_attribute"]').forEach(targetSelect => {
+        if (targetSelect.value) {
+            // Trigger change event to populate details for existing selections
+            targetSelect.dispatchEvent(new Event('change'));
+        }
+    });
+    
+    // Add event listeners for not mappable checkboxes
+    document.querySelectorAll('.not-mappable-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const variableCard = this.closest('.variable-card');
+            const mappingFields = variableCard.querySelector('.mapping-fields');
+            
+            if (this.checked) {
+                // Hide mapping fields and grey out card when not mappable is checked
+                mappingFields.style.display = 'none';
+                variableCard.classList.remove('complete', 'incomplete');
+                variableCard.classList.add('not-mappable');
+                variableCard.dataset.completion = 'not-mappable';
+                
+                // Update badge
+                const badge = variableCard.querySelector('.completion-badge');
+                badge.className = 'completion-badge badge-not-mappable';
+                badge.innerHTML = '<i class="fas fa-ban"></i> Not Mappable';
+                
+                // Clear target attribute selection and hide details
+                const targetSelect = variableCard.querySelector('select[name*="target_attribute"]');
+                if (targetSelect) {
+                    targetSelect.value = '';
+                    const detailsDiv = variableCard.querySelector('.target-attribute-details');
+                    if (detailsDiv) {
+                        detailsDiv.style.display = 'none';
+                    }
+                }
+            } else {
+                // Show mapping fields when not mappable is unchecked
+                mappingFields.style.display = 'block';
+                variableCard.classList.remove('not-mappable');
+                variableCard.classList.add('incomplete');
+                variableCard.dataset.completion = 'incomplete';
+                
+                // Update badge
+                const badge = variableCard.querySelector('.completion-badge');
+                badge.className = 'completion-badge badge-incomplete';
+                badge.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Needs Mapping';
+            }
+        });
+    });
+}
 
 function initializeRoleDependentSections() {
     document.querySelectorAll('select[name$="-role"]').forEach(select => {
@@ -1740,6 +2312,84 @@ function initializeAutoSave() {
             });
         }
     });
+}
+
+function initializeTargetAttributeHandlers() {
+    // Add change event listeners to all target attribute dropdowns
+    document.querySelectorAll('select[name$="-target_attribute"]').forEach(select => {
+        const variableId = select.name.match(/variable_(\d+)-target_attribute/)[1];
+        
+        select.addEventListener('change', function() {
+            if (this.value) {
+                // Fetch target attribute details and show them
+                fetchTargetAttributeDetails(variableId, this.value);
+            } else {
+                // Hide target details if no selection
+                const detailsDiv = document.getElementById(`target-details-${variableId}`);
+                if (detailsDiv) {
+                    detailsDiv.style.display = 'none';
+                }
+            }
+        });
+        
+        // Initialize details for already selected values
+        if (select.value) {
+            fetchTargetAttributeDetails(variableId, select.value);
+        }
+    });
+}
+
+function fetchTargetAttributeDetails(variableId, targetAttributeId) {
+    // Fetch detailed information about the target attribute from the API
+    fetch(`/health/api/attribute/${targetAttributeId}/details/`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.attribute) {
+                showTargetVariableDetails(variableId, data.attribute);
+            } else {
+                console.error('No attribute data received');
+                // Fallback to basic info from dropdown
+                const select = document.querySelector(`select[name="variable_${variableId}-target_attribute"]`);
+                const selectedOption = select.querySelector(`option[value="${targetAttributeId}"]`);
+                
+                if (selectedOption && selectedOption.textContent) {
+                    const targetData = {
+                        variable_name: selectedOption.textContent.trim(),
+                        display_name: selectedOption.textContent.trim(),
+                        description: 'Details not available',
+                        variable_type: 'Unknown',
+                        unit: 'Not specified',
+                        ontology_code: '-',
+                        values_count: '-'
+                    };
+                    showTargetVariableDetails(variableId, targetData);
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching target attribute details:', error);
+            // Fallback to basic info from dropdown
+            const select = document.querySelector(`select[name="variable_${variableId}-target_attribute"]`);
+            const selectedOption = select.querySelector(`option[value="${targetAttributeId}"]`);
+            
+            if (selectedOption && selectedOption.textContent) {
+                const targetData = {
+                    variable_name: selectedOption.textContent.trim(),
+                    display_name: selectedOption.textContent.trim(),
+                    description: 'Error loading details',
+                    variable_type: 'Unknown',
+                    unit: 'Not available',
+                    ontology_code: '-',
+                    values_count: '-'
+                };
+                showTargetVariableDetails(variableId, targetData);
+            }
+        });
 }
 
 function toggleSettingsForm() {
@@ -1868,6 +2518,55 @@ function saveAllMappings() {
     });
 }
 
+function clearVariableUIState(variableId) {
+    // Hide confidence indicator
+    const confidenceIndicator = document.getElementById(`confidence-${variableId}`);
+    if (confidenceIndicator) {
+        confidenceIndicator.style.display = 'none';
+        confidenceIndicator.className = 'confidence-indicator';
+        confidenceIndicator.textContent = '';
+    }
+    
+    // Hide target variable details
+    const targetDetails = document.getElementById(`target-details-${variableId}`);
+    if (targetDetails) {
+        targetDetails.style.display = 'none';
+    }
+    
+    // Remove AI matching scores
+    removeAIMatchingScores(variableId);
+    
+    // Remove any AI suggestion highlighting/styling
+    const variableCard = document.querySelector(`#variable-${variableId}`);
+    if (variableCard) {
+        variableCard.classList.remove('ai-suggested', 'ai-applied');
+    }
+    
+    // Clear any ACE editor content
+    clearCode(variableId);
+}
+
+function clearAllVariableUIState() {
+    // Find all variable IDs from the form fields
+    const variableIds = new Set();
+    document.querySelectorAll('[name^="variable_"]').forEach(field => {
+        const match = field.name.match(/^variable_(\d+)-/);
+        if (match) {
+            variableIds.add(match[1]);
+        }
+    });
+    
+    // Clear UI state for each variable
+    variableIds.forEach(variableId => {
+        clearVariableUIState(variableId);
+    });
+    
+    // Clear any global AI suggestions state
+    if (window.currentAISuggestions) {
+        window.currentAISuggestions = {};
+    }
+}
+
 function clearMapping(variableId) {
     if (confirm('Are you sure you want to clear this mapping?')) {
         // Clear form fields for this variable
@@ -1878,6 +2577,9 @@ function clearMapping(variableId) {
                 field.value = '';
             }
         });
+        
+        // Clear visual state elements
+        clearVariableUIState(variableId);
         
         // Save the cleared mapping
         saveMapping(variableId);
@@ -1921,6 +2623,9 @@ function clearAllMappings() {
                 }
             }
         });
+        
+        // Clear all visual state elements
+        clearAllVariableUIState();
         
         saveAllMappings();
     }
@@ -2624,93 +3329,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
-    
-    // Add event listeners for target attribute changes
-    document.querySelectorAll('select[name*="target_attribute"]').forEach(targetSelect => {
-        targetSelect.addEventListener('change', function() {
-            const variableCard = this.closest('.variable-card');
-            const targetDetails = variableCard.querySelector('.target-attribute-details');
-            
-            if (this.value) {
-                // Show target details and populate them with actual metadata
-                targetDetails.style.display = 'block';
-                
-                // Get selected option details
-                const selectedOption = this.options[this.selectedIndex];
-                if (selectedOption && selectedOption.value) {
-                    // Extract data attributes from the option if available
-                    const infoGrid = targetDetails.querySelector('.target-info-grid');
-                    
-                    // Get target variable data from the option's data attributes or text
-                    const variableName = selectedOption.text;
-                    const displayName = selectedOption.getAttribute('data-display-name') || '';
-                    const unit = selectedOption.getAttribute('data-unit') || '';
-                    const variableType = selectedOption.getAttribute('data-variable-type') || '';
-                    const description = selectedOption.getAttribute('data-description') || '';
-                    const ontologyCode = selectedOption.getAttribute('data-ontology-code') || '';
-                    
-                    let infoHtml = `
-                        <div class="info-item">
-                            <span class="info-label">Variable Name:</span>
-                            <span class="info-value">${variableName}</span>
-                        </div>`;
-                    
-                    if (displayName) {
-                        infoHtml += `
-                        <div class="info-item">
-                            <span class="info-label">Display Name:</span>
-                            <span class="info-value">${displayName}</span>
-                        </div>`;
-                    }
-                    
-                    if (variableType) {
-                        infoHtml += `
-                        <div class="info-item">
-                            <span class="info-label">Data Type:</span>
-                            <span class="info-value">${variableType}</span>
-                        </div>`;
-                    }
-                    
-                    if (unit) {
-                        infoHtml += `
-                        <div class="info-item">
-                            <span class="info-label">Unit:</span>
-                            <span class="info-value">${unit}</span>
-                        </div>`;
-                    }
-                    
-                    if (ontologyCode) {
-                        infoHtml += `
-                        <div class="info-item">
-                            <span class="info-label">Ontology Code:</span>
-                            <span class="info-value">${ontologyCode}</span>
-                        </div>`;
-                    }
-                    
-                    if (description) {
-                        infoHtml += `
-                        <div class="info-item full-width">
-                            <span class="info-label">Description:</span>
-                            <span class="info-value">${description}</span>
-                        </div>`;
-                    }
-                    
-                    infoGrid.innerHTML = infoHtml;
-                }
-                
-        // Update completion status
-        updateVariableCompletionStatus(variableCard);
-            } else {
-                // Hide target details if no target selected
-                targetDetails.style.display = 'none';
-        // If not marked as not-mappable, set incomplete state
-        const notMappable = variableCard.classList.contains('not-mappable');
-        if (!notMappable) {
-          variableCard.dataset.completion = 'incomplete';
-        }
-            }
-        });
-    });
 });
 
 // Function to update variable completion status
@@ -2777,6 +3395,511 @@ function clearMapping(variableId) {
         // Save the cleared mapping
         saveMapping(variableId);
     }
+}
+
+// Similarity Suggestions Functionality
+let similaritySuggestions = null;
+let suggestionsLoaded = false;
+
+function loadSimilaritySuggestions() {
+    if (suggestionsLoaded) return Promise.resolve();
+    
+    const schemaId = {{ schema.id }};
+    
+    return fetch(`/health/api/mapping/${schemaId}/similarity-suggestions/`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            similaritySuggestions = data.suggestions;
+            suggestionsLoaded = true;
+            populateAllSuggestions();
+        })
+        .catch(error => {
+            console.error('Error loading similarity suggestions:', error);
+            // Show error in all suggestion containers
+            document.querySelectorAll('.suggestions-container').forEach(container => {
+                container.innerHTML = `
+                    <div class="suggestions-error">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        Failed to load suggestions: ${error.message}
+                    </div>
+                `;
+            });
+        });
+}
+
+function populateAllSuggestions() {
+    // Show AI dropdowns and populate suggestions for all variables
+    Object.keys(similaritySuggestions || {}).forEach(variableId => {
+        const dropdown = document.getElementById(`ai-dropdown-${variableId}`);
+        const loadingElement = document.getElementById(`loading-${variableId}`);
+        const suggestionsList = document.getElementById(`suggestions-list-${variableId}`);
+        const countElement = document.getElementById(`count-${variableId}`);
+        
+        if (dropdown) {
+            dropdown.style.display = 'block';
+            
+            if (similaritySuggestions[variableId]) {
+                const suggestions = similaritySuggestions[variableId];
+                dropdown.classList.add('has-suggestions');
+                
+                if (loadingElement) loadingElement.style.display = 'none';
+                
+                renderDropdownSuggestions(variableId, suggestions);
+                
+                // Update count
+                if (countElement) {
+                    countElement.textContent = `${suggestions.length} found`;
+                }
+            }
+        }
+    });
+}
+
+// Global AI Processing Functions
+function processAllVariablesWithAI() {
+    const processBtn = document.querySelector('button[onclick="processAllVariablesWithAI()"]');
+    const progressDiv = document.getElementById('ai-progress');
+    const progressText = document.getElementById('progress-text');
+    const progressCount = document.getElementById('progress-count');
+    const progressBar = document.getElementById('progress-bar');
+    
+    // Show progress
+    progressDiv.style.display = 'block';
+    processBtn.disabled = true;
+    processBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+    
+    // Get all variables that can be mapped
+    const variableCards = document.querySelectorAll('.variable-card:not(.not-mappable)');
+    const totalVariables = variableCards.length;
+    let processedCount = 0;
+    
+    progressCount.textContent = `0/${totalVariables}`;
+    progressBar.style.width = '0%';
+    
+    // Process each variable sequentially
+    processVariablesSequentially(variableCards, 0, totalVariables, (current, total) => {
+        processedCount = current;
+        const percent = Math.round((current / total) * 100);
+        progressCount.textContent = `${current}/${total}`;
+        progressBar.style.width = `${percent}%`;
+        progressText.textContent = current < total ? 
+            `Processing variable ${current + 1} of ${total}...` : 
+            'Processing complete!';
+            
+        if (current >= total) {
+            setTimeout(() => {
+                progressDiv.style.display = 'none';
+                processBtn.disabled = false;
+                processBtn.innerHTML = '<i class="fas fa-robot"></i> AI Process All';
+                showNotification(`Successfully processed ${total} variables with AI suggestions!`, 'success');
+            }, 1000);
+        }
+    });
+}
+
+function processVariablesSequentially(variableCards, index, total, progressCallback) {
+    if (index >= total) {
+        progressCallback(index, total);
+        return;
+    }
+    
+    const card = variableCards[index];
+    const variableId = getVariableIdFromCard(card);
+    
+    if (variableId && similaritySuggestions?.[variableId]) {
+        const suggestions = similaritySuggestions[variableId];
+        if (suggestions.length > 0) {
+            const bestSuggestion = suggestions[0];
+            
+            // Apply the best suggestion
+            applyAISuggestion(variableId, bestSuggestion);
+            
+            // Show the AI dropdown for this variable
+            showAIDropdownForVariable(variableId);
+        }
+    }
+    
+    progressCallback(index + 1, total);
+    
+    // Continue with next variable after a short delay
+    setTimeout(() => {
+        processVariablesSequentially(variableCards, index + 1, total, progressCallback);
+    }, 300);
+}
+
+function clearAllMappings() {
+    if (!confirm('Are you sure you want to clear all variable mappings? This action cannot be undone.')) {
+        return;
+    }
+    
+    const targetSelects = document.querySelectorAll('select[name*="target_attribute"]');
+    targetSelects.forEach(select => {
+        select.value = '';
+        select.dispatchEvent(new Event('change'));
+    });
+    
+    // Clear all confidence indicators
+    document.querySelectorAll('.confidence-indicator').forEach(indicator => {
+        indicator.style.display = 'none';
+    });
+    
+    // Hide all target details
+    document.querySelectorAll('.target-variable-details').forEach(details => {
+        details.style.display = 'none';
+    });
+    
+    showNotification('All variable mappings cleared', 'info');
+}
+
+function showAIDropdownForVariable(variableId) {
+    const dropdown = document.getElementById(`ai-dropdown-${variableId}`);
+    if (dropdown) {
+        dropdown.style.display = 'block';
+        if (similaritySuggestions?.[variableId]) {
+            dropdown.classList.add('has-suggestions');
+            renderDropdownSuggestions(variableId, similaritySuggestions[variableId]);
+        }
+    }
+}
+
+function toggleAISuggestions(variableId) {
+    const header = document.querySelector(`#ai-dropdown-${variableId} .dropdown-header`);
+    const content = document.getElementById(`dropdown-content-${variableId}`);
+    const arrow = document.getElementById(`arrow-${variableId}`);
+    
+    if (content.classList.contains('expanded')) {
+        content.classList.remove('expanded');
+        header.classList.remove('expanded');
+        arrow.className = 'fas fa-chevron-down dropdown-arrow';
+        content.style.display = 'none';
+    } else {
+        content.classList.add('expanded');
+        header.classList.add('expanded');
+        arrow.className = 'fas fa-chevron-up dropdown-arrow';
+        content.style.display = 'block';
+    }
+}
+
+function renderDropdownSuggestions(variableId, suggestions) {
+    const suggestionsList = document.getElementById(`suggestions-list-${variableId}`);
+    const countElement = document.getElementById(`count-${variableId}`);
+    
+    if (!suggestionsList) return;
+    
+    if (!suggestions || suggestions.length === 0) {
+        suggestionsList.innerHTML = `
+            <div class="suggestions-empty">
+                <i class="fas fa-info-circle"></i>
+                No similar variables found
+            </div>
+        `;
+        return;
+    }
+    
+    const suggestionsHtml = suggestions.map(suggestion => `
+        <div class="suggestion-item" onclick="applySuggestionFromDropdown('${variableId}', ${JSON.stringify(suggestion).replace(/"/g, '&quot;')})">
+            <div class="suggestion-main">
+                <div class="suggestion-name">${suggestion.display_name || suggestion.variable_name}</div>
+                <div class="suggestion-description">${suggestion.description || 'No description available'}</div>
+                <div class="suggestion-scores">
+                    <div class="score-detail">
+                        <i class="fas fa-tag"></i> Name: <strong>${(suggestion.name_similarity * 100).toFixed(1)}%</strong>
+                    </div>
+                    ${suggestion.description_similarity !== null ? `
+                        <div class="score-detail">
+                            <i class="fas fa-file-text"></i> Description: <strong>${(suggestion.description_similarity * 100).toFixed(1)}%</strong>
+                        </div>
+                    ` : ''}
+                    <div class="score-detail combined-score">
+                        <i class="fas fa-chart-line"></i> Combined: <strong>${(suggestion.combined_similarity * 100).toFixed(1)}%</strong>
+                    </div>
+                </div>
+            </div>
+            <div class="suggestion-confidence">
+                <span class="confidence-badge ${getConfidenceColorClass(suggestion.confidence_label)}">
+                    ${suggestion.confidence_label}
+                </span>
+            </div>
+        </div>
+    `).join('');
+    
+    suggestionsList.innerHTML = suggestionsHtml;
+    
+    // Update count badge
+    if (countElement) {
+        countElement.textContent = `${suggestions.length} found`;
+    }
+}
+
+function applySuggestionFromDropdown(variableId, suggestionData) {
+    applyAISuggestion(variableId, suggestionData);
+    
+    // Collapse the dropdown after selection
+    toggleAISuggestions(variableId);
+}
+
+function applyAISuggestion(variableId, suggestion) {
+    // Find the target attribute select for this variable
+    const targetSelect = document.querySelector(`select[name="variable_${variableId}-target_attribute"]`);
+    
+    if (targetSelect) {
+        // Set the selected value
+        targetSelect.value = suggestion.attribute_id;
+        
+        // Trigger change event to update UI - this will call fetchTargetAttributeDetails via the event listener
+        targetSelect.dispatchEvent(new Event('change'));
+        
+        // Show confidence indicator
+        showConfidenceIndicator(variableId, suggestion);
+        
+        // Highlight the variable card as processed
+        const card = document.querySelector(`[data-variable-name*="${variableId}"]`)?.closest('.variable-card');
+        if (card) {
+            card.style.background = 'linear-gradient(135deg, #e8f5e8 0%, #f0f8f0 100%)';
+            card.style.borderColor = '#28a745';
+            setTimeout(() => {
+                card.style.background = '';
+                card.style.borderColor = '';
+            }, 2000);
+        }
+    }
+}
+
+function getConfidenceColorClass(confidenceLabel) {
+    const label = confidenceLabel.toLowerCase();
+    if (label.includes('excellent')) return 'success';
+    if (label.includes('good')) return 'info';
+    if (label.includes('fair')) return 'warning';
+    return 'danger';
+}
+
+function selectSuggestion(variableId, targetAttributeId, targetName, suggestionData = null) {
+    // This function is kept for backward compatibility
+    applyAISuggestion(variableId, suggestionData || {
+        attribute_id: targetAttributeId,
+        variable_name: targetName
+    });
+}
+
+function showSuggestionsForVariable(variableId) {
+    const suggestionsDiv = document.getElementById(`suggestions-${variableId}`);
+    const container = suggestionsDiv.querySelector('.suggestions-container');
+    const loading = suggestionsDiv.querySelector('.suggestions-loading');
+    
+    // Show the suggestions section
+    suggestionsDiv.style.display = 'block';
+    
+    // Show loading state
+    loading.style.display = 'flex';
+    container.innerHTML = '';
+    
+    // Check if we have suggestions for this variable
+    if (similaritySuggestions && similaritySuggestions[variableId]) {
+        setTimeout(() => {
+            loading.style.display = 'none';
+            renderSuggestions(variableId, similaritySuggestions[variableId]);
+        }, 500); // Small delay for better UX
+    } else {
+        setTimeout(() => {
+            loading.style.display = 'none';
+            container.innerHTML = `
+                <div class="suggestions-empty">
+                    <i class="fas fa-info-circle"></i>
+                    No similarity suggestions available for this variable
+                </div>
+            `;
+        }, 500);
+    }
+}
+
+function renderSuggestions(variableId, suggestions) {
+    const container = document.querySelector(`#suggestions-${variableId} .suggestions-container`);
+    
+    if (!suggestions || suggestions.length === 0) {
+        container.innerHTML = `
+            <div class="suggestions-empty">
+                <i class="fas fa-info-circle"></i>
+                No similar variables found
+            </div>
+        `;
+        return;
+    }
+    
+    const suggestionsHtml = suggestions.map(suggestion => `
+        <div class="suggestion-item" onclick="selectSuggestion('${variableId}', ${suggestion.attribute_id}, '${suggestion.variable_name}', ${JSON.stringify(suggestion).replace(/"/g, '&quot;')})">
+            <div class="suggestion-header">
+                <div class="suggestion-name">${suggestion.display_name || suggestion.variable_name}</div>
+                <span class="confidence-badge ${suggestion.confidence_color}">
+                    ${suggestion.confidence_label}
+                </span>
+            </div>
+            <div class="suggestion-details">
+                ${suggestion.description || 'No description available'}
+                <div class="suggestion-scores">
+                    <div class="score-item">
+                        <i class="fas fa-tag"></i>
+                        <span>Name: <span class="score-value">${(suggestion.name_similarity * 100).toFixed(1)}%</span></span>
+                    </div>
+                    ${suggestion.description_similarity !== null ? `
+                        <div class="score-item">
+                            <i class="fas fa-file-text"></i>
+                            <span>Description: <span class="score-value">${(suggestion.description_similarity * 100).toFixed(1)}%</span></span>
+                        </div>
+                    ` : ''}
+                    <div class="score-item">
+                        <i class="fas fa-chart-line"></i>
+                        <span>Combined: <span class="score-value">${(suggestion.combined_similarity * 100).toFixed(1)}%</span></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+    
+    container.innerHTML = suggestionsHtml;
+}
+
+function addAIMatchingScores(variableId, targetAttributeId, detailsDiv) {
+    // Check if there's AI matching data for this source variable
+    const sourceVariable = document.getElementById(`variable-${variableId}`);
+    if (!sourceVariable) return;
+    
+    // Look for an existing AI suggestion for this source variable
+    const suggestion = window.currentAISuggestions && window.currentAISuggestions[variableId];
+    if (!suggestion || suggestion.target_attribute_id !== targetAttributeId) {
+        // No AI matching data available for this target
+        removeAIMatchingScores(variableId);
+        return;
+    }
+    
+    // Add or update AI matching scores section
+    let aiScoresDiv = document.getElementById(`ai-scores-${variableId}`);
+    if (!aiScoresDiv) {
+        aiScoresDiv = document.createElement('div');
+        aiScoresDiv.id = `ai-scores-${variableId}`;
+        aiScoresDiv.className = 'ai-matching-scores mt-3 p-3 bg-light rounded';
+        detailsDiv.appendChild(aiScoresDiv);
+    }
+    
+    aiScoresDiv.innerHTML = `
+        <h6 class="text-primary mb-2">
+            <i class="fas fa-robot me-1"></i> AI Matching Analysis
+        </h6>
+        <div class="row">
+            <div class="col-md-4">
+                <small class="text-muted">Name Similarity</small>
+                <div class="fw-bold">${(suggestion.name_similarity * 100).toFixed(1)}%</div>
+            </div>
+            <div class="col-md-4">
+                <small class="text-muted">Description Similarity</small>
+                <div class="fw-bold">${(suggestion.description_similarity * 100).toFixed(1)}%</div>
+            </div>
+            <div class="col-md-4">
+                <small class="text-muted">Combined Score</small>
+                <div class="fw-bold text-primary">${(suggestion.combined_similarity * 100).toFixed(1)}%</div>
+            </div>
+        </div>
+        <div class="mt-2">
+            <small class="text-muted">Confidence: </small>
+            <span class="badge bg-${getConfidenceBadgeColor(suggestion.confidence_label)}">${suggestion.confidence_label}</span>
+        </div>
+    `;
+}
+
+function removeAIMatchingScores(variableId) {
+    const aiScoresDiv = document.getElementById(`ai-scores-${variableId}`);
+    if (aiScoresDiv) {
+        aiScoresDiv.remove();
+    }
+}
+
+function getConfidenceBadgeColor(confidenceLabel) {
+    const confidence = confidenceLabel.toLowerCase();
+    if (confidence.includes('excellent')) return 'success';
+    if (confidence.includes('good')) return 'info';
+    if (confidence.includes('fair')) return 'warning';
+    return 'secondary';
+}
+
+function showTargetVariableDetails(variableId, targetData, matchingScores = null) {
+    const detailsDiv = document.getElementById(`target-details-${variableId}`);
+    if (!detailsDiv) return;
+    
+    // Populate all the detail fields
+    const nameElement = document.getElementById(`target-name-${variableId}`);
+    const displayNameElement = document.getElementById(`target-display-name-${variableId}`);
+    const descriptionElement = document.getElementById(`target-description-${variableId}`);
+    const typeElement = document.getElementById(`target-type-${variableId}`);
+    const unitElement = document.getElementById(`target-unit-${variableId}`);
+    const ontologyElement = document.getElementById(`target-ontology-${variableId}`);
+    const valuesCountElement = document.getElementById(`target-values-count-${variableId}`);
+    
+    if (nameElement) nameElement.textContent = targetData.variable_name || '-';
+    if (displayNameElement) displayNameElement.textContent = targetData.display_name || '-';
+    if (descriptionElement) descriptionElement.textContent = targetData.description || 'No description available';
+    if (typeElement) typeElement.textContent = targetData.variable_type || 'Unknown';
+    if (unitElement) unitElement.textContent = targetData.unit || 'Not specified';
+    if (ontologyElement) ontologyElement.textContent = targetData.ontology_code || '-';
+    if (valuesCountElement) valuesCountElement.textContent = targetData.values_count || '-';
+    
+    // Add AI matching scores if available
+    addAIMatchingScores(variableId, targetData.attribute_id || targetData.id, detailsDiv);
+    
+    // Show the details section
+    detailsDiv.style.display = 'block';
+}
+
+function selectSuggestion(variableId, targetAttributeId, targetName, suggestionData = null) {
+    // This function is kept for backward compatibility
+    applyAISuggestion(variableId, suggestionData || {
+        attribute_id: targetAttributeId,
+        variable_name: targetName
+    });
+}
+
+function showConfidenceIndicator(variableId, suggestion) {
+    const indicator = document.getElementById(`confidence-${variableId}`);
+    if (indicator) {
+        const confidence = suggestion.confidence_label.toLowerCase();
+        // Map confidence labels to CSS classes properly
+        let confidenceClass = 'confidence-poor'; // default
+        if (confidence.includes('excellent')) confidenceClass = 'confidence-excellent';
+        else if (confidence.includes('good')) confidenceClass = 'confidence-good';
+        else if (confidence.includes('fair')) confidenceClass = 'confidence-fair';
+        
+        indicator.className = `confidence-indicator ${confidenceClass}`;
+        indicator.textContent = `${suggestion.confidence_label} Match (${(suggestion.combined_similarity * 100).toFixed(1)}%)`;
+        indicator.style.display = 'inline-block';
+    }
+}
+
+function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `alert alert-${type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'info'}`;
+    notification.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 1000; padding: 1rem; border-radius: 8px; max-width: 400px;';
+    notification.innerHTML = `
+        <i class="fas fa-${type === 'success' ? 'check' : type === 'warning' ? 'exclamation-triangle' : 'info-circle'}"></i>
+        ${message}
+    `;
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.remove();
+    }, 3000);
+}
+
+function getVariableIdFromCard(card) {
+    // Extract variable ID from the card's data or form elements
+    const formElement = card.querySelector('select[name*="variable_"]');
+    if (formElement) {
+        const match = formElement.name.match(/variable_(\d+)/);
+        return match ? match[1] : null;
+    }
+    return null;
 }
 
 </script>
