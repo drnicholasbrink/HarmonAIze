@@ -106,4 +106,14 @@ urlpatterns = [
         views.study_variables_api,
         name="study_variables_api",
     ),
+    path(
+        "api/mapping/<int:schema_id>/similarity-suggestions/",
+        views.similarity_suggestions_api,
+        name="similarity_suggestions_api",
+    ),
+    path(
+        "api/attribute/<int:attribute_id>/details/",
+        views.target_attribute_details_api,
+        name="target_attribute_details_api",
+    ),
 ]

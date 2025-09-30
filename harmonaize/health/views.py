@@ -1076,6 +1076,110 @@ def study_variables_api(request, study_id):
 
 
 @login_required
+def similarity_suggestions_api(request, schema_id):
+    """
+    API endpoint to get similarity-based mapping suggestions for a schema.
+    Returns JSON with similarity suggestions for all source attributes.
+    """
+    from django.http import JsonResponse
+    from core.similarity_service import similarity_service
+    
+    try:
+        schema = get_object_or_404(MappingSchema, id=schema_id)
+        
+        # Check permission - user must have access to the source study
+        if schema.source_study.created_by != request.user:
+            return JsonResponse({'error': 'Permission denied'}, status=403)
+        
+        # Get similarity suggestions
+        suggestions = similarity_service.get_mapping_suggestions(
+            source_study_id=schema.source_study.id,
+            target_study_id=schema.target_study.id,
+            limit_per_source=5,  # Return top 5 suggestions per variable
+        )
+        
+        # Format suggestions for JSON response
+        formatted_suggestions = {}
+        for source_attr_id, matches in suggestions.items():
+            formatted_suggestions[str(source_attr_id)] = [
+                {
+                    'attribute_id': match['attribute_id'],
+                    'variable_name': match['variable_name'],
+                    'display_name': match['display_name'],
+                    'description': match['description'],
+                    'variable_type': match['variable_type'],
+                    'unit': match['unit'],
+                    'combined_similarity': match['combined_similarity'],
+                    'name_similarity': match['name_similarity'],
+                    'description_similarity': match['description_similarity'],
+                    'confidence_grade': match['confidence_grade'],
+                    'confidence_label': match['confidence_label'],
+                    'confidence_color': match['confidence_color'],
+                    'has_description_match': match['has_description_match'],
+                }
+                for match in matches
+            ]
+        
+        return JsonResponse({
+            'suggestions': formatted_suggestions,
+            'schema_id': schema_id,
+            'source_study_name': schema.source_study.name,
+            'target_study_name': schema.target_study.name,
+        })
+        
+    except MappingSchema.DoesNotExist:
+        return JsonResponse({'error': 'Mapping schema not found'}, status=404)
+    except Exception as e:
+        logger.exception("Error getting similarity suggestions")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+def target_attribute_details_api(request, attribute_id):
+    """
+    API endpoint to get detailed information about a target attribute.
+    Returns JSON with comprehensive attribute details.
+    """
+    from django.http import JsonResponse
+    
+    try:
+        attribute = get_object_or_404(Attribute, id=attribute_id)
+        
+        # Check permission - user must have access to at least one study that uses this attribute
+        user_studies = Study.objects.filter(created_by=request.user)
+        accessible_studies = attribute.studies.filter(id__in=user_studies.values_list('id', flat=True))
+        
+        if not accessible_studies.exists():
+            return JsonResponse({"error": "Permission denied"}, status=403)
+        
+        # Get attribute details
+        attribute_data = {
+            "attribute_id": attribute.id,
+            "variable_name": attribute.variable_name,
+            "display_name": attribute.display_name,
+            "description": attribute.description,
+            "variable_type": attribute.variable_type,
+            "unit": attribute.unit,
+            "ontology_code": attribute.ontology_code,
+            "values_count": getattr(attribute, 'values_count', None),
+        }
+        
+        # Get the first accessible study for context
+        study = accessible_studies.first()
+        
+        return JsonResponse({
+            "attribute": attribute_data,
+            "study_name": study.name if study else "Unknown",
+        })
+        
+    except Attribute.DoesNotExist:
+        return JsonResponse({"error": "Attribute not found"}, status=404)
+    except Exception as e:
+        logger.exception("Error getting target attribute details")
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
 @require_http_methods(["POST"])
 def start_data_ingestion(request, file_id):
     """
