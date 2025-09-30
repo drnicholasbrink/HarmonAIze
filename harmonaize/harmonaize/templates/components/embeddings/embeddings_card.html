@@ -2,7 +2,7 @@
 Embeddings Management Card Component
 
 This component displays embedding generation status and controls for a study.
-Includes dynamic progress tracking and status management.
+Includes dynamic progress tracking and status management, plus t-SNE visualization controls.
 
 Usage:
   {% include 'components/embeddings/embeddings_card.html' with study=study %}
@@ -15,7 +15,7 @@ Parameters:
 <div class="info-card embeddings-card">
   <h2 class="card-title">
     <i class="fas fa-vector-square" style="color: var(--primary-color); margin-right: 0.5rem;"></i>
-    Variable Embeddings
+    Variable Embeddings & Visualization
   </h2>
   
   <!-- Embedding Status Grid -->
@@ -141,6 +141,44 @@ Parameters:
     </div>
   </div>
 
+  <!-- t-SNE Visualization Section -->
+  {% if variables_with_embeddings > 0 %}
+  <div class="tsne-section" style="margin-bottom: 1.5rem; padding: 1.5rem; background: rgba(0, 122, 255, 0.05); border-radius: 8px; border: 1px solid rgba(0, 122, 255, 0.15);">
+    <h3 style="margin: 0 0 1rem 0; font-size: 1.1rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+      <i class="fas fa-project-diagram" style="color: var(--primary-color);"></i>
+      2D Visualization (t-SNE)
+    </h3>
+    
+    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem;">
+      <form method="post" action="{% url 'core:generate_project_tsne' project_id=study.project.id %}" style="display: inline;">
+        {% csrf_token %}
+        <input type="hidden" name="embedding_type" value="both">
+        <button type="submit" class="btn btn-outline-primary" style="font-size: 0.9rem;">
+          <i class="fas fa-magic" style="margin-right: 0.5rem;"></i>
+          Generate t-SNE Projections
+        </button>
+      </form>
+      
+      {% if study.project %}
+      <a href="{% url 'core:tsne_visualization' project_id=study.project.id %}?type=name" class="btn btn-primary" style="font-size: 0.9rem;">
+        <i class="fas fa-eye" style="margin-right: 0.5rem;"></i>
+        View Name Visualization
+      </a>
+      
+      <a href="{% url 'core:tsne_visualization' project_id=study.project.id %}?type=description" class="btn btn-primary" style="font-size: 0.9rem;">
+        <i class="fas fa-eye" style="margin-right: 0.5rem;"></i>
+        View Description Visualization
+      </a>
+      {% endif %}
+    </div>
+    
+    <div style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4;">
+      <strong>t-SNE</strong> (t-distributed Stochastic Neighbor Embedding) creates 2D maps of your high-dimensional embeddings, 
+      helping you visually explore relationships between variables. Similar variables cluster together in the visualization.
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Information Panel -->
   <div class="alert alert-info" style="background: rgba(0, 122, 255, 0.1); border: 1px solid rgba(0, 122, 255, 0.2); border-radius: 8px; padding: 1rem;">
     <div style="display: flex; align-items: flex-start; gap: 0.75rem;">
@@ -165,7 +203,8 @@ Parameters:
     if (!confirm(`This will generate embeddings for all ${variableCount} variables. Continue?`)) {
       return false;
     }
-    startEmbeddingProcess('generate');
+    // Delay the UI updates to allow form submission to happen first
+    setTimeout(() => startEmbeddingProcess('generate'), 100);
     return true;
   }
 
@@ -173,7 +212,8 @@ Parameters:
     if (!confirm(`This will continue generating embeddings for remaining variables. Continue?`)) {
       return false;
     }
-    startEmbeddingProcess('continue');
+    // Delay the UI updates to allow form submission to happen first
+    setTimeout(() => startEmbeddingProcess('continue'), 100);
     return true;
   }
 
@@ -181,7 +221,8 @@ Parameters:
     if (!confirm(`This will regenerate embeddings for all ${variableCount} variables. Continue?`)) {
       return false;
     }
-    startEmbeddingProcess('regenerate');
+    // Delay the UI updates to allow form submission to happen first
+    setTimeout(() => startEmbeddingProcess('regenerate'), 100);
     return true;
   }
 
@@ -189,7 +230,8 @@ Parameters:
     if (!confirm(`This will restart embedding generation from the beginning for all ${variableCount} variables. Continue?`)) {
       return false;
     }
-    startEmbeddingProcess('redo');
+    // Delay the UI updates to allow form submission to happen first
+    setTimeout(() => startEmbeddingProcess('redo'), 100);
     return true;
   }
 

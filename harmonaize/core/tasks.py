@@ -230,3 +230,133 @@ def check_missing_embeddings():
             "success": False,
             "error": str(exc)
         }
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+def generate_tsne_projections_for_project(self, project_id: int, embedding_type: str = "both"):
+    """
+    Generate t-SNE projections for all attributes in a project.
+    
+    Args:
+        project_id: The ID of the Project to generate t-SNE projections for
+        embedding_type: Type of embedding to project ('name', 'description', or 'both')
+        
+    Returns:
+        dict: Status information about the t-SNE generation
+    """
+    try:
+        # Import here to avoid circular imports
+        from core.models import Project
+        from core.tsne_service import tsne_service
+        
+        logger.info("Starting t-SNE projection generation for Project %d", project_id)
+        
+        # Get the project
+        try:
+            project = Project.objects.get(id=project_id)
+        except ObjectDoesNotExist:
+            logger.error("Project with ID %d does not exist", project_id)
+            return {
+                "success": False,
+                "error": f"Project with ID {project_id} not found",
+                "project_id": project_id,
+            }
+        
+        # Generate t-SNE projections
+        stats = tsne_service.project_attributes_by_project(
+            project=project,
+            embedding_type=embedding_type,
+        )
+        
+        logger.info("Successfully generated t-SNE projections for Project %d", project_id)
+        
+        return {
+            "success": True,
+            "project_id": project_id,
+            "project_name": project.name,
+            "embedding_type": embedding_type,
+            "statistics": stats,
+        }
+        
+    except Exception as exc:
+        # Log the error
+        logger.exception("Error generating t-SNE projections for Project %d", project_id)
+        
+        # Retry the task with exponential backoff
+        try:
+            raise self.retry(exc=exc, countdown=60 * (2 ** self.request.retries))
+        except self.MaxRetriesExceededError:
+            logger.error("Max retries exceeded for Project %d t-SNE generation", project_id)
+            return {
+                "success": False,
+                "error": f"Max retries exceeded: {str(exc)}",
+                "project_id": project_id,
+            }
+
+
+@shared_task
+def check_tsne_projection_progress(project_id: int):
+    """
+    Check the progress of t-SNE projections for a project.
+    
+    Args:
+        project_id: The ID of the Project to check progress for
+        
+    Returns:
+        dict: Progress information about t-SNE projections
+    """
+    try:
+        # Import here to avoid circular imports
+        from core.models import Project, Attribute
+        
+        # Get the project
+        try:
+            project = Project.objects.get(id=project_id)
+        except ObjectDoesNotExist:
+            return {
+                "success": False,
+                "error": f"Project with ID {project_id} not found",
+                "project_id": project_id,
+            }
+        
+        # Get all attributes in the project
+        attributes = Attribute.objects.filter(
+            studies__project=project,
+        ).distinct()
+        
+        total_attributes = attributes.count()
+        
+        # Count attributes with t-SNE projections
+        name_projections = attributes.filter(
+            name_tsne_x__isnull=False,
+            name_tsne_y__isnull=False,
+        ).count()
+        
+        description_projections = attributes.filter(
+            description_tsne_x__isnull=False,
+            description_tsne_y__isnull=False,
+        ).count()
+        
+        # Calculate percentages
+        name_percentage = (name_projections / total_attributes * 100) if total_attributes > 0 else 0
+        description_percentage = (description_projections / total_attributes * 100) if total_attributes > 0 else 0
+        
+        return {
+            "success": True,
+            "project_id": project_id,
+            "project_name": project.name,
+            "total_attributes": total_attributes,
+            "name_projections": name_projections,
+            "description_projections": description_projections,
+            "name_percentage": round(name_percentage, 1),
+            "description_percentage": round(description_percentage, 1),
+            "is_complete": name_projections == total_attributes and description_projections == total_attributes,
+        }
+        
+    except Exception as exc:
+        logger.exception("Error checking t-SNE projection progress for Project %d", project_id)
+        return {
+            "success": False,
+            "error": str(exc),
+            "project_id": project_id,
+        }

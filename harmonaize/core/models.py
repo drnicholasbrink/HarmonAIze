@@ -184,6 +184,28 @@ class Attribute(models.Model):
         blank=True,
         help_text="Vector embedding of the description for semantic similarity search"
     )
+    
+    # t-SNE 2D projection coordinates for visualization
+    name_tsne_x = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="X coordinate from t-SNE projection of name embedding",
+    )
+    name_tsne_y = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Y coordinate from t-SNE projection of name embedding",
+    )
+    description_tsne_x = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="X coordinate from t-SNE projection of description embedding",
+    )
+    description_tsne_y = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Y coordinate from t-SNE projection of description embedding",
+    )
 
     def __str__(self):
         return self.display_name or self.variable_name
@@ -213,6 +235,31 @@ class Attribute(models.Model):
         if self.has_name_embedding and self.has_description_embedding:
             return "Complete"
         elif self.has_name_embedding or self.has_description_embedding:
+            return "Partial"
+        else:
+            return "Pending"
+    
+    @property
+    def has_name_tsne(self):
+        """Check if the attribute has name t-SNE coordinates."""
+        return self.name_tsne_x is not None and self.name_tsne_y is not None
+    
+    @property
+    def has_description_tsne(self):
+        """Check if the attribute has description t-SNE coordinates."""
+        return self.description_tsne_x is not None and self.description_tsne_y is not None
+    
+    @property
+    def has_tsne_projections(self):
+        """Check if the attribute has both name and description t-SNE projections."""
+        return self.has_name_tsne and self.has_description_tsne
+    
+    @property
+    def tsne_status(self):
+        """Return a human-readable t-SNE projection status."""
+        if self.has_name_tsne and self.has_description_tsne:
+            return "Complete"
+        elif self.has_name_tsne or self.has_description_tsne:
             return "Partial"
         else:
             return "Pending"
