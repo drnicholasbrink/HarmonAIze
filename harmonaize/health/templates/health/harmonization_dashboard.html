@@ -5,6 +5,12 @@
 
 {% block css %}
   {{ block.super }}
+  
+  <!-- Include ACE Editor Media -->
+  {% for variable_form in variable_forms %}
+    {{ variable_form.form.media.css }}
+  {% endfor %}
+  
   <style>
     :root {
       --primary-color: #007AFF;
@@ -393,6 +399,100 @@
       color: white;
     }
 
+    /* ACE Editor Professional Styling */
+    .ace_editor {
+      border: 2px solid var(--border-color) !important;
+      border-radius: 8px !important;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+      font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', 'Droid Sans Mono', 'Source Code Pro', monospace !important;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+    }
+    
+    .ace_editor.ace_focus {
+      border-color: var(--primary-color) !important;
+      box-shadow: 0 2px 12px rgba(0, 122, 255, 0.2) !important;
+    }
+    
+    .ace_gutter {
+      background: #f8f9fa !important;
+      border-right: 1px solid var(--border-color) !important;
+    }
+    
+    .ace_gutter-active-line {
+      background: rgba(0, 122, 255, 0.1) !important;
+    }
+    
+    .ace_active-line {
+      background: rgba(0, 122, 255, 0.05) !important;
+    }
+    
+    .ace_cursor {
+      color: var(--primary-color) !important;
+    }
+    
+    .ace_selection {
+      background: rgba(0, 122, 255, 0.2) !important;
+    }
+    
+    .ace_marker-layer .ace_selected-word {
+      background: rgba(0, 122, 255, 0.15) !important;
+      border: 1px solid rgba(0, 122, 255, 0.3) !important;
+    }
+    
+    .ace_print-margin {
+      background: rgba(255, 152, 0, 0.1) !important;
+    }
+    
+    /* Enhanced annotations/linting styles */
+    .ace_error {
+      background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAYAAACp8Z5+AAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAB3RJTUUH2QUFCQsTj3XBagAAAAlwSFlzAAAOwwAADsMBx2+oZAAAABJpVFh0Q29tbWVudAAAAAAAQ3JlYXRlZCB3aXRoIEdJTVDBhvOXAAAAJElEQVQI12P4//8/AzoYkACgoALDAIBBgUELQIBBCUADQQVAEQEBqWQQgwAAAABJRU5ErkJggg==") !important;
+      background-repeat: repeat-x !important;
+      background-position: left bottom !important;
+    }
+    
+    .ace_warning {
+      background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAYAAACp8Z5+AAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAB3RJTUUH2QUFCgsn8CV8VgAAAAlwSFlzAAAOwwAADsMBx2+oZAAAABJpVFh0Q29tbWVudAAAAAAAQ3JlYXRlZCB3aXRoIEdJTVDBhvOXAAAAJElEQVQI12P4DwR/gABCAhDwAwhKQCxAQP8A8Q8I+AEE/hAAqGMfQAI/AHsAAAAASUVORK5CYII=") !important;
+      background-repeat: repeat-x !important;
+      background-position: left bottom !important;
+    }
+    
+    .ace_info {
+      background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAYAAACp8Z5+AAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAB3RJTUUH2QUFCgkzIHh9WgAAAAlwSFlzAAAOwwAADsMBx2+oZAAAABJpVFh0Q29tbWVudAAAAAAAQ3JlYXRlZCB3aXRoIEdJTVDBhvOXAAAAJElEQVQI12P4DwABAP8A/wHJDAABAP8A/wHJDAABAP8A/wHJDAABAP8A/wHJA9QP/wHoANfAAAAAAElFTkSuQmCC") !important;
+      background-repeat: repeat-x !important;
+      background-position: left bottom !important;
+    }
+    
+    /* Tooltip styling for ace editor */
+    .ace_tooltip {
+      background: #333 !important;
+      color: white !important;
+      border-radius: 6px !important;
+      padding: 8px 12px !important;
+      font-size: 12px !important;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+      max-width: 300px !important;
+      z-index: 1000 !important;
+    }
+    
+    /* Autocomplete popup styling */
+    .ace_autocomplete {
+      border: 1px solid var(--border-color) !important;
+      border-radius: 8px !important;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15) !important;
+      background: white !important;
+      max-height: 200px !important;
+    }
+    
+    .ace_autocomplete .ace_completion-highlight {
+      color: var(--primary-color) !important;
+      font-weight: bold !important;
+    }
+    
+    .ace_autocomplete .ace_completion-meta {
+      color: #666 !important;
+      font-style: italic !important;
+    }
+
     /* Source Attribute Details */
     .source-attribute-details {
       background: #f8f9fa;
@@ -612,6 +712,104 @@
       outline: none;
       border-color: var(--primary-color);
       box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+    }
+
+    /* Code Examples Toolbar */
+    .code-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.75rem;
+    }
+
+    .code-header .form-label {
+      margin-bottom: 0;
+    }
+
+    .example-section {
+      border-bottom: 1px solid #e9ecef;
+      padding-bottom: 1rem;
+    }
+
+    .example-section h6 {
+      color: var(--primary-color);
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .example-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .example-buttons .btn {
+      font-size: 0.8rem;
+      padding: 0.4rem 0.8rem;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+    }
+
+    .example-buttons .btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    .example-buttons .btn i {
+      margin-right: 0.3rem;
+      font-size: 0.75rem;
+    }
+
+    /* ACE Editor Styling */
+    .ace_editor {
+      border: 1px solid var(--border-color) !important;
+      border-radius: 8px !important;
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace !important;
+    }
+
+    .ace_editor.ace_focus {
+      border-color: var(--primary-color) !important;
+      box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1) !important;
+    }
+
+    /* Code Help Section */
+    .code-help details {
+      border: 1px solid #e9ecef;
+      border-radius: 6px;
+      background: #fafafa;
+    }
+
+    .code-help summary {
+      padding: 0.75rem;
+      font-weight: 600;
+      border-radius: 6px 6px 0 0;
+      background: #f1f3f4;
+    }
+
+    .code-help details[open] summary {
+      border-bottom: 1px solid #e9ecef;
+      border-radius: 6px 6px 0 0;
+    }
+
+    .code-help pre {
+      background: #2d3748;
+      color: #e2e8f0;
+      border-radius: 4px;
+      padding: 0.75rem;
+      font-size: 0.85rem;
+      overflow-x: auto;
+      margin: 0.5rem 0;
+    }
+
+    .code-help code {
+      background: #f7fafc;
+      color: #2d3748;
+      padding: 0.2rem 0.4rem;
+      border-radius: 3px;
+      font-size: 0.85rem;
     }
 
     .relationship-section {
@@ -1236,9 +1434,15 @@
               
               <!-- Transform Code -->
               <div class="form-group full-width">
-                <label class="form-label">
-                  <i class="fas fa-code"></i> Transform Code (Optional)
-                </label>
+                <div class="code-header">
+                  <label class="form-label">
+                    <i class="fas fa-code"></i> Transform Code (Optional)
+                  </label>
+                  <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearCode({{ variable_form.attribute.id }})">
+                    <i class="fas fa-eraser"></i> Clear
+                  </button>
+                </div>
+                
                 {{ variable_form.form.transform_code }}
                 {% if variable_form.form.transform_code.errors %}
                   <div class="error-message">
@@ -1247,16 +1451,59 @@
                     {% endfor %}
                   </div>
                 {% endif %}
+                
                 <div class="code-help">
-                  <small class="help-text">
-                    <strong>Transform Examples:</strong><br>
-                    Text: <code>lambda value: value.upper().strip()</code><br>
-                    Split: <code>lambda value: value.split(',')[0] if value else None</code><br>
-                    Units: <code>lambda value: float(value) * 2.54 if value else None</code><br>
-                    Replace: <code>lambda value: value.replace('old', 'new')</code><br>
-                    Complex: Use <code>def transform(value): ...</code> for multi-line logic<br>
-                    <strong>Safe methods:</strong> <code>.upper()</code>, <code>.lower()</code>, <code>.strip()</code>, <code>.split()</code>, <code>.replace()</code>, <code>.join()</code>, and more string/list methods
-                  </small>
+                  <details class="mt-2">
+                    <summary class="text-muted" style="cursor: pointer;">
+                      <small><i class="fas fa-info-circle"></i> Transform Code Documentation & Examples</small>
+                    </summary>
+                    <div class="mt-2 p-3 bg-light rounded">
+                      <!-- Quick Insert Examples -->
+                      <div class="example-section mb-3">
+                        <h6 class="mb-2"><i class="fas fa-magic"></i> Quick Insert Examples:</h6>
+                        <div class="example-buttons">
+                          <button type="button" class="btn btn-sm btn-outline-primary" onclick="insertExample({{ variable_form.attribute.id }}, 'uppercase')">
+                            <i class="fas fa-font"></i> Uppercase Text
+                          </button>
+                          <button type="button" class="btn btn-sm btn-outline-primary" onclick="insertExample({{ variable_form.attribute.id }}, 'split')">
+                            <i class="fas fa-cut"></i> Split & Extract
+                          </button>
+                          <button type="button" class="btn btn-sm btn-outline-primary" onclick="insertExample({{ variable_form.attribute.id }}, 'convert_units')">
+                            <i class="fas fa-calculator"></i> Convert Units
+                          </button>
+                          <button type="button" class="btn btn-sm btn-outline-primary" onclick="insertExample({{ variable_form.attribute.id }}, 'replace')">
+                            <i class="fas fa-exchange-alt"></i> Replace Values
+                          </button>
+                          <button type="button" class="btn btn-sm btn-outline-primary" onclick="insertExample({{ variable_form.attribute.id }}, 'conditional')">
+                            <i class="fas fa-question-circle"></i> Conditional Logic
+                          </button>
+                        </div>
+                      </div>
+                      
+                      <!-- Documentation -->
+                      <small class="help-text">
+                        <strong>Basic Examples:</strong><br>
+                        • Text cleanup: <code>lambda value: value.upper().strip() if value else ""</code><br>
+                        • Extract first part: <code>lambda value: value.split(',')[0] if value else None</code><br>
+                        • Unit conversion: <code>lambda value: float(value) * 2.54 if value else None</code><br>
+                        • Replace values: <code>lambda value: value.replace('old', 'new') if value else value</code><br>
+                        • Conditional mapping: <code>lambda value: 'Yes' if value == '1' else 'No' if value == '0' else value</code><br><br>
+                        
+                        <strong>Multi-line Functions:</strong><br>
+                        <pre><code>def transform(value):
+    if not value:
+        return None
+    # Clean and convert
+    cleaned = value.strip().upper()
+    return cleaned if cleaned != 'UNKNOWN' else None</code></pre><br>
+                        
+                        <strong>Safe Methods Available:</strong><br>
+                        String: <code>.upper()</code>, <code>.lower()</code>, <code>.strip()</code>, <code>.split()</code>, <code>.replace()</code>, <code>.join()</code>, <code>.startswith()</code>, <code>.endswith()</code><br>
+                        Numeric: <code>int()</code>, <code>float()</code>, <code>round()</code>, <code>abs()</code>, <code>min()</code>, <code>max()</code><br>
+                        Lists: <code>.append()</code>, <code>.extend()</code>, <code>.sort()</code>, <code>.reverse()</code>, <code>len()</code>, <code>sum()</code>
+                      </small>
+                    </div>
+                  </details>
                 </div>
               </div>
               
@@ -1397,6 +1644,11 @@
 <div class="auto-save-indicator" id="auto-save-indicator">
   <i class="fas fa-save"></i> Saving...
 </div>
+
+<!-- Include ACE Editor JavaScript -->
+{% for variable_form in variable_forms %}
+  {{ variable_form.form.media.js }}
+{% endfor %}
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -1771,7 +2023,503 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
+
+// ACE Editor Professional Enhancements
+document.addEventListener('DOMContentLoaded', function() {
+    // Wait for ACE editor to be fully loaded
+    setTimeout(function() {
+        // Find all ACE editors on the page
+        $('.ace_editor').each(function() {
+            if (this.env) {
+                var editor = this.env.editor;
+                
+                // Enable enhanced Python linting and features
+                editor.setOptions({
+                    enableBasicAutocompletion: true,
+                    enableLiveAutocompletion: true,
+                    enableSnippets: true,
+                    highlightActiveLine: true,
+                    showPrintMargin: true,
+                    printMarginColumn: 88,  // PEP 8 line length
+                    fontSize: "14px",
+                    showGutter: true,
+                    displayIndentGuides: true,
+                    fadeFoldWidgets: false,
+                    showFoldWidgets: true,
+                    behavioursEnabled: true,
+                    wrapBehavioursEnabled: true,
+                    autoScrollEditorIntoView: true,
+                    copyWithEmptySelection: false,
+                    useSoftTabs: true,
+                    navigateWithinSoftTabs: false,
+                    enableMultiselect: true,
+                    scrollPastEnd: 0.2,
+                    fixedWidthGutter: false,
+                    showLineNumbers: true
+                });
+                
+                // Set Python-specific session options
+                editor.getSession().setOptions({
+                    tabSize: 4,
+                    useSoftTabs: true,
+                    useWorker: true,
+                    mode: "ace/mode/python",
+                    wrap: false
+                });
+                
+                // Enhanced Python autocompletion
+                editor.completers.push({
+                    getCompletions: function(editor, session, pos, prefix, callback) {
+                        var pythonCompletions = [
+                            // Common Python keywords
+                            {caption: "def", snippet: "def ${1:function_name}(${2:value}):\n    ${3:return value}", meta: "keyword", score: 1000},
+                            {caption: "lambda", snippet: "lambda ${1:value}: ${2:value}", meta: "keyword", score: 1000},
+                            {caption: "if", snippet: "if ${1:condition}:\n    ${2:pass}", meta: "keyword", score: 1000},
+                            {caption: "elif", snippet: "elif ${1:condition}:\n    ${2:pass}", meta: "keyword", score: 900},
+                            {caption: "else", snippet: "else:\n    ${1:pass}", meta: "keyword", score: 900},
+                            {caption: "for", snippet: "for ${1:item} in ${2:iterable}:\n    ${3:pass}", meta: "keyword", score: 800},
+                            {caption: "while", snippet: "while ${1:condition}:\n    ${2:pass}", meta: "keyword", score: 700},
+                            {caption: "try", snippet: "try:\n    ${1:pass}\nexcept ${2:Exception} as ${3:e}:\n    ${4:pass}", meta: "keyword", score: 600},
+                            {caption: "return", snippet: "return ${1:value}", meta: "keyword", score: 1000},
+                            
+                            // Variable and common patterns
+                            {caption: "value", snippet: "value", meta: "variable", score: 1000},
+                            {caption: "None", snippet: "None", meta: "constant", score: 900},
+                            {caption: "True", snippet: "True", meta: "constant", score: 900},
+                            {caption: "False", snippet: "False", meta: "constant", score: 900},
+                            
+                            // String methods
+                            {caption: "value.strip()", snippet: "value.strip()", meta: "method", score: 950},
+                            {caption: "value.upper()", snippet: "value.upper()", meta: "method", score: 950},
+                            {caption: "value.lower()", snippet: "value.lower()", meta: "method", score: 950},
+                            {caption: "value.title()", snippet: "value.title()", meta: "method", score: 900},
+                            {caption: "value.replace()", snippet: "value.replace('${1:old}', '${2:new}')", meta: "method", score: 940},
+                            {caption: "value.split()", snippet: "value.split('${1:separator}')", meta: "method", score: 940},
+                            {caption: "value.startswith()", snippet: "value.startswith('${1:prefix}')", meta: "method", score: 920},
+                            {caption: "value.endswith()", snippet: "value.endswith('${1:suffix}')", meta: "method", score: 920},
+                            {caption: "value.find()", snippet: "value.find('${1:substring}')", meta: "method", score: 900},
+                            {caption: "value.isdigit()", snippet: "value.isdigit()", meta: "method", score: 900},
+                            {caption: "value.isalpha()", snippet: "value.isalpha()", meta: "method", score: 900},
+                            
+                            // Type conversion functions
+                            {caption: "float(value)", snippet: "float(value)", meta: "function", score: 950},
+                            {caption: "int(value)", snippet: "int(value)", meta: "function", score: 950},
+                            {caption: "str(value)", snippet: "str(value)", meta: "function", score: 950},
+                            {caption: "bool(value)", snippet: "bool(value)", meta: "function", score: 900},
+                            {caption: "len(value)", snippet: "len(value)", meta: "function", score: 930},
+                            
+                            // Common patterns for data transformation
+                            {caption: "if value else", snippet: "if value else ${1:default}", meta: "pattern", score: 980},
+                            {caption: "value if value else", snippet: "value if value else ${1:default}", meta: "pattern", score: 980},
+                            {caption: "value and value.strip()", snippet: "value and value.strip()", meta: "pattern", score: 970},
+                            {caption: "value in [", snippet: "value in [${1:'option1'}, ${2:'option2'}]", meta: "pattern", score: 960},
+                            {caption: "value not in [", snippet: "value not in [${1:'option1'}, ${2:'option2'}]", meta: "pattern", score: 940},
+                            
+                            // Error handling patterns
+                            {caption: "try float", snippet: "try:\n    return float(value)\nexcept (ValueError, TypeError):\n    return ${1:None}", meta: "pattern", score: 920},
+                            {caption: "try int", snippet: "try:\n    return int(value)\nexcept (ValueError, TypeError):\n    return ${1:None}", meta: "pattern", score: 920}
+                        ];
+                        
+                        if (prefix.length >= 1) {
+                            var filtered = pythonCompletions.filter(function(item) {
+                                return item.caption.toLowerCase().indexOf(prefix.toLowerCase()) === 0;
+                            });
+                            callback(null, filtered);
+                        }
+                    }
+                });
+                
+                // Enhanced Python validation and linting
+                editor.getSession().on('changeAnnotation', function() {
+                    var annotations = editor.getSession().getAnnotations() || [];
+                    var customLints = [];
+                    var code = editor.getValue();
+                    
+                    if (code.trim()) {
+                        var lines = code.split('\n');
+                        
+                        lines.forEach(function(line, index) {
+                            var lineNum = index;
+                            var trimmedLine = line.trim();
+                            
+                            // Skip empty lines and comments
+                            if (!trimmedLine || trimmedLine.startsWith('#')) return;
+                            
+                            // Check indentation (should be multiples of 4 spaces)
+                            var leadingSpaces = line.match(/^( *)/)[1].length;
+                            if (leadingSpaces > 0 && leadingSpaces % 4 !== 0) {
+                                customLints.push({
+                                    row: lineNum,
+                                    column: 0,
+                                    text: "PEP 8: Use 4 spaces for indentation (found " + leadingSpaces + " spaces)",
+                                    type: "warning"
+                                });
+                            }
+                            
+                            // Check line length (PEP 8: max 88 characters for readability)
+                            if (line.length > 88) {
+                                customLints.push({
+                                    row: lineNum,
+                                    column: 88,
+                                    text: "PEP 8: Line too long (" + line.length + " > 88 characters)",
+                                    type: "info"
+                                });
+                            }
+                            
+                            // Check for trailing whitespace
+                            if (line.match(/\s+$/)) {
+                                customLints.push({
+                                    row: lineNum,
+                                    column: line.length - 1,
+                                    text: "Remove trailing whitespace",
+                                    type: "info"
+                                });
+                            }
+                            
+                            // Check for common Python style issues
+                            if (trimmedLine.match(/^(if|elif|for|while|def|class|try|except|with)\s*\(/)) {
+                                if (!trimmedLine.includes(' ')) {
+                                    customLints.push({
+                                        row: lineNum,
+                                        column: line.indexOf(trimmedLine),
+                                        text: "PEP 8: Add space after keyword",
+                                        type: "info"
+                                    });
+                                }
+                            }
+                            
+                            // Check for missing space around operators (basic check)
+                            if (trimmedLine.match(/[a-zA-Z0-9][=!<>]=?[a-zA-Z0-9]/) && !trimmedLine.includes('==') && !trimmedLine.includes('!=')) {
+                                customLints.push({
+                                    row: lineNum,
+                                    column: line.indexOf(trimmedLine),
+                                    text: "PEP 8: Add spaces around operators",
+                                    type: "info"
+                                });
+                            }
+                        });
+                    }
+                    
+                    // Merge with existing annotations from ACE's Python mode
+                    var allAnnotations = annotations.concat(customLints);
+                    editor.getSession().setAnnotations(allAnnotations);
+                });
+                
+                // Enhanced bracket matching and auto-closing
+                editor.setBehavioursEnabled(true);
+                editor.setWrapBehavioursEnabled(true);
+                
+                // Add useful keyboard shortcuts
+                editor.commands.addCommand({
+                    name: 'toggleComment',
+                    bindKey: {win: 'Ctrl-/', mac: 'Command-/'},
+                    exec: function(editor) {
+                        editor.toggleCommentLines();
+                    },
+                    multiSelectAction: "forEachLine"
+                });
+                
+                editor.commands.addCommand({
+                    name: 'duplicateLine',
+                    bindKey: {win: 'Ctrl-D', mac: 'Command-D'},
+                    exec: function(editor) {
+                        editor.copyLinesDown();
+                    }
+                });
+                
+                editor.commands.addCommand({
+                    name: 'formatCode',
+                    bindKey: {win: 'Ctrl-Shift-F', mac: 'Command-Shift-F'},
+                    exec: function(editor) {
+                        // Basic Python formatting
+                        var code = editor.getValue();
+                        var lines = code.split('\n');
+                        var indentLevel = 0;
+                        var formattedLines = [];
+                        
+                        lines.forEach(function(line) {
+                            var trimmed = line.trim();
+                            if (!trimmed) {
+                                formattedLines.push('');
+                                return;
+                            }
+                            
+                            // Decrease indent for certain keywords
+                            if (trimmed.match(/^(elif|else|except|finally):/)) {
+                                indentLevel = Math.max(0, indentLevel - 1);
+                            }
+                            
+                            formattedLines.push('    '.repeat(indentLevel) + trimmed);
+                            
+                            // Increase indent after certain keywords
+                            if (trimmed.match(/^(def|class|if|elif|else|for|while|try|except|finally|with).*:$/)) {
+                                indentLevel++;
+                            }
+                        });
+                        
+                        editor.setValue(formattedLines.join('\n'));
+                        editor.clearSelection();
+                    }
+                });
+                
+                // Trigger initial validation
+                setTimeout(function() {
+                    editor.getSession().$annotations = [];
+                    editor.getSession()._signal("changeAnnotation", {});
+                }, 100);
+            }
+        });
+    }, 100);
+});
+
 // Enhanced functionality for improved harmonization cards
+
+// Transform code example insertion functions
+function insertExample(variableId, exampleType) {
+    const examples = {
+        'uppercase': "lambda value: value.upper().strip() if value else \"\"",
+        'split': "lambda value: value.split(',')[0].strip() if value else None",
+        'convert_units': "lambda value: float(value) * 2.54 if value and value != '' else None",
+        'replace': "lambda value: value.replace('old_value', 'new_value') if value else value",
+        'conditional': `def transform(value):
+    if not value or value.strip() == '':
+        return None
+    value = value.strip().upper()
+    if value in ['YES', 'Y', '1', 'TRUE']:
+        return 'Yes'
+    elif value in ['NO', 'N', '0', 'FALSE']:
+        return 'No'
+    else:
+        return value`
+    };
+    
+    const exampleCode = examples[exampleType];
+    if (!exampleCode) {
+        console.warn('Unknown example type:', exampleType);
+        return;
+    }
+    
+    // Try multiple methods to find the ACE editor for this variable
+    let editor = null;
+    
+    // Method 1: Try to find by variable-specific textarea name
+    const textareaName = `variable_${variableId}-transform_code`;
+    const textarea = document.querySelector(`textarea[name="${textareaName}"]`);
+    
+    if (textarea && typeof ace !== 'undefined') {
+        // Check if this textarea has been converted to ACE editor
+        const aceContainer = textarea.parentNode.querySelector('.ace_editor');
+        if (aceContainer && aceContainer.env && aceContainer.env.editor) {
+            editor = aceContainer.env.editor;
+        } else {
+            // Try to get ACE editor by textarea ID
+            try {
+                editor = ace.edit(textarea.id);
+            } catch (e) {
+                console.log('Could not get ACE editor by textarea ID:', e);
+            }
+        }
+    }
+    
+    // Method 2: Search for ACE editor containers and match by field name
+    if (!editor) {
+        const aceEditors = document.querySelectorAll('.ace_editor');
+        for (let aceContainer of aceEditors) {
+            const textareaElement = aceContainer.previousElementSibling;
+            if (textareaElement && textareaElement.name && textareaElement.name.includes(`variable_${variableId}-transform_code`)) {
+                if (aceContainer.env && aceContainer.env.editor) {
+                    editor = aceContainer.env.editor;
+                    break;
+                }
+            }
+        }
+    }
+    
+    if (editor) {
+        try {
+            // Insert the example code
+            editor.setValue(exampleCode);
+            editor.clearSelection();
+            editor.focus();
+            
+            // Trigger change event for auto-save
+            setTimeout(() => {
+                triggerAutoSave(variableId);
+            }, 100);
+            
+            console.log('Successfully inserted example using ACE editor');
+            return;
+        } catch (e) {
+            console.warn('ACE editor error, using fallback method:', e);
+        }
+    }
+    
+    // Fallback method if ACE editor not found
+    console.log('ACE editor not found, using fallback method');
+    insertExampleFallback(variableId, exampleType);
+}
+
+function insertExampleFallback(variableId, exampleType) {
+    const examples = {
+        'uppercase': "lambda value: value.upper().strip() if value else \"\"",
+        'split': "lambda value: value.split(',')[0].strip() if value else None",
+        'convert_units': "lambda value: float(value) * 2.54 if value and value != '' else None",
+        'replace': "lambda value: value.replace('old_value', 'new_value') if value else value",
+        'conditional': `def transform(value):
+    if not value or value.strip() == '':
+        return None
+    value = value.strip().upper()
+    if value in ['YES', 'Y', '1', 'TRUE']:
+        return 'Yes'
+    elif value in ['NO', 'N', '0', 'FALSE']:
+        return 'No'
+    else:
+        return value`
+    };
+    
+    const exampleCode = examples[exampleType];
+    if (!exampleCode) {
+        return;
+    }
+    
+    // Find the textarea element within the variable card
+    const variableCard = document.querySelector(`[data-variable-id="${variableId}"]`) || 
+                        document.querySelector(`[data-attribute-id="${variableId}"]`);
+    
+    let textareaElement = null;
+    
+    if (variableCard) {
+        textareaElement = variableCard.querySelector('textarea[name*="transform_code"]');
+    }
+    
+    // If not found in specific card, try a broader search
+    if (!textareaElement) {
+        const allTextareas = document.querySelectorAll('textarea[name*="transform_code"]');
+        if (allTextareas.length > 0) {
+            textareaElement = allTextareas[0]; // Use the first one as fallback
+        }
+    }
+    
+    if (textareaElement) {
+        textareaElement.value = exampleCode;
+        textareaElement.focus();
+        
+        // Trigger change event for auto-save
+        const event = new Event('change', { bubbles: true });
+        textareaElement.dispatchEvent(event);
+        
+        // Also trigger input event for more comprehensive updates
+        const inputEvent = new Event('input', { bubbles: true });
+        textareaElement.dispatchEvent(inputEvent);
+    } else {
+        console.warn('Could not find transform_code textarea for variable:', variableId);
+    }
+}
+
+function clearCode(variableId) {
+    // Try multiple methods to find the ACE editor for this variable
+    let editor = null;
+    
+    // Method 1: Try to find by variable-specific textarea name
+    const textareaName = `variable_${variableId}-transform_code`;
+    const textarea = document.querySelector(`textarea[name="${textareaName}"]`);
+    
+    if (textarea && typeof ace !== 'undefined') {
+        // Check if this textarea has been converted to ACE editor
+        const aceContainer = textarea.parentNode.querySelector('.ace_editor');
+        if (aceContainer && aceContainer.env && aceContainer.env.editor) {
+            editor = aceContainer.env.editor;
+        } else {
+            // Try to get ACE editor by textarea ID
+            try {
+                editor = ace.edit(textarea.id);
+            } catch (e) {
+                console.log('Could not get ACE editor by textarea ID:', e);
+            }
+        }
+    }
+    
+    // Method 2: Search for ACE editor containers and match by field name
+    if (!editor) {
+        const aceEditors = document.querySelectorAll('.ace_editor');
+        for (let aceContainer of aceEditors) {
+            const textareaElement = aceContainer.previousElementSibling;
+            if (textareaElement && textareaElement.name && textareaElement.name.includes(`variable_${variableId}-transform_code`)) {
+                if (aceContainer.env && aceContainer.env.editor) {
+                    editor = aceContainer.env.editor;
+                    break;
+                }
+            }
+        }
+    }
+    
+    if (editor) {
+        try {
+            // Clear the editor content
+            editor.setValue('');
+            editor.clearSelection();
+            editor.focus();
+            
+            // Trigger change event for auto-save
+            setTimeout(() => {
+                triggerAutoSave(variableId);
+            }, 100);
+            
+            console.log('Successfully cleared code using ACE editor');
+            return;
+        } catch (e) {
+            console.warn('ACE editor error, using fallback method:', e);
+        }
+    }
+    
+    // Fallback method if ACE editor not found
+    console.log('ACE editor not found, using fallback method');
+    clearCodeFallback(variableId);
+}
+
+function clearCodeFallback(variableId) {
+    // Find any textarea with transform_code in the name within the variable card
+    const variableCard = document.querySelector(`[data-variable-id="${variableId}"]`) || 
+                        document.querySelector(`[data-attribute-id="${variableId}"]`);
+    
+    if (variableCard) {
+        const textareaElement = variableCard.querySelector('textarea[name*="transform_code"]');
+        if (textareaElement) {
+            textareaElement.value = '';
+            textareaElement.focus();
+            
+            // Trigger change event for auto-save
+            const event = new Event('change', { bubbles: true });
+            textareaElement.dispatchEvent(event);
+            return;
+        }
+    }
+    
+    // Final fallback: find any transform_code textarea
+    const allTextareas = document.querySelectorAll('textarea[name*="transform_code"]');
+    if (allTextareas.length > 0) {
+        // If we can't identify the specific one, at least clear the first one as feedback
+        allTextareas[0].value = '';
+        allTextareas[0].focus();
+    }
+}
+
+function getFormIndexFromVariableId(variableId) {
+    // Helper function to convert variable ID to form index
+    // This might need adjustment based on how the form indices are structured
+    const variableCard = document.querySelector(`[data-variable-id="${variableId}"]`) || 
+                        document.querySelector(`[data-attribute-id="${variableId}"]`);
+    
+    if (variableCard) {
+        const formElement = variableCard.querySelector('select[name*="form-"], textarea[name*="form-"]');
+        if (formElement && formElement.name) {
+            const match = formElement.name.match(/form-(\d+)-/);
+            return match ? match[1] : '0';
+        }
+    }
+    
+    return '0'; // Default fallback
+}
 
 // Handle not mappable checkbox changes
 document.addEventListener('DOMContentLoaded', function() {
