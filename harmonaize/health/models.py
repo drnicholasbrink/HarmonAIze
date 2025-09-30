@@ -137,6 +137,7 @@ def validate_safe_transform_code(code: str):
         ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow, ast.Mod,
         ast.And, ast.Or, ast.Not, ast.USub, ast.UAdd,
         ast.Eq, ast.NotEq, ast.Lt, ast.LtE, ast.Gt, ast.GtE,
+        ast.In, ast.NotIn, ast.Is, ast.IsNot,  # Add missing comparison operators
         # Allow basic control flow and comprehensions
         ast.If, ast.ListComp, ast.DictComp, ast.SetComp, ast.GeneratorExp,
         ast.comprehension,

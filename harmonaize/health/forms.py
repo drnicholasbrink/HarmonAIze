@@ -1,6 +1,7 @@
 from django import forms
 from django.forms import formset_factory
 from django.core.exceptions import ValidationError
+from django_ace import AceWidget
 
 from core.models import Attribute, Study
 from .models import MappingRule, MappingSchema, validate_safe_transform_code, RawDataFile
@@ -100,10 +101,25 @@ class MappingRuleForm(forms.ModelForm):
             "comments",
         ]
         widgets = {
-            "transform_code": forms.Textarea(
-                attrs={
-                    "rows": 3,
-                }
+            "transform_code": AceWidget(
+                mode="python",
+                theme="github",
+                width="100%",
+                height="150px",
+                showprintmargin=True,
+                showinvisibles=False,
+                usesofttabs=True,
+                tabsize=4,
+                fontsize="14px",
+                toolbar=True,
+                wordwrap=False,
+                readonly=False,
+                showgutter=True,  # To hide/show line numbers
+                behaviours=True,  # To disable auto-append of quote when quotes are entered
+                useworker=True,
+                extensions=None,
+                basicautocompletion=False,
+                liveautocompletion=False,
             ),
             "comments": forms.Textarea(
                 attrs={"rows": 2, "placeholder": "Optional notes about this mapping..."}
