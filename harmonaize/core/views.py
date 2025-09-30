@@ -4,6 +4,8 @@ from django.contrib import messages
 from django.urls import reverse
 from django.views.generic import ListView, DetailView
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.http import JsonResponse
+from django.views.decorators.http import require_http_methods
 import pandas as pd
 from .models import Study, Project
 from .forms import StudyCreationForm, ProjectCreationForm
@@ -148,6 +150,7 @@ class StudyDetailView(LoginRequiredMixin, DetailView):
         
         # Calculate variable statistics
         variables = study.variables.all()
+        total_vars = variables.count()
         
         # Variable type distribution
         variable_types = {}
@@ -159,13 +162,19 @@ class StudyDetailView(LoginRequiredMixin, DetailView):
         variables_with_units = variables.exclude(unit='').count()
         variables_with_codes = variables.exclude(ontology_code='').count()
         
+        # Embedding statistics
+        variables_with_embeddings = variables.filter(
+            name_embedding__isnull=False,
+            description_embedding__isnull=False,
+        ).count()
+        embedding_progress = round((variables_with_embeddings / total_vars * 100), 1) if total_vars > 0 else 0
+        
         # Calculate percentages for type distribution bars
-        total_vars = variables.count()
         if total_vars > 0:
             for var_type in variable_types:
                 variable_types[var_type] = {
                     'count': variable_types[var_type],
-                    'percentage': (variable_types[var_type] / total_vars) * 100
+                    'percentage': (variable_types[var_type] / total_vars) * 100,
                 }
         
         context.update({
@@ -173,6 +182,8 @@ class StudyDetailView(LoginRequiredMixin, DetailView):
             'variables_with_units': variables_with_units,
             'variables_with_codes': variables_with_codes,
             'total_variables': total_vars,
+            'variables_with_embeddings': variables_with_embeddings,
+            'embedding_progress': round(embedding_progress, 1),
         })
         
         return context
@@ -619,3 +630,106 @@ def delete_study(request, study_id):
     # If GET request, just redirect back
     messages.warning(request, 'Invalid request. Studies can only be deleted via proper form submission.')
     return redirect('core:study_detail', pk=study.pk)
+
+
+# Embedding generation views
+# ==========================
+
+@login_required
+def generate_study_embeddings(request, study_id):
+    """
+    Generate embeddings for all attributes in a study.
+    """
+    study = get_object_or_404(Study, id=study_id, created_by=request.user)
+    
+    if request.method == 'POST':
+        from core.tasks import generate_embeddings_for_study
+        
+        # Queue the embedding generation task
+        task = generate_embeddings_for_study.delay(study_id)
+        
+        # Count attributes to give user feedback
+        attribute_count = study.variables.count()
+        
+        messages.success(
+            request,
+            f"Embedding generation queued for {attribute_count} attributes in study '{study.name}'. "
+            f"This may take a few minutes. Check back later to see the progress."
+        )
+        
+    return redirect('core:study_detail', pk=study_id)
+
+
+@login_required
+@require_http_methods(["GET"])
+def embedding_progress(request, study_id):
+    """
+    API endpoint to check embedding generation progress for a study.
+    Returns JSON with current progress.
+    """
+    study = get_object_or_404(Study, id=study_id, created_by=request.user)
+
+    total_variables = study.variables.count()
+    variables_with_embeddings = study.variables.filter(
+        name_embedding__isnull=False,
+        description_embedding__isnull=False,
+    ).count()
+
+    if total_variables > 0:
+        progress_percentage = round(
+            (variables_with_embeddings / total_variables * 100), 1,
+        )
+    else:
+        progress_percentage = 0
+
+    is_complete = variables_with_embeddings == total_variables
+
+    return JsonResponse({
+        "total": total_variables,
+        "completed": variables_with_embeddings,
+        "percentage": progress_percentage,
+        "is_complete": is_complete,
+    })
+
+
+@login_required
+def generate_attribute_embedding(request, attribute_id):
+    """
+    Generate embeddings for a single attribute.
+    """
+    from core.models import Attribute
+    
+    attribute = get_object_or_404(Attribute, id=attribute_id)
+    
+    # Check if user has access to this attribute (via their studies)
+    user_studies = Study.objects.filter(created_by=request.user)
+    if not user_studies.filter(variables=attribute).exists():
+        messages.error(request, "You don't have permission to generate embeddings for this attribute.")
+        return redirect('core:study_list')
+    
+    if request.method == 'POST':
+        from core.tasks import generate_attribute_embeddings
+        
+        # Queue the embedding generation task
+        task = generate_attribute_embeddings.delay(attribute_id)
+        
+        messages.success(
+            request,
+            f"Embedding generation queued for attribute '{attribute.variable_name}'. "
+            f"This may take a moment. Check back to see the progress."
+        )
+        
+        # Try to redirect back to the referring page, or fall back to study list
+        next_url = request.POST.get('next') or request.GET.get('next')
+        if next_url:
+            return redirect(next_url)
+        
+        # Find a study that contains this attribute to redirect to
+        study = user_studies.filter(variables=attribute).first()
+        if study:
+            return redirect('core:study_detail', pk=study.pk)
+        
+        return redirect('core:study_list')
+    
+    # If GET request, redirect back 
+    return redirect('core:study_list')

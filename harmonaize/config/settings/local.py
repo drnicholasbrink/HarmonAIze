@@ -71,6 +71,13 @@ INSTALLED_APPS += ["django_extensions"]
 
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#task-eager-propagates
 CELERY_TASK_EAGER_PROPAGATES = True
+
+# OpenAI API Configuration
+# ------------------------------------------------------------------------------
+# For local development, you can set a default test key or leave empty
+# The actual key should be set in your local environment variables
+OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
+
 # Your stuff...
 # ------------------------------------------------------------------------------
 DATABASES = {

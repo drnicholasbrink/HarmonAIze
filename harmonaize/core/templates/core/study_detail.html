@@ -1106,6 +1106,11 @@
     </div>
     {% endif %}
 
+    <!-- Variable Embeddings Management -->
+    {% if study.variables.count > 0 %}
+      {% include 'components/embeddings/embeddings_card.html' with study=study %}
+    {% endif %}
+
     <!-- Variables Summary & Statistics -->
     <div class="info-card">
       <h2 class="card-title">
@@ -1170,6 +1175,7 @@
           {% for variable in study.variables.all %}
             <div class="variable-card" 
                  data-type="{{ variable.variable_type }}" 
+                 data-variable-id="{{ variable.id }}"
                  data-search="{{ variable.variable_name|lower }} {{ variable.display_name|lower }} {{ variable.description|lower }}"
                  onclick="showVariableDetail({{ variable.id }})">
               <div class="variable-header">
@@ -1200,6 +1206,10 @@
                 <span class="meta-item">
                   <strong>Created:</strong> {{ variable.created_at|date:"M j, Y" }}
                 </span>
+                <!-- Embedding status and controls -->
+                <div class="meta-item" style="margin-left: auto;">
+                  {% include 'components/embeddings/status_badge.html' with variable=variable show_button=True %}
+                </div>
               </div>
             </div>
           {% endfor %}
@@ -1499,6 +1509,112 @@
     const urls = djangoData.urls;
     const isTargetStudy = djangoData.isTargetStudy;
 
+    // Handle bulk embedding generation with progress indicator
+    function handleGenerateAllEmbeddings(event, variableCount) {
+      if (!confirm(`This will generate embeddings for all ${variableCount} variables. Continue?`)) {
+        return false;
+      }
+      
+      // Show progress indicator
+      const button = document.getElementById('generateAllBtn');
+      const icon = document.getElementById('generateAllIcon');
+      const text = document.getElementById('generateAllText');
+      const progress = document.getElementById('embeddingProgress');
+      
+      // Update button state
+      button.disabled = true;
+      icon.className = 'fas fa-spinner fa-spin';
+      text.textContent = 'Generating...';
+      button.style.opacity = '0.7';
+      
+      // Show progress section
+      progress.style.display = 'block';
+      
+      // Start polling for progress after a short delay to allow task to start
+      setTimeout(() => {
+        startProgressPolling(studyData.id);
+      }, 2000);
+      
+      // Allow form submission to continue
+      return true;
+    }
+
+    // Poll for embedding progress
+    function startProgressPolling(studyId) {
+      const pollInterval = setInterval(() => {
+        fetch(`/app/studies/${studyId}/embedding-progress/`)
+          .then(response => response.json())
+          .then(data => {
+            updateProgressBar(data);
+            
+            // Stop polling when complete
+            if (data.is_complete) {
+              clearInterval(pollInterval);
+              onProgressComplete();
+            }
+          })
+          .catch(error => {
+            console.error('Error polling progress:', error);
+            clearInterval(pollInterval);
+          });
+      }, 3000); // Poll every 3 seconds
+    }
+
+    // Update the progress bar with current data
+    function updateProgressBar(data) {
+      // Update the main progress bar in the stats section
+      const mainProgressBar = document.querySelector('.progress-fill');
+      if (mainProgressBar) {
+        mainProgressBar.style.width = `${data.percentage}%`;
+      }
+      
+      // Update counts in stats section
+      const progressText = document.querySelector('[style*="font-weight: 600"]');
+      if (progressText) {
+        progressText.textContent = `${data.completed}/${data.total}`;
+      }
+      
+      // Update progress indicator text
+      const progressDiv = document.getElementById('embeddingProgress');
+      if (progressDiv) {
+        const statusText = progressDiv.querySelector('[style*="font-weight: 500"]');
+        if (statusText) {
+          statusText.textContent = `Generating embeddings... ${data.completed}/${data.total} complete`;
+        }
+      }
+    }
+
+    // Handle completion
+    function onProgressComplete() {
+      const button = document.getElementById('generateAllBtn');
+      const icon = document.getElementById('generateAllIcon');
+      const text = document.getElementById('generateAllText');
+      const progress = document.getElementById('embeddingProgress');
+      
+      // Update button state
+      button.disabled = false;
+      icon.className = 'fas fa-check';
+      text.textContent = 'All Embeddings Generated';
+      button.style.opacity = '1';
+      button.style.background = 'var(--success-color)';
+      
+      // Update progress section
+      progress.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem;">
+          <i class="fas fa-check-circle" style="color: var(--success-color);"></i>
+          <span style="font-weight: 500; color: var(--text-primary);">All embeddings generated successfully!</span>
+        </div>
+        <div style="font-size: 0.85rem; color: var(--text-secondary);">
+          Variable cards will now show embedding status. You can proceed with harmonisation.
+        </div>
+      `;
+      
+      // Refresh variable cards after 2 seconds
+      setTimeout(() => {
+        location.reload();
+      }, 2000);
+    }
+
     // Variable filtering and search functionality
     function filterVariables(type) {
       // Update active filter button
@@ -1581,6 +1697,9 @@
       
       const unit = variableCard.querySelector('.unit-badge')?.textContent || '';
       
+      // Get embedding status from the status badge
+      const embeddingStatus = getEmbeddingStatusFromCard(variableCard);
+      
       content.innerHTML = `
         <div class="variable-detail-content">
           <div class="detail-row">
@@ -1593,10 +1712,114 @@
           ${description !== 'No description available' ? `<div class="detail-row"><strong>Description:</strong> ${description}</div>` : ''}
           ${ontologyCode ? `<div class="detail-row"><strong>Ontology Code:</strong> ${ontologyCode}</div>` : ''}
           ${createdDate ? `<div class="detail-row"><strong>Created:</strong> ${createdDate}</div>` : ''}
+          <div class="detail-row">
+            <strong>AI Embedding Status:</strong>
+            <div style="margin-top: 0.5rem;">
+              ${embeddingStatus.html}
+            </div>
+            <div style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-secondary);">
+              ${embeddingStatus.description}
+            </div>
+          </div>
         </div>
       `;
       
       modal.style.display = 'block';
+    }
+
+    // Helper function to extract embedding status from variable card
+    function getEmbeddingStatusFromCard(variableCard) {
+      const embeddingBadge = variableCard.querySelector('.meta-item:last-child');
+      if (!embeddingBadge) {
+        return {
+          html: '<span style="color: var(--text-secondary);">Status unknown</span>',
+          description: 'Unable to determine embedding status.'
+        };
+      }
+      
+      // Check for different badge types
+      if (embeddingBadge.querySelector('.embedding-status-complete')) {
+        return {
+          html: `
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <span style="background: rgba(52, 199, 89, 0.2); color: #155724; padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 0.8rem; font-weight: 600; display: inline-flex; align-items: center;">
+                <i class="fas fa-check-circle" style="margin-right: 0.25rem; color: #34C759;"></i>Complete
+              </span>
+              <small style="color: var(--text-secondary);">Both name and description embedded</small>
+            </div>
+          `,
+          description: 'This variable has complete AI embeddings for both name and description. These embeddings enable semantic matching during harmonisation.'
+        };
+      } else if (embeddingBadge.querySelector('.embedding-status-partial')) {
+        const hasNameEmbedding = embeddingBadge.textContent.includes('Name embedded');
+        return {
+          html: `
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <span style="background: rgba(255, 193, 7, 0.2); color: #856404; padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 0.8rem; font-weight: 600; display: inline-flex; align-items: center;">
+                <i class="fas fa-clock" style="margin-right: 0.25rem; color: #FFC107;"></i>Partial
+              </span>
+              <small style="color: var(--text-secondary);">${hasNameEmbedding ? 'Name embedded only' : 'Description embedded only'}</small>
+            </div>
+          `,
+          description: 'This variable has partial embeddings. Generate embeddings for both name and description for optimal harmonisation matching.'
+        };
+      } else if (embeddingBadge.querySelector('.btn-embedding-generate')) {
+        return {
+          html: `
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <span style="background: rgba(142, 142, 147, 0.2); color: #3a3a3c; padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 0.8rem; font-weight: 600; display: inline-flex; align-items: center;">
+                <i class="fas fa-circle" style="margin-right: 0.25rem; color: #8E8E93;"></i>Not Generated
+              </span>
+              <button onclick="generateSingleEmbedding(${variableCard.dataset.variableId})" style="background: var(--primary-color); color: white; border: none; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; cursor: pointer;">
+                <i class="fas fa-magic" style="margin-right: 0.25rem;"></i>Generate Now
+              </button>
+            </div>
+          `,
+          description: 'No AI embeddings have been generated for this variable. Click "Generate Now" to create embeddings for improved harmonisation matching.'
+        };
+      } else {
+        return {
+          html: `
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <span style="background: rgba(142, 142, 147, 0.2); color: #3a3a3c; padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 0.8rem; font-weight: 600; display: inline-flex; align-items: center;">
+                <i class="fas fa-circle" style="margin-right: 0.25rem; color: #8E8E93;"></i>No Embedding
+              </span>
+            </div>
+          `,
+          description: 'No AI embedding has been generated for this variable. Use the embeddings card above to generate embeddings for all variables.'
+        };
+      }
+    }
+
+    // Function to generate embedding for a single variable from the modal
+    function generateSingleEmbedding(variableId) {
+      if (!variableId) {
+        alert('Unable to generate embedding - variable ID not found.');
+        return;
+      }
+      
+      if (confirm('Generate AI embedding for this variable?')) {
+        // Create a form to submit the generation request
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/app/attributes/${variableId}/generate-embedding/`;
+        
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = 'csrfmiddlewaretoken';
+        csrfInput.value = csrfToken;
+        form.appendChild(csrfInput);
+        
+        const nextInput = document.createElement('input');
+        nextInput.type = 'hidden';
+        nextInput.name = 'next';
+        nextInput.value = window.location.pathname;
+        form.appendChild(nextInput);
+        
+        document.body.appendChild(form);
+        form.submit();
+      }
     }
 
     function closeVariableModal() {
