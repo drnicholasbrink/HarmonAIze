@@ -7,9 +7,13 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.offline import plot
 from .models import Study, Project
 from .forms import StudyCreationForm, ProjectCreationForm
 from health.models import RawDataFile
+from core.tsne_service import tsne_service
 
 
 @login_required
@@ -733,3 +737,228 @@ def generate_attribute_embedding(request, attribute_id):
     
     # If GET request, redirect back 
     return redirect('core:study_list')
+
+
+@login_required
+@require_http_methods(["POST"])
+def generate_project_tsne(request, project_id):
+    """
+    Generate t-SNE projections for all attributes in a project.
+    """
+    from core.tasks import generate_tsne_projections_for_project
+    
+    project = get_object_or_404(Project, id=project_id, created_by=request.user)
+    
+    # Get embedding type from POST data
+    embedding_type = request.POST.get('embedding_type', 'both')
+    if embedding_type not in ['name', 'description', 'both']:
+        embedding_type = 'both'
+    
+    # Queue the t-SNE generation task
+    task = generate_tsne_projections_for_project.delay(project_id, embedding_type)
+    
+    messages.success(
+        request,
+        f"t-SNE projection generation queued for project '{project.name}'. "
+        f"This may take a few minutes. You can continue working while projections are computed."
+    )
+    
+    # Redirect back to the project detail page
+    return redirect('core:project_detail', pk=project_id)
+
+
+@login_required
+def tsne_progress(request, project_id):
+    """
+    Get t-SNE projection progress for a project (AJAX endpoint).
+    """
+    from core.tasks import check_tsne_projection_progress
+    
+    project = get_object_or_404(Project, id=project_id, created_by=request.user)
+    
+    # Get progress information
+    result = check_tsne_projection_progress(project_id)
+    
+    if result.get("success"):
+        return JsonResponse({
+            "total": result["total_attributes"],
+            "name_completed": result["name_projections"],
+            "description_completed": result["description_projections"],
+            "name_percentage": result["name_percentage"],
+            "description_percentage": result["description_percentage"],
+            "is_complete": result["is_complete"],
+        })
+    else:
+        return JsonResponse({
+            "error": result.get("error", "Unknown error"),
+        }, status=500)
+
+
+@login_required
+def tsne_visualization(request, project_id):
+    """
+    Display the t-SNE visualization page with server-side Plotly generation.
+    """
+    project = get_object_or_404(Project, id=project_id, created_by=request.user)
+    
+    # Get embedding type from query parameters
+    embedding_type = request.GET.get("type", "name")
+    if embedding_type not in ["name", "description"]:
+        embedding_type = "name"
+    
+    # Get visualization data
+    df = tsne_service.get_projection_data_for_visualization(
+        project=project,
+        embedding_type=embedding_type,
+    )
+    
+    # Check if we have data
+    if df.empty:
+        messages.warning(
+            request,
+            f"No {embedding_type} t-SNE projections available for "
+            f"project '{project.name}'. Please generate projections first.",
+        )
+        return redirect("core:project_detail", pk=project_id)
+    
+    # Create grouped legend with separate traces for source and target studies
+    # Create figure
+    fig = go.Figure()
+
+    # Get unique studies
+    studies = df["study_name"].unique()
+
+    # Color palette for studies
+    colors = px.colors.qualitative.Set1[:len(studies)]
+    study_colors = dict(zip(studies, colors, strict=True))
+
+    # Symbol mapping
+    symbol_map = {"source": "circle", "target": "triangle-up"}
+
+    # Create traces for each combination of study and source type
+    for source_type in ["source", "target"]:  # Order matters for legend grouping
+        source_df = df[df["source_type"] == source_type]
+        if source_df.empty:
+            continue
+
+        for study in studies:
+            study_df = source_df[source_df["study_name"] == study]
+            if study_df.empty:
+                continue
+
+            # Create legend group name
+            legend_name = (
+                "Source Studies" if source_type == "source" else "Target Studies"
+            )
+            trace_name = f"{study}"
+
+            fig.add_trace(go.Scatter(
+                x=study_df["x"],
+                y=study_df["y"],
+                mode="markers",
+                name=trace_name,
+                legendgroup=legend_name,
+                legendgrouptitle_text=legend_name,
+                marker={
+                    "symbol": symbol_map[source_type],
+                    "color": study_colors[study],
+                    "size": 8,
+                    "opacity": 0.7,
+                    "line": {"width": 1, "color": "white"},
+                },
+                customdata=study_df[
+                    ["variable_name", "description", "category", "source_type"]
+                ].values,
+                hovertemplate=(
+                    "<b>%{customdata[0]}</b><br>"
+                    "Study: " + study + "<br>"
+                    "Category: %{customdata[2]}<br>"
+                    "Type: %{customdata[3]}<br>"
+                    "Description: %{customdata[1]}<br>"
+                    "<extra></extra>"
+                ),
+            ))
+
+    # Update layout
+    fig.update_layout(
+        template="plotly_white",
+        width=900,
+        height=600,
+        title={
+            "text": (
+                f"t-SNE Visualization: {embedding_type.title()} "
+                f"Embeddings for {project.name}"
+            ),
+            "x": 0.5,
+        },
+        xaxis_title="t-SNE Dimension 1",
+        yaxis_title="t-SNE Dimension 2",
+        showlegend=True,
+        legend={
+            "orientation": "v",
+            "yanchor": "top",
+            "y": 1,
+            "xanchor": "left",
+            "x": 1.01,
+            "groupclick": "toggleitem",
+        },
+    )
+    
+    # Convert to HTML div using Plotly offline
+    plot_div = plot(fig, output_type="div", include_plotlyjs=True)
+    
+    context = {
+        "project": project,
+        "embedding_type": embedding_type,
+        "plot_div": plot_div,
+        "data_count": len(df),
+        "categories": (
+            df["category"].unique().tolist() if not df.empty else []
+        ),
+        "variable_types": (
+            df["variable_type"].unique().tolist() if not df.empty else []
+        ),
+        "source_types": (
+            df["source_type"].unique().tolist() if not df.empty else []
+        ),
+    }
+    
+    return render(request, "core/tsne_visualization.html", context)
+
+
+@login_required
+def tsne_data_api(request, project_id):
+    """
+    API endpoint to get t-SNE data for visualization (AJAX).
+    Note: This is kept for backward compatibility but the main visualization
+    now uses server-side Plotly generation.
+    """
+    project = get_object_or_404(Project, id=project_id, created_by=request.user)
+    
+    # Get embedding type from query parameters
+    embedding_type = request.GET.get("type", "name")
+    if embedding_type not in ["name", "description"]:
+        embedding_type = "name"
+    
+    # Get visualization data
+    df = tsne_service.get_projection_data_for_visualization(
+        project=project,
+        embedding_type=embedding_type,
+    )
+    
+    if df.empty:
+        return JsonResponse({
+            "error": f"No {embedding_type} t-SNE projections available",
+            "data": [],
+        })
+    
+    # Convert DataFrame to JSON format
+    data = df.to_dict("records")
+    
+    return JsonResponse({
+        "success": True,
+        "data": data,
+        "count": len(data),
+        "embedding_type": embedding_type,
+        "project_name": project.name,
+    })
