@@ -1,0 +1,108 @@
+{% comment %}
+Enhanced Embedding Status Badge Component
+
+Usage:
+  {% include 'components/embeddings/status_badge.html' with variable=variable show_button=True %}
+  
+Parameters:
+- variable: Variable object to check embedding status for
+- show_button: (optional) Show generate button for variables without embeddings
+- size: (optional) 'small' or 'large' for different badge sizes
+{% endcomment %}
+
+{% if variable.has_name_embedding and variable.has_description_embedding %}
+  <div class="embedding-status-complete" style="display: inline-flex; align-items: center; gap: 0.25rem;">
+    <span class="status-badge" style="
+      font-size: {% if size == 'large' %}0.8rem{% else %}0.75rem{% endif %}; 
+      padding: {% if size == 'large' %}0.3rem 0.6rem{% else %}0.2rem 0.5rem{% endif %}; 
+      background: rgba(52, 199, 89, 0.2); 
+      color: #155724; 
+      border-radius: 4px; 
+      display: inline-flex; 
+      align-items: center;
+      font-weight: 600;
+    ">
+      <i class="fas fa-check-circle" style="margin-right: 0.25rem; color: #34C759;"></i>
+      {% if size == 'large' %}Complete{% else %}✓{% endif %}
+    </span>
+    {% if size == 'large' %}
+      <small style="color: var(--text-secondary); font-size: 0.8rem;">
+        Name & Description embedded
+      </small>
+    {% endif %}
+  </div>
+  
+{% elif variable.has_name_embedding or variable.has_description_embedding %}
+  <div class="embedding-status-partial" style="display: inline-flex; align-items: center; gap: 0.25rem;">
+    <span class="status-badge" style="
+      font-size: {% if size == 'large' %}0.8rem{% else %}0.75rem{% endif %}; 
+      padding: {% if size == 'large' %}0.3rem 0.6rem{% else %}0.2rem 0.5rem{% endif %}; 
+      background: rgba(255, 193, 7, 0.2); 
+      color: #856404; 
+      border-radius: 4px; 
+      display: inline-flex; 
+      align-items: center;
+      font-weight: 600;
+    ">
+      <i class="fas fa-clock" style="margin-right: 0.25rem; color: #FFC107;"></i>
+      {% if size == 'large' %}Partial{% else %}~{% endif %}
+    </span>
+    {% if size == 'large' %}
+      <small style="color: var(--text-secondary); font-size: 0.8rem;">
+        {% if variable.has_name_embedding %}Name embedded{% else %}Description embedded{% endif %}
+      </small>
+    {% endif %}
+  </div>
+  
+{% else %}
+  {% if show_button %}
+    <div class="embedding-status-none" style="display: inline-flex; align-items: center; gap: 0.25rem;">
+      <form method="post" action="{% url 'core:generate_attribute_embedding' attribute_id=variable.id %}" style="display: inline; margin: 0;" onclick="event.stopPropagation();">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <button type="submit" class="btn btn-embedding-generate" style="
+          padding: {% if size == 'large' %}0.3rem 0.6rem{% else %}0.2rem 0.5rem{% endif %}; 
+          font-size: {% if size == 'large' %}0.8rem{% else %}0.75rem{% endif %}; 
+          background: rgba(142, 142, 147, 0.2); 
+        color: #3a3a3c; 
+          border: none; 
+          border-radius: 4px; 
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          transition: all 0.2s ease;
+          font-weight: 500;
+        " title="Generate embedding for this variable" onmouseover="this.style.background='var(--secondary-color)'" onmouseout="this.style.background='var(--primary-color)'">
+          <i class="fas fa-magic" style="margin-right: 0.25rem;"></i>
+          {% if size == 'large' %}Generate Embedding{% else %}Generate{% endif %}
+        </button>
+      </form>
+      {% if size == 'large' %}
+        <small style="color: var(--text-secondary); font-size: 0.8rem;">
+          Click to create AI embedding
+        </small>
+      {% endif %}
+    </div>
+  {% else %}
+    <div class="embedding-status-none" style="display: inline-flex; align-items: center; gap: 0.25rem;">
+      <span class="status-badge" style="
+        font-size: {% if size == 'large' %}0.8rem{% else %}0.75rem{% endif %}; 
+        padding: {% if size == 'large' %}0.3rem 0.6rem{% else %}0.2rem 0.5rem{% endif %}; 
+        background: rgba(142, 142, 147, 0.2); 
+        color: #3a3a3c; 
+        border-radius: 4px; 
+        display: inline-flex; 
+        align-items: center;
+        font-weight: 600;
+      ">
+        <i class="fas fa-circle" style="margin-right: 0.25rem; color: #8E8E93;"></i>
+        {% if size == 'large' %}No Embedding{% else %}○{% endif %}
+      </span>
+      {% if size == 'large' %}
+        <small style="color: var(--text-secondary); font-size: 0.8rem;">
+          No AI embedding generated
+        </small>
+      {% endif %}
+    </div>
+  {% endif %}
+{% endif %}

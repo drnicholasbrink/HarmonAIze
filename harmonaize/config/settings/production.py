@@ -196,5 +196,11 @@ sentry_sdk.init(
 SPECTACULAR_SETTINGS["SERVERS"] = [
     {"url": "https://harmonaize.org", "description": "Production server"},
 ]
+
+# OpenAI API Configuration
+# ------------------------------------------------------------------------------
+# Production OpenAI API key - required for embedding functionality
+OPENAI_API_KEY = env("OPENAI_API_KEY")
+
 # Your stuff...
 # ------------------------------------------------------------------------------

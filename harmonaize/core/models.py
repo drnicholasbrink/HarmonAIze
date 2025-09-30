@@ -3,6 +3,8 @@ from django.db import models
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.urls import reverse
+from django.conf import settings
+from pgvector.django import VectorField
 import ast
 
 User = get_user_model()
@@ -169,12 +171,51 @@ class Attribute(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # Vector embeddings for semantic search and similarity matching
+    name_embedding = VectorField(
+        dimensions=settings.EMBEDDING_DIMENSIONS,
+        null=True,
+        blank=True,
+        help_text="Vector embedding of the variable name for semantic similarity search"
+    )
+    description_embedding = VectorField(
+        dimensions=settings.EMBEDDING_DIMENSIONS,
+        null=True,
+        blank=True,
+        help_text="Vector embedding of the description for semantic similarity search"
+    )
+
     def __str__(self):
         return self.display_name or self.variable_name
 
     def clean(self):
         if self.variable_type in ['float', 'int'] and not self.unit:
             raise ValidationError("Unit required for numeric types.")
+
+    @property
+    def has_name_embedding(self):
+        """Check if the attribute has a name embedding."""
+        return self.name_embedding is not None
+
+    @property
+    def has_description_embedding(self):
+        """Check if the attribute has a description embedding."""
+        return self.description_embedding is not None
+
+    @property
+    def has_embeddings(self):
+        """Check if the attribute has both name and description embeddings."""
+        return self.has_name_embedding and self.has_description_embedding
+
+    @property
+    def embeddings_status(self):
+        """Return a human-readable embedding status."""
+        if self.has_name_embedding and self.has_description_embedding:
+            return "Complete"
+        elif self.has_name_embedding or self.has_description_embedding:
+            return "Partial"
+        else:
+            return "Pending"
             
     class Meta:
         # Ensure unique variable names within each source type
