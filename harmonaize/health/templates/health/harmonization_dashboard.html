@@ -2085,6 +2085,18 @@
           <i class="fas fa-robot"></i>
           AI Process All
         </button>
+        <button type="button" class="btn btn-success action-btn" onclick="approveExcellentMatches()">
+          <i class="fas fa-star"></i>
+          Approve ≥85%
+        </button>
+        <button type="button" class="btn btn-info action-btn" onclick="approveGoodPlusMatches()">
+          <i class="fas fa-thumbs-up"></i>
+          Approve ≥70%
+        </button>
+        <button type="button" class="btn btn-warning action-btn" onclick="approveFairPlusMatches()">
+          <i class="fas fa-check"></i>
+          Approve ≥55%
+        </button>
         <button type="button" class="btn btn-outline action-btn" onclick="applyUniversalSettings()">
           <i class="fas fa-magic"></i>
           Apply Universal Settings
@@ -3458,6 +3470,186 @@ function populateAllSuggestions() {
             }
         }
     });
+}
+
+function approveFairPlusMatches() {
+    if (!confirm('Approve all mappings with "Fair" or better confidence scores (≥55% similarity)? This will apply AI suggestions for medium to high confidence matches.')) {
+        return;
+    }
+    
+    const approveBtn = document.querySelector('button[onclick="approveFairPlusMatches()"]');
+    const originalText = approveBtn.innerHTML;
+    
+    // Disable button and show processing state
+    approveBtn.disabled = true;
+    approveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Approving...';
+    
+    let approvedCount = 0;
+    let totalFairPlus = 0;
+    
+    // Find all variables with AI suggestions using similarity score threshold
+    if (similaritySuggestions) {
+        // Count fair+ matches first (≥55% similarity)
+        Object.keys(similaritySuggestions).forEach(variableId => {
+            const suggestions = similaritySuggestions[variableId];
+            if (suggestions && suggestions.length > 0) {
+                const bestSuggestion = suggestions[0];
+                if (bestSuggestion.combined_similarity >= 0.55) {
+                    totalFairPlus++;
+                }
+            }
+        });
+        
+        // Apply fair+ matches
+        Object.keys(similaritySuggestions).forEach(variableId => {
+            const suggestions = similaritySuggestions[variableId];
+            if (suggestions && suggestions.length > 0) {
+                const bestSuggestion = suggestions[0];
+                if (bestSuggestion.combined_similarity >= 0.55) {
+                    // Apply the AI suggestion for this variable
+                    applyAISuggestion(variableId, bestSuggestion);
+                    approvedCount++;
+                }
+            }
+        });
+        
+        // Save all mappings after applying suggestions
+        if (approvedCount > 0) {
+            saveAllMappings();
+        }
+    }
+    
+    // Re-enable button and show result
+    setTimeout(() => {
+        approveBtn.disabled = false;
+        approveBtn.innerHTML = originalText;
+        
+        if (approvedCount > 0) {
+            showNotification(`Successfully approved ${approvedCount} fair+ matches (≥55% similarity)!`, 'success');
+        } else {
+            showNotification('No fair+ matches found to approve. Try running AI suggestions first.', 'info');
+        }
+    }, 500);
+}
+
+function approveGoodPlusMatches() {
+    if (!confirm('Approve all mappings with "Good" or "Excellent" confidence scores (≥70% similarity)? This will apply AI suggestions for high and medium-high confidence matches.')) {
+        return;
+    }
+    
+    const approveBtn = document.querySelector('button[onclick="approveGoodPlusMatches()"]');
+    const originalText = approveBtn.innerHTML;
+    
+    // Disable button and show processing state
+    approveBtn.disabled = true;
+    approveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Approving...';
+    
+    let approvedCount = 0;
+    let totalGoodPlus = 0;
+    
+    // Find all variables with AI suggestions using similarity score threshold
+    if (similaritySuggestions) {
+        // Count good+ matches first (≥70% similarity)
+        Object.keys(similaritySuggestions).forEach(variableId => {
+            const suggestions = similaritySuggestions[variableId];
+            if (suggestions && suggestions.length > 0) {
+                const bestSuggestion = suggestions[0];
+                if (bestSuggestion.combined_similarity >= 0.70) {
+                    totalGoodPlus++;
+                }
+            }
+        });
+        
+        // Apply good+ matches
+        Object.keys(similaritySuggestions).forEach(variableId => {
+            const suggestions = similaritySuggestions[variableId];
+            if (suggestions && suggestions.length > 0) {
+                const bestSuggestion = suggestions[0];
+                if (bestSuggestion.combined_similarity >= 0.70) {
+                    // Apply the AI suggestion for this variable
+                    applyAISuggestion(variableId, bestSuggestion);
+                    approvedCount++;
+                }
+            }
+        });
+        
+        // Save all mappings after applying suggestions
+        if (approvedCount > 0) {
+            saveAllMappings();
+        }
+    }
+    
+    // Re-enable button and show result
+    setTimeout(() => {
+        approveBtn.disabled = false;
+        approveBtn.innerHTML = originalText;
+        
+        if (approvedCount > 0) {
+            showNotification(`Successfully approved ${approvedCount} good+ matches (≥70% similarity)!`, 'success');
+        } else {
+            showNotification('No good+ matches found to approve. Try running AI suggestions first.', 'info');
+        }
+    }, 500);
+}
+
+function approveExcellentMatches() {
+    if (!confirm('Approve all mappings with "Excellent" confidence scores (≥85% similarity)? This will apply AI suggestions for high-confidence matches only.')) {
+        return;
+    }
+    
+    const approveBtn = document.querySelector('button[onclick="approveExcellentMatches()"]');
+    const originalText = approveBtn.innerHTML;
+    
+    // Disable button and show processing state
+    approveBtn.disabled = true;
+    approveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Approving...';
+    
+    let approvedCount = 0;
+    let totalExcellent = 0;
+    
+    // Find all variables with AI suggestions using similarity score threshold
+    if (similaritySuggestions) {
+        // Count excellent matches first (≥85% similarity)
+        Object.keys(similaritySuggestions).forEach(variableId => {
+            const suggestions = similaritySuggestions[variableId];
+            if (suggestions && suggestions.length > 0) {
+                const bestSuggestion = suggestions[0];
+                if (bestSuggestion.combined_similarity >= 0.85) {
+                    totalExcellent++;
+                }
+            }
+        });
+        
+        // Apply excellent matches
+        Object.keys(similaritySuggestions).forEach(variableId => {
+            const suggestions = similaritySuggestions[variableId];
+            if (suggestions && suggestions.length > 0) {
+                const bestSuggestion = suggestions[0];
+                if (bestSuggestion.combined_similarity >= 0.85) {
+                    // Apply the AI suggestion for this variable
+                    applyAISuggestion(variableId, bestSuggestion);
+                    approvedCount++;
+                }
+            }
+        });
+        
+        // Save all mappings after applying suggestions
+        if (approvedCount > 0) {
+            saveAllMappings();
+        }
+    }
+    
+    // Re-enable button and show result
+    setTimeout(() => {
+        approveBtn.disabled = false;
+        approveBtn.innerHTML = originalText;
+        
+        if (approvedCount > 0) {
+            showNotification(`Successfully approved ${approvedCount} excellent matches (≥85% similarity)!`, 'success');
+        } else {
+            showNotification('No excellent matches found to approve. Try running AI suggestions first.', 'info');
+        }
+    }, 500);
 }
 
 // Global AI Processing Functions
