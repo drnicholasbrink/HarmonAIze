@@ -726,6 +726,16 @@
       margin-bottom: 0;
     }
 
+    .code-buttons {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .code-buttons .btn {
+      white-space: nowrap;
+    }
+
     .example-section {
       border-bottom: 1px solid #e9ecef;
       padding-bottom: 1rem;
@@ -1934,9 +1944,14 @@
                   <label class="form-label">
                     <i class="fas fa-code"></i> Transform Code (Optional)
                   </label>
-                  <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearCode({{ variable_form.attribute.id }})">
-                    <i class="fas fa-eraser"></i> Clear
-                  </button>
+                  <div class="code-buttons">
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="generateTransformationCode({{ variable_form.attribute.id }})">
+                      <i class="fas fa-magic"></i> Generate Coding Instructions
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearCode({{ variable_form.attribute.id }})">
+                      <i class="fas fa-eraser"></i> Clear
+                    </button>
+                  </div>
                 </div>
                 
                 {{ variable_form.form.transform_code }}
@@ -3218,6 +3233,123 @@ function clearCodeFallback(variableId) {
         // If we can't identify the specific one, at least clear the first one as feedback
         allTextareas[0].value = '';
         allTextareas[0].focus();
+    }
+}
+
+function generateTransformationCode(variableId) {
+    // Find the source attribute ID from the variable card
+    const sourceAttributeId = variableId;
+    
+    // Find the selected target attribute ID from the dropdown
+    const targetSelect = document.querySelector(`select[name="variable_${variableId}-target_attribute"]`);
+    if (!targetSelect || !targetSelect.value) {
+        showNotification('Please select a target variable first before generating transformation code.', 'warning');
+        return;
+    }
+    
+    const targetAttributeId = targetSelect.value;
+    
+    // Find the transformation code textarea/editor
+    const textareaName = `variable_${variableId}-transform_code`;
+    const textarea = document.querySelector(`textarea[name="${textareaName}"]`);
+    
+    if (!textarea) {
+        showNotification('Could not find transformation code field.', 'error');
+        return;
+    }
+    
+    // Show loading state
+    const button = event.target.closest('button');
+    const originalText = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+    
+    // Make API call to generate transformation code
+    fetch('/health/api/transformation-suggestion/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+        },
+        body: JSON.stringify({
+            source_attribute_id: sourceAttributeId,
+            target_attribute_id: targetAttributeId,
+        }),
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            if (data.transformation_needed) {
+                // Set the generated code
+                setTransformationCode(variableId, data.transformation_code);
+                showNotification('Transformation code generated successfully!', 'success');
+            } else {
+                // No transformation needed
+                setTransformationCode(variableId, '');
+                showNotification('No transformation needed - variables are already compatible.', 'info');
+            }
+        } else {
+            showNotification(data.error || 'Failed to generate transformation code.', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error generating transformation code:', error);
+        showNotification('An error occurred while generating transformation code.', 'error');
+    })
+    .finally(() => {
+        // Restore button state
+        button.disabled = false;
+        button.innerHTML = originalText;
+    });
+}
+
+function setTransformationCode(variableId, code) {
+    // Try to set the code using ACE editor first, then fallback to textarea
+    let editor = null;
+    
+    // Try to find ACE editor
+    const textareaName = `variable_${variableId}-transform_code`;
+    const textarea = document.querySelector(`textarea[name="${textareaName}"]`);
+    
+    if (textarea && typeof ace !== 'undefined') {
+        // Check if this textarea has been converted to ACE editor
+        const aceContainer = textarea.parentNode.querySelector('.ace_editor');
+        if (aceContainer && aceContainer.env && aceContainer.env.editor) {
+            editor = aceContainer.env.editor;
+        } else {
+            // Try to get ACE editor by textarea ID
+            try {
+                editor = ace.edit(textarea.id);
+            } catch (e) {
+                console.log('Could not get ACE editor by textarea ID:', e);
+            }
+        }
+    }
+    
+    if (editor) {
+        try {
+            // Set the editor content
+            editor.setValue(code);
+            editor.clearSelection();
+            
+            // Trigger change event for auto-save
+            setTimeout(() => {
+                triggerAutoSave(variableId);
+            }, 100);
+            
+            return;
+        } catch (e) {
+            console.warn('ACE editor error, using fallback method:', e);
+        }
+    }
+    
+    // Fallback to textarea
+    if (textarea) {
+        textarea.value = code;
+        
+        // Trigger change event for auto-save
+        const event = new Event('change', { bubbles: true });
+        textarea.dispatchEvent(event);
     }
 }
 
