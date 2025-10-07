@@ -375,7 +375,7 @@ def _process_data_chunk(
                     else:
                         patient = None
                 else:
-                    # Use row number as patient ID if no patient ID column
+                    # Use row number as patient ID if no patient ID column-- need to be careful with this
                     patient_id = f"patient_{row_num}"
                     patient, _ = Patient.objects.get_or_create(unique_id=patient_id)
                 
@@ -471,13 +471,7 @@ def _create_observation(
                 if isinstance(value, bool):
                     obs_data["boolean_value"] = value
                 else:
-                    lv = raw_text.lower()
-                    if lv in ["true", "1", "yes", "y"]:
-                        obs_data["boolean_value"] = True
-                    elif lv in ["false", "0", "no", "n"]:
-                        obs_data["boolean_value"] = False
-                    else:
-                        obs_data["text_value"] = raw_text
+                    obs_data["text_value"] = raw_text
             elif attribute.variable_type == "datetime":
                 try:
                     obs_data["datetime_value"] = pd.to_datetime(value)
@@ -844,13 +838,7 @@ def transform_observations_for_schema(self, schema_id: int) -> dict[str, Any]:
                             if isinstance(value, bool):
                                 defaults["boolean_value"] = value
                             else:
-                                lv = str(value).lower()
-                                if lv in ["true", "1", "yes", "y"]:
-                                    defaults["boolean_value"] = True
-                                elif lv in ["false", "0", "no", "n"]:
-                                    defaults["boolean_value"] = False
-                                else:
-                                    defaults["text_value"] = str(value)
+                                defaults["text_value"] = str(value)
                         elif tgt_type == "datetime":
                             try:
                                 defaults["datetime_value"] = pd.to_datetime(value)
