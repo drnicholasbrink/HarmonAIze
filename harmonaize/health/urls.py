@@ -52,6 +52,11 @@ urlpatterns = [
         views.finalize_harmonisation,
         name="finalize_harmonisation",
     ),
+    path(
+        "mapping/<int:schema_id>/rerun-transformations/",
+        views.rerun_harmonisation_transformations,
+        name="rerun_harmonisation_transformations",
+    ),
     
     # Data ingestion URLs
     path(

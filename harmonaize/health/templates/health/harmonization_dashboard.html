@@ -2167,6 +2167,13 @@
               Finalize Harmonisation
             </button>
           </form>
+          <form method="post" action="{% url 'health:rerun_harmonisation_transformations' schema.id %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline action-btn">
+              <i class="fas fa-sync"></i>
+              Re-run Harmonisation Approval
+            </button>
+          </form>
         {% else %}
           <button type="button" class="btn btn-secondary action-btn" disabled>
             <i class="fas fa-flag"></i>

@@ -43,8 +43,8 @@ def upload_study(request):
                 
                 # Save the study with new codebook
                 study = form.save()
-                study.status = 'draft'  # Reset status
-                study.save()
+                study.status = 'codebook_uploaded'
+                study.save(update_fields=['status'])
                 
                 messages.success(
                     request,
@@ -62,6 +62,8 @@ def upload_study(request):
                 study = form.save()
                 
                 if study.codebook:
+                    study.status = 'codebook_uploaded'
+                    study.save(update_fields=['status'])
                     messages.success(
                         request, 
                         f'Study "{study.name}" created successfully with codebook file! '
@@ -484,7 +486,7 @@ def target_select_variables(request, study_id):
                 # Associate variables with the study
                 study.variables.set(created_attributes)
                 study.status = 'variables_extracted'
-                study.save()
+                study.save(update_fields=['status'])
                 
                 # Clear session data
                 request.session.pop(f'target_variables_data_{study.id}', None)
@@ -563,7 +565,7 @@ def target_reset_variables(request, study_id):
         
         # Reset study status
         study.status = 'created'
-        study.save()
+        study.save(update_fields=['status'])
         
         messages.success(
             request,

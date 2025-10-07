@@ -164,6 +164,11 @@ def approve_mapping(request, schema_id):
     schema.approved_by = request.user
     schema.approved_at = timezone.now()
     schema.save(update_fields=["status", "approved_by", "approved_at"])
+
+    source_study = schema.source_study
+    if source_study.status not in ["harmonised", "completed"]:
+        source_study.status = "variables_mapped"
+        source_study.save(update_fields=["status"])
     # Trigger background transformation of observations based on mapping schema
     try:
         from .tasks import transform_observations_for_schema
@@ -191,6 +196,55 @@ def finalize_harmonisation(request, schema_id):
     study.save(update_fields=["status"])
     messages.success(request, f"Study '{study.name}' marked as harmonised.")
     return redirect("core:study_detail", pk=study.pk)
+
+
+@login_required
+@require_http_methods(["POST"])
+def rerun_harmonisation_transformations(request, schema_id):
+    """Re-queue harmonised observation generation for an approved mapping schema."""
+    schema = get_object_or_404(MappingSchema, id=schema_id, created_by=request.user)
+
+    if schema.status != "approved":
+        messages.error(
+            request,
+            "You can only re-run harmonisation after the mapping has been approved.",
+        )
+        return redirect("health:harmonization_dashboard", schema_id=schema.id)
+
+    from .tasks import transform_observations_for_schema
+
+    try:
+        RawDataFile.objects.filter(study=schema.source_study).update(
+            transformation_status="in_progress",
+            transformation_started_at=timezone.now(),
+            transformation_message="Queued for harmonisation re-run...",
+            last_transformation_schema=schema,
+        )
+    except Exception:
+        # Non-critical: we still proceed with re-queuing even if status update fails.
+        pass
+
+    try:
+        task = transform_observations_for_schema.delay(schema.id, delete_existing=True)
+    except Exception:
+        logger.exception("Failed to re-queue harmonisation for schema %s", schema.id)
+        messages.error(
+            request,
+            "We could not start the harmonisation re-run. Please try again shortly.",
+        )
+        return redirect("health:harmonization_dashboard", schema_id=schema.id)
+
+    messages.success(
+        request,
+        "Previous harmonised results cleared and re-run started. Check raw data files for progress updates.",
+    )
+    logger.info(
+        "Re-running harmonisation task %s for schema %s by user %s",
+        getattr(task, "id", "unknown"),
+        schema.id,
+        request.user.id,
+    )
+    return redirect("health:harmonization_dashboard", schema_id=schema.id)
 
 
 def _apply_universal_mappings(schema):
@@ -309,8 +363,8 @@ def select_variables(request, study_id):  # noqa: C901 (complexity accepted temp
                 
                 # Associate variables with the study
                 study.variables.set(created_attributes)
-                study.status = "processing"
-                study.save()
+                study.status = "variables_extracted"
+                study.save(update_fields=["status"])
                 
                 # Clear session data
                 request.session.pop(f"variables_data_{study.id}", None)
@@ -404,8 +458,8 @@ def reset_variables(request, study_id):
         request.session.pop(f"column_mapping_{study.id}", None)
 
         # Reset study status
-        study.status = "draft"
-        study.save()
+        study.status = "created"
+        study.save(update_fields=["status"])
 
         messages.success(
             request,
