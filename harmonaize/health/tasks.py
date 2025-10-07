@@ -10,6 +10,7 @@ from typing import Any
 from datetime import datetime
 from django.utils import timezone
 from django.db import transaction, IntegrityError, DatabaseError
+from django.db.models import F
 from celery import shared_task
 from celery.exceptions import Retry
 from dateutil.parser import ParserError
@@ -760,8 +761,18 @@ def _compile_transform_callable(code: str):
 
 
 @shared_task(bind=True, max_retries=1, default_retry_delay=30)
-def transform_observations_for_schema(self, schema_id: int) -> dict[str, Any]:
-    """Apply MappingRules to existing observations to create harmonised target observations."""
+def transform_observations_for_schema(
+    self,
+    schema_id: int,
+    delete_existing: bool = False,
+) -> dict[str, Any]:
+    """Apply MappingRules to existing observations to create harmonised target observations.
+
+    Args:
+        schema_id: MappingSchema primary key.
+        delete_existing: When True, remove previously harmonised observations for this schema's
+            target study before reapplying mappings.
+    """
     try:
         from .models import MappingSchema, MappingRule
 
@@ -782,17 +793,40 @@ def transform_observations_for_schema(self, schema_id: int) -> dict[str, Any]:
 
         transformed = 0
         skipped = 0
+        deleted_count = 0
         errors: list[str] = []
+
+        target_attribute_ids: list[int] = []
+        if delete_existing:
+            target_attribute_ids = list(
+                schema.target_study.variables.filter(source_type="target").values_list("id", flat=True)
+            )
+            if target_attribute_ids:
+                delete_qs = Observation.objects.filter(attribute_id__in=target_attribute_ids)
+                if schema.created_at:
+                    delete_qs = delete_qs.filter(created_at__gte=schema.created_at)
+                deleted_count, _ = delete_qs.delete()
+                logger.info(
+                    "Deleted %s prior harmonised observations for schema %s before re-processing",
+                    deleted_count,
+                    schema_id,
+                )
 
         # Mark all raw files for this source study as transformation in progress
         try:
             source_files = RawDataFile.objects.filter(study=schema.source_study)
             now = timezone.now()
+            transformation_message = "Applying approved mapping schema..."
+            if delete_existing and deleted_count:
+                transformation_message = (
+                    f"Cleared {deleted_count} harmonised observations; reapplying mapping..."
+                )
             source_files.update(
                 transformation_status="in_progress",
                 transformation_started_at=now,
-                transformation_message="Applying approved mapping schema...",
+                transformation_message=transformation_message,
                 last_transformation_schema=schema,
+                transformed_at=None if delete_existing else F("transformed_at"),
             )
         except Exception:
             logger.debug("Unable to mark raw files as in_progress for schema %s", schema_id)
@@ -867,10 +901,13 @@ def transform_observations_for_schema(self, schema_id: int) -> dict[str, Any]:
                     errors.append(str(exc))
                     logger.debug("Error transforming obs %s: %s", src_obs.id, exc)
 
-        message = (
-            f"Transformed {transformed} observations; skipped {skipped}; "
-            f"rules applied: {rules.count()}"
+        message_parts = []
+        if delete_existing:
+            message_parts.append(f"Deleted {deleted_count} harmonised observations before re-run.")
+        message_parts.append(
+            f"Transformed {transformed} observations; skipped {skipped}; rules applied: {rules.count()}"
         )
+        message = " ".join(message_parts)
         logger.info("%s for schema %s", message, schema_id)
         # Mark files as completed
         try:
@@ -883,7 +920,15 @@ def transform_observations_for_schema(self, schema_id: int) -> dict[str, Any]:
             RawDataFile.objects.filter(study=schema.source_study).update(**updates)
         except Exception:
             logger.debug("Unable to mark raw files as completed for schema %s", schema_id)
-        return {"success": True, "message": message, "transformed": transformed, "skipped": skipped, "rules": rules.count(), "errors": errors[:10]}
+        return {
+            "success": True,
+            "message": message,
+            "transformed": transformed,
+            "skipped": skipped,
+            "rules": rules.count(),
+            "deleted": deleted_count,
+            "errors": errors[:10],
+        }
     except Exception as exc:
         logger.exception("Failed transforming observations for schema %s: %s", schema_id, exc)
         # Mark files as failed
