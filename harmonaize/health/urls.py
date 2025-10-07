@@ -116,4 +116,9 @@ urlpatterns = [
         views.target_attribute_details_api,
         name="target_attribute_details_api",
     ),
+    path(
+        "api/transformation-suggestion/",
+        views.transformation_suggestion_api,
+        name="transformation_suggestion_api",
+    ),
 ]

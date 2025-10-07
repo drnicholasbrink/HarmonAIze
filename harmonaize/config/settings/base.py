@@ -365,6 +365,7 @@ SPECTACULAR_SETTINGS = {
 # ------------------------------------------------------------------------------
 OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
 OPENAI_EMBEDDING_MODEL = env("OPENAI_EMBEDDING_MODEL", default="text-embedding-3-large")
+OPENAI_TRANSFORMATION_MODEL = env("OPENAI_TRANSFORMATION_MODEL", default="gpt-5")
 EMBEDDING_CHUNK_TOKENS = env.int("EMBEDDING_CHUNK_TOKENS", default=8000)
 EMBEDDING_CHUNK_OVERLAP = env.int("EMBEDDING_CHUNK_OVERLAP", default=50)
 EMBEDDING_DIMENSIONS = env.int("EMBEDDING_DIMENSIONS", default=3072)  # text-embedding-3-large default

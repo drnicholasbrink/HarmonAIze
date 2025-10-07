@@ -1181,6 +1181,82 @@ def target_attribute_details_api(request, attribute_id):
 
 @login_required
 @require_http_methods(["POST"])
+def transformation_suggestion_api(request):
+    """
+    API endpoint to generate transformation code suggestions using OpenAI.
+    Expects JSON with source_attribute_id and target_attribute_id.
+    Returns transformation code or empty string if no transformation needed.
+    """
+    try:
+        import json
+        from .transformation_suggestion_service import transformation_suggestion_service
+        
+        # Parse request JSON
+        data = json.loads(request.body)
+        source_attribute_id = data.get("source_attribute_id")
+        target_attribute_id = data.get("target_attribute_id")
+        
+        if not source_attribute_id or not target_attribute_id:
+            return JsonResponse({
+                "error": "Both source_attribute_id and target_attribute_id are required"
+            }, status=400)
+        
+        # Get attributes and check permissions
+        try:
+            source_attribute = Attribute.objects.get(id=source_attribute_id)
+            target_attribute = Attribute.objects.get(id=target_attribute_id)
+        except Attribute.DoesNotExist:
+            return JsonResponse({"error": "One or both attributes not found"}, status=404)
+        
+        # Check user has access to both attributes via studies
+        user_studies = Study.objects.filter(created_by=request.user)
+        
+        source_accessible = source_attribute.studies.filter(
+            id__in=user_studies.values_list('id', flat=True)
+        ).exists()
+        target_accessible = target_attribute.studies.filter(
+            id__in=user_studies.values_list('id', flat=True)
+        ).exists()
+        
+        if not source_accessible or not target_accessible:
+            return JsonResponse({"error": "Permission denied"}, status=403)
+        
+        # Generate transformation suggestion
+        transformation_code = transformation_suggestion_service.suggest_transformation_code(
+            source_attribute, target_attribute
+        )
+        
+        # Handle different response cases
+        if transformation_code is None:
+            return JsonResponse({
+                "error": "Failed to generate transformation suggestion. Please try again."
+            }, status=500)
+        elif transformation_code == "":
+            return JsonResponse({
+                "success": True,
+                "transformation_needed": False,
+                "transformation_code": "",
+                "message": "No transformation needed - variables are already compatible"
+            })
+        else:
+            return JsonResponse({
+                "success": True,
+                "transformation_needed": True,
+                "transformation_code": transformation_code,
+                "message": "Transformation code generated successfully"
+            })
+            
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON in request body"}, status=400)
+    except Exception as e:
+        logger.exception("Error generating transformation suggestion")
+        return JsonResponse({
+            "error": "An error occurred while generating the suggestion"
+        }, status=500)
+
+
+@login_required
+@require_http_methods(["POST"])
 def start_data_ingestion(request, file_id):
     """
     Start the data ingestion process for a raw data file.
