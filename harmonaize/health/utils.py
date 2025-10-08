@@ -5,9 +5,86 @@ import pandas as pd
 import logging
 from typing import Dict, Any, List
 from django.core.files.uploadedfile import UploadedFile
+from django.contrib import messages
+from django.http import HttpRequest
 from core.models import Study
 
 logger = logging.getLogger(__name__)
+
+
+class MessageManager:
+    """
+    Centralized message management to prevent overwhelming users with notifications.
+    """
+    
+    @staticmethod
+    def add_message(request: HttpRequest, level: str, message: str, force: bool = False) -> bool:
+        """
+        Add a message with deduplication and rate limiting.
+        
+        Args:
+            request: The HTTP request object
+            level: Message level ('success', 'error', 'warning', 'info')
+            message: The message content
+            force: If True, bypass deduplication checks
+            
+        Returns:
+            bool: True if message was added, False if filtered out
+        """
+        # Initialize session message tracking if not exists
+        if not hasattr(request.session, '_messages_seen'):
+            request.session['_messages_seen'] = set()
+        
+        # Create a simple hash of the message for deduplication
+        message_hash = hash(f"{level}:{message.strip()}")
+        
+        # Check if we've seen this message recently (unless forced)
+        if not force and message_hash in request.session.get('_messages_seen', set()):
+            return False
+        
+        # Add the message
+        message_func = getattr(messages, level, messages.info)
+        message_func(request, message)
+        
+        # Track the message to prevent future duplicates
+        seen_messages = request.session.get('_messages_seen', set())
+        seen_messages.add(message_hash)
+        
+        # Limit tracking to last 20 messages to prevent session bloat
+        if len(seen_messages) > 20:
+            seen_messages = set(list(seen_messages)[-20:])
+        
+        request.session['_messages_seen'] = seen_messages
+        request.session.modified = True
+        
+        return True
+    
+    @staticmethod
+    def success(request: HttpRequest, message: str, force: bool = False) -> bool:
+        """Add a success message with deduplication."""
+        return MessageManager.add_message(request, 'success', message, force)
+    
+    @staticmethod
+    def error(request: HttpRequest, message: str, force: bool = False) -> bool:
+        """Add an error message with deduplication.""" 
+        return MessageManager.add_message(request, 'error', message, force)
+    
+    @staticmethod
+    def warning(request: HttpRequest, message: str, force: bool = False) -> bool:
+        """Add a warning message with deduplication."""
+        return MessageManager.add_message(request, 'warning', message, force)
+    
+    @staticmethod
+    def info(request: HttpRequest, message: str, force: bool = False) -> bool:
+        """Add an info message with deduplication."""
+        return MessageManager.add_message(request, 'info', message, force)
+    
+    @staticmethod
+    def clear_seen_messages(request: HttpRequest):
+        """Clear the message deduplication cache."""
+        if '_messages_seen' in request.session:
+            del request.session['_messages_seen']
+            request.session.modified = True
 
 
 def validate_raw_data_against_codebook(file: UploadedFile, study: Study) -> Dict[str, Any]:
