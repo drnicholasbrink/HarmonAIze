@@ -26,6 +26,31 @@
       line-height: 1.5;
     }
 
+    .breadcrumb {
+      background: transparent;
+      padding: 0.75rem 0 1rem 0;
+      margin: 0;
+      font-size: 0.9rem;
+    }
+
+    .breadcrumb-item + .breadcrumb-item::before {
+      content: "›";
+      color: var(--text-secondary);
+    }
+
+    .breadcrumb-item a {
+      color: var(--primary-color);
+      text-decoration: none;
+    }
+
+    .breadcrumb-item a:hover {
+      text-decoration: underline;
+    }
+
+    .breadcrumb-item.active {
+      color: var(--text-secondary);
+    }
+
     .header-section {
       background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
       color: white;
@@ -660,6 +685,7 @@
 {% endblock css %}
 
 {% block content %}
+  
   <!-- Header Section -->
   <div class="header-section">
     <div class="study-header">
@@ -668,6 +694,16 @@
         Created by {{ study.created_by.name|default:study.created_by.email }} on {{ study.created_at|date:"F j, Y" }}
       </div>
     </div>
+  </div>
+<!-- Breadcrumb Navigation -->
+  <div class="container-fluid">
+    <nav aria-label="breadcrumb" class="mb-4">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">Home</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'core:project_detail' study.project.id %}">{{ study.project.name }}</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ study.name }}</li>
+      </ol>
+    </nav>
   </div>
 
   <!-- Main Content -->

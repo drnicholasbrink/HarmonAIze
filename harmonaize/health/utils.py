@@ -115,11 +115,22 @@ def analyze_raw_data_columns(file_path: str) -> Dict[str, Any]:
         # Detect file format and read
         file_ext = file_path.split('.')[-1].lower()
         
+        # First, get the total row count without loading all data
         if file_ext == 'csv':
+            # Count rows efficiently for CSV
+            with open(file_path, 'r') as f:
+                total_rows = sum(1 for _ in f) - 1  # -1 for header
             df = pd.read_csv(file_path, nrows=100)  # Read first 100 rows for analysis
         elif file_ext in ['xlsx', 'xls']:
-            df = pd.read_excel(file_path, nrows=100)
+            # For Excel, need to read to count (less efficient but necessary)
+            df_full = pd.read_excel(file_path)
+            total_rows = len(df_full)
+            df = df_full.head(100)
+            del df_full  # Free memory
         elif file_ext == 'json':
+            # For JSON lines, count lines
+            with open(file_path, 'r') as f:
+                total_rows = sum(1 for _ in f)
             df = pd.read_json(file_path, lines=True, nrows=100)
         else:
             raise ValueError(f"Unsupported file format: {file_ext}")
@@ -139,7 +150,7 @@ def analyze_raw_data_columns(file_path: str) -> Dict[str, Any]:
         
         return {
             'success': True,
-            'total_rows': len(df),
+            'total_rows': total_rows,  # Actual total rows from file
             'total_columns': len(df.columns),
             'columns': list(df.columns),
             'column_analysis': column_analysis,

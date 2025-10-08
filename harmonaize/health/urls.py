@@ -104,6 +104,27 @@ urlpatterns = [
         views.delete_raw_data,
         name="delete_raw_data",
     ),
+    # Duplicate detection endpoints (on-demand via button on raw_data_detail page)
+    path(
+        "raw-data/<int:file_id>/duplicates/start/",
+        views.start_duplicate_detection,
+        name="start_duplicate_detection",
+    ),
+    path(
+        "raw-data/<int:file_id>/duplicates/status/",
+        views.check_duplicate_detection_status,
+        name="check_duplicate_detection_status",
+    ),
+    path(
+        "raw-data/<int:file_id>/duplicates/delete/",
+        views.delete_duplicates,
+        name="delete_duplicates",
+    ),
+    path(
+        "raw-data/<int:file_id>/duplicates/delete/status/",
+        views.check_delete_duplicates_status,
+        name="check_delete_duplicates_status",
+    ),
     
     # API endpoints
     path(

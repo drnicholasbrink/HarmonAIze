@@ -28,6 +28,31 @@
       line-height: 1.5;
     }
 
+    .breadcrumb {
+      background: transparent;
+      padding: 0.75rem 0 1rem 0;
+      margin: 0;
+      font-size: 0.9rem;
+    }
+
+    .breadcrumb-item + .breadcrumb-item::before {
+      content: "›";
+      color: var(--text-secondary);
+    }
+
+    .breadcrumb-item a {
+      color: var(--primary-color);
+      text-decoration: none;
+    }
+
+    .breadcrumb-item a:hover {
+      text-decoration: underline;
+    }
+
+    .breadcrumb-item.active {
+      color: var(--text-secondary);
+    }
+
     .header-section {
       background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
       color: white;
@@ -83,6 +108,597 @@
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
       gap: 1.5rem;
+    }
+
+    .eda-summary-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, auto));
+      gap: 1rem;
+      margin: 1rem 0 1.5rem;
+    }
+
+    .eda-summary-chip {
+      padding: 0.75rem 1rem;
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(0, 122, 255, 0.12), rgba(90, 200, 250, 0.18));
+      border: 1px solid rgba(0, 122, 255, 0.18);
+    }
+
+    .eda-summary-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .eda-summary-tag {
+      padding: 0.35rem 0.75rem;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.05);
+      color: var(--text-secondary);
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .eda-summary-chip .chip-label {
+      display: block;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-secondary);
+      margin-bottom: 0.35rem;
+    }
+
+    .eda-summary-chip .chip-value {
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+
+    .eda-note {
+      font-size: 0.9rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .eda-section {
+      margin-top: 2rem;
+    }
+
+    .eda-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .eda-section-header h3 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin: 0;
+    }
+
+    .eda-section-subtitle {
+      margin: 0.25rem 0 0;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+
+    .eda-toggle {
+      background: rgba(0, 0, 0, 0.05);
+      border: none;
+      border-radius: 999px;
+      padding: 0.4rem 1rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--text-primary);
+      transition: background 0.2s ease;
+    }
+
+    .eda-toggle:hover {
+      background: rgba(0, 122, 255, 0.12);
+    }
+
+    .eda-section-body {
+      margin-top: 1.5rem;
+    }
+
+    .eda-section-body.is-collapsed {
+      display: none;
+    }
+
+    .eda-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .eda-card {
+      background: var(--card-background);
+      border: 1px solid var(--border-color);
+      border-radius: var(--border-radius);
+      padding: 1.5rem;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .eda-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 16px 35px rgba(0, 0, 0, 0.12);
+    }
+
+    .eda-card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .eda-card-header h4 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin: 0;
+    }
+
+    .eda-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      border-radius: 999px;
+      padding: 0.35rem 0.75rem;
+      background: rgba(0, 122, 255, 0.12);
+      color: var(--primary-color);
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+    }
+
+    .eda-stat-rows {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+      gap: 0.75rem;
+    }
+
+    .eda-stat-rows dt {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin: 0 0 0.25rem;
+    }
+
+    .eda-stat-rows dd {
+      margin: 0;
+      font-weight: 600;
+      font-size: 1rem;
+      color: var(--text-primary);
+    }
+
+    .eda-detail-button {
+      align-self: flex-start;
+      background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      padding: 0.55rem 1.2rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .eda-detail-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(0, 122, 255, 0.25);
+    }
+
+    .eda-empty {
+      color: var(--text-secondary);
+      font-style: italic;
+      margin: 0.75rem 0;
+    }
+
+    .eda-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(12, 12, 14, 0.55);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1.5rem;
+      z-index: 1200;
+    }
+
+    .eda-modal.is-visible {
+      display: flex;
+    }
+
+    .eda-modal__dialog {
+      background: var(--card-background);
+      border-radius: 20px;
+      width: min(900px, 90vw);
+      max-height: 90vh;
+      overflow: hidden auto;
+      padding: 2rem;
+      position: relative;
+      box-shadow: 0 30px 60px rgba(0, 0, 0, 0.25);
+    }
+
+    .eda-modal__close {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      border: none;
+      background: rgba(0, 0, 0, 0.08);
+      color: var(--text-primary);
+      width: 36px;
+      height: 36px;
+      border-radius: 999px;
+      font-size: 1.4rem;
+      font-weight: 600;
+      line-height: 1;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .eda-modal__close:hover {
+      background: rgba(0, 122, 255, 0.2);
+    }
+
+    .eda-modal-subtitle {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      margin-bottom: 1.5rem;
+    }
+
+    .eda-modal-grid {
+      display: grid;
+      gap: 1.5rem;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    }
+
+    .boxplot-panel {
+      background: linear-gradient(180deg, rgba(0, 122, 255, 0.08), rgba(90, 200, 250, 0.12));
+      border: 1px solid rgba(0, 122, 255, 0.18);
+      border-radius: 16px;
+      padding: 1.25rem;
+    }
+
+    .boxplot-wrapper {
+      position: relative;
+      margin: 0.5rem 0 1.25rem;
+    }
+
+    .boxplot-track {
+      position: relative;
+      height: 10px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.8);
+    }
+
+    .boxplot-whisker {
+      position: absolute;
+      top: -8px;
+      width: 2px;
+      height: 26px;
+      background: rgba(0, 0, 0, 0.2);
+      transform: translateX(-50%);
+    }
+
+    .boxplot-whisker::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 16px;
+      height: 2px;
+      background: rgba(0, 0, 0, 0.25);
+      transform: translate(-50%, -50%);
+      border-radius: 2px;
+    }
+
+    .boxplot-box {
+      position: absolute;
+      top: -6px;
+      height: 22px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, rgba(0, 122, 255, 0.35), rgba(90, 200, 250, 0.45));
+      border: 1px solid rgba(0, 122, 255, 0.35);
+    }
+
+    .boxplot-median {
+      position: absolute;
+      top: -10px;
+      width: 3px;
+      height: 30px;
+      border-radius: 2px;
+      background: var(--text-primary);
+    }
+
+    .boxplot-legend {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+      gap: 0.5rem 1rem;
+      font-size: 0.85rem;
+    }
+
+    .boxplot-legend span {
+      display: block;
+      text-transform: uppercase;
+      font-size: 0.7rem;
+      letter-spacing: 0.04em;
+      color: rgba(0, 0, 0, 0.6);
+    }
+
+    .boxplot-legend strong {
+      font-weight: 600;
+    }
+
+    .boxplot-note {
+      font-size: 0.8rem;
+      color: rgba(0, 0, 0, 0.6);
+      margin: 0;
+    }
+
+    .eda-heatmap {
+      min-height: 340px;
+      border-radius: 18px;
+      border: 1px solid rgba(0, 122, 255, 0.14);
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+    }
+
+    .eda-chart {
+      width: 100%;
+      min-height: 280px;
+    }
+
+    .eda-stats-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.06);
+    }
+
+    .eda-stats-table th,
+    .eda-stats-table td {
+      padding: 0.6rem 0.9rem;
+      font-size: 0.9rem;
+      text-align: left;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    }
+
+    .eda-stats-table th {
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-size: 0.75rem;
+      color: rgba(0, 0, 0, 0.55);
+    }
+
+    .eda-stats-table tr:last-child th,
+    .eda-stats-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .heatmap-scroll {
+      overflow-x: auto;
+    }
+
+    .heatmap-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+
+    .heatmap-table th,
+    .heatmap-table td {
+      border: 1px solid var(--border-color);
+      padding: 0.5rem;
+      text-align: center;
+      transition: background 0.2s ease;
+    }
+
+    .heatmap-table th {
+      background: rgba(0, 0, 0, 0.04);
+      font-weight: 600;
+    }
+
+    .eda-bar-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      gap: 0.5rem;
+    }
+
+    .eda-bar-list li {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.35rem 0;
+      border-bottom: 1px dashed rgba(0, 0, 0, 0.08);
+    }
+
+    .eda-bar-list li:last-child {
+      border-bottom: none;
+    }
+
+    .word-cloud-wrapper {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .word-cloud-card {
+      padding: 1.5rem;
+      border-radius: 16px;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(90, 200, 250, 0.18));
+      border: 1px solid rgba(0, 122, 255, 0.16);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .word-cloud-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .eda-token-preview {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 0.45rem;
+    }
+
+    .eda-token-preview li {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.3rem 0;
+      border-bottom: 1px dashed rgba(0, 0, 0, 0.08);
+      font-size: 0.9rem;
+    }
+
+    .eda-token-preview li:last-child {
+      border-bottom: none;
+    }
+
+    /* Plotly Dashboard Styling */
+    .eda-plotly-dashboard {
+      width: 100%;
+      min-height: 800px;
+      background: white;
+      border-radius: 8px;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .eda-plotly-dashboard > div {
+      width: 100% !important;
+      flex: 1;
+      min-height: 800px;
+    }
+
+    .eda-plotly-dashboard .plotly {
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    /* Make Plotly charts responsive and fill container */
+    .eda-plotly-dashboard .js-plotly-plot,
+    .eda-plotly-dashboard .plotly-graph-div {
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    /* Expand button for fullscreen mode */
+    .plotly-expand-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 100;
+      background: rgba(0, 122, 255, 0.9);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      font-size: 0.875rem;
+      font-weight: 600;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+
+    .plotly-expand-btn:hover {
+      background: rgba(0, 122, 255, 1);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+
+    /* Plotly Lightbox Overlay */
+    .plotly-lightbox {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.95);
+      z-index: 10000;
+      overflow: auto;
+      padding: 2rem;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .plotly-lightbox.is-visible {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 1;
+    }
+
+    .plotly-lightbox__content {
+      background: white;
+      border-radius: 12px;
+      padding: 2rem;
+      max-width: 95vw;
+      max-height: 95vh;
+      overflow: auto;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+      position: relative;
+      animation: zoomIn 0.3s ease;
+    }
+
+    .plotly-lightbox__close {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      background: rgba(0, 0, 0, 0.6);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      font-size: 1.5rem;
+      cursor: pointer;
+      z-index: 10001;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .plotly-lightbox__close:hover {
+      background: rgba(255, 59, 48, 0.9);
+      transform: rotate(90deg);
+    }
+
+    .visually-hidden {
+      position: absolute !important;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      border: 0;
     }
 
     .info-item {
@@ -402,6 +1018,108 @@
       color: #6c5ce7;
     }
 
+    /* Image Lightbox Overlay */
+    .image-lightbox {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.95);
+      z-index: 10000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .image-lightbox.is-visible {
+      display: flex;
+    }
+
+    .image-lightbox__content {
+      position: relative;
+      max-width: 95vw;
+      max-height: 95vh;
+      background: white;
+      border-radius: 16px;
+      padding: 2rem;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+      animation: zoomIn 0.3s ease;
+      overflow: auto;
+    }
+
+    .image-lightbox__close {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      width: 48px;
+      height: 48px;
+      border: none;
+      background: rgba(0, 0, 0, 0.1);
+      color: var(--text-primary);
+      font-size: 2rem;
+      line-height: 1;
+      border-radius: 50%;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .image-lightbox__close:hover {
+      background: rgba(0, 0, 0, 0.2);
+      transform: rotate(90deg);
+    }
+
+    .image-lightbox__image {
+      max-width: 100%;
+      max-height: calc(95vh - 8rem);
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+      display: block;
+      margin: 0 auto;
+    }
+
+    .image-lightbox__title {
+      text-align: center;
+      margin-bottom: 1.5rem;
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .image-lightbox__actions {
+      text-align: center;
+      margin-top: 1.5rem;
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+
+    @keyframes zoomIn {
+      from {
+        transform: scale(0.9);
+        opacity: 0;
+      }
+      to {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+
     @media (max-width: 768px) {
       .info-grid {
         grid-template-columns: 1fr;
@@ -435,11 +1153,21 @@
       </div>
     </div>
   </div>
+<!-- Breadcrumb Navigation -->
+  <div class="container-fluid">
+    <nav aria-label="breadcrumb" class="mb-4">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">Home</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'core:project_detail' raw_data_file.study.project.id %}">{{ raw_data_file.study.project.name }}</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'core:study_detail' raw_data_file.study.id %}">{{ raw_data_file.study.name }}</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ raw_data_file.original_filename }}</li>
+      </ol>
+    </nav>
+  </div>
 
   <!-- Main Content -->
-  <div class="content-wrapper">
-    
-    <!-- File Overview -->
+<div class="content-wrapper">
+  <!-- File Overview -->
     <div class="info-card">
       <h2 class="card-title">File Overview</h2>
       <div class="info-grid">
@@ -524,6 +1252,79 @@
         </div>
       </div>
     </div>
+
+  
+  {% if eda_summary %}
+    {{ eda_summary_json|json_script:"eda-summary-data" }}
+  {% endif %}
+  {% if eda_summary_transformed %}
+    {{ eda_summary_transformed_json|json_script:"eda-summary-transformed-data" }}
+  {% endif %}
+
+  <div class="info-card eda-overview">
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
+      <h2 class="card-title" style="margin: 0;">Exploratory Data Analysis</h2>
+      
+      <!-- View Mode Toggle (if transformed data is available) -->
+      {% if has_transformed_data %}
+        <div style="display: flex; gap: 0.5rem; background: rgba(0,0,0,0.04); padding: 0.35rem; border-radius: 12px;">
+          <a href="?view_mode=source" 
+             class="btn {% if view_mode == 'source' %}btn-primary{% else %}btn-secondary{% endif %}" 
+             style="padding: 0.5rem 1rem; font-size: 0.9rem; {% if view_mode != 'source' %}background: transparent; border: none; color: var(--text-primary);{% endif %}">
+            Source Data
+          </a>
+          <a href="?view_mode=transformed" 
+             class="btn {% if view_mode == 'transformed' %}btn-primary{% else %}btn-secondary{% endif %}" 
+             style="padding: 0.5rem 1rem; font-size: 0.9rem; {% if view_mode != 'transformed' %}background: transparent; border: none; color: var(--text-primary);{% endif %}">
+            Transformed Data
+          </a>
+          <a href="?view_mode=both" 
+             class="btn {% if view_mode == 'both' %}btn-primary{% else %}btn-secondary{% endif %}" 
+             style="padding: 0.5rem 1rem; font-size: 0.9rem; {% if view_mode != 'both' %}background: transparent; border: none; color: var(--text-primary);{% endif %}">
+            Compare Both
+          </a>
+        </div>
+      {% endif %}
+    </div>
+    
+    {% if not eda_summary.available and view_mode != 'transformed' %}
+      <p class="eda-empty">
+        {{ eda_summary.reason|default:"Exploratory analysis will be available once sufficient data is processed." }}
+      </p>
+    {% elif view_mode == 'both' and has_transformed_data %}
+      <!-- Side-by-side comparison view -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 1rem;">
+        <!-- Source Data Column -->
+        <div style="border-right: 2px solid var(--border-color); padding-right: 1.5rem;">
+          <h3 style="color: var(--primary-color); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+            <i class="fas fa-database"></i> Source Data
+          </h3>
+          <p class="text-muted" style="font-size: 0.9rem; margin-bottom: 1rem;">Original uploaded data before transformation</p>
+          {% include "health/partials/_eda_sections.html" with eda_data=eda_summary prefix="source" color_class="primary" show_summary_strip=True %}
+        </div>
+        
+        <!-- Transformed Data Column -->
+        <div style="padding-left: 1.5rem;">
+          <h3 style="color: #34C759; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+            <i class="fas fa-check-circle"></i> Transformed Data
+          </h3>
+          <p class="text-muted" style="font-size: 0.9rem; margin-bottom: 1rem;">Harmonized data after applying transformation rules</p>
+          {% include "health/partials/_eda_sections.html" with eda_data=eda_summary_transformed prefix="transformed" color_class="success" show_summary_strip=True %}
+        </div>
+      </div>
+    {% elif view_mode == 'transformed' %}
+      <!-- Transformed data only view -->
+      {% include "health/partials/_eda_sections.html" with eda_data=eda_summary_transformed prefix="transformed" color_class="success" show_summary_strip=True %}
+    {% else %}
+      <!-- Single view mode (source or transformed) -->
+      {% include "health/partials/_eda_sections.html" with eda_data=eda_summary prefix="single" color_class="primary" show_summary_strip=True %}
+    {% endif %}
+  </div>
+
+  <!-- Duplicate Detection Section (On-Demand) -->
+  {% if raw_data_file.ingestion_status == 'completed' or raw_data_file.transformation_status == 'completed' %}
+    {% include "health/partials/_duplicate_detection_on_demand.html" %}
+  {% endif %}
 
     <!-- Processing Steps -->
     <div class="info-card">
@@ -904,6 +1705,41 @@
 
   </div>
 
+  <!-- Image Lightbox Overlay -->
+  <div id="image-lightbox" class="image-lightbox" aria-hidden="true" role="dialog">
+    <div class="image-lightbox__content">
+      <button type="button" class="image-lightbox__close" onclick="closeLightbox()" aria-label="Close lightbox">
+        &times;
+      </button>
+      <h3 id="lightbox-title" class="image-lightbox__title"></h3>
+      <img id="lightbox-image" class="image-lightbox__image" src="" alt="" />
+      <div class="image-lightbox__actions">
+        <button type="button" class="btn btn-primary" onclick="downloadLightboxImage()">
+          <i class="fas fa-download"></i> Download Image
+        </button>
+        <button type="button" class="btn btn-secondary" onclick="closeLightbox()">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Plotly Chart Lightbox Overlay -->
+  <div id="plotly-lightbox" class="plotly-lightbox" aria-hidden="true" role="dialog">
+    <div class="plotly-lightbox__content">
+      <button type="button" class="plotly-lightbox__close" onclick="closePlotlyLightbox()" aria-label="Close lightbox">
+        &times;
+      </button>
+      <h3 id="plotly-lightbox-title" class="image-lightbox__title"></h3>
+      <div id="plotly-lightbox-chart" style="width: 95vw; height: 85vh;"></div>
+      <div class="image-lightbox__actions">
+        <button type="button" class="btn btn-secondary" onclick="closePlotlyLightbox()">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script>
     function confirmDelete() {
       // Redirect to comprehensive delete page instead of simple confirm
@@ -970,4 +1806,580 @@
     {% endif %}
   </script>
 
-{% endblock content %}
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js" integrity="sha384-S7S5j7SM4UMl7iSWv881omj0dJnVX15DR1MFp8DgZrMEfVRey9ncdwDjzv57w84Z" crossorigin="anonymous"></script>
+  <script>
+    (function () {
+      // Try to load either source or transformed EDA data
+      const dataElement = document.getElementById('eda-summary-data');
+      const transformedDataElement = document.getElementById('eda-summary-transformed-data');
+      
+      let edaData = null;
+      
+      // Try source data first
+      if (dataElement) {
+        try {
+          edaData = JSON.parse(dataElement.textContent);
+        } catch (error) {
+          console.error('Unable to parse EDA summary payload', error);
+        }
+      }
+      
+      // If no source data or not available, try transformed data
+      if ((!edaData || !edaData.available) && transformedDataElement) {
+        try {
+          edaData = JSON.parse(transformedDataElement.textContent);
+        } catch (error) {
+          console.error('Unable to parse transformed EDA summary payload', error);
+        }
+      }
+
+      // Only exit if we have no valid data at all
+      if (!edaData || !edaData.available) {
+        console.log('No EDA data available for interactive features');
+        // Still initialize toggle buttons even if no chart data
+        document.querySelectorAll('[data-section-toggle]').forEach((button) => {
+          const targetId = button.getAttribute('data-section-toggle');
+          const target = document.getElementById(targetId);
+          if (!target) {
+            button.hidden = true;
+            return;
+          }
+          const isExpanded = button.getAttribute('aria-expanded') === 'true';
+          const collapseLabel = button.dataset.collapseLabel || 'Collapse';
+          const expandLabel = button.dataset.expandLabel || 'Expand';
+          
+          // Set initial state
+          if (isExpanded) {
+            button.textContent = collapseLabel;
+            target.classList.remove('is-collapsed');
+            target.classList.add('is-expanded');
+          } else {
+            button.textContent = expandLabel;
+            target.classList.add('is-collapsed');
+            target.classList.remove('is-expanded');
+          }
+          
+          // Add click handler
+          button.addEventListener('click', () => {
+            const expanded = button.getAttribute('aria-expanded') === 'true';
+            if (expanded) {
+              button.setAttribute('aria-expanded', 'false');
+              button.textContent = expandLabel;
+              target.classList.add('is-collapsed');
+              target.classList.remove('is-expanded');
+            } else {
+              button.setAttribute('aria-expanded', 'true');
+              button.textContent = collapseLabel;
+              target.classList.remove('is-collapsed');
+              target.classList.add('is-expanded');
+            }
+          });
+        });
+        return;
+      }
+
+      const PlotlyObj = window.Plotly || null;
+      const chartCache = { numeric: {}, categorical: {} };
+      const modalStack = [];
+      const focusStack = [];
+      const originalOverflow = document.body.style.overflow || '';
+
+      const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+      const formatEdge = (value) => {
+        if (value === null || typeof value === 'undefined' || Number.isNaN(Number(value))) {
+          return '—';
+        }
+        const numericValue = Number(value);
+        const absValue = Math.abs(numericValue);
+        if (absValue >= 1000) {
+          return numericValue.toFixed(0);
+        }
+        if (absValue >= 100) {
+          return numericValue.toFixed(1);
+        }
+        return numericValue.toFixed(2);
+      };
+
+      const setSectionState = (button, target, expanded) => {
+        const collapseLabel = button.dataset.collapseLabel || 'Collapse';
+        const expandLabel = button.dataset.expandLabel || 'Expand';
+        if (expanded) {
+          button.setAttribute('aria-expanded', 'true');
+          button.textContent = collapseLabel;
+          target.classList.remove('is-collapsed');
+          target.classList.add('is-expanded');
+          if (target.id === 'eda-section-correlation') {
+            renderCorrelationHeatmap();
+          }
+        } else {
+          button.setAttribute('aria-expanded', 'false');
+          button.textContent = expandLabel;
+          target.classList.add('is-collapsed');
+          target.classList.remove('is-expanded');
+        }
+      };
+
+      document.querySelectorAll('[data-section-toggle]').forEach((button) => {
+        const targetId = button.getAttribute('data-section-toggle');
+        const target = document.getElementById(targetId);
+        if (!target) {
+          button.hidden = true;
+          return;
+        }
+        const isExpanded = button.getAttribute('aria-expanded') === 'true';
+        setSectionState(button, target, isExpanded);
+        button.addEventListener('click', () => {
+          const expanded = button.getAttribute('aria-expanded') === 'true';
+          setSectionState(button, target, !expanded);
+        });
+      });
+
+      const openModal = (modal) => {
+        if (!modal) {
+          return;
+        }
+        const currentTop = modalStack[modalStack.length - 1];
+        if (currentTop && currentTop !== modal) {
+          closeModal(currentTop);
+        }
+        if (modalStack.includes(modal)) {
+          return;
+        }
+        modalStack.push(modal);
+        modal.classList.add('is-visible');
+        modal.setAttribute('aria-hidden', 'false');
+        focusStack.push(document.activeElement || null);
+        const dialog = modal.querySelector('.eda-modal__dialog');
+        if (dialog && typeof dialog.focus === 'function') {
+          dialog.focus({ preventScroll: true });
+        }
+        document.body.style.overflow = 'hidden';
+      };
+
+      const closeModal = (modal) => {
+        if (!modal) {
+          return;
+        }
+        const index = modalStack.indexOf(modal);
+        if (index !== -1) {
+          modalStack.splice(index, 1);
+        }
+        modal.classList.remove('is-visible');
+        modal.setAttribute('aria-hidden', 'true');
+        if (!modalStack.length) {
+          document.body.style.overflow = originalOverflow;
+        }
+        const previousFocus = focusStack.pop();
+        if (previousFocus && typeof previousFocus.focus === 'function') {
+          previousFocus.focus();
+        }
+      };
+
+      document.querySelectorAll('[data-modal-open]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const modalId = button.getAttribute('data-modal-open');
+          const modalType = button.getAttribute('data-modal-type');
+          const modalIndex = Number(button.getAttribute('data-modal-index'));
+          const modal = document.getElementById(modalId);
+          if (!modal) {
+            return;
+          }
+          openModal(modal);
+          // All charts (numeric, categorical, string) now use pre-generated images, no rendering needed
+        });
+      });
+
+      document.querySelectorAll('[data-modal-close]').forEach((button) => {
+        button.addEventListener('click', (event) => {
+          const modal = button.closest('.eda-modal');
+          if (modal) {
+            event.preventDefault();
+            closeModal(modal);
+          }
+        });
+      });
+
+      document.querySelectorAll('.eda-modal').forEach((modal) => {
+        modal.addEventListener('click', (event) => {
+          if (event.target === modal) {
+            closeModal(modal);
+          }
+        });
+      });
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && modalStack.length) {
+          event.preventDefault();
+          closeModal(modalStack[modalStack.length - 1]);
+        }
+      });
+
+      const renderCorrelationHeatmap = () => {
+        if (!PlotlyObj || !edaData.correlation || !edaData.correlation.labels || !edaData.correlation.matrix) {
+          return;
+        }
+        const container = document.getElementById('eda-correlation-heatmap');
+        if (!container || container.dataset.rendered === 'true') {
+          return;
+        }
+        PlotlyObj.newPlot(
+          container,
+          [
+            {
+              type: 'heatmap',
+              z: edaData.correlation.matrix,
+              x: edaData.correlation.labels,
+              y: edaData.correlation.labels,
+              zmin: -1,
+              zmax: 1,
+              zmid: 0,
+              colorscale: [
+                [0, '#ff9f0a'],
+                [0.5, '#f2f2f7'],
+                [1, '#0a84ff'],
+              ],
+              hovertemplate: '<b>%{y}</b> × <b>%{x}</b><br>r = %{z:.2f}<extra></extra>',
+            },
+          ],
+          {
+            margin: { t: 20, r: 10, b: 60, l: 80 },
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)',
+            xaxis: { side: 'top', tickangle: -45 },
+            yaxis: { automargin: true },
+          },
+          { displayModeBar: false }
+        );
+        container.dataset.rendered = 'true';
+      };
+
+      const renderBoxplot = (element, boxData) => {
+        const rawValues = [boxData.min, boxData.q1, boxData.median, boxData.q3, boxData.max];
+        if (rawValues.some((value) => value === null || typeof value === 'undefined')) {
+          return;
+        }
+        const min = Number(boxData.min);
+        const q1 = Number(boxData.q1);
+        const median = Number(boxData.median);
+        const q3 = Number(boxData.q3);
+        const max = Number(boxData.max);
+        if ([min, q1, median, q3, max].some((value) => Number.isNaN(value))) {
+          return;
+        }
+        const range = max - min || 1;
+        const trackWidth = 100;
+        const position = (value) => clamp(((value - min) / range) * trackWidth, 0, 100);
+
+        const box = element.querySelector('.boxplot-box');
+        const medianLine = element.querySelector('.boxplot-median');
+        const whiskerMin = element.querySelector('.boxplot-whisker--min');
+        const whiskerMax = element.querySelector('.boxplot-whisker--max');
+
+        if (box) {
+          box.style.left = `${position(q1)}%`;
+          box.style.width = `${Math.max(position(q3) - position(q1), 2)}%`;
+        }
+        if (medianLine) {
+          medianLine.style.left = `${position(median)}%`;
+        }
+        if (whiskerMin) {
+          whiskerMin.style.left = `${position(min)}%`;
+        }
+        if (whiskerMax) {
+          whiskerMax.style.left = `${position(max)}%`;
+        }
+      };
+
+      // Render correlation heatmap (if available)
+    })();
+    
+    // Image lightbox functionality
+    let currentImageSrc = '';
+    let currentImageFilename = '';
+    
+    function toggleImageZoom(img) {
+      // Open lightbox instead of inline zoom
+      const lightbox = document.getElementById('image-lightbox');
+      const lightboxImage = document.getElementById('lightbox-image');
+      const lightboxTitle = document.getElementById('lightbox-title');
+      
+      // Set the image
+      lightboxImage.src = img.src;
+      lightboxImage.alt = img.alt;
+      currentImageSrc = img.src;
+      
+      // Set title from the image alt text or parent modal title
+      const modal = img.closest('.eda-modal');
+      if (modal) {
+        const modalTitle = modal.querySelector('h3');
+        if (modalTitle) {
+          lightboxTitle.textContent = modalTitle.textContent;
+        }
+      } else {
+        lightboxTitle.textContent = img.alt || 'Chart Image';
+      }
+      
+      // Determine filename from img id or alt
+      if (img.id) {
+        if (img.id.includes('categorical')) {
+          currentImageFilename = 'categorical-chart.png';
+        } else if (img.id.includes('wordcloud')) {
+          currentImageFilename = 'wordcloud.png';
+        } else {
+          currentImageFilename = 'chart-image.png';
+        }
+      } else {
+        currentImageFilename = 'chart-image.png';
+      }
+      
+      // Show lightbox
+      lightbox.classList.add('is-visible');
+      lightbox.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+    }
+    
+    function closeLightbox() {
+      const lightbox = document.getElementById('image-lightbox');
+      lightbox.classList.remove('is-visible');
+      lightbox.setAttribute('aria-hidden', 'true');
+      document.body.style.overflow = '';
+    }
+    
+    function downloadLightboxImage() {
+      if (!currentImageSrc) return;
+      
+      const link = document.createElement('a');
+      link.href = currentImageSrc;
+      link.download = currentImageFilename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+    
+    // Plotly chart lightbox functionality
+    function openPlotlyLightbox(plotlyDiv, title) {
+      const lightbox = document.getElementById('plotly-lightbox');
+      const lightboxChart = document.getElementById('plotly-lightbox-chart');
+      const lightboxTitle = document.getElementById('plotly-lightbox-title');
+      
+      // Set title
+      lightboxTitle.textContent = title || 'Interactive Chart';
+      
+      // Clear previous content
+      lightboxChart.innerHTML = '';
+      
+      // Create new div for the chart
+      const newDiv = document.createElement('div');
+      newDiv.style.width = '100%';
+      newDiv.style.height = '100%';
+      lightboxChart.appendChild(newDiv);
+      
+      // Get the original Plotly data and layout
+      if (window.Plotly && plotlyDiv.data && plotlyDiv.layout) {
+        // Clone layout and update for lightbox size
+        const lightboxLayout = JSON.parse(JSON.stringify(plotlyDiv.layout));
+        lightboxLayout.autosize = true;
+        lightboxLayout.width = undefined;  // Let autosize handle it
+        lightboxLayout.height = undefined; // Let autosize handle it
+        
+        // Clone config
+        const config = plotlyDiv.config ? JSON.parse(JSON.stringify(plotlyDiv.config)) : {
+          displayModeBar: true,
+          displaylogo: false,
+          responsive: true
+        };
+        config.responsive = true;
+        
+        // Create new plot in lightbox
+        window.Plotly.newPlot(newDiv, plotlyDiv.data, lightboxLayout, config).then(() => {
+          // Trigger resize after plot is created
+          window.Plotly.Plots.resize(newDiv);
+        });
+      }
+      
+      // Show lightbox
+      lightbox.classList.add('is-visible');
+      lightbox.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+      
+      // Resize on window resize while lightbox is open
+      window.addEventListener('resize', resizePlotlyLightbox);
+    }
+    
+    function resizePlotlyLightbox() {
+      const lightbox = document.getElementById('plotly-lightbox');
+      if (lightbox && lightbox.classList.contains('is-visible')) {
+        const lightboxChart = document.getElementById('plotly-lightbox-chart');
+        const plotlyDiv = lightboxChart.querySelector('.js-plotly-plot');
+        if (plotlyDiv && window.Plotly) {
+          window.Plotly.Plots.resize(plotlyDiv);
+        }
+      }
+    }
+    
+    function closePlotlyLightbox() {
+      const lightbox = document.getElementById('plotly-lightbox');
+      lightbox.classList.remove('is-visible');
+      lightbox.setAttribute('aria-hidden', 'true');
+      document.body.style.overflow = '';
+      
+      // Remove resize listener
+      window.removeEventListener('resize', resizePlotlyLightbox);
+      
+      // Clear the chart content
+      const lightboxChart = document.getElementById('plotly-lightbox-chart');
+      lightboxChart.innerHTML = '';
+    }
+    
+    // Add click handlers to all Plotly charts in dashboards
+    document.addEventListener('DOMContentLoaded', function() {
+      // Find all Plotly divs in dashboard containers
+      const dashboards = document.querySelectorAll('.eda-plotly-dashboard');
+      dashboards.forEach(dashboard => {
+        const plotlyDivs = dashboard.querySelectorAll('.plotly-graph-div');
+        plotlyDivs.forEach((plotlyDiv, index) => {
+          // Make it clear the chart is clickable
+          plotlyDiv.style.cursor = 'pointer';
+          plotlyDiv.title = 'Click to expand';
+          
+          // Add click handler
+          plotlyDiv.addEventListener('click', function(e) {
+            // Don't expand if clicking on Plotly controls
+            if (e.target.closest('.modebar')) return;
+            
+            // Get title from the modal or dashboard
+            const modal = plotlyDiv.closest('.eda-modal');
+            let title = 'Interactive Chart';
+            if (modal) {
+              const modalTitle = modal.querySelector('h3');
+              if (modalTitle) {
+                title = modalTitle.textContent;
+              }
+            }
+            
+            openPlotlyLightbox(plotlyDiv, title);
+          });
+        });
+      });
+    });
+    
+    // Close lightbox on ESC key
+    document.addEventListener('keydown', function(event) {
+      if (event.key === 'Escape') {
+        const lightbox = document.getElementById('image-lightbox');
+        const plotlyLightbox = document.getElementById('plotly-lightbox');
+        
+        if (lightbox.classList.contains('is-visible')) {
+          closeLightbox();
+        }
+        if (plotlyLightbox && plotlyLightbox.classList.contains('is-visible')) {
+          closePlotlyLightbox();
+        }
+      }
+    });
+    
+    // Close lightbox on background click
+    document.getElementById('image-lightbox').addEventListener('click', function(event) {
+      if (event.target === this) {
+        closeLightbox();
+      }
+    });
+    
+    // Close Plotly lightbox on background click
+    const plotlyLightboxEl = document.getElementById('plotly-lightbox');
+    if (plotlyLightboxEl) {
+      plotlyLightboxEl.addEventListener('click', function(event) {
+        if (event.target === this) {
+          closePlotlyLightbox();
+        }
+      });
+    }
+    
+    function downloadChartImage(imageId, filename) {
+      const img = document.getElementById(imageId);
+      if (!img) {
+        console.error('Image not found:', imageId);
+        return;
+      }
+      
+      // Get the base64 data from the src attribute
+      const src = img.src;
+      
+      // Create a temporary link element
+      const link = document.createElement('a');
+      link.href = src;
+      link.download = filename;
+      
+      // Trigger the download
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+    
+    // Synchronized expand/collapse for comparison view
+    {% if view_mode == 'both' and has_transformed_data %}
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('Setting up synchronized expand/collapse for comparison view');
+      
+      // Get all section containers from both columns
+      const sectionTypes = ['numeric', 'categorical', 'correlation', 'strings'];
+      const syncPairs = [];
+      
+      sectionTypes.forEach(type => {
+        const sourceSection = document.getElementById(`eda-section-${type}-source`);
+        const transformedSection = document.getElementById(`eda-section-${type}-transformed`);
+        
+        if (sourceSection && transformedSection) {
+          const sourceBtn = document.querySelector(`[data-section-toggle="eda-section-${type}-source"]`);
+          const transformedBtn = document.querySelector(`[data-section-toggle="eda-section-${type}-transformed"]`);
+          
+          if (sourceBtn && transformedBtn) {
+            syncPairs.push({
+              type: type,
+              sourceBtn: sourceBtn,
+              transformedBtn: transformedBtn,
+              sourceSection: sourceSection,
+              transformedSection: transformedSection
+            });
+          }
+        }
+      });
+      
+      console.log(`Found ${syncPairs.length} section pairs to synchronize`);
+      
+      // Add click handlers to each button
+      syncPairs.forEach(pair => {
+        // When source button is clicked
+        pair.sourceBtn.addEventListener('click', function(e) {
+          setTimeout(() => {
+            const sourceExpanded = pair.sourceSection.style.display !== 'none';
+            const transformedExpanded = pair.transformedSection.style.display !== 'none';
+            
+            // Sync transformed to match source
+            if (sourceExpanded !== transformedExpanded) {
+              console.log(`Syncing ${pair.type}: source=${sourceExpanded}, clicking transformed button`);
+              pair.transformedBtn.click();
+            }
+          }, 50);
+        });
+        
+        // When transformed button is clicked
+        pair.transformedBtn.addEventListener('click', function(e) {
+          setTimeout(() => {
+            const sourceExpanded = pair.sourceSection.style.display !== 'none';
+            const transformedExpanded = pair.transformedSection.style.display !== 'none';
+            
+            // Sync source to match transformed
+            if (sourceExpanded !== transformedExpanded) {
+              console.log(`Syncing ${pair.type}: transformed=${transformedExpanded}, clicking source button`);
+              pair.sourceBtn.click();
+            }
+          }, 50);
+        });
+      });
+    });
+    {% endif %}
+  </script>
+
+  {% endblock content %}
