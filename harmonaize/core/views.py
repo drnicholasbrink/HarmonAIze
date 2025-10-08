@@ -468,7 +468,7 @@ def target_select_variables(request, study_id):
                                 'variable_type': var_data.get('variable_type', 'string'),
                                 'unit': var_data.get('unit', ''),
                                 'ontology_code': var_data.get('ontology_code', ''),
-                                'category': 'health',  # Default category for target variables
+                                'category': var_data.get('category', 'health'),  # Use extracted category or default to health
                             }
                         )
                         created_attributes.append(attribute)

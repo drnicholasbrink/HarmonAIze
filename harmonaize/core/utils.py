@@ -229,7 +229,8 @@ def extract_variables_from_codebook(file_path: str, column_mapping: Dict[str, st
                 'description': _get_column_value(row, column_mapping.get('description'), df.columns, ''),
                 'variable_type': infer_variable_type(_get_column_value(row, column_mapping.get('variable_type'), df.columns, '')),
                 'unit': _get_column_value(row, column_mapping.get('unit'), df.columns, ''),
-                'ontology_code': '',
+                'ontology_code': _get_column_value(row, column_mapping.get('ontology_code'), df.columns, ''),
+                'category': _get_column_value(row, column_mapping.get('category'), df.columns, ''),
             }
             variables.append(variable)
         
@@ -283,11 +284,27 @@ def process_codebook_mapping(request, study, codebook_type='source'):
                 'description': request.POST.get('description_column'),
                 'variable_type': request.POST.get('variable_type_column'),
                 'unit': request.POST.get('unit_column'),
+                'ontology_code': request.POST.get('ontology_code_column'),
+                'category': request.POST.get('category_column'),
             }
             
             # Validate that at least variable_name is mapped
             if not column_mapping['variable_name']:
                 messages.error(request, 'Variable name column mapping is required.')
+                
+                # Re-generate suggestions for error display
+                from health.utils import suggest_column_mappings
+                import json
+                
+                codebook_columns = df.columns.tolist()
+                expected_fields = ['variable_name', 'display_name', 'description', 'variable_type', 
+                                  'unit', 'ontology_code', 'category']
+                suggestions = suggest_column_mappings(codebook_columns, expected_fields)
+                suggested_mappings = {}
+                for suggestion in suggestions:
+                    if suggestion['confidence'] in ['high', 'medium']:
+                        suggested_mappings[suggestion['suggested_variable']] = suggestion['column_name']
+                
                 context = {
                     'study': study,
                     'columns': df.columns.tolist(),
@@ -295,6 +312,7 @@ def process_codebook_mapping(request, study, codebook_type='source'):
                     'detected_format': detected_format,
                     'page_title': f'Map {codebook_type.title()} Codebook - {study.name}',
                     'study_type': codebook_type,
+                    'suggested_mappings': json.dumps(suggested_mappings),  # Serialize as JSON
                 }
                 return context
             
@@ -309,6 +327,26 @@ def process_codebook_mapping(request, study, codebook_type='source'):
             else:
                 return redirect('health:extract_variables', study_id=study.id)
         
+        # Generate column mapping suggestions
+        from health.utils import suggest_column_mappings
+        import json
+        
+        codebook_columns = df.columns.tolist()
+        
+        # Define expected attribute field names
+        expected_fields = ['variable_name', 'display_name', 'description', 'variable_type', 
+                          'unit', 'ontology_code', 'category']
+        
+        # Get automated suggestions for matching
+        suggestions = suggest_column_mappings(codebook_columns, expected_fields)
+        
+        # Create a mapping of field names to suggested column names (high confidence only)
+        suggested_mappings = {}
+        for suggestion in suggestions:
+            if suggestion['confidence'] in ['high', 'medium']:
+                # Map the field name to the column name
+                suggested_mappings[suggestion['suggested_variable']] = suggestion['column_name']
+        
         # Show column mapping interface
         context = {
             'study': study,
@@ -317,6 +355,7 @@ def process_codebook_mapping(request, study, codebook_type='source'):
             'detected_format': detected_format,
             'page_title': f'Map {codebook_type.title()} Codebook - {study.name}',
             'study_type': codebook_type,
+            'suggested_mappings': json.dumps(suggested_mappings),  # Serialize as JSON
         }
         
         return context

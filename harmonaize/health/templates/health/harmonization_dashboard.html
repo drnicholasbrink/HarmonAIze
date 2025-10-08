@@ -2141,6 +2141,61 @@
     <!-- Navigation -->
     <div class="sidebar-section">
       <h3 class="sidebar-title">Navigation</h3>
+      
+      <!-- Raw Data Files Section -->
+      <div class="sidebar-section" style="margin-bottom: 1.5rem; padding: 1rem; background: rgba(0, 122, 255, 0.05); border-radius: 8px;">
+        <h4 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 0.75rem; color: var(--text-primary);">
+          <i class="fas fa-database"></i> Raw Data Files
+        </h4>
+        {% if has_raw_data %}
+          <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+            <i class="fas fa-check-circle" style="color: var(--accent-color);"></i>
+            {{ raw_data_files.count }} file{{ raw_data_files.count|pluralize }} uploaded
+          </div>
+          <div style="max-height: 150px; overflow-y: auto; margin-bottom: 0.75rem;">
+            {% for file in raw_data_files|slice:":5" %}
+              <div style="padding: 0.5rem; background: white; border-radius: 4px; margin-bottom: 0.5rem; font-size: 0.8rem;">
+                <a href="{% url 'health:raw_data_detail' file_id=file.id %}" style="color: var(--primary-color); text-decoration: none; font-weight: 500;">
+                  {{ file.original_filename|truncatechars:30 }}
+                </a>
+                <div style="color: var(--text-secondary); font-size: 0.75rem; margin-top: 0.25rem;">
+                  {{ file.uploaded_at|date:"M d, Y" }}
+                  {% if file.transformation_status == 'completed' %}
+                    <span style="color: var(--accent-color);">✓ Transformed</span>
+                  {% elif file.transformation_status == 'in_progress' %}
+                    <span style="color: #FFA500;">⏳ In Progress</span>
+                  {% elif file.transformation_status == 'failed' %}
+                    <span style="color: #DC3545;">✗ Failed</span>
+                  {% else %}
+                    <span style="color: var(--text-secondary);">Not transformed</span>
+                  {% endif %}
+                </div>
+              </div>
+            {% endfor %}
+            {% if raw_data_files.count > 5 %}
+              <div style="font-size: 0.75rem; color: var(--text-secondary); text-align: center;">
+                and {{ raw_data_files.count|add:"-5" }} more...
+              </div>
+            {% endif %}
+          </div>
+          <a href="{% url 'health:upload_raw_data_for_study' study_id=schema.source_study.id %}" class="btn btn-sm btn-outline" style="width: 100%; font-size: 0.85rem;">
+            <i class="fas fa-plus"></i> Upload More Data
+          </a>
+        {% else %}
+          <div style="padding: 0.75rem; background: rgba(255, 193, 7, 0.1); border-left: 3px solid #FFC107; border-radius: 4px; margin-bottom: 0.75rem;">
+            <div style="font-size: 0.85rem; color: #856404; margin-bottom: 0.5rem;">
+              <i class="fas fa-exclamation-triangle"></i> No raw data files uploaded
+            </div>
+            <div style="font-size: 0.75rem; color: var(--text-secondary);">
+              Upload raw data files to enable transformation after approving mappings.
+            </div>
+          </div>
+          <a href="{% url 'health:upload_raw_data_for_study' study_id=schema.source_study.id %}" class="btn btn-sm btn-primary" style="width: 100%; font-size: 0.85rem;">
+            <i class="fas fa-upload"></i> Upload Raw Data
+          </a>
+        {% endif %}
+      </div>
+      
       <div class="bulk-actions">
         <!-- Approve Mapping -->
         {% if schema.status != 'approved' %}

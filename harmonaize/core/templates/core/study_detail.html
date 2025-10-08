@@ -873,6 +873,36 @@
           <div class="empty-state">No files uploaded</div>
         {% endif %}
       </div>
+      
+      <!-- Codebook Management Actions -->
+      {% if study.codebook %}
+        <div class="codebook-management">
+          <div class="codebook-actions">
+            <button class="btn btn-outline" onclick="showReuploadModal()">
+              {% include 'components/svg_icon.html' with icon='upload' size='16' class='inline-icon' %} 
+              {% if study.study_purpose == 'target' %}
+                Re-upload Target Codebook
+              {% else %}
+                Re-upload Source Codebook
+              {% endif %}
+            </button>
+          </div>
+        </div>
+      {% else %}
+        <!-- Upload button for studies without codebook -->
+        <div class="codebook-management">
+          <div class="codebook-actions">
+            <button class="btn btn-primary" onclick="showReuploadModal()">
+              {% include 'components/svg_icon.html' with icon='upload' size='16' class='inline-icon' %} 
+              {% if study.study_purpose == 'target' %}
+                Upload Target Codebook
+              {% else %}
+                Upload Source Codebook
+              {% endif %}
+            </button>
+          </div>
+        </div>
+      {% endif %}
     </div>
 
     <!-- Data Ingestion Section (only for source studies) -->
@@ -1276,6 +1306,62 @@
           </p>
         </div>
       {% endif %}
+      
+      <!-- Variable Management Actions -->
+      <div class="codebook-management">
+        <div class="codebook-actions">
+          {% if study.study_purpose == 'target' %}
+            <!-- Target Study Variable Actions -->
+            {% if study.codebook %}
+              {% if study.variables.count > 0 %}
+                <!-- Target study with variables defined -->
+                <a href="{% url 'core:target_map_codebook' study.id %}" class="btn btn-primary">
+                  View Target Variables →
+                </a>
+                <button class="btn btn-outline" onclick="showResetModal()">
+                  {% include 'components/svg_icon.html' with icon='refresh' size='16' class='inline-icon' %} Reset Target Variables
+                </button>
+              {% else %}
+                <!-- Target study with codebook but no variables selected -->
+                <a href="{% url 'core:target_map_codebook' study.id %}" class="btn btn-primary">
+                  Define Target Variables →
+                </a>
+              {% endif %}
+            {% endif %}
+          {% else %}
+            <!-- Source Study Variable Actions -->
+            {% if study.codebook %}
+              {% if study.variables.count > 0 %}
+                <!-- Source study with variables defined -->
+                {% if study.source_mappings.exists %}
+                  <a href="{% url 'health:study_harmonization_dashboard' study.id %}" class="btn btn-primary">
+                    {% include 'components/svg_icon.html' with icon='microscope' size='16' class='inline-icon' %} Continue Harmonisation →
+                  </a>
+                {% else %}
+                  <a href="{% url 'health:start_harmonisation' study.id %}" class="btn btn-primary">
+                    {% include 'components/svg_icon.html' with icon='microscope' size='16' class='inline-icon' %} Start Harmonisation →
+                  </a>
+                {% endif %}
+                <a href="{% url 'health:reset_variables' study.id %}" class="btn btn-outline" 
+                   onclick="return confirm('Are you sure you want to reset all variables? This action cannot be undone.')">
+                  {% include 'components/svg_icon.html' with icon='refresh' size='16' class='inline-icon' %} Reset Variables
+                </a>
+              {% else %}
+                <!-- Source study with codebook but no variables selected -->
+                <a href="{% url 'health:map_codebook' study.id %}" class="btn btn-primary">
+                  {% include 'components/svg_icon.html' with icon='microscope' size='16' class='inline-icon' %} Extract Variables →
+                </a>
+              {% endif %}
+            {% else %}
+              <!-- Source study with no codebook - prompt to upload -->
+              <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i>
+                Upload a codebook in the "Study Materials" section above to extract variables.
+              </div>
+            {% endif %}
+          {% endif %}
+        </div>
+      </div>
     </div>
 
     <!-- Action Buttons -->
@@ -1283,79 +1369,6 @@
       <a href="{% url 'core:study_list' %}" class="btn btn-secondary">
         ← Back to Studies
       </a>
-      
-      {% if study.study_purpose == 'target' %}
-        <!-- Target Study Actions -->
-        {% if study.codebook %}
-          {% if study.variables.count > 0 %}
-            <!-- Target study with variables defined -->
-            <a href="{% url 'core:target_map_codebook' study.id %}" class="btn btn-primary">
-              View Target Variables →
-            </a>
-            <button class="btn btn-outline-secondary" onclick="showReuploadModal()">
-              {% include 'components/svg_icon.html' with icon='upload' size='16' class='inline-icon' %} Re-upload Target Codebook
-            </button>
-            <button class="btn btn-outline-warning" onclick="showResetModal()">
-              {% include 'components/svg_icon.html' with icon='refresh' size='16' class='inline-icon' %} Reset Target Variables
-            </button>
-          {% else %}
-            <!-- Target study with codebook but no variables selected -->
-            <a href="{% url 'core:target_map_codebook' study.id %}" class="btn btn-primary">
-              Define Target Variables →
-            </a>
-            <button class="btn btn-outline-secondary" onclick="showReuploadModal()">
-              {% include 'components/svg_icon.html' with icon='upload' size='16' class='inline-icon' %} Re-upload Target Codebook
-            </button>
-          {% endif %}
-        {% else %}
-          <!-- Target study with no codebook -->
-          <button class="btn btn-primary" onclick="showReuploadModal()">
-            {% include 'components/svg_icon.html' with icon='upload' size='16' class='inline-icon' %} Upload Target Codebook →
-          </button>
-        {% endif %}
-      {% else %}
-        <!-- Source Study Actions -->
-        {% if study.codebook %}
-          {% if study.variables.count > 0 %}
-            <!-- Source study with variables defined -->
-            {% if study.source_mappings.exists %}
-            <a href="{% url 'health:study_harmonization_dashboard' study.id %}" class="btn btn-primary">
-              {% include 'components/svg_icon.html' with icon='microscope' size='16' class='inline-icon' %} Start Harmonisation →
-            </a>
-            {% else %}
-            <a href="{% url 'health:start_harmonisation' study.id %}" class="btn btn-primary">
-              {% include 'components/svg_icon.html' with icon='microscope' size='16' class='inline-icon' %} Start Harmonisation →
-            </a>
-            {% endif %}
-            <button class="btn btn-outline-secondary" onclick="showReuploadModal()">
-              {% include 'components/svg_icon.html' with icon='upload' size='16' class='inline-icon' %} Re-upload Source Codebook
-            </button>
-            <a href="{% url 'health:reset_variables' study.id %}" class="btn btn-outline-warning" 
-               onclick="return confirm('Are you sure you want to reset all variables? This action cannot be undone.')">
-              {% include 'components/svg_icon.html' with icon='refresh' size='16' class='inline-icon' %} Reset Variables
-            </a>
-          {% else %}
-            <!-- Source study with codebook but no variables selected -->
-            <a href="{% url 'health:map_codebook' study.id %}" class="btn btn-primary">
-              {% include 'components/svg_icon.html' with icon='microscope' size='16' class='inline-icon' %} Start Harmonisation →
-            </a>
-            <button class="btn btn-outline-secondary" onclick="showReuploadModal()">
-              {% include 'components/svg_icon.html' with icon='upload' size='16' class='inline-icon' %} Re-upload Source Codebook
-            </button>
-          {% endif %}
-        {% else %}
-          <!-- Source study with no codebook -->
-            {% if study.source_mappings.exists %}
-            <a href="{% url 'health:study_harmonization_dashboard' study.id %}" class="btn btn-primary">
-              {% include 'components/svg_icon.html' with icon='microscope' size='16' class='inline-icon' %} Start Harmonisation →
-            </a>
-            {% else %}
-            <a href="{% url 'health:start_harmonisation' study.id %}" class="btn btn-primary">
-              {% include 'components/svg_icon.html' with icon='microscope' size='16' class='inline-icon' %} Start Harmonisation →
-            </a>
-            {% endif %}
-        {% endif %}
-      {% endif %}
       
       <!-- Delete Study Button -->
       <button class="btn btn-danger" onclick="showDeleteModal()" style="margin-left: auto;">
