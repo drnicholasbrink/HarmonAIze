@@ -89,6 +89,8 @@ def extract_variables(request, study_id):
 @login_required
 def start_harmonisation(request, study_id):
     """Create a new MappingSchema and redirect to harmonization dashboard."""
+    from .utils import MessageManager
+    
     source_study = get_object_or_404(
         Study, id=study_id, created_by=request.user, study_purpose="source",
     )
@@ -96,7 +98,7 @@ def start_harmonisation(request, study_id):
     # Check if a mapping schema already exists
     existing_schema = MappingSchema.objects.filter(source_study=source_study).first()
     if existing_schema:
-        messages.info(request, "Using existing harmonization schema.")
+        MessageManager.info(request, "Using existing harmonization schema.")
         return redirect("health:harmonization_dashboard", schema_id=existing_schema.id)
     
     if request.method == "POST":
@@ -108,12 +110,12 @@ def start_harmonisation(request, study_id):
             schema.source_study = source_study
             schema.created_by = request.user
             schema.save()
-            messages.success(
+            MessageManager.success(
                 request,
                 "Harmonization schema created successfully!",
             )
             return redirect("health:harmonization_dashboard", schema_id=schema.id)
-        messages.error(request, "Please correct the errors below.")
+        MessageManager.error(request, "Please correct the errors below.")
     else:
         form = MappingSchemaForm(source_study=source_study, user=request.user)
 
@@ -230,10 +232,12 @@ def finalize_harmonisation(request, schema_id):
 @require_http_methods(["POST"])  
 def rerun_harmonisation_transformations(request, schema_id):
     """Re-queue harmonised observation generation for an approved mapping schema."""
+    from .utils import MessageManager
+    
     schema = get_object_or_404(MappingSchema, id=schema_id, created_by=request.user)
 
     if schema.status != "approved":
-        messages.error(
+        MessageManager.error(
             request,
             "You can only re-run harmonisation after the mapping has been approved.",
         )
@@ -270,13 +274,13 @@ def rerun_harmonisation_transformations(request, schema_id):
         task = transform_observations_for_schema.delay(schema.id, delete_existing=True)
     except Exception:
         logger.exception("Failed to re-queue harmonisation for schema %s", schema.id)
-        messages.error(
+        MessageManager.error(
             request,
             "We could not start the harmonisation re-run. Please try again shortly.",
         )
         return redirect("health:harmonization_dashboard", schema_id=schema.id)
 
-    messages.success(request, success_message)
+    MessageManager.success(request, success_message)
     logger.info(
         "Re-running harmonisation task %s for schema %s by user %s (previous status: %s)",
         getattr(task, "id", "unknown"),
