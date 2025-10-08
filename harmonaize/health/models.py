@@ -491,10 +491,49 @@ class RawDataFile(models.Model):
         ]
         verbose_name = "Raw Data File"
         verbose_name_plural = "Raw Data Files"
-    
+
+    @property
+    def uploaded(self):
+        file_field = getattr(self, "file", None)
+        if not file_field:
+            return False
+        return bool(getattr(file_field, "name", ""))
+
+    @property
+    def ingestion_status(self):
+        if self.processing_status in {"ingested", "processed_with_errors"}:
+            return "completed"
+        if self.processing_status == "processing":
+            return "in_progress"
+        if self.processing_status in {"ingestion_error", "error"}:
+            return "failed"
+        return "pending"
+
+    def reset_processing_state(self):
+        self.processing_status = "uploaded"
+        self.processing_message = ""
+        self.rows_count = None
+        self.columns_count = None
+        self.has_attribute_mismatches = False
+        self.missing_attributes = []
+        self.extra_columns = []
+        self.detected_columns = []
+        self.expected_attributes = []
+        self.patient_id_column = ""
+        self.date_column = ""
+        self.transformation_status = "not_started"
+        self.transformation_message = ""
+        self.last_transformation_schema = None
+        self.transformation_started_at = None
+        self.transformed_at = None
+        self.eda_cache_source = None
+        self.eda_cache_source_generated_at = None
+        self.eda_cache_transformed = None
+        self.eda_cache_transformed_generated_at = None
+
     def __str__(self):
         return f"{self.original_filename} ({self.study.name})"
-    
+
     def save(self, *args, **kwargs):
         # Auto-detect file format if not set
         if not self.file_format and self.file:
@@ -595,4 +634,3 @@ class RawDataColumn(models.Model):
     
     def __str__(self):
         return f"{self.column_name} ({self.raw_data_file.original_filename})"
-

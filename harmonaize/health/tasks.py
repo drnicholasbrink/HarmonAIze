@@ -21,6 +21,70 @@ from core.models import Study, Attribute, Patient, Observation, TimeDimension
 logger = logging.getLogger(__name__)
 
 
+@shared_task(bind=True, max_retries=1, default_retry_delay=30)
+def generate_eda_caches(self, raw_data_file_id: int, include_transformed: bool = True) -> dict[str, Any]:
+    """Generate (or regenerate) EDA caches for a RawDataFile asynchronously.
+
+    This task reads the raw uploaded file for source EDA and, if requested and available,
+    builds transformed EDA from observations. It purposefully does NOT modify the core
+    model schema—only existing cache JSON fields are updated. Any previous cache values
+    are overwritten.
+
+    Args:
+        raw_data_file_id: PK of RawDataFile
+        include_transformed: Whether to also attempt transformed EDA
+
+    Returns:
+        Dict with success flag and basic metadata.
+    """
+    from django.utils import timezone
+    from .eda_service import (
+        generate_eda_summary,
+        generate_eda_summary_from_observations,
+    )
+
+    try:
+        rdf = RawDataFile.objects.select_related("last_transformation_schema").get(id=raw_data_file_id)
+    except RawDataFile.DoesNotExist:
+        return {"success": False, "message": f"RawDataFile {raw_data_file_id} not found"}
+
+    logger.info("[EDA TASK] Starting EDA cache generation for file %s", raw_data_file_id)
+    result: dict[str, Any] = {"success": True, "file_id": raw_data_file_id, "generated": []}
+
+    try:
+        # Always regenerate source cache
+        rdf.eda_cache_source = None
+        rdf.eda_cache_source_generated_at = None
+        rdf.save(update_fields=["eda_cache_source", "eda_cache_source_generated_at"])
+        source_cache = generate_eda_summary(rdf)
+        result["generated"].append("source")
+
+        # Optionally regenerate transformed cache
+        if include_transformed and rdf.transformation_status == "completed" and rdf.last_transformation_schema_id:
+            try:
+                target_study = rdf.last_transformation_schema.target_study
+                transformed_cache = generate_eda_summary_from_observations(
+                    rdf, target_study, is_transformed=True
+                )
+                result["generated"].append("transformed")
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.exception(
+                    "[EDA TASK] Failed transformed EDA generation for file %s: %s",
+                    raw_data_file_id,
+                    exc,
+                )
+                result.setdefault("errors", []).append(str(exc))
+
+        result["message"] = (
+            "Generated EDA caches: " + ", ".join(result["generated"]) if result["generated"] else "No caches generated"
+        )
+        logger.info("[EDA TASK] Completed EDA cache generation for file %s: %s", raw_data_file_id, result["message"])
+        return result
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.exception("[EDA TASK] Unexpected failure for file %s", raw_data_file_id)
+        return {"success": False, "file_id": raw_data_file_id, "message": str(exc)}
+
+
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def ingest_raw_data_file(self, raw_data_file_id: int) -> dict[str, Any]:
     """
@@ -760,7 +824,7 @@ def _compile_transform_callable(code: str):
     return None
 
 
-@shared_task(bind=True, max_retries=1, default_retry_delay=30)
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def transform_observations_for_schema(
     self,
     schema_id: int,
@@ -931,15 +995,43 @@ def transform_observations_for_schema(
         }
     except Exception as exc:
         logger.exception("Failed transforming observations for schema %s: %s", schema_id, exc)
-        # Mark files as failed
+        
+        # Determine if this is a retryable error
+        retryable_errors = (DatabaseError, IntegrityError, ConnectionError, TimeoutError)
+        is_retryable = isinstance(exc, retryable_errors)
+        
+        # Try to retry if it's a retryable error and we haven't exceeded max retries
+        if is_retryable and self.request.retries < self.max_retries:
+            logger.warning(
+                "Retryable error in transformation task for schema %s (attempt %d/%d): %s",
+                schema_id, self.request.retries + 1, self.max_retries + 1, str(exc)
+            )
+            # Update status to indicate retry
+            try:
+                RawDataFile.objects.filter(last_transformation_schema_id=schema_id).update(
+                    transformation_status="in_progress",
+                    transformation_message=f"Retrying transformation (attempt {self.request.retries + 2}/{self.max_retries + 1})...",
+                )
+            except Exception:
+                pass
+            
+            # Retry with exponential backoff
+            retry_delay = self.default_retry_delay * (2 ** self.request.retries)
+            raise self.retry(countdown=retry_delay, exc=exc)
+        
+        # Mark files as failed after max retries or non-retryable error
+        error_message = str(exc)
+        if self.request.retries >= self.max_retries:
+            error_message = f"Failed after {self.max_retries + 1} attempts: {error_message}"
+        
         try:
             RawDataFile.objects.filter(last_transformation_schema_id=schema_id).update(
                 transformation_status="failed",
-                transformation_message=str(exc),
+                transformation_message=error_message,
             )
         except Exception:
             pass
-        return {"success": False, "message": str(exc)}
+        return {"success": False, "message": error_message}
 
 
 @shared_task(bind=True)

@@ -75,6 +75,11 @@ urlpatterns = [
         name="raw_data_detail",
     ),
     path(
+        "raw-data/<int:file_id>/reupload/",
+        views.reupload_raw_data,
+        name="reupload_raw_data",
+    ),
+    path(
         "raw-data/<int:file_id>/validate/",
         views.validate_raw_data,
         name="validate_raw_data",

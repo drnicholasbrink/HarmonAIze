@@ -52,6 +52,13 @@ DATABASES["default"]["ATOMIC_REQUESTS"] = True
 # https://docs.djangoproject.com/en/stable/ref/settings/#std:setting-DEFAULT_AUTO_FIELD
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# DATA UPLOAD LIMITS
+# ------------------------------------------------------------------------------
+# Increase the maximum number of POST parameters to handle large variable selection forms
+# Default is 1000, but we may have many variables with multiple fields each
+# https://docs.djangoproject.com/en/dev/ref/settings/#data-upload-max-number-fields
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000
+
 # URLS
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#root-urlconf
