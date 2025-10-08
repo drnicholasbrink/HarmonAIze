@@ -940,3 +940,182 @@ def transform_observations_for_schema(
         except Exception:
             pass
         return {"success": False, "message": str(exc)}
+
+
+@shared_task(bind=True)
+def detect_duplicates_task(self, raw_data_file_id: int) -> dict[str, Any]:
+    """
+    Background task to detect duplicate observations in a raw data file.
+    
+    Args:
+        raw_data_file_id: ID of the RawDataFile to check
+        
+    Returns:
+        Dict with duplicate detection results
+    """
+    try:
+        from .duplicate_detection import (
+            find_duplicate_observations,
+            find_multi_value_observations,
+        )
+        
+        raw_data_file = RawDataFile.objects.get(id=raw_data_file_id)
+        
+        logger.info(
+            "Starting duplicate detection for file %s (ID: %s)",
+            raw_data_file.original_filename,
+            raw_data_file_id,
+        )
+        
+        # Run duplicate detection with limits for performance
+        duplicates_info = find_duplicate_observations(
+            raw_data_file=raw_data_file,
+            limit=100,  # Only get details for first 100 groups
+        )
+        
+        conflicts_info = find_multi_value_observations(
+            raw_data_file=raw_data_file,
+            limit=50,  # Only get details for first 50 conflicts
+        )
+        
+        # Store results in a cache field on the model if you add one
+        # For now, just return the results
+        
+        result = {
+            'success': True,
+            'file_id': raw_data_file_id,
+            'duplicates': duplicates_info,
+            'conflicts': conflicts_info,
+            'message': (
+                f"Found {duplicates_info.get('total_duplicates', 0)} duplicate observations "
+                f"in {duplicates_info.get('duplicate_groups', 0)} groups, "
+                f"and {conflicts_info.get('total_conflicts', 0)} data conflicts"
+            ),
+        }
+        
+        logger.info(
+            "Duplicate detection complete for file %s: %s",
+            raw_data_file.original_filename,
+            result['message'],
+        )
+        
+        return result
+        
+    except RawDataFile.DoesNotExist:
+        error_msg = f"RawDataFile with ID {raw_data_file_id} not found"
+        logger.error(error_msg)
+        return {
+            'success': False,
+            'file_id': raw_data_file_id,
+            'message': error_msg,
+        }
+        
+    except Exception as exc:
+        logger.exception(
+            "Error detecting duplicates for raw data file %s: %s",
+            raw_data_file_id,
+            exc,
+        )
+        return {
+            'success': False,
+            'file_id': raw_data_file_id,
+            'message': f"Error detecting duplicates: {str(exc)}",
+        }
+
+
+@shared_task(bind=True)
+def delete_duplicates_task(self, raw_data_file_id: int) -> dict[str, Any]:
+    """
+    Background task to delete ALL duplicate observations in a raw data file.
+    Keeps the first occurrence of each duplicate group.
+    
+    Args:
+        raw_data_file_id: ID of the RawDataFile to clean
+        
+    Returns:
+        Dict with deletion results
+    """
+    try:
+        from django.db.models import Count
+        from django.contrib.postgres.aggregates import ArrayAgg
+        from core.models import Observation
+        
+        raw_data_file = RawDataFile.objects.get(id=raw_data_file_id)
+        
+        logger.info(
+            "Starting duplicate deletion for file %s (ID: %s)",
+            raw_data_file.original_filename,
+            raw_data_file_id,
+        )
+        
+        # Find ALL duplicate groups (no limit) using direct database query
+        # Note: Observations are linked to raw data files through attribute->study relationship
+        duplicate_groups = (
+            Observation.objects.filter(attribute__studies=raw_data_file.study)
+            .values('patient_id', 'attribute_id', 'time_id', 'location_id',
+                   'float_value', 'int_value', 'text_value', 'boolean_value', 'datetime_value')
+            .annotate(
+                count=Count('id'),
+                ids=ArrayAgg('id', ordering='id')  # Get all IDs, ordered
+            )
+            .filter(count__gt=1)  # Only groups with duplicates
+        )
+        
+        # Collect IDs to delete (keep first, delete rest)
+        ids_to_delete = []
+        total_groups = 0
+        
+        for group in duplicate_groups:
+            obs_ids = group['ids']
+            if len(obs_ids) > 1:
+                total_groups += 1
+                # Keep the first ID, delete the rest
+                ids_to_delete.extend(obs_ids[1:])
+        
+        # Perform deletion
+        if ids_to_delete:
+            deleted_count = Observation.objects.filter(id__in=ids_to_delete).delete()[0]
+            message = (
+                f"Deleted {deleted_count} duplicate observations across {total_groups} groups. "
+                f"Kept the first occurrence of each duplicate."
+            )
+            success = True
+        else:
+            deleted_count = 0
+            message = "No duplicates found to delete."
+            success = True
+        
+        logger.info(
+            "Duplicate deletion complete for file %s: %s",
+            raw_data_file.original_filename,
+            message,
+        )
+        
+        return {
+            'success': success,
+            'file_id': raw_data_file_id,
+            'deleted_count': deleted_count,
+            'duplicate_groups': total_groups,
+            'message': message,
+        }
+        
+    except RawDataFile.DoesNotExist:
+        error_msg = f"RawDataFile with ID {raw_data_file_id} not found"
+        logger.error(error_msg)
+        return {
+            'success': False,
+            'file_id': raw_data_file_id,
+            'message': error_msg,
+        }
+        
+    except Exception as exc:
+        logger.exception(
+            "Error deleting duplicates for raw data file %s: %s",
+            raw_data_file_id,
+            exc,
+        )
+        return {
+            'success': False,
+            'file_id': raw_data_file_id,
+            'message': f"Error deleting duplicates: {str(exc)}",
+        }

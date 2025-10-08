@@ -1,11 +1,14 @@
+import json
+import logging
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import JsonResponse, Http404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
 from django.forms import formset_factory
-from django.views.decorators.http import require_http_methods
-import logging
+from django.views.decorators.http import require_http_methods, require_POST
+from django.db.models import Count
+from django.contrib.postgres.aggregates import ArrayAgg
 
 from core.models import Study, Attribute, Observation
 from .models import MappingSchema, MappingRule, RawDataFile, RawDataColumn
@@ -17,6 +20,7 @@ from .utils import (
     suggest_column_mappings,
 )
 from .tasks import ingest_raw_data_file
+from .eda_service import generate_eda_summary
 
 logger = logging.getLogger(__name__)
 
@@ -894,11 +898,23 @@ def raw_data_list(request):
 def raw_data_detail(request, file_id):
     """
     View details of a specific raw data file including column information.
+    Supports viewing source data, transformed data, or both side-by-side.
     """
     raw_data_file = get_object_or_404(
         RawDataFile, 
         id=file_id, 
         uploaded_by=request.user
+    )
+    
+    # Get view mode from query parameter (source, transformed, or both)
+    view_mode = request.GET.get('view_mode', 'source')
+    if view_mode not in ['source', 'transformed', 'both']:
+        view_mode = 'source'
+    
+    # Determine if transformed data is available
+    has_transformed_data = (
+        raw_data_file.transformation_status == 'completed' and
+        raw_data_file.last_transformation_schema_id is not None
     )
     
     # Get column information if available
@@ -909,12 +925,181 @@ def raw_data_detail(request, file_id):
     validation_completed = status in ['validated', 'processed', 'processing', 'ingestion_error', 'ingested', 'processed_with_errors']
     mapping_completed = status in ['processed', 'processing', 'ingestion_error', 'ingested', 'processed_with_errors']
     
+    # Generate EDA summary based on view mode
+    try:
+        if view_mode == 'source' or not has_transformed_data:
+            # Show source data only
+            eda_summary = generate_eda_summary(raw_data_file)
+            eda_summary_transformed = None
+        elif view_mode == 'transformed':
+            # Show transformed data only
+            eda_summary = None
+            if raw_data_file.last_transformation_schema:
+                from .eda_service import generate_eda_summary_from_observations
+                target_study = raw_data_file.last_transformation_schema.target_study
+                eda_summary_transformed = generate_eda_summary_from_observations(
+                    raw_data_file, target_study, is_transformed=True
+                )
+            else:
+                eda_summary_transformed = {
+                    "available": False,
+                    "reason": "No transformation schema available.",
+                }
+        else:  # both
+            # Show both source and transformed data side-by-side
+            eda_summary = generate_eda_summary(raw_data_file)
+            if raw_data_file.last_transformation_schema:
+                from .eda_service import generate_eda_summary_from_observations
+                target_study = raw_data_file.last_transformation_schema.target_study
+                eda_summary_transformed = generate_eda_summary_from_observations(
+                    raw_data_file, target_study, is_transformed=True
+                )
+                
+                # Align variables using the mapping schema to show which source maps to which target
+                if eda_summary and eda_summary.get('available') and eda_summary_transformed and eda_summary_transformed.get('available'):
+                    from .models import MappingRule
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    
+                    # Get all mapping rules for this schema
+                    mapping_rules = MappingRule.objects.filter(
+                        schema=raw_data_file.last_transformation_schema,
+                        not_mappable=False,
+                        target_attribute__isnull=False
+                    ).select_related('source_attribute', 'target_attribute')
+                    
+                    logger.info(f"Found {mapping_rules.count()} mapping rules for schema {raw_data_file.last_transformation_schema.id}")
+                    
+                    # Build mapping dictionaries: source_name -> target_name
+                    source_to_target = {}
+                    target_to_source = {}
+                    for rule in mapping_rules:
+                        source_name = rule.source_attribute.variable_name
+                        target_name = rule.target_attribute.variable_name
+                        source_to_target[source_name] = target_name
+                        target_to_source[target_name] = source_name
+                        logger.info(f"Mapping: {source_name} -> {target_name}")
+                    
+                    logger.info(f"Source EDA columns - numeric: {[c['name'] for c in eda_summary.get('numeric_columns', [])]}, categorical: {[c['name'] for c in eda_summary.get('categorical_columns', [])]}, string: {[c['name'] for c in eda_summary.get('string_columns', [])]}")
+                    logger.info(f"Transformed EDA columns - numeric: {[c['name'] for c in eda_summary_transformed.get('numeric_columns', [])]}, categorical: {[c['name'] for c in eda_summary_transformed.get('categorical_columns', [])]}, string: {[c['name'] for c in eda_summary_transformed.get('string_columns', [])]}")
+                    
+                    # Build mapping from CSV column names to attribute names for source data
+                    csv_to_attribute = {}
+                    raw_columns = raw_data_file.columns.filter(mapped_variable__isnull=False).select_related('mapped_variable')
+                    for col in raw_columns:
+                        csv_to_attribute[col.column_name] = col.mapped_variable.variable_name
+                    logger.info(f"CSV to Attribute mapping: {csv_to_attribute}")
+                    
+                    # Filter and reorder based on mappings
+                    def filter_and_align_columns(source_cols, target_cols, column_type):
+                        aligned_source = []
+                        aligned_target = []
+                        
+                        # Get available names in each dataset
+                        source_csv_names = {col['name'] for col in source_cols}
+                        target_names = {col['name'] for col in target_cols}
+                        
+                        logger.info(f"Filtering {column_type} - source CSV names: {source_csv_names}, target names: {target_names}")
+                        
+                        # Find pairs where:
+                        # 1. Source CSV column exists in source data
+                        # 2. It's mapped to an attribute
+                        # 3. That attribute maps to a target attribute via mapping rule
+                        # 4. The target attribute exists in transformed data
+                        for csv_name in source_csv_names:
+                            # Get the attribute name this CSV column maps to
+                            source_attr_name = csv_to_attribute.get(csv_name)
+                            if not source_attr_name:
+                                logger.info(f"  {csv_name} (CSV) -> no attribute mapping")
+                                continue
+                            
+                            # Get the target attribute name from mapping schema
+                            target_attr_name = source_to_target.get(source_attr_name)
+                            if not target_attr_name:
+                                logger.info(f"  {csv_name} (CSV) -> {source_attr_name} (attr) -> no target mapping")
+                                continue
+                            
+                            # Check if target exists in transformed data
+                            if target_attr_name not in target_names:
+                                logger.info(f"  {csv_name} (CSV) -> {source_attr_name} (attr) -> {target_attr_name} (target) -> NOT IN TRANSFORMED DATA")
+                                continue
+                            
+                            # Found a valid pair!
+                            source_col = next((c for c in source_cols if c['name'] == csv_name), None)
+                            target_col = next((c for c in target_cols if c['name'] == target_attr_name), None)
+                            
+                            if source_col and target_col:
+                                logger.info(f"  ✓ {csv_name} (CSV) -> {source_attr_name} (attr) -> {target_attr_name} (target)")
+                                aligned_source.append(source_col)
+                                aligned_target.append(target_col)
+                        
+                        return aligned_source, aligned_target
+                    
+                    # Apply alignment to each column type
+                    source_num, target_num = filter_and_align_columns(
+                        eda_summary.get('numeric_columns', []),
+                        eda_summary_transformed.get('numeric_columns', []),
+                        'numeric'
+                    )
+                    eda_summary['numeric_columns'] = source_num
+                    eda_summary_transformed['numeric_columns'] = target_num
+                    
+                    source_cat, target_cat = filter_and_align_columns(
+                        eda_summary.get('categorical_columns', []),
+                        eda_summary_transformed.get('categorical_columns', []),
+                        'categorical'
+                    )
+                    eda_summary['categorical_columns'] = source_cat
+                    eda_summary_transformed['categorical_columns'] = target_cat
+                    
+                    source_str, target_str = filter_and_align_columns(
+                        eda_summary.get('string_columns', []),
+                        eda_summary_transformed.get('string_columns', []),
+                        'string'
+                    )
+                    eda_summary['string_columns'] = source_str
+                    eda_summary_transformed['string_columns'] = target_str
+            else:
+                eda_summary_transformed = {
+                    "available": False,
+                    "reason": "No transformation schema available.",
+                }
+    except Exception as exc:  # pragma: no cover - defensive logging
+        logger.exception("Failed to generate EDA summary for raw data file %s", raw_data_file.id)
+        eda_summary = {
+            "available": False,
+            "reason": f"Unable to generate exploratory summary: {exc}",
+        }
+        eda_summary_transformed = None
+
+    correlation_rows = []
+    if isinstance(eda_summary, dict):
+        corr = eda_summary.get("correlation")
+        if isinstance(corr, dict) and corr.get("labels") and corr.get("matrix"):
+            correlation_rows = list(zip(corr["labels"], corr["matrix"]))
+
+    correlation_rows_transformed = []
+    if isinstance(eda_summary_transformed, dict):
+        corr = eda_summary_transformed.get("correlation")
+        if isinstance(corr, dict) and corr.get("labels") and corr.get("matrix"):
+            correlation_rows_transformed = list(zip(corr["labels"], corr["matrix"]))
+
+    # Duplicate detection is now on-demand via background task
+    # No longer runs automatically on page load for performance
     context = {
         'raw_data_file': raw_data_file,
         'columns': columns,
         'page_title': f'Raw Data: {raw_data_file.original_filename}',
         'validation_completed': validation_completed,
         'mapping_completed': mapping_completed,
+        'view_mode': view_mode,
+        'has_transformed_data': has_transformed_data,
+        'eda_summary': eda_summary,
+        'eda_summary_json': eda_summary,
+        'eda_correlation_rows': correlation_rows,
+        'eda_summary_transformed': eda_summary_transformed,
+        'eda_summary_transformed_json': eda_summary_transformed,
+        'eda_correlation_rows_transformed': correlation_rows_transformed,
     }
     
     return render(request, 'health/raw_data_detail.html', context)
@@ -1637,3 +1822,150 @@ def _perform_raw_data_deletion(raw_data_file):
         'summary': summary,
         'details': details,
     }
+
+
+@login_required
+@require_POST
+def delete_duplicates(request, file_id):
+    """
+    Start background task to delete ALL duplicate observations.
+    Keeps only the first occurrence in each group.
+    """
+    raw_data_file = get_object_or_404(RawDataFile, id=file_id)
+    
+    # Check permissions
+    if raw_data_file.study.created_by != request.user:
+        messages.error(request, "You don't have permission to modify this data.")
+        return redirect('health:raw_data_list')
+    
+    # Start the background deletion task
+    from .tasks import delete_duplicates_task
+    task = delete_duplicates_task.delay(file_id)
+    
+    # Store task ID in session for status checking
+    request.session[f'delete_duplicates_task_{file_id}'] = task.id
+    
+    # Inform user
+    data_type = 'source' if raw_data_file.study.study_purpose == 'source' else 'transformed'
+    messages.info(
+        request,
+        f"Duplicate deletion started in the background for {data_type} data. "
+        f"This may take a few moments. The page will update when complete."
+    )
+    
+    return redirect('health:raw_data_detail', file_id=file_id)
+
+
+@login_required
+def check_delete_duplicates_status(request, file_id):
+    """Check status of duplicate deletion background task."""
+    from celery.result import AsyncResult
+    
+    # Get task ID from session
+    task_id = request.session.get(f'delete_duplicates_task_{file_id}')
+    
+    if not task_id:
+        return JsonResponse({
+            'status': 'not_started',
+            'message': 'No deletion task found',
+        })
+    
+    # Check task status
+    task = AsyncResult(task_id)
+    
+    if task.ready():
+        # Task completed
+        result = task.get()
+        
+        # Clear task ID from session
+        if f'delete_duplicates_task_{file_id}' in request.session:
+            del request.session[f'delete_duplicates_task_{file_id}']
+        
+        return JsonResponse({
+            'status': 'completed',
+            'success': result.get('success', False),
+            'message': result.get('message', ''),
+            'deleted_count': result.get('deleted_count', 0),
+            'duplicate_groups': result.get('duplicate_groups', 0),
+        })
+    elif task.failed():
+        return JsonResponse({
+            'status': 'failed',
+            'message': str(task.info),
+        })
+    else:
+        return JsonResponse({'status': 'running'})
+
+
+@login_required
+@require_POST
+def start_duplicate_detection(request, file_id):
+    """Start background task to detect duplicates in raw data file."""
+    raw_data_file = get_object_or_404(
+        RawDataFile.objects.select_related('study'),
+        id=file_id,
+        study__project__created_by=request.user,
+    )
+    
+    # Import the task
+    from .tasks import detect_duplicates_task
+    
+    # Start the background task
+    task = detect_duplicates_task.delay(file_id)
+    
+    messages.success(
+        request,
+        "Duplicate detection started in the background. This may take a few moments. "
+        "The page will refresh automatically when complete.",
+    )
+    
+    # Store task ID in session for status checking
+    request.session[f'duplicate_detection_task_{file_id}'] = task.id
+    
+    return redirect('health:raw_data_detail', file_id=file_id)
+
+
+@login_required
+def check_duplicate_detection_status(request, file_id):
+    """Check status of duplicate detection background task."""
+    from celery.result import AsyncResult
+    
+    # Get task ID from session
+    task_id = request.session.get(f'duplicate_detection_task_{file_id}')
+    
+    if not task_id:
+        return JsonResponse({
+            'status': 'not_started',
+            'message': 'No duplicate detection task found',
+        })
+    
+    # Check task status
+    task = AsyncResult(task_id)
+    
+    if task.ready():
+        # Task completed
+        result = task.get()
+        
+        # Clear task ID from session
+        if f'duplicate_detection_task_{file_id}' in request.session:
+            del request.session[f'duplicate_detection_task_{file_id}']
+        
+        return JsonResponse({
+            'status': 'completed',
+            'success': result.get('success', False),
+            'message': result.get('message', ''),
+            'duplicates': result.get('duplicates', {}),
+            'conflicts': result.get('conflicts', {}),
+        })
+    elif task.failed():
+        # Task failed
+        return JsonResponse({
+            'status': 'failed',
+            'message': 'Duplicate detection failed. Please try again.',
+        })
+    else:
+        # Still running
+        return JsonResponse({
+            'status': 'running',
+            'message': 'Duplicate detection in progress...',
+        })

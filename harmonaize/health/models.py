@@ -461,6 +461,28 @@ class RawDataFile(models.Model):
         blank=True,
         help_text="When harmonisation transformation completed for this file",
     )
+
+    # EDA caching - store generated visualisation data to avoid regenerating on every page load
+    eda_cache_source = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Cached EDA summary for source (raw) data",
+    )
+    eda_cache_source_generated_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When source EDA cache was last generated",
+    )
+    eda_cache_transformed = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Cached EDA summary for transformed data",
+    )
+    eda_cache_transformed_generated_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When transformed EDA cache was last generated",
+    )
     
     class Meta:
         ordering = ['-uploaded_at']
