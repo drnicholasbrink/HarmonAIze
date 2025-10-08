@@ -9,7 +9,7 @@ import warnings
 import logging
 from pathlib import Path
 from collections import Counter
-from typing import Any, Optional
+from typing import Any, Optional, Dict, List
 from datetime import timedelta
 
 import pandas as pd
@@ -43,6 +43,8 @@ MAX_HISTOGRAM_BINS = 12
 MAX_WORD_CLOUD_TERMS = 40
 MAX_CATEGORICAL_VALUES = 20  # Increased from 10 for more thorough analysis
 MAX_CORRELATION_COLUMNS = 12
+# Threshold for switching from categorical visualization to word cloud/text analysis
+WORD_CLOUD_MIN_UNIQUE = 25  # If a text column has >= this many unique non-null values, treat as high-cardinality text
 TOKEN_REGEX = re.compile(r"[A-Za-z]{3,}")
 STOP_WORDS = {
     "the",
@@ -167,7 +169,9 @@ def _categorical_summary(series: pd.Series) -> List[Dict[str, Any]]:
 
 def _tokenise_text(series: pd.Series) -> List[Dict[str, Any]]:
     values = series.dropna().astype(str).tolist()
+    logger.debug("_tokenise_text: processing %d values", len(values))
     if not values:
+        logger.debug("_tokenise_text: no values to process")
         return []
     tokens: Counter[str] = Counter()
     for value in values:
@@ -177,13 +181,17 @@ def _tokenise_text(series: pd.Series) -> List[Dict[str, Any]]:
             if lowered in STOP_WORDS:
                 continue
             tokens[lowered] += 1
+    logger.debug("_tokenise_text: found %d raw tokens", len(tokens))
     filtered: Dict[str, int] = {
         token: count for token, count in tokens.items() if count >= PRIVACY_MIN_GROUP_COUNT
     }
+    logger.debug("_tokenise_text: %d tokens after privacy filter (min count=%d)", len(filtered), PRIVACY_MIN_GROUP_COUNT)
     if not filtered:
+        logger.debug("_tokenise_text: no tokens survived privacy filtering")
         return []
     top_items = sorted(filtered.items(), key=lambda item: item[1], reverse=True)[:MAX_WORD_CLOUD_TERMS]
     max_count = top_items[0][1]
+    logger.debug("_tokenise_text: returning %d tokens, top token '%s' has count %d", len(top_items), top_items[0][0], max_count)
     return [
         {
             "token": token,
@@ -199,19 +207,27 @@ def _generate_word_cloud_image(tokens: List[Dict[str, Any]]) -> Optional[str]:
     Generate a word cloud image from token data using the wordcloud library.
     Returns a base64-encoded PNG image string, or None if generation fails.
     """
-    if not WORDCLOUD_AVAILABLE or not tokens:
+    logger.debug("_generate_word_cloud_image: starting with %d tokens, wordcloud_available=%s", len(tokens) if tokens else 0, WORDCLOUD_AVAILABLE)
+    
+    if not WORDCLOUD_AVAILABLE:
+        logger.warning("_generate_word_cloud_image: wordcloud library not available")
+        return None
+        
+    if not tokens:
+        logger.warning("_generate_word_cloud_image: no tokens provided")
         return None
     
     try:
         # Create frequency dictionary for WordCloud
         frequencies = {item["token"]: item["count"] for item in tokens}
+        logger.debug("_generate_word_cloud_image: created frequency dict with %d terms, top term: %s (count=%d)", 
+                    len(frequencies), max(frequencies.keys(), key=frequencies.get), max(frequencies.values()))
         
         # Generate word cloud with custom styling
         wc = WordCloud(
             width=800,
             height=400,
-            background_color="rgba(255, 255, 255, 0)",
-            mode="RGBA",
+            background_color="white",
             colormap="viridis",
             relative_scaling=0.5,
             min_font_size=10,
@@ -221,14 +237,22 @@ def _generate_word_cloud_image(tokens: List[Dict[str, Any]]) -> Optional[str]:
             margin=10,
         ).generate_from_frequencies(frequencies)
         
+        logger.debug("_generate_word_cloud_image: wordcloud object created successfully")
+        
         # Convert to base64-encoded PNG
         img_buffer = io.BytesIO()
         wc.to_image().save(img_buffer, format="PNG")
         img_buffer.seek(0)
-        img_base64 = base64.b64encode(img_buffer.read()).decode("utf-8")
+        img_data = img_buffer.read()
+        img_size = len(img_data)
+        img_base64 = base64.b64encode(img_data).decode("utf-8")
+        
+        logger.debug("_generate_word_cloud_image: successfully generated base64 image, size=%d bytes, base64_length=%d", 
+                    img_size, len(img_base64))
         
         return img_base64
-    except Exception:  # pragma: no cover - defensive fallback
+    except Exception as e:  # pragma: no cover - defensive fallback
+        logger.error("_generate_word_cloud_image: failed to generate word cloud image: %s", str(e), exc_info=True)
         return None
 
 
@@ -1000,28 +1024,40 @@ def _generate_eda_from_dataframe(
         
         response["numeric_columns"].append(stats_dict)
 
-    # Categorical
+    # Categorical & High-cardinality Text Handling
     categorical_cols = df.select_dtypes(include=["object", "category", "bool"]).columns.tolist()
+    high_card_text_cols: List[str] = []
+
     for col in categorical_cols:
         series = df[col].astype(str) if df[col].dtype == bool else df[col]
+        unique = int(series.nunique(dropna=True))
+        # High-cardinality textual/ categorical column: skip categorical dashboard, defer to word cloud/text analysis
+        is_textual = (df[col].dtype == object) or (str(df[col].dtype) == 'category')
+        if is_textual and unique >= WORD_CLOUD_MIN_UNIQUE:
+            logger.debug(
+                "High-cardinality text column identified for word cloud: %s (unique=%s threshold=%s)",
+                col,
+                unique,
+                WORD_CLOUD_MIN_UNIQUE,
+            )
+            high_card_text_cols.append(col)
+            continue
+
         top_values = _categorical_summary(series)
         if not top_values:
             continue
         total = int(series.dropna().shape[0])
         accounted = sum(item["count"] for item in top_values)
         missing = int(df[col].isna().sum())
-        unique = int(series.nunique(dropna=True))
         
         # Extract data for dashboard
         labels = [item["value"] for item in top_values]
         counts = [item["count"] for item in top_values]
         percentages = [item["percentage"] for item in top_values]
         
-        # Generate interactive Plotly dashboard
         dashboard_html = _generate_categorical_dashboard(
             labels, counts, percentages, col, total, unique, missing
         )
-        
         response["categorical_columns"].append(
             {
                 "name": col,
@@ -1033,26 +1069,40 @@ def _generate_eda_from_dataframe(
             }
         )
 
-    # Word cloud tokens for textual columns with sufficient diversity
-    for col in categorical_cols:
-        if df[col].dtype != object:
-            continue
+    # Word cloud / text dashboards only for high-cardinality text columns
+    if not high_card_text_cols:
+        logger.debug(
+            "No high-cardinality text columns met threshold=%s (examined=%s)",
+            WORD_CLOUD_MIN_UNIQUE,
+            len(categorical_cols),
+        )
+
+    if not WORDCLOUD_AVAILABLE:
+        logger.debug("wordcloud library not available; skipping image generation")
+
+    for col in high_card_text_cols:
         tokens = _tokenise_text(df[col])
-        if tokens:
-            # Generate matplotlib word cloud image
-            word_cloud_image = _generate_word_cloud_image(tokens)
-            
-            # Generate interactive Plotly dashboard for text analysis
-            dashboard_html = _generate_word_cloud_dashboard(tokens, col)
-            
-            response["string_columns"].append(
-                {
-                    "name": col,
-                    "tokens": tokens,
-                    "word_cloud_image": word_cloud_image,
-                    "dashboard_html": dashboard_html,
-                }
+        if not tokens:
+            logger.debug(
+                "No tokens produced for high-cardinality column %s (possibly all filtered or below privacy threshold)",
+                col,
             )
+            continue
+        word_cloud_image = _generate_word_cloud_image(tokens)
+        logger.debug(
+            "Generated word cloud for %s: tokens=%d has_image=%s", col, len(tokens), bool(word_cloud_image)
+        )
+        dashboard_html = _generate_word_cloud_dashboard(tokens, col)
+        response["string_columns"].append(
+            {
+                "name": col,
+                "tokens": tokens,
+                "word_cloud_image": word_cloud_image,
+                "dashboard_html": dashboard_html,
+                "high_cardinality": True,
+                "unique_count": int(df[col].nunique(dropna=True)),
+            }
+        )
 
     response["summary"]["numeric_columns"] = len(response["numeric_columns"])
     response["summary"]["categorical_columns"] = len(response["categorical_columns"])

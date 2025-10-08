@@ -1262,27 +1262,26 @@
   {% endif %}
 
   <div class="info-card eda-overview">
-    <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
-      <h2 class="card-title" style="margin: 0;">Exploratory Data Analysis</h2>
-      
+    <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
+      <div style="display:flex; flex-direction:column; gap:0.5rem;">
+        <h2 class="card-title" style="margin: 0;">Exploratory Data Analysis</h2>
+        <div id="eda-action-area" style="display:flex; align-items:center; gap:0.75rem;">
+          <form id="eda-run-form" method="post" action="{% url 'health:start_eda_generation' raw_data_file.id %}" class="d-inline">
+            {% csrf_token %}
+            <input type="hidden" name="clear" value="1" />
+            <button type="submit" id="eda-run-button" class="btn btn-sm btn-outline-primary">
+              {% if eda_source_available %}<i class="fas fa-sync-alt me-1"></i>Re-run Analysis{% else %}<i class="fas fa-play me-1"></i>Run Analysis{% endif %}
+            </button>
+          </form>
+          <span id="eda-status-indicator" class="text-muted small"></span>
+        </div>
+      </div>
       <!-- View Mode Toggle (if transformed data is available) -->
       {% if has_transformed_data %}
-        <div style="display: flex; gap: 0.5rem; background: rgba(0,0,0,0.04); padding: 0.35rem; border-radius: 12px;">
-          <a href="?view_mode=source" 
-             class="btn {% if view_mode == 'source' %}btn-primary{% else %}btn-secondary{% endif %}" 
-             style="padding: 0.5rem 1rem; font-size: 0.9rem; {% if view_mode != 'source' %}background: transparent; border: none; color: var(--text-primary);{% endif %}">
-            Source Data
-          </a>
-          <a href="?view_mode=transformed" 
-             class="btn {% if view_mode == 'transformed' %}btn-primary{% else %}btn-secondary{% endif %}" 
-             style="padding: 0.5rem 1rem; font-size: 0.9rem; {% if view_mode != 'transformed' %}background: transparent; border: none; color: var(--text-primary);{% endif %}">
-            Transformed Data
-          </a>
-          <a href="?view_mode=both" 
-             class="btn {% if view_mode == 'both' %}btn-primary{% else %}btn-secondary{% endif %}" 
-             style="padding: 0.5rem 1rem; font-size: 0.9rem; {% if view_mode != 'both' %}background: transparent; border: none; color: var(--text-primary);{% endif %}">
-            Compare Both
-          </a>
+        <div class="btn-group" role="group" aria-label="EDA view mode" style="display:flex; flex-wrap:wrap; gap:0.4rem;">
+          <a href="?view_mode=source" class="btn btn-sm {% if view_mode == 'source' %}btn-primary{% else %}btn-outline-secondary{% endif %}">Source</a>
+          <a href="?view_mode=transformed" class="btn btn-sm {% if view_mode == 'transformed' %}btn-primary{% else %}btn-outline-secondary{% endif %}">Transformed</a>
+          <a href="?view_mode=both" class="btn btn-sm {% if view_mode == 'both' %}btn-primary{% else %}btn-outline-secondary{% endif %}">Both</a>
         </div>
       {% endif %}
     </div>
@@ -1332,15 +1331,34 @@
       <div class="processing-steps">
         
         <!-- Step 1: Upload -->
-        <div class="step-item completed">
-          <div class="step-icon completed">
-            <i class="fas fa-check"></i>
+        <div class="step-item {% if raw_data_file.uploaded %}completed{% else %}active{% endif %}">
+          <div class="step-icon {% if raw_data_file.uploaded %}completed{% else %}active{% endif %}">
+            {% if raw_data_file.uploaded %}
+              <i class="fas fa-check"></i>
+            {% else %}
+              1
+            {% endif %}
           </div>
           <div class="step-content">
-            <div class="step-title">File Upload Complete</div>
+            <div class="step-title">Upload Source Data</div>
             <div class="step-description">
-              File successfully uploaded and basic metadata extracted
+              Upload your raw source data file to begin processing.
             </div>
+            {% if not raw_data_file.uploaded %}
+              <div class="action-buttons mt-2">
+                <form method="post" enctype="multipart/form-data" action="{% url 'health:upload_raw_data_for_study' raw_data_file.study.id %}">
+                  {% csrf_token %}
+                  <input type="file" name="raw_data_file" required>
+                  <button type="submit" class="btn btn-primary btn-sm">
+                    <i class="fas fa-upload me-1"></i>Upload Source Data
+                  </button>
+                </form>
+              </div>
+            {% else %}
+              <div class="text-success mt-2 mb-2">
+                <small><i class="fas fa-check"></i> File uploaded successfully</small>
+              </div>
+            {% endif %}
           </div>
         </div>
 
@@ -1371,14 +1389,14 @@
             {% elif raw_data_file.processing_status == 'validation_error' %}
               <div class="alert alert-warning mt-2 p-2">
                 <small><strong>Validation failed:</strong> {{ raw_data_file.processing_message }}</small>
-                <div class="mt-1">
+                <div class="mt-2">
                   <a href="{% url 'health:validate_raw_data' raw_data_file.id %}" class="btn btn-warning btn-sm">
                     <i class="fas fa-sync-alt me-1"></i>Retry Validation
                   </a>
                 </div>
               </div>
             {% elif validation_completed %}
-              <div class="text-success mt-2">
+              <div class="text-success mt-2 mb-2">
                 <small><i class="fas fa-check"></i> 
                   {% if raw_data_file.processing_status == 'validated' or raw_data_file.processing_status == 'processed' %}
                     {{ raw_data_file.processing_message }}
@@ -1386,6 +1404,12 @@
                     Validation completed successfully
                   {% endif %}
                 </small>
+              </div>
+              <div class="action-buttons">
+                <a href="{% url 'health:validate_raw_data' raw_data_file.id %}" class="btn btn-secondary btn-sm" 
+                   onclick="return confirm('Re-validating will reset subsequent processing steps. Continue?')">
+                  <i class="fas fa-redo me-1"></i>Re-validate Data
+                </a>
               </div>
             {% endif %}
           </div>
@@ -1418,8 +1442,12 @@
                 <small><i class="fas fa-check"></i> Column mapping completed</small>
               </div>
               <div class="action-buttons">
-                <a href="{% url 'health:map_raw_data_columns' raw_data_file.id %}" class="btn btn-outline-primary btn-sm me-2">
+                <a href="{% url 'health:map_raw_data_columns' raw_data_file.id %}" class="btn btn-secondary btn-sm me-2">
                   <i class="fas fa-edit me-1"></i>Edit Mappings
+                </a>
+                <a href="{% url 'health:map_raw_data_columns' raw_data_file.id %}" class="btn btn-warning btn-sm me-2"
+                   onclick="return confirm('Re-mapping columns will require you to re-ingest the data. Continue?')">
+                  <i class="fas fa-redo me-1"></i>Re-map Columns
                 </a>
                 {% if raw_data_file.study.source_mappings.exists %}
                   <a href="{% url 'health:study_harmonization_dashboard' raw_data_file.study.id %}" class="btn btn-success btn-sm">
@@ -1478,13 +1506,22 @@
                 </form>
               </div>
             {% elif raw_data_file.processing_status == 'ingested' %}
-              <div class="text-success mt-2">
+              <div class="text-success mt-2 mb-2">
                 <small><i class="fas fa-check"></i> {{ raw_data_file.processing_message }}</small>
+              </div>
+              <div class="action-buttons">
+                <form method="post" action="{% url 'health:start_data_ingestion' raw_data_file.id %}" style="display: inline;">
+                  {% csrf_token %}
+                  <input type="hidden" name="force_reingest" value="true">
+                  <button type="submit" class="btn btn-warning btn-sm" onclick="return confirm('Re-ingestion will delete existing observations from this file and recreate them. This is useful if you\'ve updated column mappings. Continue?')">
+                    <i class="fas fa-redo me-1"></i>Re-ingest Data
+                  </button>
+                </form>
               </div>
             {% elif raw_data_file.processing_status == 'processed_with_errors' %}
               <div class="alert alert-warning mt-2 p-2">
                 <small><strong>Completed with errors:</strong> {{ raw_data_file.processing_message }}</small>
-                <div class="mt-1">
+                <div class="mt-2">
                   <form method="post" action="{% url 'health:start_data_ingestion' raw_data_file.id %}" style="display: inline;">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-warning btn-sm" onclick="return confirm('Re-ingestion may create duplicate observations. Continue?')">
@@ -1496,7 +1533,7 @@
             {% elif raw_data_file.processing_status == 'ingestion_error' %}
               <div class="alert alert-danger mt-2 p-2">
                 <small><strong>Ingestion failed:</strong> {{ raw_data_file.processing_message }}</small>
-                <div class="mt-1">
+                <div class="mt-2">
                   <form method="post" action="{% url 'health:start_data_ingestion' raw_data_file.id %}" style="display: inline;">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to retry data ingestion?')">
@@ -1534,14 +1571,69 @@
             {% if raw_data_file.transformation_status == 'in_progress' %}
               <div class="alert alert-info mt-2 p-2">
                 <small><strong>Transformation in progress</strong>{% if raw_data_file.transformation_message %}: {{ raw_data_file.transformation_message }}{% endif %}</small>
+                {% if raw_data_file.transformation_started_at %}
+                  <small class="d-block mt-1 text-muted">Started {{ raw_data_file.transformation_started_at|date:"M j, Y H:i" }}</small>
+                  {% if raw_data_file.study.source_mappings.exists %}
+                    <div class="mt-2">
+                      <form method="post" action="{% url 'health:rerun_harmonisation_transformations' raw_data_file.study.source_mappings.first.id %}" style="display: inline;">
+                        {% csrf_token %}
+                        <input type="hidden" name="raw_data_file_id" value="{{ raw_data_file.id }}">
+                        <button type="submit" class="btn btn-outline-warning btn-sm" onclick="return confirm('This transformation appears to be taking a long time. Do you want to restart it?')">
+                          <i class="fas fa-sync-alt me-1"></i>Restart Transformation
+                        </button>
+                      </form>
+                    </div>
+                  {% endif %}
+                {% endif %}
               </div>
             {% elif raw_data_file.transformation_status == 'completed' %}
-              <div class="text-success mt-2">
+              <div class="text-success mt-2 mb-2">
                 <small><i class="fas fa-check"></i> Transformation completed{% if raw_data_file.transformed_at %} on {{ raw_data_file.transformed_at|date:"F j, Y" }} at {{ raw_data_file.transformed_at|time:"H:i" }}{% endif %}</small>
               </div>
+              {% if raw_data_file.study.source_mappings.exists %}
+                <div class="action-buttons">
+                  <a href="{% url 'health:study_harmonization_dashboard' raw_data_file.study.id %}" class="btn btn-success btn-sm me-2">
+                    <i class="fas fa-chart-line me-1"></i>View Harmonization Dashboard
+                  </a>
+                  <form method="post" action="{% url 'health:rerun_harmonisation_transformations' raw_data_file.study.source_mappings.first.id %}" style="display: inline;" class="me-2">
+                    {% csrf_token %}
+                    <input type="hidden" name="raw_data_file_id" value="{{ raw_data_file.id }}">
+                    <button type="submit" class="btn btn-warning btn-sm" onclick="return confirm('Re-running transformation will recreate all harmonized observations for this file. This is useful if you\'ve updated mapping rules. Continue?')">
+                      <i class="fas fa-redo me-1"></i>Re-run Transformation
+                    </button>
+                  </form>
+                </div>
+              {% endif %}
             {% elif raw_data_file.transformation_status == 'failed' %}
               <div class="alert alert-warning mt-2 p-2">
                 <small><strong>Transformation failed:</strong> {{ raw_data_file.transformation_message }}</small>
+                {% if raw_data_file.study.source_mappings.exists %}
+                  <div class="mt-2">
+                    <form method="post" action="{% url 'health:rerun_harmonisation_transformations' raw_data_file.study.source_mappings.first.id %}" style="display: inline;">
+                      {% csrf_token %}
+                      <input type="hidden" name="raw_data_file_id" value="{{ raw_data_file.id }}">
+                      <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to retry transformation?')">
+                        <i class="fas fa-sync-alt me-1"></i>Retry Transformation
+                      </button>
+                    </form>
+                  </div>
+                {% endif %}
+              </div>
+            {% elif raw_data_file.processing_status == 'ingested' and raw_data_file.study.source_mappings.exists %}
+              <div class="text-info mt-2 mb-2">
+                <small><i class="fas fa-info-circle"></i> Transformation can be triggered from the Harmonization Dashboard, or manually start it here:</small>
+              </div>
+              <div class="action-buttons">
+                <a href="{% url 'health:study_harmonization_dashboard' raw_data_file.study.id %}" class="btn btn-primary btn-sm me-2">
+                  <i class="fas fa-chart-line me-1"></i>Go to Harmonization Dashboard
+                </a>
+                <form method="post" action="{% url 'health:rerun_harmonisation_transformations' raw_data_file.study.source_mappings.first.id %}" style="display: inline;">
+                  {% csrf_token %}
+                  <input type="hidden" name="raw_data_file_id" value="{{ raw_data_file.id }}">
+                  <button type="submit" class="btn btn-success btn-sm" onclick="return confirm('Start harmonization transformation? This will create harmonized observations according to your approved mapping rules.')">
+                    <i class="fas fa-play me-1"></i>Start Transformation
+                  </button>
+                </form>
               </div>
             {% else %}
               <div class="text-muted mt-2">
@@ -1553,65 +1645,6 @@
 
       </div>
     </div>
-
-    <!-- Column Information -->
-    {% if columns %}
-    <div class="info-card">
-      <h2 class="card-title">Column Details ({{ columns|length }} columns)</h2>
-      <div class="columns-table">
-        <table>
-          <thead>
-            <tr>
-              <th>Column Name</th>
-              <th>Data Type</th>
-              <th>Sample Values</th>
-              <th>Missing Count</th>
-              <th>Study Variable Match</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for column in columns %}
-              <tr>
-                <td>
-                  <span class="column-name">{{ column.column_name }}</span>
-                </td>
-                <td>
-                  <span class="data-type-badge type-{{ column.data_type|default:'object' }}">
-                    {{ column.data_type|default:'Unknown'|title }}
-                  </span>
-                </td>
-                <td>
-                  {% if column.sample_values %}
-                    <small class="text-muted">{{ column.sample_values|truncatewords:5 }}</small>
-                  {% else %}
-                    <small class="text-muted">No samples</small>
-                  {% endif %}
-                </td>
-                <td>
-                  {% if column.missing_count is not None %}
-                    <span class="badge bg-warning">{{ column.missing_count }}</span>
-                  {% else %}
-                    <small class="text-muted">Unknown</small>
-                  {% endif %}
-                </td>
-                <td>
-                  {% if column.mapped_variable %}
-                    <small class="text-success">
-                      <i class="fas fa-link"></i> {{ column.mapped_variable.display_name|default:column.mapped_variable.variable_name }}
-                    </small>
-                  {% else %}
-                    <small class="text-muted">
-                      <i class="fas fa-question-circle"></i> Not mapped
-                    </small>
-                  {% endif %}
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-    {% endif %}
 
     <!-- Study Context -->
     <div class="info-card">
@@ -1658,46 +1691,24 @@
     </div>
     {% endif %}
 
-    <!-- Action Buttons -->
-    <div class="action-buttons">
+    <!-- Action Buttons (simplified) -->
+    <div class="action-buttons d-flex flex-wrap gap-2 align-items-center">
       <a href="{% url 'core:study_detail' pk=raw_data_file.study.pk %}" class="btn btn-secondary">
         <i class="fas fa-arrow-left"></i> Back to Study
       </a>
-      
       <a href="{% url 'health:raw_data_list' %}" class="btn btn-secondary">
         <i class="fas fa-list"></i> All Raw Data Files
       </a>
-
-      {% if raw_data_file.processing_status == 'uploaded' %}
-        <button class="btn btn-primary" disabled>
-          <i class="fas fa-cog"></i> Validate Data
-          <div class="todo-note" style="display: inline; margin-left: 0.5rem;">
-            <strong>TODO:</strong> Implement validation
-          </div>
-        </button>
-      {% elif raw_data_file.processing_status == 'validated' %}
-        <button class="btn btn-primary" disabled>
-          <i class="fas fa-map"></i> Map Columns
-          <div class="todo-note" style="display: inline; margin-left: 0.5rem;">
-            <strong>TODO:</strong> Implement mapping
-          </div>
-        </button>
-      {% elif raw_data_file.processing_status == 'processed' %}
-        <button class="btn btn-primary" disabled>
-          <i class="fas fa-chart-bar"></i> View Analysis
-          <div class="todo-note" style="display: inline; margin-left: 0.5rem;">
-            <strong>TODO:</strong> Implement analysis
-          </div>
-        </button>
-      {% endif %}
-
-      <button class="btn btn-warning" disabled>
-        <i class="fas fa-download"></i> Download Processed Data
-        <div class="todo-note" style="display: inline; margin-left: 0.5rem;">
-          <strong>TODO:</strong> Implement export
+      {% if raw_data_file.processing_status == 'processed' %}
+        <a href="{% url 'health:download_processed_data' raw_data_file.id %}" class="btn btn-warning">
+          <i class="fas fa-download me-1"></i>Download Processed Data
+        </a>
+      {% else %}
+        <div class="alert alert-warning py-1 px-2 mb-0 d-inline-flex align-items-center" style="border-radius:10px; font-size:0.85rem;">
+          <i class="fas fa-hourglass-half me-2"></i>
+          <span><strong>Download Processed Data</strong> coming soon.</span>
         </div>
-      </button>
-
+      {% endif %}
       <button class="btn btn-danger" onclick="confirmDelete()">
         <i class="fas fa-trash"></i> Delete File
       </button>
@@ -1805,8 +1816,71 @@
     }, 10000);
     {% endif %}
   </script>
+  <script>
+  // Async EDA polling logic (added by refactor)
+  document.addEventListener('DOMContentLoaded', function() {
+    const runForm = document.getElementById('eda-run-form');
+    const runButton = document.getElementById('eda-run-button');
+    const statusIndicator = document.getElementById('eda-status-indicator');
+    const statusUrl = '{% url "health:eda_status" raw_data_file.id %}';
+    let pollHandle = null;
 
-    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js" integrity="sha384-S7S5j7SM4UMl7iSWv881omj0dJnVX15DR1MFp8DgZrMEfVRey9ncdwDjzv57w84Z" crossorigin="anonymous"></script>
+    function setStatus(text, cls) {
+      if (!statusIndicator) return;
+      statusIndicator.textContent = text;
+      statusIndicator.className = 'small ' + (cls || 'text-muted');
+    }
+    function checkStatus() {
+      fetch(statusUrl, {headers:{'X-Requested-With':'XMLHttpRequest'}})
+        .then(r => r.json())
+        .then(data => {
+          if (data.source_available) {
+            setStatus('Analysis ready', 'text-success');
+            if (pollHandle) { clearInterval(pollHandle); pollHandle=null; location.reload(); }
+          } else {
+            setStatus('Generating…', 'text-muted');
+          }
+        })
+        .catch(()=> setStatus('Status error', 'text-danger'));
+    }
+    if (runForm) {
+      runForm.addEventListener('submit', e => {
+        e.preventDefault();
+        runButton.disabled = true;
+        runButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Starting…';
+        setStatus('Queueing…', 'text-muted');
+        const fd = new FormData(runForm);
+        fetch(runForm.action, {method:'POST', body:fd, headers:{'X-Requested-With':'XMLHttpRequest'}})
+          .then(r=>r.json())
+          .then(data => {
+            if (data.started) {
+              setStatus('Running…', 'text-muted');
+              runButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Running…';
+              pollHandle = setInterval(checkStatus, 3000);
+              checkStatus();
+            } else {
+              runButton.disabled = false;
+              runButton.innerHTML = '<i class="fas fa-redo me-1"></i>Retry';
+              setStatus(data.error || 'Failed to start', 'text-danger');
+            }
+          })
+          .catch(()=> {
+            runButton.disabled = false;
+            runButton.innerHTML = '<i class="fas fa-redo me-1"></i>Retry';
+            setStatus('Request failed', 'text-danger');
+          });
+      });
+    }
+    {% if not eda_source_available %}
+      setStatus('No cached analysis. Run to generate.', 'text-muted');
+    {% else %}
+      setStatus('Analysis ready', 'text-success');
+    {% endif %}
+  });
+  </script>
+
+  <!-- Plotly CDN (integrity attribute removed due to mismatch causing SRI failure in browser console) -->
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
   <script>
     (function () {
       // Try to load either source or transformed EDA data
@@ -1909,8 +1983,10 @@
           button.textContent = collapseLabel;
           target.classList.remove('is-collapsed');
           target.classList.add('is-expanded');
-          if (target.id === 'eda-section-correlation') {
-            renderCorrelationHeatmap();
+          if (target.id && target.id.startsWith('eda-section-correlation')) {
+            // Extract optional prefix after 'eda-section-correlation-'
+            const suffix = target.id.replace('eda-section-correlation', '').replace(/^-/,'');
+            renderCorrelationHeatmap(suffix || null);
           }
         } else {
           button.setAttribute('aria-expanded', 'false');
@@ -2015,43 +2091,52 @@
         }
       });
 
-      const renderCorrelationHeatmap = () => {
-        if (!PlotlyObj || !edaData.correlation || !edaData.correlation.labels || !edaData.correlation.matrix) {
-          return;
-        }
-        const container = document.getElementById('eda-correlation-heatmap');
-        if (!container || container.dataset.rendered === 'true') {
-          return;
-        }
-        PlotlyObj.newPlot(
-          container,
-          [
-            {
-              type: 'heatmap',
-              z: edaData.correlation.matrix,
-              x: edaData.correlation.labels,
-              y: edaData.correlation.labels,
-              zmin: -1,
-              zmax: 1,
-              zmid: 0,
-              colorscale: [
-                [0, '#ff9f0a'],
-                [0.5, '#f2f2f7'],
-                [1, '#0a84ff'],
-              ],
-              hovertemplate: '<b>%{y}</b> × <b>%{x}</b><br>r = %{z:.2f}<extra></extra>',
-            },
-          ],
-          {
-            margin: { t: 20, r: 10, b: 60, l: 80 },
-            paper_bgcolor: 'rgba(0,0,0,0)',
-            plot_bgcolor: 'rgba(0,0,0,0)',
-            xaxis: { side: 'top', tickangle: -45 },
-            yaxis: { automargin: true },
-          },
-          { displayModeBar: false }
-        );
-        container.dataset.rendered = 'true';
+      const renderCorrelationHeatmap = (prefix=null) => {
+        if (!PlotlyObj || !edaData.correlation || !edaData.correlation.labels || !edaData.correlation.matrix) return;
+        const baseId = prefix ? `eda-correlation-heatmap-${prefix}` : 'eda-correlation-heatmap';
+        const container = document.getElementById(baseId);
+        if (!container || container.dataset.rendered === 'true') return;
+
+        const data = [{
+          type: 'heatmap',
+            z: edaData.correlation.matrix,
+            x: edaData.correlation.labels,
+            y: edaData.correlation.labels,
+            zmin: -1,
+            zmax: 1,
+            zmid: 0,
+            colorscale: [
+              [0, '#ff9f0a'],
+              [0.5, '#f2f2f7'],
+              [1, '#0a84ff']
+            ],
+            hovertemplate: '<b>%{y}</b> × <b>%{x}</b><br>r = %{z:.2f}<extra></extra>'
+        }];
+        const layout = {
+          margin: { t: 20, r: 10, b: 60, l: 80 },
+          paper_bgcolor: 'rgba(0,0,0,0)',
+          plot_bgcolor: 'rgba(0,0,0,0)',
+          xaxis: { side: 'top', tickangle: -45, automargin: true },
+          yaxis: { automargin: true },
+          autosize: true
+        };
+        const config = { displayModeBar: false, responsive: true };
+
+        PlotlyObj.newPlot(container, data, layout, config).then(() => {
+          // mark rendered
+          container.dataset.rendered = 'true';
+          // Make clickable for lightbox expansion (reuse existing openPlotlyLightbox)
+          container.style.cursor = 'pointer';
+          container.title = 'Click to expand';
+          container.addEventListener('click', (e) => {
+            if (e.target.closest('.modebar')) return;
+            // Provide a meaningful title
+            const title = prefix ? `Correlation Heatmap (${prefix.charAt(0).toUpperCase()+prefix.slice(1)})` : 'Correlation Heatmap';
+            if (typeof openPlotlyLightbox === 'function') {
+              openPlotlyLightbox(container, title);
+            }
+          }, { once: true });
+        });
       };
 
       const renderBoxplot = (element, boxData) => {
@@ -2091,7 +2176,13 @@
         }
       };
 
-      // Render correlation heatmap (if available)
+      // Render correlation heatmap for any sections already expanded
+      document.querySelectorAll('[id^="eda-section-correlation"]').forEach(section => {
+        if (section.classList.contains('is-expanded')) {
+          const suffix = section.id.replace('eda-section-correlation','').replace(/^-/,'');
+            renderCorrelationHeatmap(suffix || null);
+        }
+      });
     })();
     
     // Image lightbox functionality
@@ -2317,69 +2408,43 @@
       document.body.removeChild(link);
     }
     
-    // Synchronized expand/collapse for comparison view
-    {% if view_mode == 'both' and has_transformed_data %}
-    document.addEventListener('DOMContentLoaded', function() {
-      console.log('Setting up synchronized expand/collapse for comparison view');
-      
-      // Get all section containers from both columns
-      const sectionTypes = ['numeric', 'categorical', 'correlation', 'strings'];
-      const syncPairs = [];
-      
-      sectionTypes.forEach(type => {
-        const sourceSection = document.getElementById(`eda-section-${type}-source`);
-        const transformedSection = document.getElementById(`eda-section-${type}-transformed`);
-        
-        if (sourceSection && transformedSection) {
-          const sourceBtn = document.querySelector(`[data-section-toggle="eda-section-${type}-source"]`);
-          const transformedBtn = document.querySelector(`[data-section-toggle="eda-section-${type}-transformed"]`);
-          
-          if (sourceBtn && transformedBtn) {
-            syncPairs.push({
-              type: type,
-              sourceBtn: sourceBtn,
-              transformedBtn: transformedBtn,
-              sourceSection: sourceSection,
-              transformedSection: transformedSection
-            });
-          }
-        }
-      });
-      
-      console.log(`Found ${syncPairs.length} section pairs to synchronize`);
-      
-      // Add click handlers to each button
-      syncPairs.forEach(pair => {
-        // When source button is clicked
-        pair.sourceBtn.addEventListener('click', function(e) {
-          setTimeout(() => {
-            const sourceExpanded = pair.sourceSection.style.display !== 'none';
-            const transformedExpanded = pair.transformedSection.style.display !== 'none';
-            
-            // Sync transformed to match source
-            if (sourceExpanded !== transformedExpanded) {
-              console.log(`Syncing ${pair.type}: source=${sourceExpanded}, clicking transformed button`);
-              pair.transformedBtn.click();
+    // Synchronized expand/collapse for comparison view (runtime check instead of template condition to appease linter)
+    (function(){
+      const viewMode = "{{ view_mode|default:'single' }}";
+  const hasTransformed = JSON.parse("{{ has_transformed_data|yesno:'true,false' }}");
+      if (viewMode !== 'both' || !hasTransformed) return;
+      document.addEventListener('DOMContentLoaded', function() {
+        const sectionTypes = ['numeric', 'categorical', 'correlation', 'strings'];
+        const syncPairs = [];
+        sectionTypes.forEach(type => {
+          const sourceSection = document.getElementById(`eda-section-${type}-source`);
+            const transformedSection = document.getElementById(`eda-section-${type}-transformed`);
+            if (sourceSection && transformedSection) {
+              const sourceBtn = document.querySelector(`[data-section-toggle="eda-section-${type}-source"]`);
+              const transformedBtn = document.querySelector(`[data-section-toggle="eda-section-${type}-transformed"]`);
+              if (sourceBtn && transformedBtn) {
+                syncPairs.push({ type, sourceBtn, transformedBtn, sourceSection, transformedSection });
+              }
             }
-          }, 50);
         });
-        
-        // When transformed button is clicked
-        pair.transformedBtn.addEventListener('click', function(e) {
-          setTimeout(() => {
-            const sourceExpanded = pair.sourceSection.style.display !== 'none';
-            const transformedExpanded = pair.transformedSection.style.display !== 'none';
-            
-            // Sync source to match transformed
-            if (sourceExpanded !== transformedExpanded) {
-              console.log(`Syncing ${pair.type}: transformed=${transformedExpanded}, clicking source button`);
-              pair.sourceBtn.click();
-            }
-          }, 50);
+        syncPairs.forEach(pair => {
+          pair.sourceBtn.addEventListener('click', () => {
+            setTimeout(() => {
+              const sourceExpanded = !pair.sourceSection.classList.contains('is-collapsed');
+              const transformedExpanded = !pair.transformedSection.classList.contains('is-collapsed');
+              if (sourceExpanded !== transformedExpanded) { pair.transformedBtn.click(); }
+            }, 40);
+          });
+          pair.transformedBtn.addEventListener('click', () => {
+            setTimeout(() => {
+              const sourceExpanded = !pair.sourceSection.classList.contains('is-collapsed');
+              const transformedExpanded = !pair.transformedSection.classList.contains('is-collapsed');
+              if (sourceExpanded !== transformedExpanded) { pair.sourceBtn.click(); }
+            }, 40);
+          });
         });
       });
-    });
-    {% endif %}
+    })();
   </script>
 
   {% endblock content %}

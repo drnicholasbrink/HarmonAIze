@@ -80,6 +80,11 @@ urlpatterns = [
         name="raw_data_detail",
     ),
     path(
+        "raw-data/<int:file_id>/reupload/",
+        views.reupload_raw_data,
+        name="reupload_raw_data",
+    ),
+    path(
         "raw-data/<int:file_id>/validate/",
         views.validate_raw_data,
         name="validate_raw_data",
@@ -104,6 +109,21 @@ urlpatterns = [
         views.delete_raw_data,
         name="delete_raw_data",
     ),
+    path(
+        "raw-data/<int:file_id>/rerun-eda/",
+        views.rerun_eda,
+        name="rerun_eda",
+    ),
+        path(
+            "raw-data/<int:file_id>/start-eda/",
+            views.start_eda_generation,
+            name="start_eda_generation",
+        ),
+        path(
+            "raw-data/<int:file_id>/eda-status/",
+            views.eda_status,
+            name="eda_status",
+        ),
     # Duplicate detection endpoints (on-demand via button on raw_data_detail page)
     path(
         "raw-data/<int:file_id>/duplicates/start/",

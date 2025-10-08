@@ -116,97 +116,100 @@ def start_harmonisation(request, study_id):
         messages.error(request, "Please correct the errors below.")
     else:
         form = MappingSchemaForm(source_study=source_study, user=request.user)
-    
+
+    # Render schema creation form (GET)
     return render(
         request,
-        "health/harmonization_dashboard.html",
-        {
-            "study": source_study,
-            "form": form,
-            "universal_form": None,  # Placeholder to prevent template errors
-            "page_title": f"Start Harmonisation - {source_study.name}",
-            "creating_new": True,
-        },
+        "health/start_harmonisation.html",
+        {"form": form, "study": source_study},
     )
+@login_required
+def start_eda_generation(request, file_id):
+    """Start EDA generation if caches are absent. POST only for safety."""
+    if request.method != 'POST':
+        return HttpResponseBadRequest('POST required')
+    raw_data_file = get_object_or_404(RawDataFile, id=file_id, uploaded_by=request.user)
+    clear = request.POST.get('clear') == '1'
+    if clear:
+        raw_data_file.eda_cache_source = None
+        raw_data_file.eda_cache_source_generated_at = None
+        raw_data_file.eda_cache_transformed = None
+        raw_data_file.eda_cache_transformed_generated_at = None
+        raw_data_file.save(update_fields=[
+            'eda_cache_source','eda_cache_source_generated_at',
+            'eda_cache_transformed','eda_cache_transformed_generated_at'
+        ])
+    try:
+        from .tasks import generate_eda_caches
+        async_result = generate_eda_caches.delay(raw_data_file.id)
+        return JsonResponse({'started': True, 'task_id': async_result.id})
+    except Exception as exc:  # pragma: no cover
+        logger.exception('Failed to enqueue EDA generation for file %s', raw_data_file.id)
+        return JsonResponse({'started': False, 'error': str(exc)}, status=500)
+
+
+@login_required
+def eda_status(request, file_id):
+    """Return JSON status for EDA cache availability so the frontend can poll."""
+    raw_data_file = get_object_or_404(RawDataFile, id=file_id, uploaded_by=request.user)
+    data = {
+        'source_available': bool(raw_data_file.eda_cache_source),
+        'source_generated_at': raw_data_file.eda_cache_source_generated_at.isoformat() if raw_data_file.eda_cache_source_generated_at else None,
+        'transformed_available': bool(raw_data_file.eda_cache_transformed),
+        'transformed_generated_at': raw_data_file.eda_cache_transformed_generated_at.isoformat() if raw_data_file.eda_cache_transformed_generated_at else None,
+        'has_transformed_data': raw_data_file.transformation_status == 'completed' and raw_data_file.last_transformation_schema_id is not None,
+    }
+    return JsonResponse(data)
 
 
 @login_required
 def approve_mapping(request, schema_id):
-    schema = get_object_or_404(MappingSchema, id=schema_id, created_by=request.user)
-    
-    # Validation for approval
-    complete_rules = schema.rules.filter(target_attribute__isnull=False)
-    incomplete_rules = schema.rules.filter(target_attribute__isnull=True)
-    
-    if not complete_rules.exists():
-        messages.error(
-            request, 
-            "Add at least one complete mapping rule before approving. "
-            "Complete rules must have both source and target attributes.",
-        )
-        return redirect("health:harmonization_dashboard", schema_id=schema.id)
-    
-    # Check for required patient ID mapping (allow without target_attribute)
-    if not schema.rules.filter(role="patient_id").exists():
-        messages.error(
-            request,
-            "You must map at least one patient ID field before approval.",
-        )
-        return redirect("health:harmonization_dashboard", schema_id=schema.id)
-    
-    # Clean up any incomplete provisional rules before approval
-    if incomplete_rules.exists():
-        incomplete_count = incomplete_rules.count()
-        incomplete_rules.delete()
-        messages.info(
-            request,
-            f"Removed {incomplete_count} incomplete provisional mappings "
-            f"during approval.",
-        )
+    """Approve a harmonisation mapping schema.
 
-    schema.status = "approved"
+    Conditions:
+    - Requires at least one mapping rule that is not marked not_mappable and has a target attribute.
+    - Idempotent: if already approved, simply inform user.
+    Side-effects:
+    - Sets approval metadata.
+    - Optionally kicks off background transformation if raw data files exist and no transformations currently running.
+    """
+    schema = get_object_or_404(MappingSchema, id=schema_id)
+
+    if schema.status == 'approved':
+        messages.info(request, 'Mapping schema already approved.')
+        return redirect('health:harmonization_dashboard', schema_id=schema.id)
+
+    # Ensure at least one complete rule
+    complete_rules_qs = MappingRule.objects.filter(
+        schema=schema,
+        not_mappable=False,
+        target_attribute__isnull=False,
+    )
+    if not complete_rules_qs.exists():
+        messages.error(request, 'Cannot approve schema without at least one completed mapping rule.')
+        return redirect('health:harmonization_dashboard', schema_id=schema.id)
+
+    schema.status = 'approved'
     schema.approved_by = request.user
     schema.approved_at = timezone.now()
-    schema.save(update_fields=["status", "approved_by", "approved_at"])
+    schema.save(update_fields=['status', 'approved_by', 'approved_at'])
+    messages.success(request, 'Mapping schema approved.')
 
-    source_study = schema.source_study
-    if source_study.status not in ["harmonised", "completed"]:
-        source_study.status = "variables_mapped"
-        source_study.save(update_fields=["status"])
-    
-    # Check if there are raw data files to transform
-    raw_data_files = RawDataFile.objects.filter(study=source_study)
-    
-    if not raw_data_files.exists():
-        # No raw data files - just approve the mapping without triggering transformation
-        messages.success(
-            request, 
-            f"Mapping approved with {complete_rules.count()} complete rules. "
-            f"Upload raw data files to begin transformation.",
-        )
-        messages.info(
-            request,
-            "No raw data files found. Please upload raw data files and then "
-            "trigger transformation from the raw data file detail page.",
-        )
-    else:
-        # Trigger background transformation of observations based on mapping schema
+    # Trigger transformation if raw data files exist
+    raw_files = RawDataFile.objects.filter(study=schema.source_study)
+    if raw_files.exists():
+        # Queue transformation task; best-effort
         try:
             from .tasks import transform_observations_for_schema
             transform_observations_for_schema.delay(schema.id)
-            messages.success(
-                request, 
-                f"Mapping approved with {complete_rules.count()} complete rules.",
-            )
-            messages.info(request, "Started background transformation using approved mapping.")
-        except Exception as e:
-            messages.success(
-                request, 
-                f"Mapping approved with {complete_rules.count()} complete rules.",
-            )
-            messages.warning(request, f"Mapping approved, but failed to start transformation: {e}")
-    
-    return redirect("core:study_detail", pk=schema.source_study_id)
+            messages.info(request, 'Started background harmonisation transformation.')
+        except Exception:  # pragma: no cover
+            logger.exception('Failed to enqueue transformation for schema %s', schema.id)
+            messages.warning(request, 'Approved, but could not start transformation task. You may retry from the dashboard.')
+    else:
+        messages.info(request, 'No raw data files found yet; upload files to start transformations.')
+
+    return redirect('health:harmonization_dashboard', schema_id=schema.id)
 
 
 @login_required
@@ -224,7 +227,7 @@ def finalize_harmonisation(request, schema_id):
 
 
 @login_required
-@require_http_methods(["POST"])
+@require_http_methods(["POST"])  
 def rerun_harmonisation_transformations(request, schema_id):
     """Re-queue harmonised observation generation for an approved mapping schema."""
     schema = get_object_or_404(MappingSchema, id=schema_id, created_by=request.user)
@@ -238,11 +241,25 @@ def rerun_harmonisation_transformations(request, schema_id):
 
     from .tasks import transform_observations_for_schema
 
+    # Check current transformation status to provide appropriate messaging
+    source_files = RawDataFile.objects.filter(study=schema.source_study)
+    current_statuses = list(source_files.values_list('transformation_status', flat=True).distinct())
+    
+    if 'in_progress' in current_statuses:
+        transformation_message = "Restarting stuck or slow transformation..."
+        success_message = "Transformation restarted. Previous in-progress transformation was cancelled."
+    elif 'failed' in current_statuses:
+        transformation_message = "Retrying failed transformation..."
+        success_message = "Failed transformation is being retried. Check raw data files for progress updates."
+    else:
+        transformation_message = "Queued for harmonisation re-run..."
+        success_message = "Previous harmonised results cleared and re-run started. Check raw data files for progress updates."
+
     try:
-        RawDataFile.objects.filter(study=schema.source_study).update(
+        source_files.update(
             transformation_status="in_progress",
             transformation_started_at=timezone.now(),
-            transformation_message="Queued for harmonisation re-run...",
+            transformation_message=transformation_message,
             last_transformation_schema=schema,
         )
     except Exception:
@@ -259,15 +276,13 @@ def rerun_harmonisation_transformations(request, schema_id):
         )
         return redirect("health:harmonization_dashboard", schema_id=schema.id)
 
-    messages.success(
-        request,
-        "Previous harmonised results cleared and re-run started. Check raw data files for progress updates.",
-    )
+    messages.success(request, success_message)
     logger.info(
-        "Re-running harmonisation task %s for schema %s by user %s",
+        "Re-running harmonisation task %s for schema %s by user %s (previous status: %s)",
         getattr(task, "id", "unknown"),
         schema.id,
         request.user.id,
+        current_statuses,
     )
     return redirect("health:harmonization_dashboard", schema_id=schema.id)
 
@@ -348,7 +363,6 @@ def select_variables(request, study_id):  # noqa: C901 (complexity accepted temp
             else:
                 # Create Attribute objects for included variables
                 created_attributes = []
-                
                 for var_data in included_variables:
                     try:
                         attribute, _created = Attribute.objects.get_or_create(
@@ -387,21 +401,24 @@ def select_variables(request, study_id):  # noqa: C901 (complexity accepted temp
                                 "page_title": f"Select Health Variables - {study.name}",
                             },
                         )
-                
-                # Associate variables with the study
+                # Post-processing after variable creation
                 study.variables.set(created_attributes)
                 study.status = "variables_extracted"
                 study.save(update_fields=["status"])
-                
                 # Clear session data
                 request.session.pop(f"variables_data_{study.id}", None)
                 request.session.pop(f"column_mapping_{study.id}", None)
-                
                 messages.success(
                     request,
-                    f"Successfully added {len(included_variables)} variables to your study! "
-                    f"You can now proceed with health data harmonisation.",
+                    (
+                        f"Successfully added {len(included_variables)} variables to your study! "
+                        "You can now proceed with health data harmonisation."
+                    ),
                 )
+                # If a raw data file exists for this study, redirect to validation step
+                raw_data_file = study.raw_data_files.order_by('-uploaded_at').first()
+                if raw_data_file:
+                    return redirect('health:validate_raw_data', file_id=raw_data_file.id)
                 return redirect("core:study_detail", pk=study.pk)
         else:
             # Collect and display specific formset errors
@@ -748,8 +765,17 @@ def upload_raw_data(request, study_id=None):
             messages.error(request, "You don't have permission to upload data for this study.")
             return redirect('core:study_detail', pk=study.pk)
     
+    # Check if study has variables
+    has_variables = study.variables.exists() if study else False
+    
     if request.method == 'POST':
         form = RawDataUploadForm(request.POST, request.FILES, user=request.user)
+        
+        # Make patient_id_column and date_column optional if study has no variables
+        if not has_variables:
+            form.fields['patient_id_column'].required = False
+            form.fields['date_column'].required = False
+        
         if form.is_valid():
             raw_data_file = form.save(commit=False)
             raw_data_file.uploaded_by = request.user
@@ -800,10 +826,86 @@ def upload_raw_data(request, study_id=None):
                 context = {
                     'form': form,
                     'study': raw_data_file.study,
+                    'has_variables': has_variables,
                     'page_title': f"Upload Raw Data{' for ' + raw_data_file.study.name if raw_data_file.study else ''}",
                     'duplicate_found': True,
                 }
                 return render(request, 'health/upload_raw_data.html', context)
+
+            # If study has no variables, extract columns from the file and redirect to variable selection
+            if raw_data_file.study and not has_variables:
+                try:
+                    # Extract columns from uploaded file using existing validation function
+                    file_ext = upload.name.split('.')[-1].lower()
+                    
+                    # Read file to get columns
+                    import pandas as pd
+                    if file_ext == 'csv':
+                        df = pd.read_csv(upload, nrows=5)
+                    elif file_ext in ['xlsx', 'xls']:
+                        df = pd.read_excel(upload, nrows=5)
+                    elif file_ext == 'json':
+                        df = pd.read_json(upload, lines=True, nrows=5)
+                    else:
+                        raise ValueError(f"Unsupported file format: {file_ext}")
+                    
+                    # Reset file pointer for later use
+                    try:
+                        upload.seek(0)
+                    except Exception:
+                        pass
+                    
+                    columns = list(df.columns)
+                    
+                    if columns:
+                        # Create variables data structure for select_variables view
+                        variables_data = []
+                        for col_name in columns:
+                            variables_data.append({
+                                "variable_name": str(col_name),
+                                "display_name": str(col_name),
+                                "description": f"Auto-extracted from raw data file: {raw_data_file.original_filename}",
+                                "variable_type": "string",  # Default to string, user can change
+                                "unit": "",
+                                "ontology_code": "",
+                                "category": "health",
+                            })
+                        
+                        # Save the file first (but don't process yet)
+                        raw_data_file.processing_status = 'pending'
+                        raw_data_file.processing_message = 'Waiting for variable selection'
+                        raw_data_file.save()
+                        
+                        # Store variables data in session
+                        request.session[f"variables_data_{raw_data_file.study.id}"] = variables_data
+                        
+                        messages.info(
+                            request,
+                            f"No variables found for this study. Extracted {len(columns)} columns from your data file. "
+                            f"Please review and select which variables to include.",
+                        )
+                        
+                        # Redirect to select_variables to let user review
+                        return redirect('health:select_variables', study_id=raw_data_file.study.id)
+                    else:
+                        raise ValueError("No columns found in file")
+                        
+                except Exception as e:
+                    messages.error(
+                        request,
+                        f"Could not extract columns from file: {e}. "
+                        f"Please ensure the file is a valid CSV, Excel, or JSON file with column headers.",
+                    )
+                    # Delete the raw data file since we can't process it
+                    if raw_data_file.id:
+                        raw_data_file.delete()
+                    context = {
+                        'form': form,
+                        'study': raw_data_file.study,
+                        'has_variables': has_variables,
+                        'page_title': f"Upload Raw Data{' for ' + raw_data_file.study.name if raw_data_file.study else ''}",
+                    }
+                    return render(request, 'health/upload_raw_data.html', context)
 
             # Basic validation and column comparison against codebook
             mismatch_details = None
@@ -864,10 +966,104 @@ def upload_raw_data(request, study_id=None):
     context = {
         'form': form,
         'study': study,
+        'has_variables': has_variables,
         'page_title': f'Upload Raw Data{" for " + study.name if study else ""}',
     }
     
     return render(request, 'health/upload_raw_data.html', context)
+
+
+@login_required
+@require_http_methods(["POST"])
+def reupload_raw_data(request, file_id):
+    raw_data_file = get_object_or_404(
+        RawDataFile,
+        id=file_id,
+        uploaded_by=request.user,
+    )
+
+    if raw_data_file.processing_status == "processing":
+        messages.error(
+            request,
+            "Data ingestion is currently running for this file. Stop the job before re-uploading.",
+        )
+        return redirect("health:raw_data_detail", file_id=file_id)
+
+    if raw_data_file.transformation_status == "in_progress":
+        messages.error(
+            request,
+            "Transformation is currently in progress for this file. Wait for it to finish before re-uploading.",
+        )
+        return redirect("health:raw_data_detail", file_id=file_id)
+
+    upload = request.FILES.get("raw_data_file")
+    if not upload:
+        messages.error(request, "Please select a file to upload.")
+        return redirect("health:raw_data_detail", file_id=file_id)
+
+    import hashlib
+
+    if hasattr(upload, "seek"):
+        try:
+            upload.seek(0)
+        except Exception:
+            pass
+
+    hasher = hashlib.sha256()
+    for chunk in upload.chunks():
+        hasher.update(chunk)
+    checksum = hasher.hexdigest()
+
+    if hasattr(upload, "seek"):
+        try:
+            upload.seek(0)
+        except Exception:
+            pass
+
+    duplicate = (
+        RawDataFile.objects.filter(study=raw_data_file.study, checksum=checksum)
+        .exclude(id=raw_data_file.id)
+        .first()
+    )
+    if duplicate:
+        messages.warning(
+            request,
+            (
+                "An identical file was already uploaded for this study on "
+                f"{duplicate.uploaded_at:%Y-%m-%d %H:%M}."
+            ),
+        )
+        return redirect("health:raw_data_detail", file_id=file_id)
+
+    raw_data_file.columns.all().delete()
+
+    if raw_data_file.file and raw_data_file.file.name:
+        raw_data_file.file.delete(save=False)
+
+    raw_data_file.reset_processing_state()
+    raw_data_file.uploaded_at = timezone.now()
+    raw_data_file.original_filename = upload.name
+    raw_data_file.file_format = ""
+    raw_data_file.file_size = upload.size
+    raw_data_file.checksum = checksum
+    raw_data_file.processing_message = "File re-uploaded; processing steps reset."
+
+    raw_data_file.file.save(upload.name, upload, save=False)
+    raw_data_file.save()
+
+    messages.success(
+        request,
+        "Source data file replaced successfully. Please restart validation, mapping, and ingestion steps.",
+    )
+
+    logger.info(
+        "Raw data file %s (ID %s) re-uploaded by %s",
+        raw_data_file.original_filename,
+        raw_data_file.id,
+        request.user.username,
+    )
+
+    return redirect("health:raw_data_detail", file_id=file_id)
 
 
 @login_required  
@@ -954,152 +1150,11 @@ def raw_data_detail(request, file_id):
     validation_completed = status in ['validated', 'processed', 'processing', 'ingestion_error', 'ingested', 'processed_with_errors']
     mapping_completed = status in ['processed', 'processing', 'ingestion_error', 'ingested', 'processed_with_errors']
     
-    # Generate EDA summary based on view mode
-    try:
-        if view_mode == 'source' or not has_transformed_data:
-            # Show source data only
-            eda_summary = generate_eda_summary(raw_data_file)
-            eda_summary_transformed = None
-        elif view_mode == 'transformed':
-            # Show transformed data only
-            eda_summary = None
-            if raw_data_file.last_transformation_schema:
-                from .eda_service import generate_eda_summary_from_observations
-                target_study = raw_data_file.last_transformation_schema.target_study
-                eda_summary_transformed = generate_eda_summary_from_observations(
-                    raw_data_file, target_study, is_transformed=True
-                )
-            else:
-                eda_summary_transformed = {
-                    "available": False,
-                    "reason": "No transformation schema available.",
-                }
-        else:  # both
-            # Show both source and transformed data side-by-side
-            eda_summary = generate_eda_summary(raw_data_file)
-            if raw_data_file.last_transformation_schema:
-                from .eda_service import generate_eda_summary_from_observations
-                target_study = raw_data_file.last_transformation_schema.target_study
-                eda_summary_transformed = generate_eda_summary_from_observations(
-                    raw_data_file, target_study, is_transformed=True
-                )
-                
-                # Align variables using the mapping schema to show which source maps to which target
-                if eda_summary and eda_summary.get('available') and eda_summary_transformed and eda_summary_transformed.get('available'):
-                    from .models import MappingRule
-                    import logging
-                    logger = logging.getLogger(__name__)
-                    
-                    # Get all mapping rules for this schema
-                    mapping_rules = MappingRule.objects.filter(
-                        schema=raw_data_file.last_transformation_schema,
-                        not_mappable=False,
-                        target_attribute__isnull=False
-                    ).select_related('source_attribute', 'target_attribute')
-                    
-                    logger.info(f"Found {mapping_rules.count()} mapping rules for schema {raw_data_file.last_transformation_schema.id}")
-                    
-                    # Build mapping dictionaries: source_name -> target_name
-                    source_to_target = {}
-                    target_to_source = {}
-                    for rule in mapping_rules:
-                        source_name = rule.source_attribute.variable_name
-                        target_name = rule.target_attribute.variable_name
-                        source_to_target[source_name] = target_name
-                        target_to_source[target_name] = source_name
-                        logger.info(f"Mapping: {source_name} -> {target_name}")
-                    
-                    logger.info(f"Source EDA columns - numeric: {[c['name'] for c in eda_summary.get('numeric_columns', [])]}, categorical: {[c['name'] for c in eda_summary.get('categorical_columns', [])]}, string: {[c['name'] for c in eda_summary.get('string_columns', [])]}")
-                    logger.info(f"Transformed EDA columns - numeric: {[c['name'] for c in eda_summary_transformed.get('numeric_columns', [])]}, categorical: {[c['name'] for c in eda_summary_transformed.get('categorical_columns', [])]}, string: {[c['name'] for c in eda_summary_transformed.get('string_columns', [])]}")
-                    
-                    # Build mapping from CSV column names to attribute names for source data
-                    csv_to_attribute = {}
-                    raw_columns = raw_data_file.columns.filter(mapped_variable__isnull=False).select_related('mapped_variable')
-                    for col in raw_columns:
-                        csv_to_attribute[col.column_name] = col.mapped_variable.variable_name
-                    logger.info(f"CSV to Attribute mapping: {csv_to_attribute}")
-                    
-                    # Filter and reorder based on mappings
-                    def filter_and_align_columns(source_cols, target_cols, column_type):
-                        aligned_source = []
-                        aligned_target = []
-                        
-                        # Get available names in each dataset
-                        source_csv_names = {col['name'] for col in source_cols}
-                        target_names = {col['name'] for col in target_cols}
-                        
-                        logger.info(f"Filtering {column_type} - source CSV names: {source_csv_names}, target names: {target_names}")
-                        
-                        # Find pairs where:
-                        # 1. Source CSV column exists in source data
-                        # 2. It's mapped to an attribute
-                        # 3. That attribute maps to a target attribute via mapping rule
-                        # 4. The target attribute exists in transformed data
-                        for csv_name in source_csv_names:
-                            # Get the attribute name this CSV column maps to
-                            source_attr_name = csv_to_attribute.get(csv_name)
-                            if not source_attr_name:
-                                logger.info(f"  {csv_name} (CSV) -> no attribute mapping")
-                                continue
-                            
-                            # Get the target attribute name from mapping schema
-                            target_attr_name = source_to_target.get(source_attr_name)
-                            if not target_attr_name:
-                                logger.info(f"  {csv_name} (CSV) -> {source_attr_name} (attr) -> no target mapping")
-                                continue
-                            
-                            # Check if target exists in transformed data
-                            if target_attr_name not in target_names:
-                                logger.info(f"  {csv_name} (CSV) -> {source_attr_name} (attr) -> {target_attr_name} (target) -> NOT IN TRANSFORMED DATA")
-                                continue
-                            
-                            # Found a valid pair!
-                            source_col = next((c for c in source_cols if c['name'] == csv_name), None)
-                            target_col = next((c for c in target_cols if c['name'] == target_attr_name), None)
-                            
-                            if source_col and target_col:
-                                logger.info(f"  ✓ {csv_name} (CSV) -> {source_attr_name} (attr) -> {target_attr_name} (target)")
-                                aligned_source.append(source_col)
-                                aligned_target.append(target_col)
-                        
-                        return aligned_source, aligned_target
-                    
-                    # Apply alignment to each column type
-                    source_num, target_num = filter_and_align_columns(
-                        eda_summary.get('numeric_columns', []),
-                        eda_summary_transformed.get('numeric_columns', []),
-                        'numeric'
-                    )
-                    eda_summary['numeric_columns'] = source_num
-                    eda_summary_transformed['numeric_columns'] = target_num
-                    
-                    source_cat, target_cat = filter_and_align_columns(
-                        eda_summary.get('categorical_columns', []),
-                        eda_summary_transformed.get('categorical_columns', []),
-                        'categorical'
-                    )
-                    eda_summary['categorical_columns'] = source_cat
-                    eda_summary_transformed['categorical_columns'] = target_cat
-                    
-                    source_str, target_str = filter_and_align_columns(
-                        eda_summary.get('string_columns', []),
-                        eda_summary_transformed.get('string_columns', []),
-                        'string'
-                    )
-                    eda_summary['string_columns'] = source_str
-                    eda_summary_transformed['string_columns'] = target_str
-            else:
-                eda_summary_transformed = {
-                    "available": False,
-                    "reason": "No transformation schema available.",
-                }
-    except Exception as exc:  # pragma: no cover - defensive logging
-        logger.exception("Failed to generate EDA summary for raw data file %s", raw_data_file.id)
-        eda_summary = {
-            "available": False,
-            "reason": f"Unable to generate exploratory summary: {exc}",
-        }
-        eda_summary_transformed = None
+    # New async approach: only read existing caches; do not generate synchronously
+    eda_summary = raw_data_file.eda_cache_source if view_mode in ['source', 'both'] else None
+    eda_summary_transformed = None
+    if view_mode in ['transformed', 'both'] and has_transformed_data:
+        eda_summary_transformed = raw_data_file.eda_cache_transformed
 
     correlation_rows = []
     if isinstance(eda_summary, dict):
@@ -1129,9 +1184,55 @@ def raw_data_detail(request, file_id):
         'eda_summary_transformed': eda_summary_transformed,
         'eda_summary_transformed_json': eda_summary_transformed,
         'eda_correlation_rows_transformed': correlation_rows_transformed,
+        'eda_async_mode': True,
+        'eda_source_available': bool(raw_data_file.eda_cache_source),
+        'eda_transformed_available': bool(raw_data_file.eda_cache_transformed),
     }
     
     return render(request, 'health/raw_data_detail.html', context)
+
+
+@login_required
+def rerun_eda(request, file_id):
+    """Clear and regenerate EDA caches for the specified raw data file.
+
+    Regenerates source EDA and transformed EDA (if applicable) immediately,
+    then redirects back to the detail view preserving the current view_mode.
+    """
+    raw_data_file = get_object_or_404(RawDataFile, id=file_id, uploaded_by=request.user)
+    view_mode = request.GET.get('view_mode', 'source')
+
+    # Clear caches first
+    raw_data_file.eda_cache_source = None
+    raw_data_file.eda_cache_source_generated_at = None
+    raw_data_file.eda_cache_transformed = None
+    raw_data_file.eda_cache_transformed_generated_at = None
+    raw_data_file.save(update_fields=[
+        'eda_cache_source',
+        'eda_cache_source_generated_at',
+        'eda_cache_transformed',
+        'eda_cache_transformed_generated_at',
+    ])
+
+    # Regenerate synchronously
+    try:
+        from .eda_service import generate_eda_summary, generate_eda_summary_from_observations
+        generate_eda_summary(raw_data_file)
+        if (
+            raw_data_file.transformation_status == 'completed' and
+            raw_data_file.last_transformation_schema_id
+        ):
+            target_study = raw_data_file.last_transformation_schema.target_study
+            generate_eda_summary_from_observations(raw_data_file, target_study, is_transformed=True)
+        messages.success(request, 'Exploratory analysis regenerated successfully.')
+    except Exception as exc:  # pragma: no cover
+        logger.exception('Failed to regenerate EDA for file %s', raw_data_file.id)
+        messages.error(request, f'Could not regenerate analysis: {exc}')
+
+    redirect_url = reversed('health:raw_data_detail', kwargs={'file_id': raw_data_file.id})
+    if view_mode in ['source', 'transformed', 'both']:
+        redirect_url = f"{redirect_url}?view_mode={view_mode}"
+    return redirect(redirect_url)
 
 
 @login_required
