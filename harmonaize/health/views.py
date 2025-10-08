@@ -173,18 +173,39 @@ def approve_mapping(request, schema_id):
     if source_study.status not in ["harmonised", "completed"]:
         source_study.status = "variables_mapped"
         source_study.save(update_fields=["status"])
-    # Trigger background transformation of observations based on mapping schema
-    try:
-        from .tasks import transform_observations_for_schema
-        transform_observations_for_schema.delay(schema.id)
-        messages.info(request, "Started background transformation using approved mapping.")
-    except Exception as e:
-        messages.warning(request, f"Mapping approved, but failed to start transformation: {e}")
-
-    messages.success(
-        request, 
-        f"Mapping approved with {complete_rules.count()} complete rules.",
-    )
+    
+    # Check if there are raw data files to transform
+    raw_data_files = RawDataFile.objects.filter(study=source_study)
+    
+    if not raw_data_files.exists():
+        # No raw data files - just approve the mapping without triggering transformation
+        messages.success(
+            request, 
+            f"Mapping approved with {complete_rules.count()} complete rules. "
+            f"Upload raw data files to begin transformation.",
+        )
+        messages.info(
+            request,
+            "No raw data files found. Please upload raw data files and then "
+            "trigger transformation from the raw data file detail page.",
+        )
+    else:
+        # Trigger background transformation of observations based on mapping schema
+        try:
+            from .tasks import transform_observations_for_schema
+            transform_observations_for_schema.delay(schema.id)
+            messages.success(
+                request, 
+                f"Mapping approved with {complete_rules.count()} complete rules.",
+            )
+            messages.info(request, "Started background transformation using approved mapping.")
+        except Exception as e:
+            messages.success(
+                request, 
+                f"Mapping approved with {complete_rules.count()} complete rules.",
+            )
+            messages.warning(request, f"Mapping approved, but failed to start transformation: {e}")
+    
     return redirect("core:study_detail", pk=schema.source_study_id)
 
 
@@ -345,7 +366,9 @@ def select_variables(request, study_id):  # noqa: C901 (complexity accepted temp
                                 "ontology_code": var_data.get(
                                     "ontology_code", "",
                                 ),
-                                "category": "health",
+                                "category": var_data.get(
+                                    "category", "health",
+                                ),  # Use extracted category or default to health
                             },
                         )
                         created_attributes.append(attribute)
@@ -673,6 +696,10 @@ def harmonization_dashboard(request, schema_id):
     mappable_variables = len(source_attrs) - not_mappable_count
     progress_percent = int((completed_rules / len(source_attrs)) * 100) if source_attrs else 0
     
+    # Get raw data files for the source study
+    raw_data_files = RawDataFile.objects.filter(study=schema.source_study).order_by('-uploaded_at')
+    has_raw_data = raw_data_files.exists()
+    
     context = {
         "schema": schema,
         "universal_form": universal_form,
@@ -681,6 +708,8 @@ def harmonization_dashboard(request, schema_id):
         "completed_rules": completed_rules,
         "not_mappable_count": not_mappable_count,
         "progress_percent": progress_percent,
+        "raw_data_files": raw_data_files,
+        "has_raw_data": has_raw_data,
         "page_title": "Harmonise Study Dashboard",
     }
     
