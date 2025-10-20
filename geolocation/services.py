@@ -13,7 +13,7 @@ from django.utils import timezone
 from django.db import transaction
 from django.db.models import Q
 
-from .models import ValidationDataset, GeocodingResult, HDXHealthFacility
+from .models import ValidatedDataset, GeocodingResult, HDXHealthFacility
 from core.models import Location
 
 # Try to import fuzzy matching
@@ -184,7 +184,7 @@ class GeocodingService:
         # Try exact matches first (case-insensitive)
         for search_term in search_terms:
             if search_term:
-                result = ValidationDataset.objects.filter(
+                result = ValidatedDataset.objects.filter(
                     location_name__iexact=search_term.strip()
                 ).first()
                 if result:
@@ -193,7 +193,7 @@ class GeocodingService:
         
         # Try fuzzy matching if no exact match
         if FUZZY_AVAILABLE:
-            all_validated = ValidationDataset.objects.all()
+            all_validated = ValidatedDataset.objects.all()
             location_names = [v.location_name for v in all_validated]
             
             # Try fuzzy matching with both full name and location part
@@ -201,7 +201,7 @@ class GeocodingService:
                 if search_term:
                     match = process.extractOne(search_term.strip(), location_names, score_cutoff=80)
                     if match:
-                        result = ValidationDataset.objects.filter(location_name=match[0]).first()
+                        result = ValidatedDataset.objects.filter(location_name=match[0]).first()
                         logger.info(f"VALIDATED DATASET: Found fuzzy match for '{search_term}' -> '{match[0]}' (score: {match[1]}%)")
                         return result
         

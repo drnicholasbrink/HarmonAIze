@@ -14,7 +14,7 @@ from django.contrib import messages
 from django.utils import timezone
 from django.core.cache import cache
 
-from .models import GeocodingResult, ValidationResult, ValidationDataset
+from .models import GeocodingResult, ValidationResult, ValidatedDataset
 from .validation import SmartGeocodingValidator
 from .tasks import batch_geocode_locations, batch_validate_locations
 from .services import GeocodingService
@@ -291,7 +291,7 @@ def validation_map(request):
     
     context = {
         'locations_data': json.dumps(locations_data),
-        'mapbox_token': 'pk.eyJ1Ijoic2htcm9uIiwiYSI6ImNtNzM3MjllODBpczUybHB2dDMzNHg0OHUifQ.njJOQZ3_ZR-kDrTfFXZX0Q',
+        'mapbox_token': getattr(settings, 'MAPBOX_ACCESS_TOKEN', ''),
         'current_location': locations_data[0] if locations_data else None,
         'current_location_json': json.dumps(locations_data[0]) if locations_data else 'null',
         'navigation': navigation_info,
@@ -1002,8 +1002,8 @@ def bulk_validation_actions(request):
                             validation.recommended_source = best_source
                             validation.save()
                             
-                            # Add to ValidationDataset
-                            ValidationDataset.objects.update_or_create(
+                            # Add to ValidatedDataset (POI arsenal)
+                            ValidatedDataset.objects.update_or_create(
                                 location_name=result.location_name,
                                 defaults={
                                     'final_lat': final_lat,
@@ -1185,7 +1185,7 @@ def handle_approve_ai_suggestion(validation, data):
             validation.save()
             
             
-            ValidationDataset.objects.update_or_create(
+            ValidatedDataset.objects.update_or_create(
                 location_name=result.location_name,
                 defaults={
                     'final_lat': final_lat,
@@ -1274,7 +1274,7 @@ def handle_use_source(validation, data):
             validation.save()
             
             
-            ValidationDataset.objects.update_or_create(
+            ValidatedDataset.objects.update_or_create(
                 location_name=result.location_name,
                 defaults={
                     'final_lat': final_lat,
@@ -1350,8 +1350,8 @@ def handle_manual_coordinates(validation, data):
             validation.confidence_score = 1.0  # Manual entry gets highest confidence
             validation.save()
             
-            #  Add to ValidationDataset
-            ValidationDataset.objects.update_or_create(
+            #  Add to ValidatedDataset (POI arsenal)
+            ValidatedDataset.objects.update_or_create(
                 location_name=result.location_name,
                 defaults={
                     'final_lat': lat,
@@ -1373,15 +1373,15 @@ def handle_manual_coordinates(validation, data):
                 locations = Location.objects.filter(name__icontains=result.location_name)
                 if locations.exists():
                     location = locations.first()
-                    location.latitude = final_lat
-                    location.longitude = final_lng
+                    location.latitude = lat
+                    location.longitude = lng
                     location.save()
             except Location.MultipleObjectsReturned:
                 location = Location.objects.filter(name__iexact=result.location_name).first()
                 location.latitude = lat
                 location.longitude = lng
                 location.save()
-        
+
         return JsonResponse({
             'success': True,
             'message': f'Manual coordinates saved for {result.location_name}',
@@ -1629,10 +1629,10 @@ def validated_locations_map(request):
     
     context = {
         'locations_data': json.dumps(locations_data),
-        'mapbox_token': 'pk.eyJ1Ijoic2htcm9uIiwiYSI6ImNtNzM3MjllODBpczUybHB2dDMzNHg0OHUifQ.njJOQZ3_ZR-kDrTfFXZX0Q',
+        'mapbox_token': getattr(settings, 'MAPBOX_ACCESS_TOKEN', ''),
         'total_locations': len(locations_data)
     }
-    
+
     return render(request, 'geolocation/validated_locations_map.html', context)
 
 

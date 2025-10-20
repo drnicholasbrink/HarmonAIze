@@ -1,9 +1,9 @@
 import csv
 from django.core.management.base import BaseCommand
-from geolocation.models import ValidationDataset
+from geolocation.models import ValidatedDataset
 
 class Command(BaseCommand):
-    help = 'Load validation data from CSV file'
+    help = 'Load validated location data (POI arsenal) from CSV file'
 
     def add_arguments(self, parser):
         parser.add_argument('csv_file', type=str)
@@ -16,9 +16,9 @@ class Command(BaseCommand):
             for row in reader:
                 location_name = row['location_name']
                 country = row['country']
-                
+
                 # Check if the entry already exists
-                validation_entry, created = ValidationDataset.objects.get_or_create(
+                validation_entry, created = ValidatedDataset.objects.get_or_create(
                     location_name=location_name,
                     country=country,
                     defaults={

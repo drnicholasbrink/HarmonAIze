@@ -25,7 +25,7 @@ class GeolocationConfig(AppConfig):
         import os
         from django.core.management import call_command
         from django.db import connection
-        from .models import HDXHealthFacility, ValidationDataset
+        from .models import HDXHealthFacility, ValidatedDataset
 
         try:
             if 'migrate' not in connection.queries:
@@ -34,7 +34,8 @@ class GeolocationConfig(AppConfig):
                     call_command('load_hdx_data', file=hdx_file)
 
                 validation_file = 'data_geocoding/Validated_locations.csv'
-                if os.path.exists(validation_file) and not ValidationDataset.objects.exists():
+                if os.path.exists(validation_file) and not ValidatedDataset.objects.exists():
                     call_command('load_validation_data', validation_file)
         except Exception:
             pass
+

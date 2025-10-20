@@ -3,11 +3,11 @@ from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
 from django.utils.safestring import mark_safe
-from .models import ValidationDataset, HDXHealthFacility, GeocodingResult, ValidationResult
+from .models import ValidatedDataset, HDXHealthFacility, GeocodingResult, ValidationResult
 
 
-@admin.register(ValidationDataset)
-class ValidationDatasetAdmin(admin.ModelAdmin):
+@admin.register(ValidatedDataset)
+class ValidatedDatasetAdmin(admin.ModelAdmin):
     list_display = [
         'location_name', 'country', 'coordinates_display', 
         'source', 'validated_at'

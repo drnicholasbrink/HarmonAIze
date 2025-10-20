@@ -4,10 +4,19 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
 
 
-class ValidationDataset(models.Model):
+class ValidatedDataset(models.Model):
     """
-    Historical validated locations - grows with each geocoding task.
-    This acts as a cache/knowledge base of previously validated coordinates.
+    Arsenal of validated locations (POIs) - builds over time with each validation.
+
+    This serves as a knowledge base of previously validated coordinates that can be:
+    - Reused for matching location names
+    - Referenced for quality validation
+    - Exported as a curated dataset
+
+    Contains locations validated through:
+    - Initial data load (e.g., HDX validated locations)
+    - User validation workflow
+    - Manual coordinate entry
     """
     location_name = models.CharField(max_length=500, db_index=True)
     final_lat = models.FloatField()
@@ -26,11 +35,13 @@ class ValidationDataset(models.Model):
 
     class Meta:
         unique_together = ('location_name', 'country')
-        indexes = [ 
+        indexes = [
             models.Index(fields=['location_name']),
             models.Index(fields=['country', 'location_name']),
         ]
-        db_table = 'geolocation_validationdataset'
+        db_table = 'geolocation_validationdataset'  # Keep same table name to avoid data loss
+        verbose_name = "Validated Location"
+        verbose_name_plural = "Validated Locations (POI Arsenal)"
 
     def __str__(self):
         return f"{self.location_name} -> {self.final_lat}, {self.final_long}"

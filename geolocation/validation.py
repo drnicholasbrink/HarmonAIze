@@ -8,7 +8,7 @@ from typing import Dict, List, Tuple, Optional
 from django.db import transaction
 from django.utils import timezone
 from django.conf import settings
-from .models import GeocodingResult, ValidationResult, ValidationDataset
+from .models import GeocodingResult, ValidationResult, ValidatedDataset
 from core.models import Location
 
 
@@ -381,46 +381,100 @@ class SmartGeocodingValidator:
         return c * 6371  # Earth's radius in kilometers
     
     def _calculate_improved_name_similarity(self, location_name: str, full_address: str) -> float:
-        """Enhanced similarity calculation for location names vs full addresses."""
+        """
+        Enhanced similarity calculation using fuzzy matching (works globally).
+
+        Uses fuzzywuzzy library for robust string matching that handles:
+        - Word order differences
+        - Extra words
+        - Typos and abbreviations
+        - Partial matches
+
+        Args:
+            location_name: Original location name (e.g., "parirenyatwa hospital")
+            full_address: Reverse geocoded address (e.g., "Parirenyatwa General Hospital, Harare, Zimbabwe")
+
+        Returns:
+            float: Similarity score between 0.0 and 1.0
+        """
         if not location_name or not full_address:
             return 0.0
-        
+
+        # Import fuzzywuzzy (try-except for graceful fallback)
+        try:
+            from fuzzywuzzy import fuzz
+            FUZZY_AVAILABLE = True
+        except ImportError:
+            FUZZY_AVAILABLE = False
+
         # Clean and normalize both strings
         location_clean = self._clean_text(location_name)
         address_clean = self._clean_text(full_address)
-        
-        # Strategy 1: Full containment check (highest score)
-        if location_clean.lower() in address_clean.lower():
-            return 0.95  # Full containment gets 95%
-        
-        # Strategy 2: Partial containment check (high score)
-        if self._partial_containment_check(location_clean, address_clean):
-            return 0.80  # Partial containment gets 80%
-        
-        # Strategy 3: Token-based matching (medium score)
-        location_tokens = set(location_clean.lower().split())
-        address_tokens = set(address_clean.lower().split())
-        
-        if location_tokens and address_tokens:
-            common_tokens = location_tokens.intersection(address_tokens)
-            token_ratio = len(common_tokens) / len(location_tokens)
-            if token_ratio >= 0.7:  # 70% of tokens match
-                return 0.65  # Token matching gets 65%
-            elif token_ratio >= 0.5:  # 50% of tokens match
-                return 0.45  # Partial token matching gets 45%
-        
-        # Strategy 4: Facility-specific matching (medium score)
-        facility_score = self._calculate_facility_specific_similarity(location_name, full_address)
-        if facility_score > 0:
-            return facility_score
-        
-        # Strategy 5: Traditional sequence matching (low score)
-        sequence_score = SequenceMatcher(None, location_clean.lower(), address_clean.lower()).ratio()
-        if sequence_score >= 0.6:
-            return sequence_score * 0.5  # Cap at 50% for sequence matching
-        
-        # No meaningful match found
-        return 0.0
+
+        if FUZZY_AVAILABLE:
+            # FUZZY MATCHING STRATEGIES (using fuzzywuzzy)
+
+            # Strategy 1: Token Sort Ratio (handles word order)
+            # "hospital parirenyatwa" vs "parirenyatwa hospital" = 100% match
+            token_sort = fuzz.token_sort_ratio(location_clean, address_clean) / 100.0
+
+            # Strategy 2: Token Set Ratio (handles extra words)
+            # "parirenyatwa hospital" vs "parirenyatwa general hospital harare zimbabwe" = high match
+            token_set = fuzz.token_set_ratio(location_clean, address_clean) / 100.0
+
+            # Strategy 3: Partial Ratio (handles substrings and abbreviations)
+            # "st mary hospital" vs "saint mary's hospital and clinic" = high match
+            partial = fuzz.partial_ratio(location_clean, address_clean) / 100.0
+
+            # Strategy 4: Simple Ratio (baseline character-by-character)
+            simple = fuzz.ratio(location_clean, address_clean) / 100.0
+
+            # Take weighted average of best scores
+            scores = sorted([token_sort, token_set, partial, simple], reverse=True)
+
+            # Weight: Best score 50%, second best 30%, third 20%
+            final_score = (scores[0] * 0.5) + (scores[1] * 0.3) + (scores[2] * 0.2)
+
+            # Bonus: Exact substring match (case-insensitive)
+            if location_clean.lower() in address_clean.lower():
+                final_score = min(final_score + 0.05, 1.0)
+
+            return final_score
+
+        else:
+            # FALLBACK: Original token-based matching if fuzzywuzzy not available
+
+            # Strategy 1: Full containment check (highest score)
+            if location_clean.lower() in address_clean.lower():
+                return 0.95
+
+            # Strategy 2: Partial containment check (high score)
+            if self._partial_containment_check(location_clean, address_clean):
+                return 0.80
+
+            # Strategy 3: Token-based matching (medium score)
+            location_tokens = set(location_clean.lower().split())
+            address_tokens = set(address_clean.lower().split())
+
+            if location_tokens and address_tokens:
+                common_tokens = location_tokens.intersection(address_tokens)
+                token_ratio = len(common_tokens) / len(location_tokens)
+                if token_ratio >= 0.7:
+                    return 0.65
+                elif token_ratio >= 0.5:
+                    return 0.45
+
+            # Strategy 4: Facility-specific matching
+            facility_score = self._calculate_facility_specific_similarity(location_name, full_address)
+            if facility_score > 0:
+                return facility_score
+
+            # Strategy 5: Sequence matching (fallback)
+            sequence_score = SequenceMatcher(None, location_clean.lower(), address_clean.lower()).ratio()
+            if sequence_score >= 0.6:
+                return sequence_score * 0.5
+
+            return 0.0
     
     def _clean_text(self, text: str) -> str:
         """Clean text for better matching."""

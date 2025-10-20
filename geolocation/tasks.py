@@ -8,7 +8,7 @@ from django.utils import timezone
 from django.db import transaction
 from django.conf import settings
 
-from .models import GeocodingResult, ValidationResult, ValidationDataset
+from .models import GeocodingResult, ValidationResult, ValidatedDataset
 from .validation import SmartGeocodingValidator
 from .services import GeocodingService
 from core.models import Location
