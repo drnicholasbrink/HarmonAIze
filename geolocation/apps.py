@@ -12,11 +12,8 @@ class GeolocationConfig(AppConfig):
         Perform initialization tasks when the app is ready.
         This method is called once Django has loaded all models.
         """
-      
         try:
-           
             self.load_initial_data()
-            
         except ImportError:
             pass
     
@@ -29,23 +26,15 @@ class GeolocationConfig(AppConfig):
         from django.core.management import call_command
         from django.db import connection
         from .models import HDXHealthFacility, ValidationDataset
-        
-     
+
         try:
             if 'migrate' not in connection.queries:
-                if HDXHealthFacility.objects.exists() or ValidationDataset.objects.exists():
-                    return
-                
-                # Load HDX data file if available
                 hdx_file = 'data_geocoding/2025_Health Africa.csv'
-                if os.path.exists(hdx_file):
+                if os.path.exists(hdx_file) and not HDXHealthFacility.objects.exists():
                     call_command('load_hdx_data', file=hdx_file)
-                
-                # Load validation data file if available
+
                 validation_file = 'data_geocoding/Validated_locations.csv'
-                if os.path.exists(validation_file):
+                if os.path.exists(validation_file) and not ValidationDataset.objects.exists():
                     call_command('load_validation_data', validation_file)
-                    
         except Exception:
-            
             pass
