@@ -163,11 +163,18 @@ class GeocodingResult(models.Model):
     
     # Enhanced coordinate analysis
     coordinate_variance = models.FloatField(
-        null=True, 
+        null=True,
         blank=True,
         help_text="Variance between different geocoding sources"
     )
-    
+
+    # Intelligent location parsing results
+    parsed_location_data = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Parsed location components (country, city, facility) from intelligent parsing"
+    )
+
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
     validated_at = models.DateTimeField(null=True, blank=True)

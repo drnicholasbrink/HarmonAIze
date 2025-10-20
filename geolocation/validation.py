@@ -60,21 +60,31 @@ class SmartGeocodingValidator:
                 "No successful geocoding results found"
             )
         
-        # Perform enhanced reverse geocoding with fallback
-        reverse_geocoding_results = self._perform_enhanced_reverse_geocoding(
+        # ENHANCED: Perform multi-source reverse geocoding (Google + ArcGIS + Nominatim)
+        reverse_geocoding_results = self._perform_enhanced_reverse_geocoding_multi_source(
             coordinates, geocoding_result.location_name
         )
-        
+
+        # NEW: Dynamic bounds validation (no hardcoded bounds)
+        parsed_location = geocoding_result.parsed_location_data or {}
+        bounds_validation = self._validate_coordinates_dynamically(coordinates, parsed_location)
+
         # Calculate individual source scores using simplified two-component system
         individual_scores = self._calculate_individual_source_scores(
-            coordinates, 
-            reverse_geocoding_results, 
+            coordinates,
+            reverse_geocoding_results,
             geocoding_result.location_name
         )
-        
+
         # Find best source and calculate overall confidence
         best_source, best_score, overall_confidence = self._determine_best_source(individual_scores)
-        
+
+        # ENHANCED: Adjust confidence based on bounds validation
+        if bounds_validation.get('any_outside_bounds'):
+            best_score = best_score * 0.8  # Penalize if coordinates outside country bounds
+        if bounds_validation.get('outliers'):
+            best_score = best_score * 0.9  # Penalize if outliers detected
+
         # Determine status based on best individual source confidence
         if best_score >= self.confidence_thresholds['needs_review']:
             status = 'needs_review'  # High confidence but still needs user approval
@@ -82,15 +92,17 @@ class SmartGeocodingValidator:
             status = 'pending'       # Medium confidence needs review
         else:
             status = 'pending'       # Low confidence needs detailed investigation
-        
+
         # Calculate cluster analysis for distance information
         cluster_analysis = self._calculate_cluster_analysis(coordinates)
-        
+
         # Create enhanced metadata
         metadata = {
             'sources_count': len(coordinates),
             'individual_scores': individual_scores,
             'reverse_geocoding_results': reverse_geocoding_results,
+            'bounds_validation': bounds_validation,  # NEW: Include bounds check
+            'parsed_location': parsed_location,  # NEW: Include parsed data
             'best_source': best_source,
             'best_score': best_score,
             'cluster_analysis': cluster_analysis,
@@ -253,7 +265,206 @@ class SmartGeocodingValidator:
             
         except Exception as e:
             return None
-    
+
+    # ==========================================
+    # MULTI-SOURCE REVERSE GEOCODING
+    # ==========================================
+
+    def _reverse_geocode_google(self, lat: float, lng: float) -> Optional[Dict]:
+        """
+        Reverse geocode using Google Maps Geocoding API.
+
+        Google has excellent POI (Point of Interest) coverage, especially for
+        health facilities, hospitals, and landmarks.
+        """
+        try:
+            import os
+            key = getattr(settings, "GOOGLE_GEOCODING_API_KEY", None) or os.getenv("GOOGLE_GEOCODING_API_KEY")
+            if not key:
+                return None
+
+            url = "https://maps.googleapis.com/maps/api/geocode/json"
+            params = {
+                "latlng": f"{lat},{lng}",
+                "key": key
+            }
+
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+
+            if data["status"] == "OK" and data["results"]:
+                result = data["results"][0]
+                return {
+                    'formatted_address': result.get('formatted_address', ''),
+                    'address_components': result.get('address_components', []),
+                    'types': result.get('types', []),
+                    'place_id': result.get('place_id', '')
+                }
+
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.debug(f"Google reverse geocoding failed: {e}")
+
+        return None
+
+    def _reverse_geocode_arcgis(self, lat: float, lng: float) -> Optional[Dict]:
+        """
+        Reverse geocode using ArcGIS API.
+
+        ArcGIS is good for infrastructure and administrative boundaries.
+        """
+        try:
+            url = "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode"
+            params = {
+                "f": "json",
+                "location": f"{lng},{lat}",  # ArcGIS uses lng,lat order
+                "outSR": 4326
+            }
+
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+
+            if data.get("address"):
+                return {
+                    'address': data['address'].get('Match_addr', data['address'].get('LongLabel', '')),
+                    'type': data['address'].get('Type', 'unknown'),
+                    'city': data['address'].get('City', ''),
+                    'region': data['address'].get('Region', ''),
+                    'country': data['address'].get('CountryCode', '')
+                }
+
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.debug(f"ArcGIS reverse geocoding failed: {e}")
+
+        return None
+
+    def _perform_enhanced_reverse_geocoding_multi_source(self,
+                                                          coordinates: Dict[str, Tuple[float, float]],
+                                                          original_name: str) -> Dict:
+        """
+        Perform reverse geocoding using MULTIPLE sources with fallback strategy.
+
+        Strategy:
+            1. Try Google Reverse Geocoding (best for POIs/facilities)
+            2. Try ArcGIS Reverse Geocoding (good for infrastructure)
+            3. Fallback to Nominatim (always available)
+
+        For each coordinate source, tries multiple reverse geocoding APIs and
+        uses the best match.
+
+        Args:
+            coordinates: Dict mapping source names to (lat, lng) tuples
+            original_name: Original location name for similarity comparison
+
+        Returns:
+            Dict mapping source names to reverse geocoding results with best match selected
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+
+        reverse_results = {}
+
+        for source, (lat, lng) in coordinates.items():
+            source_reverse_results = []
+
+            # TRY 1: Google Reverse Geocoding (if API key available)
+            google_reverse = self._reverse_geocode_google(lat, lng)
+            if google_reverse and google_reverse.get('formatted_address'):
+                try:
+                    from fuzzywuzzy import fuzz
+                    similarity = fuzz.token_set_ratio(
+                        original_name,
+                        google_reverse['formatted_address']
+                    ) / 100.0
+                except ImportError:
+                    # Fallback to simple containment
+                    similarity = 0.5 if original_name.lower() in google_reverse['formatted_address'].lower() else 0.3
+
+                source_reverse_results.append({
+                    'api': 'google',
+                    'address': google_reverse['formatted_address'],
+                    'similarity_score': similarity,
+                    'place_type': google_reverse.get('types', ['unknown'])[0] if google_reverse.get('types') else 'unknown',
+                    'confidence': 0.8,  # Google has good POI coverage
+                    'components': google_reverse.get('address_components', [])
+                })
+
+            # TRY 2: ArcGIS Reverse Geocoding
+            arcgis_reverse = self._reverse_geocode_arcgis(lat, lng)
+            if arcgis_reverse and arcgis_reverse.get('address'):
+                try:
+                    from fuzzywuzzy import fuzz
+                    similarity = fuzz.token_set_ratio(
+                        original_name,
+                        arcgis_reverse['address']
+                    ) / 100.0
+                except ImportError:
+                    similarity = 0.5 if original_name.lower() in arcgis_reverse['address'].lower() else 0.3
+
+                source_reverse_results.append({
+                    'api': 'arcgis',
+                    'address': arcgis_reverse['address'],
+                    'similarity_score': similarity,
+                    'place_type': arcgis_reverse.get('type', 'unknown'),
+                    'confidence': 0.7,
+                    'components': arcgis_reverse
+                })
+
+            # TRY 3: Nominatim (FALLBACK - always available)
+            nominatim_reverse = self._reverse_geocode_nominatim_with_fallback(lat, lng)
+            if nominatim_reverse and nominatim_reverse.get('display_name'):
+                try:
+                    from fuzzywuzzy import fuzz
+                    similarity = fuzz.token_set_ratio(
+                        original_name,
+                        nominatim_reverse['display_name']
+                    ) / 100.0
+                except ImportError:
+                    similarity = 0.5 if original_name.lower() in nominatim_reverse['display_name'].lower() else 0.3
+
+                source_reverse_results.append({
+                    'api': 'nominatim',
+                    'address': nominatim_reverse['display_name'],
+                    'similarity_score': similarity,
+                    'place_type': nominatim_reverse.get('type', 'unknown'),
+                    'confidence': 0.6,
+                    'local_used': nominatim_reverse.get('local_nominatim_used', False)
+                })
+
+            # COMBINE: Select best result for this coordinate source
+            if source_reverse_results:
+                # Sort by similarity score (descending)
+                source_reverse_results.sort(key=lambda x: x['similarity_score'], reverse=True)
+                best_result = source_reverse_results[0]
+
+                # Include all attempts in metadata
+                reverse_results[source] = {
+                    'best_match': best_result,
+                    'all_attempts': source_reverse_results,
+                    'num_successful': len(source_reverse_results),
+                    **best_result  # Flatten best result to top level for compatibility
+                }
+            else:
+                # No reverse geocoding successful
+                reverse_results[source] = {
+                    'api': 'none',
+                    'address': 'No address found',
+                    'similarity_score': 0.0,
+                    'confidence': 0.0,
+                    'all_attempts': [],
+                    'num_successful': 0
+                }
+
+            # Be respectful to APIs
+            time.sleep(0.3)
+
+        return reverse_results
+
     def _calculate_individual_source_scores(self, 
                                            coordinates: Dict[str, Tuple[float, float]], 
                                            reverse_results: Dict,
@@ -565,7 +776,171 @@ class SmartGeocodingValidator:
             return f"Good validation with {best_score:.0%} confidence from {source_count} sources."
         else:
             return f"Low confidence ({best_score:.0%}) from {source_count} sources - manual verification recommended."
-    
+
+    # ==========================================
+    # DYNAMIC BOUNDS VALIDATION
+    # ==========================================
+
+    def _validate_coordinates_dynamically(self,
+                                          coordinates: Dict[str, Tuple[float, float]],
+                                          parsed_location: Dict) -> Dict:
+        """
+        Dynamically validate coordinates using multiple strategies.
+
+        NO hardcoded bounding boxes - generates bounds from API responses or calculates
+        from coordinate spread.
+
+        Strategies:
+            1. Calculate coordinate statistics (centroid, spread)
+            2. Identify outliers (coordinates far from cluster)
+            3. If country known, fetch bounds dynamically from Nominatim
+            4. Generate confidence adjustment based on spread
+
+        Args:
+            coordinates: Dict mapping source names to (lat, lng) tuples
+            parsed_location: Parsed location data with country info
+
+        Returns:
+            Dict with validation results including outliers, bounds check, and confidence
+        """
+        import statistics
+
+        # STEP 1: Calculate coordinate statistics
+        lats = [coord[0] for coord in coordinates.values()]
+        lngs = [coord[1] for coord in coordinates.values()]
+
+        centroid_lat = sum(lats) / len(lats)
+        centroid_lng = sum(lngs) / len(lngs)
+
+        # Calculate spread (standard deviation)
+        lat_std = statistics.stdev(lats) if len(lats) > 1 else 0
+        lng_std = statistics.stdev(lngs) if len(lngs) > 1 else 0
+
+        # STEP 2: Identify outliers (coordinates far from centroid)
+        outliers = {}
+        for source, (lat, lng) in coordinates.items():
+            distance_from_centroid = self._calculate_distance_km(
+                (centroid_lat, centroid_lng),
+                (lat, lng)
+            )
+
+            # Flag as outlier if more than 50km from centroid or 3 standard deviations
+            if distance_from_centroid > 50 or \
+               (lat_std > 0 and abs(lat - centroid_lat) > 3 * lat_std) or \
+               (lng_std > 0 and abs(lng - centroid_lng) > 3 * lng_std):
+                outliers[source] = {
+                    'coordinates': (lat, lng),
+                    'distance_from_centroid_km': distance_from_centroid,
+                    'flag': 'potential_outlier'
+                }
+
+        # STEP 3: If country known, validate against country bounds (dynamic lookup)
+        country_validation = None
+        if parsed_location and parsed_location.get('country_code'):
+            country_validation = self._validate_against_country_bounds_dynamic(
+                coordinates,
+                parsed_location['country_code']
+            )
+
+        # STEP 4: Calculate spread-based confidence adjustment
+        max_distance = max([
+            self._calculate_distance_km((centroid_lat, centroid_lng), coord)
+            for coord in coordinates.values()
+        ]) if coordinates else 0
+
+        # Confidence based on spread: <1km=1.0, 1-5km=0.9, 5-10km=0.7, >10km=0.5
+        if max_distance < 1:
+            spread_confidence = 1.0
+        elif max_distance < 5:
+            spread_confidence = 0.9
+        elif max_distance < 10:
+            spread_confidence = 0.7
+        else:
+            spread_confidence = 0.5
+
+        return {
+            'centroid': (centroid_lat, centroid_lng),
+            'spread_km': max_distance,
+            'outliers': outliers,
+            'country_validation': country_validation,
+            'confidence_adjustment': spread_confidence,
+            'lat_std': lat_std,
+            'lng_std': lng_std
+        }
+
+    def _validate_against_country_bounds_dynamic(self,
+                                                  coordinates: Dict[str, Tuple[float, float]],
+                                                  country_code: str) -> Dict:
+        """
+        Dynamically fetch country bounds using Nominatim API.
+
+        NO hardcoded bounding boxes - queries OSM for country polygon on-the-fly.
+
+        Args:
+            coordinates: Dict of coordinates to validate
+            country_code: ISO 2-letter country code
+
+        Returns:
+            Dict with bounds validation results
+        """
+        try:
+            # Query Nominatim for country boundary
+            url = f'{self.public_nominatim_url}/search'
+            params = {
+                'country': country_code,
+                'format': 'json',
+                'polygon_geojson': 0,  # Don't need full polygon, just bbox
+                'limit': 1
+            }
+            headers = {'User-Agent': 'HarmonAIze-Geocoder/1.0'}
+
+            response = requests.get(url, params=params, headers=headers, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+
+            if data and len(data) > 0:
+                # Extract bounding box from response
+                bbox = data[0].get('boundingbox')  # [min_lat, max_lat, min_lon, max_lon]
+
+                if bbox:
+                    min_lat, max_lat, min_lon, max_lon = map(float, bbox)
+
+                    # Check each coordinate
+                    results = {}
+                    for source, (lat, lng) in coordinates.items():
+                        in_bounds = (min_lat <= lat <= max_lat and
+                                    min_lon <= lng <= max_lon)
+
+                        results[source] = {
+                            'in_country_bounds': in_bounds,
+                            'bounds': {
+                                'min_lat': min_lat,
+                                'max_lat': max_lat,
+                                'min_lon': min_lon,
+                                'max_lon': max_lon
+                            }
+                        }
+
+                    return {
+                        'country_code': country_code,
+                        'bounds_available': True,
+                        'results': results,
+                        'any_outside_bounds': any(not r['in_country_bounds']
+                                                 for r in results.values())
+                    }
+
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.debug(f"Could not fetch country bounds for {country_code}: {e}")
+
+        return {
+            'country_code': country_code,
+            'bounds_available': False,
+            'results': {},
+            'any_outside_bounds': False
+        }
+
     def _create_validation_result(self, geocoding_result: GeocodingResult, confidence: float,
                                 status: str, reason: str, metadata: Optional[Dict] = None) -> ValidationResult:
         """Create a ValidationResult object."""

@@ -136,7 +136,184 @@ class GeocodingService:
                     return country_name, location_part
             
         return None, location_name
-        
+
+    # ==========================================
+    # INTELLIGENT LOCATION PARSING (GLOBAL)
+    # ==========================================
+
+    def _parse_location_intelligently(self, location_name: str) -> dict:
+        """
+        Intelligently extract country and administrative units from ANY location string.
+
+        Works globally - no hardcoded countries. Uses pycountry for 249 countries.
+
+        Examples:
+            "parirenyatwa hospital harare zimbabwe" →
+                {country: 'Zimbabwe', country_code: 'ZW', city: 'Harare', facility: 'parirenyatwa hospital'}
+            "hôpital général paris france" →
+                {country: 'France', country_code: 'FR', city: 'Paris', facility: 'hôpital général'}
+            "general hospital" →
+                {country: None, country_code: None, facility: 'general hospital'}
+            "tokyo japan" →
+                {country: 'Japan', country_code: 'JP', city: 'Tokyo', facility: None}
+
+        Args:
+            location_name: Unstructured location string
+
+        Returns:
+            dict: Parsed components with keys:
+                - original: Original input
+                - country: Country name (or None)
+                - country_code: ISO 2-letter code (or None)
+                - admin_level_1: State/Province (or None)
+                - admin_level_2: City/District (or None)
+                - facility: Remaining location name after extraction
+                - parsed_components: List of successfully parsed components
+        """
+        result = {
+            'original': location_name,
+            'country': None,
+            'country_code': None,
+            'admin_level_1': None,
+            'admin_level_2': None,
+            'facility': location_name,
+            'parsed_components': []
+        }
+
+        if not location_name:
+            return result
+
+        words = location_name.strip().split()
+        remaining_words = words.copy()
+
+        # STEP 1: Extract country (works globally with pycountry)
+        country_info = self._extract_country_from_anywhere(location_name)
+        if country_info:
+            result['country'] = country_info['name']
+            result['country_code'] = country_info['code']
+            result['parsed_components'].append('country')
+            # Remove country words from remaining
+            country_words = country_info['matched_text'].split()
+            remaining_words = [w for w in remaining_words
+                              if w.lower() not in [cw.lower() for cw in country_words]]
+
+        # STEP 2: Extract city/region (if we know the country)
+        if result['country_code']:
+            city_info = self._extract_city_for_country(
+                ' '.join(remaining_words),
+                result['country_code']
+            )
+            if city_info:
+                result['admin_level_2'] = city_info['name']
+                result['parsed_components'].append('city')
+                # Remove city from remaining words
+                remaining_words = [w for w in remaining_words
+                                  if w.lower() != city_info['name'].lower()]
+
+        # STEP 3: What's left is likely the facility/location name
+        if remaining_words:
+            result['facility'] = ' '.join(remaining_words).strip()
+        else:
+            # If everything was extracted, use original as facility
+            result['facility'] = location_name
+
+        return result
+
+    def _extract_country_from_anywhere(self, text: str) -> dict:
+        """
+        Extract country from text using pycountry (works globally).
+
+        Handles:
+            - Country names: "Zimbabwe", "France", "United States"
+            - Variations: "USA" → "United States"
+            - Any position: beginning, middle, or end
+
+        Args:
+            text: Text containing potential country name
+
+        Returns:
+            dict with keys: name, code, matched_text (or None if not found)
+        """
+        if not PYCOUNTRY_AVAILABLE:
+            # Fallback to old method
+            country, _ = self._extract_country_from_location_name(text)
+            if country:
+                iso_code = self._get_country_iso(country)
+                return {
+                    'name': country,
+                    'code': iso_code,
+                    'matched_text': country
+                }
+            return None
+
+        import pycountry
+
+        # Try each word/phrase as potential country
+        words = text.split()
+
+        # Check 1-3 word combinations (for "United States", "South Africa", etc.)
+        for length in [3, 2, 1]:
+            for i in range(len(words) - length + 1):
+                phrase = ' '.join(words[i:i+length])
+                try:
+                    country = pycountry.countries.lookup(phrase)
+                    return {
+                        'name': country.name,
+                        'code': country.alpha_2,
+                        'matched_text': phrase
+                    }
+                except LookupError:
+                    continue
+
+        return None
+
+    def _extract_city_for_country(self, text: str, country_code: str) -> dict:
+        """
+        Extract city/region from text given a country code.
+
+        Uses pycountry.subdivisions (has major cities/regions globally).
+
+        Args:
+            text: Text potentially containing city name
+            country_code: ISO 2-letter country code
+
+        Returns:
+            dict with keys: name, code, type (or None if not found)
+        """
+        if not PYCOUNTRY_AVAILABLE:
+            return None
+
+        import pycountry
+
+        try:
+            # Get subdivisions (states/provinces/regions) for this country
+            subdivisions = pycountry.subdivisions.get(country_code=country_code)
+
+            words = text.lower().split()
+
+            for subdivision in subdivisions:
+                # Check if subdivision name appears in text
+                if subdivision.name.lower() in text.lower():
+                    return {
+                        'name': subdivision.name,
+                        'code': subdivision.code,
+                        'type': getattr(subdivision, 'type', 'unknown')
+                    }
+
+                # Check individual words
+                for word in words:
+                    if word == subdivision.name.lower():
+                        return {
+                            'name': subdivision.name,
+                            'code': subdivision.code,
+                            'type': getattr(subdivision, 'type', 'unknown')
+                        }
+
+        except (KeyError, LookupError):
+            pass
+
+        return None
+
     def geocode_single_location(self, location, force_reprocess=False):
         """
         Geocode a single location using all available sources.
@@ -208,15 +385,28 @@ class GeocodingService:
         return None
     
     def geocode_location_full(self, location):
-        """Geocode using all available API sources."""
-        # Extract country information from location name using smart extraction
-        country, clean_location = self._extract_country_smart(location.name)
-        iso_code = self._get_country_iso(country) if country else None
-        
-        # Use clean location if available, otherwise full name
-        query = clean_location if clean_location else location.name
-        
-        logger.info(f"Geocoding '{location.name}' - extracted country: {country}, ISO: {iso_code}, clean query: '{query}'")
+        """
+        Geocode using all available API sources with intelligent parsing.
+
+        Uses intelligent location parsing to extract country, city, and facility name
+        for better API targeting.
+        """
+        # ENHANCED: Use intelligent parsing for better data extraction
+        parsed_location = self._parse_location_intelligently(location.name)
+
+        # Build optimized query (use facility name if extracted, otherwise full name)
+        query = parsed_location['facility'] if parsed_location['facility'] else location.name
+
+        # Get country info for API optimization
+        country = parsed_location['country']
+        iso_code = parsed_location['country_code']
+        city = parsed_location['admin_level_2']
+
+        logger.info(
+            f"Geocoding '{location.name}' - "
+            f"Parsed: country={country}, city={city}, facility='{query}', "
+            f"ISO={iso_code}, components={parsed_location['parsed_components']}"
+        )
         
         # Get results from ALL sources (with respectful delays between API calls)
         results = {}
@@ -238,8 +428,15 @@ class GeocodingService:
         # Create or update geocoding result
         geocoding_result, created = GeocodingResult.objects.get_or_create(
             location_name=location.name,
-            defaults={'validation_status': 'pending'}
+            defaults={
+                'validation_status': 'pending',
+                'parsed_location_data': parsed_location  # Store parsed components
+            }
         )
+
+        # Update parsed data if not created
+        if not created:
+            geocoding_result.parsed_location_data = parsed_location
         
         # Store results from each source
         has_success = False
