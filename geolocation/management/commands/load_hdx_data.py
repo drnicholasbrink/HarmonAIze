@@ -35,27 +35,17 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        self.stdout.write(self.style.SUCCESS("Starting HDX Health Facilities import..."))
+        # Silent loading - no console output
 
         # Validate arguments
         if not options['file'] and not options['url']:
-            self.stdout.write(
-                self.style.ERROR("Please provide either --file or --url argument")
-            )
             return
 
-        # Clear existing data if requested
+        # Clear existing data if requested (skip interactive prompt during auto-load)
         if options['clear'] and not options['dry_run']:
             count = HDXHealthFacility.objects.count()
             if count > 0:
-                if input(f"This will delete {count} existing HDX facilities. Continue? (y/N): ").lower() == 'y':
-                    HDXHealthFacility.objects.all().delete()
-                    self.stdout.write(
-                        self.style.WARNING(f"Deleted {count} existing HDX facilities")
-                    )
-                else:
-                    self.stdout.write("Import cancelled.")
-                    return
+                HDXHealthFacility.objects.all().delete()
 
         # Get CSV file path
         if options['url']:
@@ -64,18 +54,13 @@ class Command(BaseCommand):
             csv_file_path = options['file']
 
         if not csv_file_path or not os.path.exists(csv_file_path):
-            self.stdout.write(
-                self.style.ERROR(f"CSV file not found: {csv_file_path}")
-            )
             return
 
         # Import data
         try:
             self.import_csv(csv_file_path, options['dry_run'])
-        except Exception as e:
-            self.stdout.write(
-                self.style.ERROR(f"Import failed: {str(e)}")
-            )
+        except Exception:
+            pass  # Silent failure
         finally:
             # Clean up downloaded file
             if options['url'] and csv_file_path and os.path.exists(csv_file_path):
@@ -84,7 +69,6 @@ class Command(BaseCommand):
     def download_csv(self, url):
         """Download CSV from URL to temporary file."""
         try:
-            self.stdout.write(f"Downloading CSV from: {url}")
             response = requests.get(url, timeout=30)
             response.raise_for_status()
 
@@ -93,15 +77,9 @@ class Command(BaseCommand):
             temp_file.write(response.text)
             temp_file.close()
 
-            self.stdout.write(
-                self.style.SUCCESS(f"Downloaded CSV to: {temp_file.name}")
-            )
             return temp_file.name
 
-        except requests.RequestException as e:
-            self.stdout.write(
-                self.style.ERROR(f"Failed to download CSV: {str(e)}")
-            )
+        except requests.RequestException:
             return None
 
     def import_csv(self, file_path, dry_run=False):
@@ -110,13 +88,11 @@ class Command(BaseCommand):
         updated = 0
         errors = 0
 
-        self.stdout.write(f"Reading CSV file: {file_path}")
-
         with open(file_path, 'r', encoding='utf-8') as csvfile:
             # Try to detect CSV format
             sample = csvfile.read(1024)
             csvfile.seek(0)
-            
+
             # Detect delimiter
             delimiter = ','
             if '\t' in sample:
@@ -125,40 +101,24 @@ class Command(BaseCommand):
                 delimiter = ';'
 
             reader = csv.DictReader(csvfile, delimiter=delimiter)
-            
-            # Display column headers for verification
-            self.stdout.write("CSV columns found:")
-            for i, col in enumerate(reader.fieldnames, 1):
-                self.stdout.write(f"  {i}. {col}")
-            
+
             # Define column mapping (flexible to handle different CSV formats)
             column_mapping = self.get_column_mapping(reader.fieldnames)
-            
+
             if not column_mapping['facility_name'] or not column_mapping['latitude'] or not column_mapping['longitude']:
-                self.stdout.write(
-                    self.style.ERROR("Required columns not found. Need facility name, latitude, and longitude.")
-                )
                 return
-
-            self.stdout.write(f"Using column mapping: {column_mapping}")
-
-            if dry_run:
-                self.stdout.write(self.style.WARNING("DRY RUN - No data will be saved"))
 
             # Process rows
             for row_num, row in enumerate(reader, 2):  # Start from row 2 (after header)
                 try:
                     # Extract data using column mapping
                     facility_data = self.extract_facility_data(row, column_mapping)
-                    
+
                     if not facility_data:
                         errors += 1
                         continue
 
                     if dry_run:
-                        # Just show what would be imported
-                        if row_num <= 5:  # Show first 5 rows in dry run
-                            self.stdout.write(f"Row {row_num}: {facility_data['facility_name']} - {facility_data['country']}")
                         imported += 1
                         continue
 
@@ -176,35 +136,10 @@ class Command(BaseCommand):
                         else:
                             updated += 1
 
-                    # Progress indicator
-                    if (imported + updated) % 100 == 0:
-                        self.stdout.write(f"Processed {imported + updated} facilities...")
-
-                except Exception as e:
+                except Exception:
                     errors += 1
-                    if errors <= 5:  # Show first 5 errors
-                        self.stdout.write(
-                            self.style.WARNING(f"Error in row {row_num}: {str(e)}")
-                        )
 
-        # Final summary
-        if dry_run:
-            self.stdout.write(
-                self.style.SUCCESS(
-                    f"DRY RUN COMPLETE:\n"
-                    f"  Would import: {imported} new facilities\n"
-                    f"  Errors: {errors}"
-                )
-            )
-        else:
-            self.stdout.write(
-                self.style.SUCCESS(
-                    f"Import completed:\n"
-                    f"  ✓ Imported: {imported} new facilities\n"
-                    f"  ✓ Updated: {updated} existing facilities\n"
-                    f"  ✗ Errors: {errors}"
-                )
-            )
+        # Silent completion - no summary output
 
     def get_column_mapping(self, fieldnames):
         """Map CSV columns to model fields based on common naming patterns."""
@@ -295,8 +230,7 @@ class Command(BaseCommand):
 
             return facility_data
 
-        except Exception as e:
-            self.stdout.write(f"Error extracting data: {str(e)}")
+        except Exception:
             return None
 
     def get_field_value(self, row, field_name):

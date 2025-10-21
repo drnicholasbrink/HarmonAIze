@@ -35,10 +35,5 @@ class Command(BaseCommand):
                         'postal_code': row['postal code'],
                     }
                 )
-                
-                if created:
-                    self.stdout.write(self.style.SUCCESS(f'Successfully added: {location_name}, {country}'))
-                else:
-                    self.stdout.write(self.style.WARNING(f'Entry already exists: {location_name}, {country}'))
 
-        self.stdout.write(self.style.SUCCESS('Finished loading validation data.'))
+                # Silent loading - no console output
