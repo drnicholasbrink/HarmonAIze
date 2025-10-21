@@ -366,18 +366,81 @@
       .hero-title {
         font-size: 2rem;
       }
-      
+
       .main-content {
         padding: 1rem;
       }
-      
+
       .stats-grid {
         grid-template-columns: 1fr;
       }
-      
+
       .action-section {
         grid-template-columns: 1fr;
       }
+    }
+
+    /* Django Messages/Alerts Styling */
+    .error-messages-section {
+      max-width: 1200px;
+      margin: 2rem auto;
+      padding: 0 2rem;
+    }
+
+    .alert {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 0.5rem;
+      font-weight: 500;
+      border-left: 4px solid;
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from {
+        transform: translateX(-20px);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+
+    .alert-error {
+      background: #fee;
+      border-left-color: #dc3545;
+      color: #721c24;
+    }
+
+    .alert-success {
+      background: #d4edda;
+      border-left-color: #28a745;
+      color: #155724;
+    }
+
+    .alert-info {
+      background: #d1ecf1;
+      border-left-color: #0c5460;
+      color: #0c5460;
+    }
+
+    .alert-warning {
+      background: #fff3cd;
+      border-left-color: #ffc107;
+      color: #856404;
+    }
+
+    .error-icon, .success-icon, .info-icon, .warning-icon {
+      font-size: 1.2rem;
+      font-weight: bold;
+    }
+
+    .error-text, .success-text, .info-text, .warning-text {
+      flex: 1;
     }
   </style>
 {% endblock css %}
@@ -389,6 +452,35 @@
       <p class="hero-subtitle">From Location Names to Coordinates — Validating Place, Illuminating Climate-Health Insights </p>
     </div>
   </div>
+
+  <!-- Django Messages/Alerts -->
+  {% if messages %}
+    <div class="error-messages-section">
+      {% for message in messages %}
+        {% if message.tags == 'error' %}
+          <div class="alert alert-error">
+            <span class="error-icon">⚠️</span>
+            <span class="error-text">{{ message }}</span>
+          </div>
+        {% elif message.tags == 'success' %}
+          <div class="alert alert-success">
+            <span class="success-icon">✓</span>
+            <span class="success-text">{{ message }}</span>
+          </div>
+        {% elif message.tags == 'info' %}
+          <div class="alert alert-info">
+            <span class="info-icon">ℹ️</span>
+            <span class="info-text">{{ message }}</span>
+          </div>
+        {% elif message.tags == 'warning' %}
+          <div class="alert alert-warning">
+            <span class="warning-icon">⚡</span>
+            <span class="warning-text">{{ message }}</span>
+          </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  {% endif %}
 
   <div class="main-content">
     <!-- Statistics Overview -->

@@ -11,6 +11,8 @@ from django.views.generic import TemplateView
 from django.conf import settings
 from django.db import transaction
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.utils import timezone
 from django.core.cache import cache
 
@@ -62,6 +64,7 @@ def update_locations_from_validation():
     return updated_count
 
 
+@login_required
 def validation_map(request):
     """
     Enhanced map view with individual source scoring and source colours.
@@ -407,7 +410,7 @@ def get_validation_stats():
         ).count(),
     }
 
-class ValidationDashboardView(TemplateView):
+class ValidationDashboardView(LoginRequiredMixin, TemplateView):
     """Enhanced validation dashboard with summary and actions."""
     template_name = 'geolocation/validation_dashboard.html'
     
@@ -440,6 +443,7 @@ class ValidationDashboardView(TemplateView):
         
         return context
 
+@login_required
 @csrf_exempt
 def location_status_api(request):
     """ API endpoint to get comprehensive location status for dashboard table."""
@@ -608,9 +612,10 @@ def location_status_api(request):
                 'success': False,
                 'error': f'Failed to fetch location status: {str(e)}'
             }, status=500)
-    
+
     return JsonResponse({'error': 'Only GET requests are allowed'}, status=405)
 
+@login_required
 @csrf_exempt
 def validation_queue_api(request):
     """API endpoint to get actual validation queue data for the table."""
@@ -697,6 +702,7 @@ def validation_queue_api(request):
     return JsonResponse({'error': 'Only GET requests are allowed'}, status=405)
 
 
+@login_required
 @csrf_exempt
 def validation_api(request):
     """Enhanced API endpoint for validation actions with better error handling."""
@@ -756,6 +762,7 @@ def validation_api(request):
     return JsonResponse({'error': 'Only POST requests are allowed'}, status=405)
 
 
+@login_required
 @csrf_exempt
 def geocoding_api(request):
     """API endpoint for running geocoding from the interface with CLEARER statistics."""
@@ -919,10 +926,11 @@ def geocoding_api(request):
                 'success': False,
                 'error': f'An unexpected error occurred: {str(e)}'
             }, status=500)
-    
+
     return JsonResponse({'error': 'Only POST requests are allowed'}, status=405)
 
 
+@login_required
 @csrf_exempt
 def bulk_validation_actions(request):
     """FIXED: Handle bulk validation actions with enhanced auto-approve logic."""
@@ -1555,6 +1563,7 @@ def run_ai_analysis(validation):
         }, status=500)
 
 
+@login_required
 def validation_statistics(request):
     """Get detailed validation statistics for dashboard with enhanced error handling."""
     try:
@@ -1607,6 +1616,7 @@ def validation_statistics(request):
             'error': f'Failed to get statistics: {str(e)}'
         }, status=500)
 
+@login_required
 def validated_locations_map(request):
     """Show map of all validated locations with proper data structure."""
     # Get all validated locations from core Location model
@@ -1640,6 +1650,7 @@ def validated_locations_map(request):
 # MODERN CELERY-BASED BATCH PROCESSING VIEWS
 # ===============================
 
+@login_required
 @csrf_exempt
 def start_batch_geocoding(request):
     """
@@ -1675,10 +1686,11 @@ def start_batch_geocoding(request):
                 'success': False,
                 'error': str(e)
             }, status=500)
-    
+
     return JsonResponse({'error': 'POST required'}, status=405)
 
 
+@login_required
 @csrf_exempt 
 def start_batch_validation(request):
     """
@@ -1716,6 +1728,7 @@ def start_batch_validation(request):
     return JsonResponse({'error': 'POST required'}, status=405)
 
 
+@login_required
 def batch_progress(request, task_id):
     """
     Get real-time progress of batch processing tasks.

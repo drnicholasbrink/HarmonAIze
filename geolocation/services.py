@@ -388,24 +388,25 @@ class GeocodingService:
         """
         Geocode using all available API sources with intelligent parsing.
 
-        Uses intelligent location parsing to extract country, city, and facility name
-        for better API targeting.
+        Uses intelligent location parsing to extract country info for API optimization,
+        but KEEPS the full location name for actual geocoding queries.
         """
-        # ENHANCED: Use intelligent parsing for better data extraction
+        # Parse location to extract country/city for API optimization
         parsed_location = self._parse_location_intelligently(location.name)
 
-        # Build optimized query (use facility name if extracted, otherwise full name)
-        query = parsed_location['facility'] if parsed_location['facility'] else location.name
+        # CRITICAL: Use FULL original name for geocoding query
+        # Parsing is ONLY for extracting country codes for API parameters
+        query = location.name
 
-        # Get country info for API optimization
+        # Get country info for API optimization (region biasing, country filters)
         country = parsed_location['country']
         iso_code = parsed_location['country_code']
         city = parsed_location['admin_level_2']
 
         logger.info(
             f"Geocoding '{location.name}' - "
-            f"Parsed: country={country}, city={city}, facility='{query}', "
-            f"ISO={iso_code}, components={parsed_location['parsed_components']}"
+            f"Query: '{query}' | "
+            f"Parsed metadata: country={country}, city={city}, ISO={iso_code}"
         )
         
         # Get results from ALL sources (with respectful delays between API calls)
