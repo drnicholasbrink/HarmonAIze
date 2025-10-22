@@ -824,73 +824,127 @@ def _observations_to_dataframe(observations):
     Each row represents a unique combination of patient + time + location.
     This preserves all legitimate data variations (e.g., measurements at different times/locations).
     
+    Handles missing relationships gracefully and is optimized for database efficiency.
+    
     Args:
         observations: Queryset of Observation objects
         
     Returns:
         pandas DataFrame with columns for each attribute, plus _patient_id, _time_id, _location_id
     """
+    import logging
+    logger = logging.getLogger(__name__)
     
-    if not observations.exists():
-        return pd.DataFrame()
-    
-    # Build a list of records where each record is a unique (patient, time, location) combination
-    # Structure: rows = unique (patient, time, location), columns = attributes + context
-    records = {}
-    
-    for obs in observations:
-        # Skip observations without patient
-        if not obs.patient:
-            continue
+    try:
+        # Early return for empty querysets
+        if not observations.exists():
+            logger.info("No observations to convert to DataFrame")
+            return pd.DataFrame()
         
-        # Create a unique row identifier based on patient, time, and location
-        patient_id = obs.patient.unique_id
-        time_id = obs.time.id if obs.time else None
-        location_id = obs.location.id if obs.location else None
+        # Check if queryset already has deferred fields (from .only() or .defer())
+        # If so, we cannot add select_related() - it will cause a FieldError
+        query = observations.query
+        has_deferred_fields = bool(query.deferred_loading[0] or query.deferred_loading[1])
         
-        # Composite key for the row
-        row_key = (patient_id, time_id, location_id)
-        
-        # Initialize record if not exists
-        if row_key not in records:
-            records[row_key] = {
-                '_patient_id': patient_id,
-                '_time_id': time_id,
-                '_location_id': location_id,
-            }
-        
-        # Add the attribute value to this record
-        attr_name = obs.attribute.variable_name
-        
-        # Get the appropriate value based on type
-        if obs.float_value is not None:
-            value = obs.float_value
-        elif obs.int_value is not None:
-            value = obs.int_value
-        elif obs.text_value:
-            value = obs.text_value
-        elif obs.boolean_value is not None:
-            value = obs.boolean_value
-        elif obs.datetime_value is not None:
-            value = obs.datetime_value
+        if not has_deferred_fields:
+            # Safe to optimize with select_related if no deferred fields
+            observations = observations.select_related("patient", "attribute", "time", "location")
+            logger.debug("Applied select_related optimization")
         else:
-            value = None
+            logger.debug("Queryset has deferred fields, skipping select_related optimization")
         
-        # If we already have a value for this attribute in this context, it's a true duplicate
-        # Keep the first one we encounter
-        if attr_name not in records[row_key]:
-            records[row_key][attr_name] = value
-    
-    # Convert to DataFrame
-    if not records:
+        # Build a list of records where each record is a unique (patient, time, location) combination
+        # Structure: rows = unique (patient, time, location), columns = attributes + context
+        records = {}
+        skipped_count = 0
+        
+        for obs in observations:
+            try:
+                # Safely get patient_id - handle None gracefully using FK ID
+                patient_id = None
+                if obs.patient_id:  # Check FK ID first (no extra query)
+                    try:
+                        # Patient should be pre-loaded via select_related
+                        patient_id = obs.patient.unique_id if obs.patient else f"patient_{obs.patient_id}"
+                    except (AttributeError, KeyError) as e:
+                        # Fallback if patient relationship is broken or deferred
+                        logger.warning("Could not access patient for observation %s: %s", obs.id, e)
+                        patient_id = f"patient_{obs.patient_id}"
+                
+                # Safely get time_id and location_id using FK IDs directly
+                time_id = obs.time_id
+                location_id = obs.location_id
+                
+                # Skip observations without any identifying information
+                # (per model validation, at least patient or location should exist)
+                if patient_id is None and location_id is None:
+                    skipped_count += 1
+                    logger.debug(f"Skipping observation {obs.id}: no patient or location")
+                    continue
+                
+                # Create a unique row identifier based on patient, time, and location
+                row_key = (patient_id, time_id, location_id)
+                
+                # Initialize record if not exists
+                if row_key not in records:
+                    records[row_key] = {
+                        '_patient_id': patient_id,
+                        '_time_id': time_id,
+                        '_location_id': location_id,
+                    }
+                
+                # Safely get attribute name
+                try:
+                    attr_name = obs.attribute.variable_name
+                except Exception as e:
+                    logger.warning(f"Could not access attribute for observation {obs.id}: {e}")
+                    skipped_count += 1
+                    continue
+                
+                # Get the appropriate value based on type - priority order
+                value = None
+                if obs.float_value is not None:
+                    value = obs.float_value
+                elif obs.int_value is not None:
+                    value = obs.int_value
+                elif obs.text_value:
+                    value = obs.text_value
+                elif obs.boolean_value is not None:
+                    value = obs.boolean_value
+                elif obs.datetime_value is not None:
+                    value = obs.datetime_value
+                
+                # If we already have a value for this attribute in this context, it's a duplicate
+                # Keep the first one we encounter
+                if attr_name not in records[row_key]:
+                    records[row_key][attr_name] = value
+                    
+            except Exception as e:
+                logger.warning(f"Error processing observation {getattr(obs, 'id', 'unknown')}: {e}")
+                skipped_count += 1
+                continue
+        
+        if skipped_count > 0:
+            logger.info(f"Skipped {skipped_count} observations due to missing data or errors")
+        
+        # Convert to DataFrame
+        if not records:
+            logger.warning("No valid records created from observations")
+            return pd.DataFrame()
+        
+        df = pd.DataFrame.from_dict(records, orient='index')
+        
+        # Reset index to make row numbers clean
+        df = df.reset_index(drop=True)
+        
+        logger.info(f"Successfully created DataFrame with {len(df)} rows and {len(df.columns)} columns")
+        
+        return df
+        
+    except Exception as e:
+        logger.error(f"Fatal error in _observations_to_dataframe: {e}", exc_info=True)
+        # Return empty DataFrame rather than crashing
         return pd.DataFrame()
-    
-    df = pd.DataFrame.from_dict(records, orient='index')
-    
-    # Reset index to make row numbers clean
-    df = df.reset_index(drop=True)
-    
-    return df
 
 
 def _generate_eda_from_dataframe(
@@ -1292,19 +1346,31 @@ def generate_eda_summary_from_observations(raw_data_file, study, is_transformed=
         )
         return response
     
+    # Optimize query by selecting only needed fields
+    # Include FK IDs and related fields needed for DataFrame construction
     observations = Observation.objects.filter(**query_filters).select_related(
-        "attribute"
+        "attribute",
+        "patient",  # Need this for patient.unique_id
     ).only(
-        # Only fetch fields we actually need for EDA
-        "attribute__variable_name",
-        "attribute__variable_type",
+        # Observation fields
+        "id",
+        "patient_id",  # FK ID
+        "time_id",     # FK ID
+        "location_id", # FK ID
         "float_value",
         "int_value",
         "text_value",
         "boolean_value",
         "datetime_value",
+        # Attribute fields (via select_related)
+        "attribute__id",
+        "attribute__variable_name",
+        "attribute__variable_type",
+        # Patient fields (via select_related)
+        "patient__id",
+        "patient__unique_id",  # Need this for DataFrame
     )
-    obs_count = observations.count()
+    obs_count = observations.count() #TO DO: need to fix this to only show unique observations, patient, location, time and an attirbute with a value
     
     logger.info(
         "Found %d observations for %s study (ID: %s) with filters: %s",

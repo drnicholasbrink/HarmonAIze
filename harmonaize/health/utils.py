@@ -32,29 +32,29 @@ class MessageManager:
             bool: True if message was added, False if filtered out
         """
         # Initialize session message tracking if not exists
-        if not hasattr(request.session, '_messages_seen'):
-            request.session['_messages_seen'] = set()
+        if '_messages_seen' not in request.session:
+            request.session['_messages_seen'] = []
         
         # Create a simple hash of the message for deduplication
         message_hash = hash(f"{level}:{message.strip()}")
         
         # Check if we've seen this message recently (unless forced)
-        if not force and message_hash in request.session.get('_messages_seen', set()):
+        seen_messages = set(request.session.get('_messages_seen', []))
+        if not force and message_hash in seen_messages:
             return False
-        
+
         # Add the message
         message_func = getattr(messages, level, messages.info)
         message_func(request, message)
-        
+
         # Track the message to prevent future duplicates
-        seen_messages = request.session.get('_messages_seen', set())
         seen_messages.add(message_hash)
-        
+
         # Limit tracking to last 20 messages to prevent session bloat
         if len(seen_messages) > 20:
             seen_messages = set(list(seen_messages)[-20:])
-        
-        request.session['_messages_seen'] = seen_messages
+
+        request.session['_messages_seen'] = list(seen_messages)
         request.session.modified = True
         
         return True
