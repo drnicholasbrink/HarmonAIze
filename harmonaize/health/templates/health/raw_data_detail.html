@@ -1699,15 +1699,10 @@
       <a href="{% url 'health:raw_data_list' %}" class="btn btn-secondary">
         <i class="fas fa-list"></i> All Raw Data Files
       </a>
-      {% if raw_data_file.processing_status == 'processed' %}
-        <a href="{% url 'health:download_processed_data' raw_data_file.id %}" class="btn btn-warning">
-          <i class="fas fa-download me-1"></i>Download Processed Data
+      {% if can_export_data %}
+        <a href="{% url 'health:export_raw_data' raw_data_file.id %}" class="btn btn-primary">
+          <i class="fas fa-file-export"></i> Export Data
         </a>
-      {% else %}
-        <div class="alert alert-warning py-1 px-2 mb-0 d-inline-flex align-items-center" style="border-radius:10px; font-size:0.85rem;">
-          <i class="fas fa-hourglass-half me-2"></i>
-          <span><strong>Download Processed Data:</strong> coming soon.</span>
-        </div>
       {% endif %}
       <button class="btn btn-danger" onclick="confirmDelete()">
         <i class="fas fa-trash"></i> Delete File

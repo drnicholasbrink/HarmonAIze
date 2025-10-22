@@ -4,7 +4,12 @@ from django.core.exceptions import ValidationError
 from django_ace import AceWidget
 
 from core.models import Attribute, Study
-from .models import MappingRule, MappingSchema, validate_safe_transform_code, RawDataFile
+from .models import (
+    MappingRule,
+    MappingSchema,
+    RawDataFile,
+    validate_safe_transform_code,
+)
 
 
 class TargetAttributeWidget(forms.Select):
@@ -424,3 +429,36 @@ class ColumnMappingForm(forms.Form):
         column_choices = [('', '-- Select Column --')] + [(col, col) for col in columns]
         self.fields['patient_id_column'].choices = column_choices
         self.fields['date_column'].choices = column_choices
+
+
+class ExportDataForm(forms.Form):
+    """Collect the desired export format for a RawDataFile."""
+
+    EXPORT_TYPE_CHOICES = (
+        ("original", "Original Uploaded File"),
+        ("harmonised", "Harmonised Long-format CSV"),
+    )
+
+    export_type = forms.ChoiceField(
+        choices=EXPORT_TYPE_CHOICES,
+        widget=forms.RadioSelect,
+        initial="original",
+        label="Select export type",
+        help_text=(
+            "Choose whether to download the raw upload or the harmonised long-format data."
+        ),
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.harmonised_available = kwargs.pop("harmonised_available", False)
+        super().__init__(*args, **kwargs)
+
+    def clean(self):
+        cleaned = super().clean()
+        selection = cleaned.get("export_type")
+        if selection == "harmonised" and not self.harmonised_available:
+            self.add_error(
+                "export_type",
+                "Harmonised export is not available for this file yet.",
+            )
+        return cleaned

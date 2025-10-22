@@ -80,6 +80,11 @@ urlpatterns = [
         name="raw_data_detail",
     ),
     path(
+        "raw-data/<int:file_id>/export/",
+        views.export_raw_data,
+        name="export_raw_data",
+    ),
+    path(
         "raw-data/<int:file_id>/reupload/",
         views.reupload_raw_data,
         name="reupload_raw_data",

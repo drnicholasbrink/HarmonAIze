@@ -1,10 +1,20 @@
+import csv
+import io
 import json
 import logging
+from datetime import datetime
 from django.shortcuts import render, redirect, get_object_or_404
-from django.http import JsonResponse, Http404
+from django.http import (
+    FileResponse,
+    Http404,
+    HttpResponseForbidden,
+    JsonResponse,
+    StreamingHttpResponse,
+)
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
+from django.utils.text import slugify
 from django.forms import formset_factory
 from django.views.decorators.http import require_http_methods, require_POST
 from django.db.models import Count
@@ -13,7 +23,12 @@ from django.contrib.postgres.aggregates import ArrayAgg
 from core.models import Study, Attribute, Observation
 from .models import MappingSchema, MappingRule, RawDataFile, RawDataColumn
 from core.forms import VariableConfirmationFormSetFactory
-from .forms import MappingSchemaForm, MappingRuleForm, RawDataUploadForm
+from .forms import (
+    ExportDataForm,
+    MappingRuleForm,
+    MappingSchemaForm,
+    RawDataUploadForm,
+)
 from .utils import (
     validate_raw_data_against_codebook,
     analyze_raw_data_columns,
@@ -25,6 +40,147 @@ from .eda_service import generate_eda_summary
 logger = logging.getLogger(__name__)
 
 
+def _user_can_export_raw_data(user, raw_data_file: RawDataFile) -> bool:
+    if not getattr(user, "is_authenticated", False):
+        return False
+    if raw_data_file.uploaded_by_id == user.id:
+        return True
+    if raw_data_file.study_id and raw_data_file.study.created_by_id == user.id:
+        return True
+    if (
+        raw_data_file.study_id
+        and raw_data_file.study.project_id
+        and raw_data_file.study.project.created_by_id == user.id
+    ):
+        return True
+    if user.is_staff or user.is_superuser:
+        return True
+    else:
+        return False
+
+
+def _serialize_observation_value(observation: Observation) -> str:
+    attribute = observation.attribute
+    attr_type = getattr(attribute, "variable_type", None)
+    preferred_candidates = []
+    if attr_type == "float":
+        preferred_candidates.append(observation.float_value)
+    elif attr_type == "int":
+        preferred_candidates.append(observation.int_value)
+    elif attr_type in {"string", "categorical"}:
+        preferred_candidates.append(observation.text_value)
+    elif attr_type == "boolean":
+        preferred_candidates.append(observation.boolean_value)
+    elif attr_type == "datetime":
+        preferred_candidates.append(observation.datetime_value)
+
+    fallback_candidates = (
+        observation.float_value,
+        observation.int_value,
+        observation.text_value,
+        observation.boolean_value,
+        observation.datetime_value,
+    )
+
+    value = next(
+        (
+            candidate
+            for candidate in preferred_candidates + list(fallback_candidates)
+            if candidate is not None and candidate != ""
+        ),
+        None,
+    )
+
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if value is None:
+        return ""
+    return str(value)
+
+
+def _serialize_time_dimension(time_dimension) -> str:
+    if not time_dimension:
+        return ""
+    if getattr(time_dimension, "timestamp", None):
+        return time_dimension.timestamp.isoformat()
+
+    start = getattr(time_dimension, "start_date", None)
+    end = getattr(time_dimension, "end_date", None)
+    if start and end and start != end:
+        return f"{start.isoformat()} / {end.isoformat()}"
+    if start:
+        return start.isoformat()
+    if end:
+        return end.isoformat()
+    return ""
+
+
+def _harmonised_csv_stream(queryset, schema, raw_data_file, exported_at: str, user_id: int):
+    header = [
+        "patient_id",
+        "attribute_variable_name",
+        "attribute_display_name",
+        "variable_type",
+        "value",
+        "datetime",
+        "location_name",
+        "schema_id",
+        "source_file_id",
+        "exported_at",
+        "observation_id",
+    ]
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+
+    writer.writerow(header)
+    buffer.seek(0)
+    yield buffer.read()
+    buffer.truncate(0)
+    buffer.seek(0)
+
+    row_count = 0
+    for observation in queryset.iterator(chunk_size=1000):
+        patient_identifier = ""
+        if observation.patient_id:
+            patient_identifier = (
+                getattr(observation.patient, "unique_id", None)
+                or str(observation.patient_id)
+            )
+
+        location_name = ""
+        if observation.location_id:
+            location_name = getattr(observation.location, "name", "") or ""
+
+        writer.writerow(
+            [
+                patient_identifier,
+                observation.attribute.variable_name,
+                observation.attribute.display_name or "",
+                observation.attribute.variable_type,
+                _serialize_observation_value(observation),
+                _serialize_time_dimension(observation.time),
+                location_name,
+                schema.id,
+                raw_data_file.id,
+                exported_at,
+                observation.id,
+            ]
+        )
+
+        buffer.seek(0)
+        yield buffer.read()
+        buffer.truncate(0)
+        buffer.seek(0)
+        row_count += 1
+
+    logger.info(
+        "User %s exported harmonised observations for raw data file %s (schema %s); rows=%s",
+        user_id,
+        raw_data_file.id,
+        schema.id,
+        row_count,
+    )
 @login_required
 def map_codebook(request, study_id):
     """
@@ -1191,9 +1347,133 @@ def raw_data_detail(request, file_id):
         'eda_async_mode': True,
         'eda_source_available': bool(raw_data_file.eda_cache_source),
         'eda_transformed_available': bool(raw_data_file.eda_cache_transformed),
+        'can_export_data': _user_can_export_raw_data(request.user, raw_data_file),
+        'harmonised_export_available': has_transformed_data,
     }
     
     return render(request, 'health/raw_data_detail.html', context)
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def export_raw_data(request, file_id):
+    raw_data_file = get_object_or_404(
+        RawDataFile.objects.select_related(
+            "study",
+            "study__project",
+            "last_transformation_schema__target_study",
+        ),
+        id=file_id,
+    )
+
+    if not _user_can_export_raw_data(request.user, raw_data_file):
+        return HttpResponseForbidden(
+            "You do not have permission to export data for this file."
+        )
+
+    schema = raw_data_file.last_transformation_schema
+    harmonised_available = (
+        raw_data_file.transformation_status == "completed"
+        and schema is not None
+        and schema.target_study_id is not None
+    )
+
+    if request.method == "POST":
+        form = ExportDataForm(
+            request.POST,
+            harmonised_available=harmonised_available,
+        )
+        if form.is_valid():
+            export_type = form.cleaned_data["export_type"]
+            if export_type == "original":
+                file_field = raw_data_file.file
+                if not file_field or not file_field.name:
+                    form.add_error(
+                        None,
+                        "The original uploaded file is no longer available on disk.",
+                    )
+                else:
+                    try:
+                        file_field.open("rb")
+                    except FileNotFoundError:
+                        form.add_error(
+                            None,
+                            "The stored file could not be located. Please re-upload before exporting.",
+                        )
+                    else:
+                        response = FileResponse(
+                            file_field,
+                            as_attachment=True,
+                            filename=raw_data_file.original_filename,
+                        )
+                        logger.info(
+                            "User %s exported original raw data file %s",
+                            request.user.id,
+                            raw_data_file.id,
+                        )
+                        return response
+            elif export_type == "harmonised":
+                if not harmonised_available:
+                    form.add_error(
+                        None,
+                        "Harmonised export is not available for this file yet.",
+                    )
+                else:
+                    target_study = schema.target_study
+                    target_attribute_ids = list(
+                        target_study.variables.filter(source_type="target").values_list(
+                            "id", flat=True
+                        )
+                    )
+                    if not target_attribute_ids:
+                        form.add_error(
+                            None,
+                            "No harmonised attributes were found for the target study.",
+                        )
+                    else:
+                        observations = (
+                            Observation.objects.filter(
+                                attribute_id__in=target_attribute_ids
+                            )
+                            .select_related("patient", "attribute", "time", "location")
+                            .order_by("id")
+                        )
+
+                        window_start = (
+                            raw_data_file.transformation_started_at
+                            or raw_data_file.transformed_at
+                            or schema.created_at
+                        )
+                        if window_start:
+                            observations = observations.filter(updated_at__gte=window_start)
+
+                        export_timestamp = timezone.now()
+                        exported_at = export_timestamp.isoformat()
+                        timestamp_component = export_timestamp.strftime("%Y%m%d_%H%M%S")
+                        study_slug = slugify(schema.target_study.name) or f"target-study-{schema.target_study.pk}"
+                        filename = f"{study_slug}_harmonised_{timestamp_component}.csv"
+
+                        response = StreamingHttpResponse(
+                            _harmonised_csv_stream(
+                                observations,
+                                schema,
+                                raw_data_file,
+                                exported_at,
+                                request.user.id,
+                            ),
+                            content_type="text/csv",
+                        )
+                        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+                        return response
+    else:
+        form = ExportDataForm(harmonised_available=harmonised_available)
+
+    context = {
+        "raw_data_file": raw_data_file,
+        "form": form,
+        "harmonised_available": harmonised_available,
+    }
+    return render(request, "health/export_data.html", context)
 
 
 @login_required
