@@ -1,0 +1,107 @@
+{% comment %}
+Component: Embedding Statistics
+Displays embedding statistics for a study's attributes
+
+Usage:
+  {% include 'components/embeddings/statistics.html' %}
+
+Required context (provided by StudyDetailView):
+- total_variables: Total count of variables in the study
+- variables_with_embeddings: Count of variables with embeddings
+- embedding_progress: Progress percentage (0-100)
+{% endcomment %}
+
+<div class="info-grid" style="margin-bottom: 1rem;">
+  <div class="info-item">
+    <div class="info-label">
+      <i class="fas fa-chart-bar" style="color: var(--secondary-color); margin-right: 0.3rem;"></i>
+      Progress
+    </div>
+    <div class="info-value">
+      <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <div class="progress-bar" style="
+          width: 120px; 
+          height: 8px; 
+          background-color: var(--bg-secondary); 
+          border-radius: 4px; 
+          overflow: hidden;
+          border: 1px solid var(--border-color);
+        ">
+          <div class="progress-fill" style="
+            width: {{ embedding_progress }}%; 
+            height: 100%; 
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color)); 
+            transition: width 0.3s ease;
+          "></div>
+        </div>
+        <span style="font-weight: 600; color: var(--text-primary); font-size: 0.9rem;">
+          {{ variables_with_embeddings }}/{{ total_variables }}
+        </span>
+        <span style="color: var(--text-secondary); font-size: 0.85rem;">
+          ({{ embedding_progress }}%)
+        </span>
+      </div>
+    </div>
+  </div>
+  
+  <div class="info-item">
+    <div class="info-label">
+      <i class="fas fa-vector-square" style="color: var(--primary-color); margin-right: 0.3rem;"></i>
+      Status
+    </div>
+    <div class="info-value">
+      {% if total_variables == 0 %}
+        <span class="status-badge status-warning">No variables</span>
+      {% elif variables_with_embeddings == total_variables %}
+        <span class="status-badge status-complete">
+          <i class="fas fa-check-circle" style="margin-right: 0.3rem;"></i>
+          Complete
+        </span>
+      {% elif variables_with_embeddings > 0 %}
+        <span class="status-badge status-partial">
+          <i class="fas fa-clock" style="margin-right: 0.3rem;"></i>
+          Partial ({{ variables_with_embeddings }} of {{ total_variables }})
+        </span>
+      {% else %}
+        <span class="status-badge status-none">
+          <i class="fas fa-circle" style="margin-right: 0.3rem;"></i>
+          None generated
+        </span>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="info-item">
+    <div class="info-label">
+      <i class="fas fa-brain" style="color: var(--accent-color); margin-right: 0.3rem;"></i>
+      AI Model
+    </div>
+    <div class="info-value">
+      <span style="font-size: 0.85rem; color: var(--text-secondary);">
+        OpenAI text-embedding-3-large
+        <br>
+        <small style="color: var(--text-tertiary);">3,072 dimensions</small>
+      </span>
+    </div>
+  </div>
+</div>
+
+<div class="embedding-details" style="margin-top: 1rem;">
+  <details style="background: var(--bg-secondary); border-radius: 8px; padding: 1rem; border: 1px solid var(--border-color);">
+    <summary style="cursor: pointer; font-weight: 500; color: var(--text-primary); margin-bottom: 0.5rem;">
+      <i class="fas fa-info-circle" style="margin-right: 0.5rem; color: var(--primary-color);"></i>
+      Embedding Details
+    </summary>
+    <div style="padding-top: 0.5rem; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4;">
+      <p style="margin: 0 0 0.5rem 0;">
+        <strong>Technology:</strong> Variable names and descriptions are converted to high-dimensional vectors using OpenAI's latest embedding model
+      </p>
+      <p style="margin: 0 0 0.5rem 0;">
+        <strong>Benefits:</strong> Enables semantic search, similarity matching, and AI-powered data harmonisation across studies
+      </p>
+      <p style="margin: 0;">
+        <strong>Generation:</strong> Embeddings are created asynchronously in the background and stored securely in the database
+      </p>
+    </div>
+  </details>
+</div>

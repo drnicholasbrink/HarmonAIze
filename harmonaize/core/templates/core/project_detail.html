@@ -487,6 +487,24 @@
             </svg>
             Create Target Database
           </a>
+          
+          <!-- t-SNE Actions -->
+          <form method="post" action="{% url 'core:generate_project_tsne' object.pk %}" style="margin: 0;">
+            {% csrf_token %}
+            <input type="hidden" name="embedding_type" value="both">
+            <button type="submit" class="btn btn-outline-primary" style="width: 100%; text-align: left; display: flex; align-items: center; gap: 0.25rem;">
+              <svg class="icon" viewBox="0 0 24 24">
+                <path d="M12,2C13.1,2 14,2.9 14,4C14,5.1 13.1,6 12,6C10.9,6 10,5.1 10,4C10,2.9 10.9,2 12,2M21,9V7L15,1H5C3.89,1 3,1.89 3,3V21A2,2 0 0,0 5,23H19A2,2 0 0,0 21,21V9M19,9H13V3H5V19H19V9M12.5,10L16.25,13.75L12.5,17.5L11,16L13,14H7.5C6.67,14 6,13.33 6,12.5C6,11.67 6.67,11 7.5,11H13L11,9L12.5,10Z"/>
+              </svg>
+              Generate t-SNE
+            </button>
+          </form>
+          <a href="{% url 'core:tsne_visualization' object.pk %}" class="btn btn-outline-primary">
+            <svg class="icon" viewBox="0 0 24 24">
+              <path d="M9,11H15L13,9L15,7H9V9L11,11L9,11M7,9V7L9,5H15L17,7V9L15,11L17,13V15L15,17H9L7,15V13L9,11L7,9M12,2C13.1,2 14,2.9 14,4C14,5.1 13.1,6 12,6C10.9,6 10,5.1 10,4C10,2.9 10.9,2 12,2M21,9V7L15,1H5C3.89,1 3,1.89 3,3V21A2,2 0 0,0 5,23H19A2,2 0 0,0 21,21V9M19,9H13V3H5V19H19V9Z"/>
+            </svg>
+            View t-SNE Plot
+          </a>
         </div>
       </div>
     </div>

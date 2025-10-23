@@ -33,7 +33,11 @@ CACHES = {
         "LOCATION": REDIS_URL,
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
+<<<<<<< HEAD
             # Mimicking memcache behaviour.
+=======
+            # Mimicking memcache behavior.
+>>>>>>> fb1bc08 (Initial cookiecutter commit)
             # https://github.com/jazzband/django-redis#memcached-exceptions-behavior
             "IGNORE_EXCEPTIONS": True,
         },
@@ -192,5 +196,11 @@ sentry_sdk.init(
 SPECTACULAR_SETTINGS["SERVERS"] = [
     {"url": "https://harmonaize.org", "description": "Production server"},
 ]
+
+# OpenAI API Configuration
+# ------------------------------------------------------------------------------
+# Production OpenAI API key - required for embedding functionality
+OPENAI_API_KEY = env("OPENAI_API_KEY")
+
 # Your stuff...
 # ------------------------------------------------------------------------------
