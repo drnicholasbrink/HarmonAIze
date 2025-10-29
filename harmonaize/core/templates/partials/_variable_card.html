@@ -1,0 +1,82 @@
+{% comment %}
+Reusable variable card partial for select_variables templates.
+
+Required context:
+  - form: The formset form for this variable
+  - forloop: Django's forloop context (counter0, etc.)
+
+Optional context:
+  - card_color: CSS color variable for the card theme (default: --primary-color)
+{% endcomment %}
+
+<div class="variable-item{% if form.errors and form.include.value %} has-error{% endif %}" 
+     data-type="{{ form.variable_type.value|default:'unknown'|lower }}" 
+     data-form-index="{{ forloop.counter0 }}"
+     onclick="toggleVariableSelection(this)">
+  
+  <div class="variable-header">
+    <div class="checkbox-container">
+      {{ form.include }}
+    </div>
+    <div class="variable-name">
+      <strong>{{ form.display_name.value|default:form.variable_name.value|default:"Unknown Variable" }}</strong>
+      {% if form.variable_name.value and form.variable_name.value != form.display_name.value %}
+        <br><small class="text-muted">{{ form.variable_name.value }}</small>
+      {% endif %}
+    </div>
+    <div class="variable-actions">
+      <div class="variable-type">{{ form.variable_type.value|default:"Unknown" }}</div>
+      <button type="button" class="btn-edit" onclick="openEditModal(event, {{ forloop.counter0 }})" title="Edit variable">
+        <span class="edit-text">Edit</span>
+      </button>
+    </div>
+  </div>
+  
+  <!-- Individual Form Errors (only show if variable is selected) -->
+  {% if form.errors and form.include.value %}
+    <div class="form-errors">
+      {% for field, errors in form.errors.items %}
+        {% for error in errors %}
+          <div class="field-error">
+            <span class="error-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+            </span>
+            <strong>{{ field }}:</strong> {{ error }}
+          </div>
+        {% endfor %}
+      {% endfor %}
+    </div>
+  {% endif %}
+  
+  <div class="variable-details">
+    <div class="variable-description">
+      {{ form.description.value|default:"No description available" }}
+    </div>
+    
+    <div class="variable-meta">
+      {% if form.unit.value %}
+        <span class="variable-unit"><strong>Unit:</strong> {{ form.unit.value }}</span>
+      {% endif %}
+      {% if form.ontology_code.value %}
+        <span class="variable-ontology"><strong>Code:</strong> {{ form.ontology_code.value }}</span>
+      {% endif %}
+      {% if form.category.value %}
+        <span class="variable-category"><strong>Category:</strong> {{ form.category.value }}</span>
+      {% endif %}
+      <span class="variable-type-detail"><strong>Type:</strong> {{ form.variable_type.value|default:"Unknown" }}</span>
+    </div>
+  </div>
+  
+  <!-- Hidden fields for form data -->
+  {{ form.variable_name.as_hidden }}
+  {{ form.display_name.as_hidden }}
+  {{ form.description.as_hidden }}
+  {{ form.variable_type.as_hidden }}
+  {{ form.unit.as_hidden }}
+  {{ form.ontology_code.as_hidden }}
+  {{ form.category.as_hidden }}
+</div>

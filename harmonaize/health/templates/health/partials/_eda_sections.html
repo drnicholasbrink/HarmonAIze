@@ -1,0 +1,270 @@
+{% comment %}
+Reusable EDA sections template for displaying analysis of source or transformed data.
+Parameters:
+  - eda_data: The EDA summary dictionary
+  - prefix: Unique prefix for element IDs (e.g., 'source', 'transformed')
+  - color_class: CSS color class for styling (e.g., 'text-primary', 'text-success')
+  - show_summary_strip: Whether to show the summary statistics strip (default: true)
+{% endcomment %}
+
+{% if eda_data and eda_data.available %}
+  
+  {% if show_summary_strip|default:True %}
+    <div class="eda-summary-strip">
+      <div class="eda-summary-chip">
+        <span class="chip-label">Total Rows</span>
+        <span class="chip-value">{{ eda_data.summary.row_count|default:"—" }}</span>
+      </div>
+      <div class="eda-summary-chip">
+        <span class="chip-label">Columns</span>
+        <span class="chip-value">{{ eda_data.summary.column_count|default:"—" }}</span>
+      </div>
+      <div class="eda-summary-chip">
+        <span class="chip-label">Sampled Rows</span>
+        <span class="chip-value">{{ eda_data.summary.sampled_rows|default:"—" }}</span>
+      </div>
+      <div class="eda-summary-chip">
+        <span class="chip-label">Missing Values</span>
+        <span class="chip-value">{{ eda_data.summary.missing_values|default:"—" }}</span>
+      </div>
+    </div>
+
+    <div class="eda-summary-meta">
+      <span class="eda-summary-tag">{{ eda_data.numeric_columns|length }} numeric</span>
+      <span class="eda-summary-tag">{{ eda_data.categorical_columns|length }} categorical</span>
+      <span class="eda-summary-tag">{{ eda_data.string_columns|length }} text</span>
+    </div>
+
+    {% if eda_data.reason %}
+      <p class="eda-note text-muted">{{ eda_data.reason }}</p>
+    {% endif %}
+
+    {% if eda_data.sanitised_columns %}
+      <p class="eda-note text-muted">Excluded potential identifiers: {{ eda_data.sanitised_columns|slice:':5'|join:', ' }}{% if eda_data.sanitised_columns|length > 5 %} and {{ eda_data.sanitised_columns|length|add:-5 }} more{% endif %}.</p>
+    {% endif %}
+  {% endif %}
+
+  <!-- Numeric Variables Section -->
+  <section class="eda-section">
+    <div class="eda-section-header">
+      <div>
+        <h3>Numeric Variables</h3>
+        <p class="eda-section-subtitle">{{ eda_data.numeric_columns|length }} variable{{ eda_data.numeric_columns|length|pluralize }}</p>
+      </div>
+      <button type="button" class="eda-toggle" data-section-toggle="eda-section-numeric-{{ prefix }}" data-expand-label="Expand" data-collapse-label="Collapse" aria-expanded="false" aria-controls="eda-section-numeric-{{ prefix }}">Expand</button>
+    </div>
+    <div class="eda-section-body is-collapsed" id="eda-section-numeric-{{ prefix }}">
+      {% if eda_data.numeric_columns %}
+        <div class="eda-grid">
+          {% for numeric in eda_data.numeric_columns %}
+            <article class="eda-card" style="border-left: 3px solid var(--{{ color_class|default:'primary' }}-color);">
+              <div class="eda-card-header">
+                <h4>{{ numeric.name }}</h4>
+                <span class="eda-chip">{{ numeric.count }} values</span>
+              </div>
+              <dl class="eda-stat-rows">
+                <div>
+                  <dt>Mean</dt>
+                  <dd>{{ numeric.mean|default:"—" }}</dd>
+                </div>
+                <div>
+                  <dt>Median</dt>
+                  <dd>{{ numeric.median|default:"—" }}</dd>
+                </div>
+                <div>
+                  <dt>Std Dev</dt>
+                  <dd>{{ numeric.std|default:"—" }}</dd>
+                </div>
+                <div>
+                  <dt>Min</dt>
+                  <dd>{{ numeric.min|default:"—" }}</dd>
+                </div>
+                <div>
+                  <dt>Max</dt>
+                  <dd>{{ numeric.max|default:"—" }}</dd>
+                </div>
+              </dl>
+              <button type="button" class="eda-detail-button" data-modal-open="eda-modal-numeric-{{ prefix }}-{{ forloop.counter0 }}" data-modal-type="numeric" data-modal-index="{{ forloop.counter0 }}" aria-haspopup="dialog" aria-controls="eda-modal-numeric-{{ prefix }}-{{ forloop.counter0 }}">
+                Explore variable
+              </button>
+            </article>
+
+            <div class="eda-modal" id="eda-modal-numeric-{{ prefix }}-{{ forloop.counter0 }}" aria-hidden="true" role="dialog" aria-labelledby="eda-modal-numeric-title-{{ prefix }}-{{ forloop.counter0 }}" tabindex="-1">
+              <div class="eda-modal__dialog" tabindex="-1" style="max-width: 1200px;">
+                <button type="button" class="eda-modal__close" data-modal-close aria-label="Close">&times;<span class="visually-hidden">Close</span></button>
+                <h3 id="eda-modal-numeric-title-{{ prefix }}-{{ forloop.counter0 }}">{{ numeric.name }}</h3>
+                <div class="eda-modal-subtitle">Interactive Distribution Dashboard</div>
+                <div class="eda-modal-grid" style="grid-column: 1 / -1;">
+                  {% if numeric.dashboard_html %}
+                    <div class="eda-plotly-dashboard">
+                      {{ numeric.dashboard_html|safe }}
+                    </div>
+                  {% else %}
+                    <p class="eda-empty">Dashboard unavailable</p>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="eda-empty">No numeric columns met the privacy thresholds.</p>
+      {% endif %}
+    </div>
+  </section>
+
+  <!-- Categorical Variables Section -->
+  <section class="eda-section">
+    <div class="eda-section-header">
+      <div>
+        <h3>Category Distributions</h3>
+        <p class="eda-section-subtitle">{{ eda_data.categorical_columns|length }} feature{{ eda_data.categorical_columns|length|pluralize }}</p>
+      </div>
+      <button type="button" class="eda-toggle" data-section-toggle="eda-section-categorical-{{ prefix }}" data-expand-label="Expand" data-collapse-label="Collapse" aria-expanded="false" aria-controls="eda-section-categorical-{{ prefix }}">Expand</button>
+    </div>
+    <div class="eda-section-body is-collapsed" id="eda-section-categorical-{{ prefix }}">
+      {% if eda_data.categorical_columns %}
+        <div class="eda-grid">
+          {% for categorical in eda_data.categorical_columns %}
+            <article class="eda-card" style="border-left: 3px solid var(--{{ color_class|default:'primary' }}-color);">
+              <div class="eda-card-header">
+                <h4>{{ categorical.name }}</h4>
+                <span class="eda-chip">{{ categorical.unique }} unique</span>
+              </div>
+              <ul class="eda-bar-list">
+                {% for item in categorical.top_values|slice:':3' %}
+                  <li><span>{{ item.value }}</span><strong>{{ item.percentage }}%</strong></li>
+                {% endfor %}
+                {% if categorical.other_count %}
+                  <li><span>Others</span><strong>{{ categorical.other_count }}</strong></li>
+                {% endif %}
+              </ul>
+              <button type="button" class="eda-detail-button" data-modal-open="eda-modal-categorical-{{ prefix }}-{{ forloop.counter0 }}" data-modal-type="categorical" data-modal-index="{{ forloop.counter0 }}" aria-haspopup="dialog" aria-controls="eda-modal-categorical-{{ prefix }}-{{ forloop.counter0 }}">
+                Explore distribution
+              </button>
+            </article>
+
+            <div class="eda-modal" id="eda-modal-categorical-{{ prefix }}-{{ forloop.counter0 }}" aria-hidden="true" role="dialog" aria-labelledby="eda-modal-categorical-title-{{ prefix }}-{{ forloop.counter0 }}" tabindex="-1">
+              <div class="eda-modal__dialog" tabindex="-1" style="max-width: 1200px;">
+                <button type="button" class="eda-modal__close" data-modal-close aria-label="Close">&times;<span class="visually-hidden">Close</span></button>
+                <h3 id="eda-modal-categorical-title-{{ prefix }}-{{ forloop.counter0 }}">{{ categorical.name }}</h3>
+                <div class="eda-modal-subtitle">Interactive Category Distribution Dashboard</div>
+                <div class="eda-modal-grid" style="grid-column: 1 / -1;">
+                  {% if categorical.dashboard_html %}
+                    <div class="eda-plotly-dashboard">
+                      {{ categorical.dashboard_html|safe }}
+                    </div>
+                  {% else %}
+                    <p class="eda-empty">Dashboard unavailable</p>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="eda-empty">No categorical summaries available.</p>
+      {% endif %}
+    </div>
+  </section>
+
+  <!-- Correlation Heatmap Section -->
+  {% if eda_data.correlation %}
+    <section class="eda-section">
+      <div class="eda-section-header">
+        <div>
+          <h3>Correlation Heatmap</h3>
+          <p class="eda-section-subtitle">{{ eda_data.correlation.labels|length }} feature{{ eda_data.correlation.labels|length|pluralize }} compared</p>
+        </div>
+        <button type="button" class="eda-toggle" data-section-toggle="eda-section-correlation-{{ prefix }}" data-expand-label="Expand" data-collapse-label="Collapse" aria-expanded="false" aria-controls="eda-section-correlation-{{ prefix }}">Expand</button>
+      </div>
+      <div class="eda-section-body is-collapsed" id="eda-section-correlation-{{ prefix }}">
+        <div id="eda-correlation-heatmap-{{ prefix }}" class="eda-heatmap" role="img" aria-label="Correlation heatmap"></div>
+      </div>
+    </section>
+  {% endif %}
+
+  <!-- Text/Word Cloud Section -->
+  {% if eda_data.string_columns %}
+    <section class="eda-section">
+      <div class="eda-section-header">
+        <div>
+          <h3>Word Clouds</h3>
+          <p class="eda-section-subtitle">{{ eda_data.string_columns|length }} text field{{ eda_data.string_columns|length|pluralize }}</p>
+        </div>
+        <button type="button" class="eda-toggle" data-section-toggle="eda-section-strings-{{ prefix }}" data-expand-label="Expand" data-collapse-label="Collapse" aria-expanded="false" aria-controls="eda-section-strings-{{ prefix }}">Expand</button>
+      </div>
+      <div class="eda-section-body is-collapsed" id="eda-section-strings-{{ prefix }}">
+        <div class="word-cloud-wrapper">
+          {% for string_col in eda_data.string_columns %}
+            <article class="word-cloud-card" style="border-left: 3px solid var(--{{ color_class|default:'primary' }}-color);">
+              <div class="word-cloud-header">
+                <h4>{{ string_col.name }}</h4>
+                <span class="eda-chip">{{ string_col.tokens|length }} terms</span>
+              </div>
+              
+              <!-- Word cloud image thumbnail -->
+              <div style="text-align: center; padding: 1rem 0; cursor: pointer;"
+                   {% if string_col.word_cloud_image %}onclick="toggleImageZoom(this.querySelector('img'))"{% endif %}>
+                {% if string_col.word_cloud_image %}
+                  <img src="data:image/png;base64,{{ string_col.word_cloud_image }}"
+                       alt="Word cloud for {{ string_col.name }}"
+                       id="wordcloud-{{ prefix }}-{{ forloop.counter0 }}"
+                       style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); opacity: 0.9; transition: opacity 0.2s;"
+                       onmouseover="this.style.opacity='1'"
+                       onmouseout="this.style.opacity='0.9'" />
+                {% else %}
+                  <div class="eda-empty" style="padding: 1rem; border: 1px dashed #ccc; border-radius: 8px; background: #fafafa;">
+                    <p style="margin:0; font-size:0.9rem;">Word cloud image unavailable{% if not string_col.tokens %}: insufficient terms{% endif %}.</p>
+                  </div>
+                {% endif %}
+              </div>
+              
+              <div style="display: flex; gap: 8px; width: 100%;">
+                {% if string_col.word_cloud_image %}
+                  <button type="button" class="eda-detail-button" style="flex: 1;" 
+                          onclick="toggleImageZoom(document.getElementById('wordcloud-{{ prefix }}-{{ forloop.counter0 }}'))">
+                    View full size
+                  </button>
+                {% else %}
+                  <button type="button" class="eda-detail-button" style="flex: 1;" disabled>
+                    No image available
+                  </button>
+                {% endif %}
+                <button type="button" class="eda-detail-button" style="flex: 1; background-color: #34C759;" 
+                        data-modal-open="eda-modal-textanalysis-{{ prefix }}-{{ forloop.counter0 }}" 
+                        data-modal-type="string" data-modal-index="{{ forloop.counter0 }}" 
+                        aria-haspopup="dialog" aria-controls="eda-modal-textanalysis-{{ prefix }}-{{ forloop.counter0 }}">
+                  Text analysis
+                </button>
+              </div>
+            </article>
+
+            <!-- Text Analysis Modal -->
+            <div class="eda-modal" id="eda-modal-textanalysis-{{ prefix }}-{{ forloop.counter0 }}" aria-hidden="true" role="dialog" aria-labelledby="eda-modal-textanalysis-title-{{ prefix }}-{{ forloop.counter0 }}" tabindex="-1">
+              <div class="eda-modal__dialog" tabindex="-1" style="max-width: 1200px;">
+                <button type="button" class="eda-modal__close" data-modal-close aria-label="Close">&times;<span class="visually-hidden">Close</span></button>
+                <h3 id="eda-modal-textanalysis-title-{{ prefix }}-{{ forloop.counter0 }}">{{ string_col.name }}</h3>
+                <div class="eda-modal-subtitle">Interactive Text Analysis Dashboard</div>
+                <div class="eda-modal-grid" style="grid-column: 1 / -1;">
+                  {% if string_col.dashboard_html %}
+                    <div class="eda-plotly-dashboard">
+                      {{ string_col.dashboard_html|safe }}
+                    </div>
+                  {% else %}
+                    <p class="eda-empty">Dashboard unavailable</p>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+  {% endif %}
+
+{% else %}
+  <p class="eda-empty">
+    {{ eda_data.reason|default:"Exploratory analysis will be available once sufficient data is processed." }}
+  </p>
+{% endif %}

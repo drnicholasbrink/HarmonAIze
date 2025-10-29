@@ -71,5 +71,22 @@ INSTALLED_APPS += ["django_extensions"]
 
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#task-eager-propagates
 CELERY_TASK_EAGER_PROPAGATES = True
+
+# OpenAI API Configuration
+# ------------------------------------------------------------------------------
+# For local development, you can set a default test key or leave empty
+# The actual key should be set in your local environment variables
+OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
+
 # Your stuff...
 # ------------------------------------------------------------------------------
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': env('POSTGRES_DB', default='postgres'),
+        'USER': env('POSTGRES_USER', default='drnicholasbrink'),
+        'PASSWORD': env('POSTGRES_PASSWORD', default='qirvyw-nurkoR-kyzgi7'),
+        'HOST': env('POSTGRES_HOST', default='harmonaize-db.postgres.database.azure.com'),
+        'PORT': env('POSTGRES_PORT', default='5432'),
+    }
+}

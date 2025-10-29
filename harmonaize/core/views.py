@@ -4,9 +4,16 @@ from django.contrib import messages
 from django.urls import reverse
 from django.views.generic import ListView, DetailView
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.http import JsonResponse
+from django.views.decorators.http import require_http_methods
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.offline import plot
 from .models import Study, Project
 from .forms import StudyCreationForm, ProjectCreationForm
+from health.models import RawDataFile
+from core.tsne_service import tsne_service
 
 
 @login_required
@@ -36,8 +43,8 @@ def upload_study(request):
                 
                 # Save the study with new codebook
                 study = form.save()
-                study.status = 'draft'  # Reset status
-                study.save()
+                study.status = 'codebook_uploaded'
+                study.save(update_fields=['status'])
                 
                 messages.success(
                     request,
@@ -55,6 +62,8 @@ def upload_study(request):
                 study = form.save()
                 
                 if study.codebook:
+                    study.status = 'codebook_uploaded'
+                    study.save(update_fields=['status'])
                     messages.success(
                         request, 
                         f'Study "{study.name}" created successfully with codebook file! '
@@ -147,6 +156,7 @@ class StudyDetailView(LoginRequiredMixin, DetailView):
         
         # Calculate variable statistics
         variables = study.variables.all()
+        total_vars = variables.count()
         
         # Variable type distribution
         variable_types = {}
@@ -158,13 +168,19 @@ class StudyDetailView(LoginRequiredMixin, DetailView):
         variables_with_units = variables.exclude(unit='').count()
         variables_with_codes = variables.exclude(ontology_code='').count()
         
+        # Embedding statistics
+        variables_with_embeddings = variables.filter(
+            name_embedding__isnull=False,
+            description_embedding__isnull=False,
+        ).count()
+        embedding_progress = round((variables_with_embeddings / total_vars * 100), 1) if total_vars > 0 else 0
+        
         # Calculate percentages for type distribution bars
-        total_vars = variables.count()
         if total_vars > 0:
             for var_type in variable_types:
                 variable_types[var_type] = {
                     'count': variable_types[var_type],
-                    'percentage': (variable_types[var_type] / total_vars) * 100
+                    'percentage': (variable_types[var_type] / total_vars) * 100,
                 }
         
         context.update({
@@ -172,6 +188,8 @@ class StudyDetailView(LoginRequiredMixin, DetailView):
             'variables_with_units': variables_with_units,
             'variables_with_codes': variables_with_codes,
             'total_variables': total_vars,
+            'variables_with_embeddings': variables_with_embeddings,
+            'embedding_progress': round(embedding_progress, 1),
         })
         
         return context
@@ -198,6 +216,20 @@ def study_dashboard(request):
     for study in all_studies:
         total_variables += study.variables.count()
     
+    # Raw data file stats
+    user_files = RawDataFile.objects.filter(uploaded_by=request.user)
+    raw_data_status_counts = {
+        'uploaded': user_files.filter(processing_status='uploaded').count(),
+        'validation_error': user_files.filter(processing_status='validation_error').count(),
+        'validated': user_files.filter(processing_status='validated').count(),
+        'processed': user_files.filter(processing_status='processed').count(),
+        'processing': user_files.filter(processing_status='processing').count(),
+        'ingestion_error': user_files.filter(processing_status='ingestion_error').count(),
+        'ingested': user_files.filter(processing_status='ingested').count(),
+        'processed_with_errors': user_files.filter(processing_status='processed_with_errors').count(),
+        'error': user_files.filter(processing_status='error').count(),
+    }
+
     context = {
         'source_studies': recent_source_studies,
         'source_studies_count': source_studies.count(),
@@ -208,6 +240,8 @@ def study_dashboard(request):
         'total_variables': total_variables,
         'total_projects': all_projects.count(),
         'recent_projects': recent_projects,
+        'raw_data_status_counts': raw_data_status_counts,
+        'raw_data_total_files': user_files.count(),
     }
     
     return render(request, 'core/dashboard.html', context)
@@ -434,7 +468,7 @@ def target_select_variables(request, study_id):
                                 'variable_type': var_data.get('variable_type', 'string'),
                                 'unit': var_data.get('unit', ''),
                                 'ontology_code': var_data.get('ontology_code', ''),
-                                'category': 'health',  # Default category for target variables
+                                'category': var_data.get('category', 'health'),  # Use extracted category or default to health
                             }
                         )
                         created_attributes.append(attribute)
@@ -452,7 +486,7 @@ def target_select_variables(request, study_id):
                 # Associate variables with the study
                 study.variables.set(created_attributes)
                 study.status = 'variables_extracted'
-                study.save()
+                study.save(update_fields=['status'])
                 
                 # Clear session data
                 request.session.pop(f'target_variables_data_{study.id}', None)
@@ -531,7 +565,7 @@ def target_reset_variables(request, study_id):
         
         # Reset study status
         study.status = 'created'
-        study.save()
+        study.save(update_fields=['status'])
         
         messages.success(
             request,
@@ -602,3 +636,330 @@ def delete_study(request, study_id):
     # If GET request, just redirect back
     messages.warning(request, 'Invalid request. Studies can only be deleted via proper form submission.')
     return redirect('core:study_detail', pk=study.pk)
+
+
+# Embedding generation views
+# ==========================
+
+@login_required
+def generate_study_embeddings(request, study_id):
+    """
+    Generate embeddings for all attributes in a study.
+    """
+    study = get_object_or_404(Study, id=study_id, created_by=request.user)
+    
+    if request.method == 'POST':
+        from core.tasks import generate_embeddings_for_study
+        
+        # Queue the embedding generation task
+        task = generate_embeddings_for_study.delay(study_id)
+        
+        # Count attributes to give user feedback
+        attribute_count = study.variables.count()
+        
+        messages.success(
+            request,
+            f"Embedding generation queued for {attribute_count} attributes in study '{study.name}'. "
+            f"This may take a few minutes. Check back later to see the progress."
+        )
+        
+    return redirect('core:study_detail', pk=study_id)
+
+
+@login_required
+@require_http_methods(["GET"])
+def embedding_progress(request, study_id):
+    """
+    API endpoint to check embedding generation progress for a study.
+    Returns JSON with current progress.
+    """
+    study = get_object_or_404(Study, id=study_id, created_by=request.user)
+
+    total_variables = study.variables.count()
+    variables_with_embeddings = study.variables.filter(
+        name_embedding__isnull=False,
+        description_embedding__isnull=False,
+    ).count()
+
+    if total_variables > 0:
+        progress_percentage = round(
+            (variables_with_embeddings / total_variables * 100), 1,
+        )
+    else:
+        progress_percentage = 0
+
+    is_complete = variables_with_embeddings == total_variables
+
+    return JsonResponse({
+        "total": total_variables,
+        "completed": variables_with_embeddings,
+        "percentage": progress_percentage,
+        "is_complete": is_complete,
+    })
+
+
+@login_required
+def generate_attribute_embedding(request, attribute_id):
+    """
+    Generate embeddings for a single attribute.
+    """
+    from core.models import Attribute
+    
+    attribute = get_object_or_404(Attribute, id=attribute_id)
+    
+    # Check if user has access to this attribute (via their studies)
+    user_studies = Study.objects.filter(created_by=request.user)
+    if not user_studies.filter(variables=attribute).exists():
+        messages.error(request, "You don't have permission to generate embeddings for this attribute.")
+        return redirect('core:study_list')
+    
+    if request.method == 'POST':
+        from core.tasks import generate_attribute_embeddings
+        
+        # Queue the embedding generation task
+        task = generate_attribute_embeddings.delay(attribute_id)
+        
+        messages.success(
+            request,
+            f"Embedding generation queued for attribute '{attribute.variable_name}'. "
+            f"This may take a moment. Check back to see the progress."
+        )
+        
+        # Safely handle redirect to a known internal page
+        # Find a study that contains this attribute to redirect to
+        study = user_studies.filter(variables=attribute).first()
+        if study:
+            return redirect('core:study_detail', pk=study.pk)
+        
+        # Fallback to study list if no study found
+        return redirect('core:study_list')
+    
+    # If GET request, redirect back 
+    return redirect('core:study_list')
+
+
+@login_required
+@require_http_methods(["POST"])
+def generate_project_tsne(request, project_id):
+    """
+    Generate t-SNE projections for all attributes in a project.
+    """
+    from core.tasks import generate_tsne_projections_for_project
+    
+    project = get_object_or_404(Project, id=project_id, created_by=request.user)
+    
+    # Get embedding type from POST data
+    embedding_type = request.POST.get('embedding_type', 'both')
+    if embedding_type not in ['name', 'description', 'both']:
+        embedding_type = 'both'
+    
+    # Queue the t-SNE generation task
+    task = generate_tsne_projections_for_project.delay(project_id, embedding_type)
+    
+    messages.success(
+        request,
+        f"t-SNE projection generation queued for project '{project.name}'. "
+        f"This may take a few minutes. You can continue working while projections are computed."
+    )
+    
+    # Redirect back to the project detail page
+    return redirect('core:project_detail', pk=project_id)
+
+
+@login_required
+@require_http_methods(["GET"])
+def tsne_progress(request, project_id):
+    """
+    Get t-SNE projection progress for a project (AJAX endpoint).
+    """
+    from core.tasks import check_tsne_projection_progress
+    
+    # Validate user has access to this project
+    project = get_object_or_404(Project, id=project_id, created_by=request.user)
+    
+    # Get progress information using the validated project_id
+    result = check_tsne_projection_progress(project.id)
+    
+    if result.get("success"):
+        return JsonResponse({
+            "total": result["total_attributes"],
+            "name_completed": result["name_projections"],
+            "description_completed": result["description_projections"],
+            "name_percentage": result["name_percentage"],
+            "description_percentage": result["description_percentage"],
+            "is_complete": result["is_complete"],
+        })
+    
+    return JsonResponse({
+        "error": result.get("error", "Unknown error"),
+    }, status=500)
+
+
+@login_required
+def tsne_visualization(request, project_id):
+    """
+    Display the t-SNE visualization page with server-side Plotly generation.
+    """
+    project = get_object_or_404(Project, id=project_id, created_by=request.user)
+    
+    # Get embedding type from query parameters
+    embedding_type = request.GET.get("type", "name")
+    if embedding_type not in ["name", "description"]:
+        embedding_type = "name"
+    
+    # Get visualization data
+    df = tsne_service.get_projection_data_for_visualization(
+        project=project,
+        embedding_type=embedding_type,
+    )
+    
+    # Check if we have data
+    if df.empty:
+        messages.warning(
+            request,
+            f"No {embedding_type} t-SNE projections available for "
+            f"project '{project.name}'. Please generate projections first.",
+        )
+        return redirect("core:project_detail", pk=project_id)
+    
+    # Create grouped legend with separate traces for source and target studies
+    # Create figure
+    fig = go.Figure()
+
+    # Get unique studies
+    studies = df["study_name"].unique()
+
+    # Color palette for studies
+    colors = px.colors.qualitative.Set1[:len(studies)]
+    study_colors = dict(zip(studies, colors, strict=True))
+
+    # Symbol mapping
+    symbol_map = {"source": "circle", "target": "triangle-up"}
+
+    # Create traces for each combination of study and source type
+    for source_type in ["source", "target"]:  # Order matters for legend grouping
+        source_df = df[df["source_type"] == source_type]
+        if source_df.empty:
+            continue
+
+        for study in studies:
+            study_df = source_df[source_df["study_name"] == study]
+            if study_df.empty:
+                continue
+
+            # Create legend group name
+            legend_name = (
+                "Source Studies" if source_type == "source" else "Target Studies"
+            )
+            trace_name = f"{study}"
+
+            fig.add_trace(go.Scatter(
+                x=study_df["x"],
+                y=study_df["y"],
+                mode="markers",
+                name=trace_name,
+                legendgroup=legend_name,
+                legendgrouptitle_text=legend_name,
+                marker={
+                    "symbol": symbol_map[source_type],
+                    "color": study_colors[study],
+                    "size": 8,
+                    "opacity": 0.7,
+                    "line": {"width": 1, "color": "white"},
+                },
+                customdata=study_df[
+                    ["variable_name", "description", "category", "source_type"]
+                ].values,
+                hovertemplate=(
+                    "<b>%{customdata[0]}</b><br>"
+                    "Study: " + study + "<br>"
+                    "Category: %{customdata[2]}<br>"
+                    "Type: %{customdata[3]}<br>"
+                    "Description: %{customdata[1]}<br>"
+                    "<extra></extra>"
+                ),
+            ))
+
+    # Update layout
+    fig.update_layout(
+        template="plotly_white",
+        width=900,
+        height=600,
+        title={
+            "text": (
+                f"t-SNE Visualization: {embedding_type.title()} "
+                f"Embeddings for {project.name}"
+            ),
+            "x": 0.5,
+        },
+        xaxis_title="t-SNE Dimension 1",
+        yaxis_title="t-SNE Dimension 2",
+        showlegend=True,
+        legend={
+            "orientation": "v",
+            "yanchor": "top",
+            "y": 1,
+            "xanchor": "left",
+            "x": 1.01,
+            "groupclick": "toggleitem",
+        },
+    )
+    
+    # Convert to HTML div using Plotly offline
+    plot_div = plot(fig, output_type="div", include_plotlyjs=True)
+    
+    context = {
+        "project": project,
+        "embedding_type": embedding_type,
+        "plot_div": plot_div,
+        "data_count": len(df),
+        "categories": (
+            df["category"].unique().tolist() if not df.empty else []
+        ),
+        "variable_types": (
+            df["variable_type"].unique().tolist() if not df.empty else []
+        ),
+        "source_types": (
+            df["source_type"].unique().tolist() if not df.empty else []
+        ),
+    }
+    
+    return render(request, "core/tsne_visualization.html", context)
+
+
+@login_required
+def tsne_data_api(request, project_id):
+    """
+    API endpoint to get t-SNE data for visualization (AJAX).
+    Note: This is kept for backward compatibility but the main visualization
+    now uses server-side Plotly generation.
+    """
+    project = get_object_or_404(Project, id=project_id, created_by=request.user)
+    
+    # Get embedding type from query parameters
+    embedding_type = request.GET.get("type", "name")
+    if embedding_type not in ["name", "description"]:
+        embedding_type = "name"
+    
+    # Get visualization data
+    df = tsne_service.get_projection_data_for_visualization(
+        project=project,
+        embedding_type=embedding_type,
+    )
+    
+    if df.empty:
+        return JsonResponse({
+            "error": f"No {embedding_type} t-SNE projections available",
+            "data": [],
+        })
+    
+    # Convert DataFrame to JSON format
+    data = df.to_dict("records")
+    
+    return JsonResponse({
+        "success": True,
+        "data": data,
+        "count": len(data),
+        "embedding_type": embedding_type,
+        "project_name": project.name,
+    })

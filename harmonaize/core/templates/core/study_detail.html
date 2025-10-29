@@ -26,6 +26,31 @@
       line-height: 1.5;
     }
 
+    .breadcrumb {
+      background: transparent;
+      padding: 0.75rem 0 1rem 0;
+      margin: 0;
+      font-size: 0.9rem;
+    }
+
+    .breadcrumb-item + .breadcrumb-item::before {
+      content: "›";
+      color: var(--text-secondary);
+    }
+
+    .breadcrumb-item a {
+      color: var(--primary-color);
+      text-decoration: none;
+    }
+
+    .breadcrumb-item a:hover {
+      text-decoration: underline;
+    }
+
+    .breadcrumb-item.active {
+      color: var(--text-secondary);
+    }
+
     .header-section {
       background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
       color: white;
@@ -660,6 +685,7 @@
 {% endblock css %}
 
 {% block content %}
+  
   <!-- Header Section -->
   <div class="header-section">
     <div class="study-header">
@@ -668,6 +694,16 @@
         Created by {{ study.created_by.name|default:study.created_by.email }} on {{ study.created_at|date:"F j, Y" }}
       </div>
     </div>
+  </div>
+<!-- Breadcrumb Navigation -->
+  <div class="container-fluid">
+    <nav aria-label="breadcrumb" class="mb-4">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">Home</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'core:project_detail' study.project.id %}">{{ study.project.name }}</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ study.name }}</li>
+      </ol>
+    </nav>
   </div>
 
   <!-- Main Content -->
@@ -837,7 +873,309 @@
           <div class="empty-state">No files uploaded</div>
         {% endif %}
       </div>
+      
+      <!-- Codebook Management Actions -->
+      {% if study.codebook %}
+        <div class="codebook-management">
+          <div class="codebook-actions">
+            <button class="btn btn-outline" onclick="showReuploadModal()">
+              {% include 'components/svg_icon.html' with icon='upload' size='16' class='inline-icon' %} 
+              {% if study.study_purpose == 'target' %}
+                Re-upload Target Codebook
+              {% else %}
+                Re-upload Source Codebook
+              {% endif %}
+            </button>
+          </div>
+        </div>
+      {% else %}
+        <!-- Upload button for studies without codebook -->
+        <div class="codebook-management">
+          <div class="codebook-actions">
+            <button class="btn btn-primary" onclick="showReuploadModal()">
+              {% include 'components/svg_icon.html' with icon='upload' size='16' class='inline-icon' %} 
+              {% if study.study_purpose == 'target' %}
+                Upload Target Codebook
+              {% else %}
+                Upload Source Codebook
+              {% endif %}
+            </button>
+          </div>
+        </div>
+      {% endif %}
     </div>
+
+    <!-- Data Ingestion Section (only for source studies) -->
+    {% if study.study_purpose == 'source' %}
+    <div class="info-card">
+      <h2 class="card-title">
+        <i class="fas fa-database"></i>
+        Raw Data Management
+      </h2>
+      <div class="codebook-management">
+        <div class="info-grid">
+          <div class="info-item">
+            <div class="info-label">Upload Raw Data</div>
+            <div class="info-value">
+              <p class="text-muted mb-2">Upload CSV, Excel, or other data files containing patient records.</p>
+              <div class="codebook-actions">
+                <a href="{% url 'health:upload_raw_data_for_study' study_id=study.id %}" class="btn btn-primary">
+                  <i class="fas fa-upload"></i> Upload Raw Data File
+                </a>
+                <a href="{% url 'health:raw_data_list' %}?study={{ study.id }}" class="btn btn-outline-secondary">
+                  <i class="fas fa-list"></i> View All Files
+                </a>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Display uploaded raw data files count -->
+          {% if study.raw_data_files.count > 0 %}
+          <div class="info-item">
+            <div class="info-label">Uploaded Files</div>
+            <div class="info-value">
+              <span class="badge" style="background: rgba(0, 122, 255, 0.2); color: #0056b3; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 600;">
+                {{ study.raw_data_files.count }} file{{ study.raw_data_files.count|pluralize }}
+              </span>
+              <small class="text-muted d-block" style="margin-top: 0.25rem;">
+                Last uploaded: {{ study.raw_data_files.first.uploaded_at|date:"M d, Y" }}
+              </small>
+            </div>
+          </div>
+          
+          <div class="info-item">
+            <div class="info-label">Processing Status</div>
+            <div class="info-value">
+              <!-- Simple status count display -->
+              {% if study.raw_data_files.all %}
+                <div style="display: flex; flex-wrap: wrap; gap: 0.25rem;">
+                  {% for file in study.raw_data_files.all %}
+                    {% if file.processing_status == 'processed' %}
+                      <span class="badge" style="background: rgba(52, 199, 89, 0.2); color: #155724; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 600;" title="Processed file: {{ file.original_filename }}">
+                        ✓
+                      </span>
+                    {% elif file.processing_status == 'validated' %}
+                      <span class="badge" style="background: rgba(0, 122, 255, 0.2); color: #0056b3; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 600;" title="Validated file: {{ file.original_filename }}">
+                        ~
+                      </span>
+                    {% elif file.processing_status == 'uploaded' %}
+                      <span class="badge" style="background: rgba(255, 193, 7, 0.2); color: #856404; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 600;" title="Uploaded file: {{ file.original_filename }}">
+                        ○
+                      </span>
+                    {% elif file.processing_status == 'error' %}
+                      <span class="badge" style="background: rgba(255, 59, 48, 0.2); color: #721c24; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 600;" title="Error in file: {{ file.original_filename }}">
+                        ✗
+                      </span>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              {% else %}
+                <small class="text-muted">No files uploaded</small>
+              {% endif %}
+            </div>
+          </div>
+          {% endif %}
+        </div>
+        
+        <div class="alert alert-info">
+          <i class="fas fa-info-circle"></i>
+          <strong>Data Ingestion Process:</strong> Upload your raw data files to link patient records with your study's harmonized variables. 
+          Files will be processed to identify patient IDs, dates, and data columns for mapping.
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Raw Data Files Section (only for source studies) -->
+    {% if study.study_purpose == 'source' and study.raw_data_files.count > 0 %}
+    <div class="info-card">
+      <h2 class="card-title">
+        <i class="fas fa-database"></i>
+        Uploaded Data Files ({{ study.raw_data_files.count }})
+      </h2>
+      
+      <div class="table-responsive" style="margin-top: 1rem;">
+        <table class="table" style="margin: 0;">
+          <thead style="background: var(--background-color);">
+            <tr>
+              <th style="padding: 0.75rem; border: 1px solid var(--border-color);">File Name</th>
+              <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Status</th>
+              <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Size</th>
+              <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Rows/Cols</th>
+              <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Uploaded</th>
+              <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for file in study.raw_data_files.all|slice:":5" %}
+              <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">
+                  <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <i class="fas fa-file-{{ file.file_format }}" style="color: var(--text-secondary);"></i>
+                    <a href="{% url 'health:raw_data_detail' file_id=file.id %}" style="text-decoration: none; color: var(--primary-color); font-weight: 500;">
+                      {{ file.original_filename|truncatechars:30 }}
+                    </a>
+                  </div>
+                </td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">
+                  {% if file.processing_status == 'uploaded' %}
+                    <span style="background: rgba(255, 193, 7, 0.2); color: #856404; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 600;">Uploaded</span>
+                  {% elif file.processing_status == 'validation_error' %}
+                    <span style="background: rgba(255, 59, 48, 0.2); color: #721c24; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 600;">Validation Error</span>
+                  {% elif file.processing_status == 'validated' %}
+                    <span style="background: rgba(0, 122, 255, 0.2); color: #0056b3; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 600;">Validated</span>
+                  {% elif file.processing_status == 'processed' %}
+                    <span style="background: rgba(52, 199, 89, 0.2); color: #155724; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 600;">Processed</span>
+                  {% elif file.processing_status == 'processing' %}
+                    <span style="background: rgba(0, 122, 255, 0.15); color: #0056b3; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 600;">Processing</span>
+                  {% elif file.processing_status == 'ingestion_error' %}
+                    <span style="background: rgba(255, 59, 48, 0.2); color: #721c24; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 600;">Ingestion Error</span>
+                  {% elif file.processing_status == 'ingested' %}
+                    <span style="background: rgba(52, 199, 89, 0.2); color: #155724; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 600;">Ingested</span>
+                  {% elif file.processing_status == 'processed_with_errors' %}
+                    <span style="background: rgba(142, 142, 147, 0.2); color: #3a3a3c; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 600;">Processed w/ Errors</span>
+                  {% elif file.processing_status == 'error' %}
+                    <span style="background: rgba(44, 44, 46, 0.2); color: #1c1c1e; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 600;">Error</span>
+                  {% else %}
+                    <span style="background: rgba(142, 142, 147, 0.2); color: #3a3a3c; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 600;">{{ file.processing_status|capfirst }}</span>
+                  {% endif %}
+                </td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">
+                  <small style="color: var(--text-secondary);">{{ file.file_size|filesizeformat }}</small>
+                </td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">
+                  {% if file.rows_count and file.columns_count %}
+                    <small style="color: var(--text-secondary);">{{ file.rows_count|floatformat:0 }} × {{ file.columns_count }}</small>
+                  {% else %}
+                    <small style="color: var(--text-secondary);">-</small>
+                  {% endif %}
+                </td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">
+                  <small style="color: var(--text-secondary);">{{ file.uploaded_at|date:"M d" }}</small>
+                </td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">
+                  <div style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center;">
+                    <a href="{% url 'health:raw_data_detail' file_id=file.id %}"
+                       style="color: var(--primary-color); text-decoration: none; font-size: 0.9rem;"
+                       title="View Details">View</a>
+
+                    {% if file.processing_status == 'uploaded' %}
+                      <span>•</span>
+                      <a href="{% url 'health:validate_raw_data' file_id=file.id %}" style="text-decoration:none; font-size:0.9rem;">Validate</a>
+                      <span>•</span>
+                      <a href="{% url 'health:delete_raw_data' file_id=file.id %}" style="text-decoration:none; color:#c82333; font-size:0.9rem;">Delete</a>
+
+                    {% elif file.processing_status == 'validation_error' %}
+                      <span>•</span>
+                      <a href="{% url 'health:validate_raw_data' file_id=file.id %}" style="text-decoration:none; font-size:0.9rem;">Re-Validate</a>
+                      <span>•</span>
+                      <a href="{% url 'health:delete_raw_data' file_id=file.id %}" style="text-decoration:none; color:#c82333; font-size:0.9rem;">Delete</a>
+
+                    {% elif file.processing_status == 'validated' %}
+                      <span>•</span>
+                      <a href="{% url 'health:map_raw_data_columns' file_id=file.id %}" style="text-decoration:none; font-size:0.9rem;">Map Columns</a>
+                      <span>•</span>
+                      <a href="{% url 'health:delete_raw_data' file_id=file.id %}" style="text-decoration:none; color:#c82333; font-size:0.9rem;">Delete</a>
+
+                    {% elif file.processing_status == 'processed' %}
+                      <span>•</span>
+                      <a href="{% url 'health:map_raw_data_columns' file_id=file.id %}" style="text-decoration:none; font-size:0.9rem;">Map Columns</a>
+                      <span>•</span>
+                      <form method="post" action="{% url 'health:start_data_ingestion' file_id=file.id %}" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" style="border:none; background:none; color: var(--primary-color); padding:0; font-size:0.9rem; cursor:pointer;">Start Ingestion</button>
+                      </form>
+                      <span>•</span>
+                      <a href="{% url 'health:delete_raw_data' file_id=file.id %}" style="text-decoration:none; color:#c82333; font-size:0.9rem;">Delete</a>
+
+                    {% elif file.processing_status == 'processing' %}
+                      <span>•</span>
+                      <a href="{% url 'health:raw_data_detail' file_id=file.id %}" style="text-decoration:none; font-size:0.9rem;">View Status</a>
+                      <span>•</span>
+                      <a href="{% url 'health:delete_raw_data' file_id=file.id %}" style="text-decoration:none; color:#c82333; font-size:0.9rem;">Delete</a>
+
+                    {% elif file.processing_status == 'ingestion_error' %}
+                      <span>•</span>
+                      <a href="{% url 'health:raw_data_detail' file_id=file.id %}" style="text-decoration:none; font-size:0.9rem;">View Status</a>
+                      <span>•</span>
+                      <form method="post" action="{% url 'health:start_data_ingestion' file_id=file.id %}" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" style="border:none; background:none; color: var(--primary-color); padding:0; font-size:0.9rem; cursor:pointer;">Retry Ingestion</button>
+                      </form>
+                      <span>•</span>
+                      <a href="{% url 'health:map_raw_data_columns' file_id=file.id %}" style="text-decoration:none; font-size:0.9rem;">Map Columns</a>
+                      <span>•</span>
+                      <a href="{% url 'health:delete_raw_data' file_id=file.id %}" style="text-decoration:none; color:#c82333; font-size:0.9rem;">Delete</a>
+
+                    {% elif file.processing_status == 'ingested' %}
+                      <span>•</span>
+                      <a href="{% url 'health:raw_data_detail' file_id=file.id %}" style="text-decoration:none; font-size:0.9rem;">View Status</a>
+                      <span>•</span>
+                      <form method="post" action="{% url 'health:start_data_ingestion' file_id=file.id %}" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" style="border:none; background:none; color: var(--primary-color); padding:0; font-size:0.9rem; cursor:pointer;">Re-ingest</button>
+                      </form>
+                      <span>•</span>
+                      <a href="{% url 'health:delete_raw_data' file_id=file.id %}" style="text-decoration:none; color:#c82333; font-size:0.9rem;">Delete</a>
+
+                    {% elif file.processing_status == 'processed_with_errors' %}
+                      <span>•</span>
+                      <a href="{% url 'health:raw_data_detail' file_id=file.id %}" style="text-decoration:none; font-size:0.9rem;">View Status</a>
+                      <span>•</span>
+                      <form method="post" action="{% url 'health:start_data_ingestion' file_id=file.id %}" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" style="border:none; background:none; color: var(--primary-color); padding:0; font-size:0.9rem; cursor:pointer;">Re-ingest</button>
+                      </form>
+                      <span>•</span>
+                      <a href="{% url 'health:delete_raw_data' file_id=file.id %}" style="text-decoration:none; color:#c82333; font-size:0.9rem;">Delete</a>
+
+                    {% else %}
+                      <span>•</span>
+                      <a href="{% url 'health:delete_raw_data' file_id=file.id %}" style="text-decoration:none; color:#c82333; font-size:0.9rem;">Delete</a>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      
+      {% if study.raw_data_files.count > 5 %}
+        <div style="text-align: center; margin-top: 1rem;">
+          <a href="{% url 'health:raw_data_list' %}?study={{ study.id }}" class="btn btn-outline-secondary">
+            <i class="fas fa-list"></i> View All {{ study.raw_data_files.count }} Files
+          </a>
+        </div>
+      {% endif %}
+      
+      <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
+        <div class="alert alert-info">
+          <i class="fas fa-info-circle"></i>
+          <div>
+            <strong>Next Steps:</strong> 
+            {% if study.raw_data_files.all %}
+              {% with uploaded_files=study.raw_data_files.all %}
+                {% if uploaded_files|length == 1 %}
+                  Your single data file is ready for processing.
+                {% else %}
+                  You have {{ uploaded_files|length }} data files uploaded.
+                {% endif %}
+                Check individual file status above to see what needs attention.
+              {% endwith %}
+            {% else %}
+              Upload your first data file to begin processing.
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Variable Embeddings Management -->
+    {% if study.variables.count > 0 %}
+      {% include 'components/embeddings/embeddings_card.html' with study=study %}
+    {% endif %}
 
     <!-- Variables Summary & Statistics -->
     <div class="info-card">
@@ -903,6 +1241,7 @@
           {% for variable in study.variables.all %}
             <div class="variable-card" 
                  data-type="{{ variable.variable_type }}" 
+                 data-variable-id="{{ variable.id }}"
                  data-search="{{ variable.variable_name|lower }} {{ variable.display_name|lower }} {{ variable.description|lower }}"
                  onclick="showVariableDetail({{ variable.id }})">
               <div class="variable-header">
@@ -933,6 +1272,10 @@
                 <span class="meta-item">
                   <strong>Created:</strong> {{ variable.created_at|date:"M j, Y" }}
                 </span>
+                <!-- Embedding status and controls -->
+                <div class="meta-item" style="margin-left: auto;">
+                  {% include 'components/embeddings/status_badge.html' with variable=variable show_button=True %}
+                </div>
               </div>
             </div>
           {% endfor %}
@@ -963,6 +1306,62 @@
           </p>
         </div>
       {% endif %}
+      
+      <!-- Variable Management Actions -->
+      <div class="codebook-management">
+        <div class="codebook-actions">
+          {% if study.study_purpose == 'target' %}
+            <!-- Target Study Variable Actions -->
+            {% if study.codebook %}
+              {% if study.variables.count > 0 %}
+                <!-- Target study with variables defined -->
+                <a href="{% url 'core:target_map_codebook' study.id %}" class="btn btn-primary">
+                  View Target Variables →
+                </a>
+                <button class="btn btn-outline" onclick="showResetModal()">
+                  {% include 'components/svg_icon.html' with icon='refresh' size='16' class='inline-icon' %} Reset Target Variables
+                </button>
+              {% else %}
+                <!-- Target study with codebook but no variables selected -->
+                <a href="{% url 'core:target_map_codebook' study.id %}" class="btn btn-primary">
+                  Define Target Variables →
+                </a>
+              {% endif %}
+            {% endif %}
+          {% else %}
+            <!-- Source Study Variable Actions -->
+            {% if study.codebook %}
+              {% if study.variables.count > 0 %}
+                <!-- Source study with variables defined -->
+                {% if study.source_mappings.exists %}
+                  <a href="{% url 'health:study_harmonization_dashboard' study.id %}" class="btn btn-primary">
+                    {% include 'components/svg_icon.html' with icon='microscope' size='16' class='inline-icon' %} Continue Harmonisation →
+                  </a>
+                {% else %}
+                  <a href="{% url 'health:start_harmonisation' study.id %}" class="btn btn-primary">
+                    {% include 'components/svg_icon.html' with icon='microscope' size='16' class='inline-icon' %} Start Harmonisation →
+                  </a>
+                {% endif %}
+                <a href="{% url 'health:reset_variables' study.id %}" class="btn btn-outline" 
+                   onclick="return confirm('Are you sure you want to reset all variables? This action cannot be undone.')">
+                  {% include 'components/svg_icon.html' with icon='refresh' size='16' class='inline-icon' %} Reset Variables
+                </a>
+              {% else %}
+                <!-- Source study with codebook but no variables selected -->
+                <a href="{% url 'health:map_codebook' study.id %}" class="btn btn-primary">
+                  {% include 'components/svg_icon.html' with icon='microscope' size='16' class='inline-icon' %} Extract Variables →
+                </a>
+              {% endif %}
+            {% else %}
+              <!-- Source study with no codebook - prompt to upload -->
+              <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i>
+                Upload a codebook in the "Study Materials" section above to extract variables.
+              </div>
+            {% endif %}
+          {% endif %}
+        </div>
+      </div>
     </div>
 
     <!-- Action Buttons -->
@@ -970,67 +1369,6 @@
       <a href="{% url 'core:study_list' %}" class="btn btn-secondary">
         ← Back to Studies
       </a>
-      
-      {% if study.study_purpose == 'target' %}
-        <!-- Target Study Actions -->
-        {% if study.codebook %}
-          {% if study.variables.count > 0 %}
-            <!-- Target study with variables defined -->
-            <a href="{% url 'core:target_map_codebook' study.id %}" class="btn btn-primary">
-              View Target Variables →
-            </a>
-            <button class="btn btn-outline-secondary" onclick="showReuploadModal()">
-              {% include 'components/svg_icon.html' with icon='upload' size='16' class='inline-icon' %} Re-upload Target Codebook
-            </button>
-            <button class="btn btn-outline-warning" onclick="showResetModal()">
-              {% include 'components/svg_icon.html' with icon='refresh' size='16' class='inline-icon' %} Reset Target Variables
-            </button>
-          {% else %}
-            <!-- Target study with codebook but no variables selected -->
-            <a href="{% url 'core:target_map_codebook' study.id %}" class="btn btn-primary">
-              Define Target Variables →
-            </a>
-            <button class="btn btn-outline-secondary" onclick="showReuploadModal()">
-              {% include 'components/svg_icon.html' with icon='upload' size='16' class='inline-icon' %} Re-upload Target Codebook
-            </button>
-          {% endif %}
-        {% else %}
-          <!-- Target study with no codebook -->
-          <button class="btn btn-primary" onclick="showReuploadModal()">
-            {% include 'components/svg_icon.html' with icon='upload' size='16' class='inline-icon' %} Upload Target Codebook →
-          </button>
-        {% endif %}
-      {% else %}
-        <!-- Source Study Actions -->
-        {% if study.codebook %}
-          {% if study.variables.count > 0 %}
-            <!-- Source study with variables defined -->
-            <a href="#" class="btn btn-primary" onclick="showUpcomingFeature('Harmonisation Results'); return false;">
-              {% include 'components/svg_icon.html' with icon='refresh' size='16' class='inline-icon' %} View Harmonisation Results →
-            </a>
-            <button class="btn btn-outline-secondary" onclick="showReuploadModal()">
-              {% include 'components/svg_icon.html' with icon='upload' size='16' class='inline-icon' %} Re-upload Source Codebook
-            </button>
-            <a href="{% url 'health:reset_variables' study.id %}" class="btn btn-outline-warning" 
-               onclick="return confirm('Are you sure you want to reset all variables? This action cannot be undone.')">
-              {% include 'components/svg_icon.html' with icon='refresh' size='16' class='inline-icon' %} Reset Variables
-            </a>
-          {% else %}
-            <!-- Source study with codebook but no variables selected -->
-            <a href="{% url 'health:map_codebook' study.id %}" class="btn btn-primary">
-              {% include 'components/svg_icon.html' with icon='microscope' size='16' class='inline-icon' %} Start Health Data Harmonisation →
-            </a>
-            <button class="btn btn-outline-secondary" onclick="showReuploadModal()">
-              {% include 'components/svg_icon.html' with icon='upload' size='16' class='inline-icon' %} Re-upload Source Codebook
-            </button>
-          {% endif %}
-        {% else %}
-          <!-- Source study with no codebook -->
-          <button class="btn btn-primary" onclick="showReuploadModal()">
-            {% include 'components/svg_icon.html' with icon='upload' size='16' class='inline-icon' %} Upload Source Codebook →
-          </button>
-        {% endif %}
-      {% endif %}
       
       <!-- Delete Study Button -->
       <button class="btn btn-danger" onclick="showDeleteModal()" style="margin-left: auto;">
@@ -1220,6 +1558,112 @@
     const urls = djangoData.urls;
     const isTargetStudy = djangoData.isTargetStudy;
 
+    // Handle bulk embedding generation with progress indicator
+    function handleGenerateAllEmbeddings(event, variableCount) {
+      if (!confirm(`This will generate embeddings for all ${variableCount} variables. Continue?`)) {
+        return false;
+      }
+      
+      // Show progress indicator
+      const button = document.getElementById('generateAllBtn');
+      const icon = document.getElementById('generateAllIcon');
+      const text = document.getElementById('generateAllText');
+      const progress = document.getElementById('embeddingProgress');
+      
+      // Update button state
+      button.disabled = true;
+      icon.className = 'fas fa-spinner fa-spin';
+      text.textContent = 'Generating...';
+      button.style.opacity = '0.7';
+      
+      // Show progress section
+      progress.style.display = 'block';
+      
+      // Start polling for progress after a short delay to allow task to start
+      setTimeout(() => {
+        startProgressPolling(studyData.id);
+      }, 2000);
+      
+      // Allow form submission to continue
+      return true;
+    }
+
+    // Poll for embedding progress
+    function startProgressPolling(studyId) {
+      const pollInterval = setInterval(() => {
+        fetch(`/app/studies/${studyId}/embedding-progress/`)
+          .then(response => response.json())
+          .then(data => {
+            updateProgressBar(data);
+            
+            // Stop polling when complete
+            if (data.is_complete) {
+              clearInterval(pollInterval);
+              onProgressComplete();
+            }
+          })
+          .catch(error => {
+            console.error('Error polling progress:', error);
+            clearInterval(pollInterval);
+          });
+      }, 3000); // Poll every 3 seconds
+    }
+
+    // Update the progress bar with current data
+    function updateProgressBar(data) {
+      // Update the main progress bar in the stats section
+      const mainProgressBar = document.querySelector('.progress-fill');
+      if (mainProgressBar) {
+        mainProgressBar.style.width = `${data.percentage}%`;
+      }
+      
+      // Update counts in stats section
+      const progressText = document.querySelector('[style*="font-weight: 600"]');
+      if (progressText) {
+        progressText.textContent = `${data.completed}/${data.total}`;
+      }
+      
+      // Update progress indicator text
+      const progressDiv = document.getElementById('embeddingProgress');
+      if (progressDiv) {
+        const statusText = progressDiv.querySelector('[style*="font-weight: 500"]');
+        if (statusText) {
+          statusText.textContent = `Generating embeddings... ${data.completed}/${data.total} complete`;
+        }
+      }
+    }
+
+    // Handle completion
+    function onProgressComplete() {
+      const button = document.getElementById('generateAllBtn');
+      const icon = document.getElementById('generateAllIcon');
+      const text = document.getElementById('generateAllText');
+      const progress = document.getElementById('embeddingProgress');
+      
+      // Update button state
+      button.disabled = false;
+      icon.className = 'fas fa-check';
+      text.textContent = 'All Embeddings Generated';
+      button.style.opacity = '1';
+      button.style.background = 'var(--success-color)';
+      
+      // Update progress section
+      progress.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem;">
+          <i class="fas fa-check-circle" style="color: var(--success-color);"></i>
+          <span style="font-weight: 500; color: var(--text-primary);">All embeddings generated successfully!</span>
+        </div>
+        <div style="font-size: 0.85rem; color: var(--text-secondary);">
+          Variable cards will now show embedding status. You can proceed with harmonisation.
+        </div>
+      `;
+      
+      // Refresh variable cards after 2 seconds
+      setTimeout(() => {
+        location.reload();
+      }, 2000);
+    }
+
     // Variable filtering and search functionality
     function filterVariables(type) {
       // Update active filter button
@@ -1302,6 +1746,9 @@
       
       const unit = variableCard.querySelector('.unit-badge')?.textContent || '';
       
+      // Get embedding status from the status badge
+      const embeddingStatus = getEmbeddingStatusFromCard(variableCard);
+      
       content.innerHTML = `
         <div class="variable-detail-content">
           <div class="detail-row">
@@ -1314,10 +1761,114 @@
           ${description !== 'No description available' ? `<div class="detail-row"><strong>Description:</strong> ${description}</div>` : ''}
           ${ontologyCode ? `<div class="detail-row"><strong>Ontology Code:</strong> ${ontologyCode}</div>` : ''}
           ${createdDate ? `<div class="detail-row"><strong>Created:</strong> ${createdDate}</div>` : ''}
+          <div class="detail-row">
+            <strong>AI Embedding Status:</strong>
+            <div style="margin-top: 0.5rem;">
+              ${embeddingStatus.html}
+            </div>
+            <div style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-secondary);">
+              ${embeddingStatus.description}
+            </div>
+          </div>
         </div>
       `;
       
       modal.style.display = 'block';
+    }
+
+    // Helper function to extract embedding status from variable card
+    function getEmbeddingStatusFromCard(variableCard) {
+      const embeddingBadge = variableCard.querySelector('.meta-item:last-child');
+      if (!embeddingBadge) {
+        return {
+          html: '<span style="color: var(--text-secondary);">Status unknown</span>',
+          description: 'Unable to determine embedding status.'
+        };
+      }
+      
+      // Check for different badge types
+      if (embeddingBadge.querySelector('.embedding-status-complete')) {
+        return {
+          html: `
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <span style="background: rgba(52, 199, 89, 0.2); color: #155724; padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 0.8rem; font-weight: 600; display: inline-flex; align-items: center;">
+                <i class="fas fa-check-circle" style="margin-right: 0.25rem; color: #34C759;"></i>Complete
+              </span>
+              <small style="color: var(--text-secondary);">Both name and description embedded</small>
+            </div>
+          `,
+          description: 'This variable has complete AI embeddings for both name and description. These embeddings enable semantic matching during harmonisation.'
+        };
+      } else if (embeddingBadge.querySelector('.embedding-status-partial')) {
+        const hasNameEmbedding = embeddingBadge.textContent.includes('Name embedded');
+        return {
+          html: `
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <span style="background: rgba(255, 193, 7, 0.2); color: #856404; padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 0.8rem; font-weight: 600; display: inline-flex; align-items: center;">
+                <i class="fas fa-clock" style="margin-right: 0.25rem; color: #FFC107;"></i>Partial
+              </span>
+              <small style="color: var(--text-secondary);">${hasNameEmbedding ? 'Name embedded only' : 'Description embedded only'}</small>
+            </div>
+          `,
+          description: 'This variable has partial embeddings. Generate embeddings for both name and description for optimal harmonisation matching.'
+        };
+      } else if (embeddingBadge.querySelector('.btn-embedding-generate')) {
+        return {
+          html: `
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <span style="background: rgba(142, 142, 147, 0.2); color: #3a3a3c; padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 0.8rem; font-weight: 600; display: inline-flex; align-items: center;">
+                <i class="fas fa-circle" style="margin-right: 0.25rem; color: #8E8E93;"></i>Not Generated
+              </span>
+              <button onclick="generateSingleEmbedding(${variableCard.dataset.variableId})" style="background: var(--primary-color); color: white; border: none; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; cursor: pointer;">
+                <i class="fas fa-magic" style="margin-right: 0.25rem;"></i>Generate Now
+              </button>
+            </div>
+          `,
+          description: 'No AI embeddings have been generated for this variable. Click "Generate Now" to create embeddings for improved harmonisation matching.'
+        };
+      } else {
+        return {
+          html: `
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <span style="background: rgba(142, 142, 147, 0.2); color: #3a3a3c; padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 0.8rem; font-weight: 600; display: inline-flex; align-items: center;">
+                <i class="fas fa-circle" style="margin-right: 0.25rem; color: #8E8E93;"></i>No Embedding
+              </span>
+            </div>
+          `,
+          description: 'No AI embedding has been generated for this variable. Use the embeddings card above to generate embeddings for all variables.'
+        };
+      }
+    }
+
+    // Function to generate embedding for a single variable from the modal
+    function generateSingleEmbedding(variableId) {
+      if (!variableId) {
+        alert('Unable to generate embedding - variable ID not found.');
+        return;
+      }
+      
+      if (confirm('Generate AI embedding for this variable?')) {
+        // Create a form to submit the generation request
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/app/attributes/${variableId}/generate-embedding/`;
+        
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = 'csrfmiddlewaretoken';
+        csrfInput.value = csrfToken;
+        form.appendChild(csrfInput);
+        
+        const nextInput = document.createElement('input');
+        nextInput.type = 'hidden';
+        nextInput.name = 'next';
+        nextInput.value = window.location.pathname;
+        form.appendChild(nextInput);
+        
+        document.body.appendChild(form);
+        form.submit();
+      }
     }
 
     function closeVariableModal() {
