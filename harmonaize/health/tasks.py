@@ -171,11 +171,12 @@ def ingest_raw_data_file(self, raw_data_file_id: int) -> dict[str, Any]:
             created_observations += chunk_result["created_observations"]
             errors.extend(chunk_result["errors"])
             
-            # Log progress
+            # Log progress without exposing data structure details
             obs_count = chunk_result["created_observations"]
-            logger.info(
-                f"Processed chunk {chunk_start}-{chunk_end}: "
-                f"{obs_count} observations created"
+            logger.debug(
+                "Processed data chunk for file ID %s: %s observations created",
+                raw_data_file_id,
+                obs_count,
             )
         
         # Final status update
@@ -216,8 +217,14 @@ def ingest_raw_data_file(self, raw_data_file_id: int) -> dict[str, Any]:
             'total_rows': total_rows,
         }
         
+        # Log summary without exposing sensitive data or error details
         logger.info(
-            f"Completed ingestion of file {raw_data_file.original_filename}: {result}"
+            "Completed ingestion of file ID %s: processed %s rows, "
+            "created %s observations, %s errors encountered",
+            raw_data_file_id,
+            processed_rows,
+            created_observations,
+            len(errors),
         )
         
         return result
@@ -495,11 +502,18 @@ def _process_data_chunk(
                 processed_rows += 1
 
         except (DatabaseError, IntegrityError, ValueError, TypeError, KeyError) as exc:
+            # Format error without exposing sensitive row data in logs
             error_msg = _format_row_error(
-                exc, row_num, patient_id_column_name or "", row
+                exc, row_num, patient_id_column_name or "", row,
             )
             errors.append(error_msg)
-            logger.warning(error_msg)
+            # Log error type and row number only, not the full message with PII
+            logger.warning(
+                "Data processing error at row %s for file ID %s: %s",
+                row_num,
+                raw_data_file.id,
+                type(exc).__name__,
+            )
     
     return {
     "processed_rows": processed_rows,
