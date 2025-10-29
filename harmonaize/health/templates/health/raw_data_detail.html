@@ -1874,8 +1874,14 @@
   });
   </script>
 
-  <!-- Plotly CDN (integrity attribute removed due to mismatch causing SRI failure in browser console) -->
-  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+  <!-- Plotly CDN with Subresource Integrity (SRI) for security -->
+  <script 
+    src="https://cdn.plot.ly/plotly-2.35.2.min.js" 
+    integrity="sha512-jAw4LkBKlO4mMYUa5Jdz5/tYpgCFFs0qAOxNfxQTUbzGzYbYpwVL6Y3fEBLLmPSHrqmBQJKzWt11tdHzlXfZfQ==" 
+    crossorigin="anonymous"
+    referrerpolicy="no-referrer"
+    onerror="console.error('Failed to load Plotly from CDN. Charts may not display correctly.')">
+  </script>
   <script>
     (function () {
       // Try to load either source or transformed EDA data

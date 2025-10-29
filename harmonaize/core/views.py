@@ -725,16 +725,13 @@ def generate_attribute_embedding(request, attribute_id):
             f"This may take a moment. Check back to see the progress."
         )
         
-        # Try to redirect back to the referring page, or fall back to study list
-        next_url = request.POST.get('next') or request.GET.get('next')
-        if next_url:
-            return redirect(next_url)
-        
+        # Safely handle redirect to a known internal page
         # Find a study that contains this attribute to redirect to
         study = user_studies.filter(variables=attribute).first()
         if study:
             return redirect('core:study_detail', pk=study.pk)
         
+        # Fallback to study list if no study found
         return redirect('core:study_list')
     
     # If GET request, redirect back 
@@ -770,16 +767,18 @@ def generate_project_tsne(request, project_id):
 
 
 @login_required
+@require_http_methods(["GET"])
 def tsne_progress(request, project_id):
     """
     Get t-SNE projection progress for a project (AJAX endpoint).
     """
     from core.tasks import check_tsne_projection_progress
     
+    # Validate user has access to this project
     project = get_object_or_404(Project, id=project_id, created_by=request.user)
     
-    # Get progress information
-    result = check_tsne_projection_progress(project_id)
+    # Get progress information using the validated project_id
+    result = check_tsne_projection_progress(project.id)
     
     if result.get("success"):
         return JsonResponse({
@@ -790,10 +789,10 @@ def tsne_progress(request, project_id):
             "description_percentage": result["description_percentage"],
             "is_complete": result["is_complete"],
         })
-    else:
-        return JsonResponse({
-            "error": result.get("error", "Unknown error"),
-        }, status=500)
+    
+    return JsonResponse({
+        "error": result.get("error", "Unknown error"),
+    }, status=500)
 
 
 @login_required

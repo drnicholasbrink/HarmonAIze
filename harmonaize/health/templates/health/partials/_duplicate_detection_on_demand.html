@@ -76,71 +76,45 @@ function hashPatientId(patientId) {
 
 // Function to get CSRF token from cookie
 function getCookie(name) {
-  console.log('🍪 getCookie called for:', name);
-  console.log('🍪 document.cookie exists:', !!document.cookie);
-  console.log('🍪 Full cookie string:', document.cookie);
-  
   let cookieValue = null;
   if (document.cookie && document.cookie !== '') {
     const cookies = document.cookie.split(';');
-    console.log('🍪 Number of cookies:', cookies.length);
     
     for (let i = 0; i < cookies.length; i++) {
       const cookie = cookies[i].trim();
-      console.log(`🍪 Cookie ${i}:`, cookie.substring(0, 50));
       
       if (cookie.substring(0, name.length + 1) === (name + '=')) {
         cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-        console.log('✅ Found matching cookie:', name, '=', cookieValue.substring(0, 20) + '...');
         break;
       }
     }
-  } else {
-    console.log('❌ No cookies available!');
-  }
-  
-  if (!cookieValue) {
-    console.log('❌ Cookie not found:', name);
   }
   
   return cookieValue;
 }
 
 function getCSRFToken() {
-  console.log('🔐 getCSRFToken called');
-  
   // First, try the hidden input we added specifically for this (works with CSRF_COOKIE_HTTPONLY = True)
   const hiddenInput = document.getElementById('csrf-token-duplicate-detection');
   if (hiddenInput && hiddenInput.value) {
-    const token = hiddenInput.value;
-    console.log('🔐 Token from hidden input:', token ? `Found (${token.substring(0, 10)}...)` : 'Empty');
-    return token;
+    return hiddenInput.value;
   }
-  console.log('🔐 Hidden input not found or empty');
   
   // Try to get from cookie (won't work if CSRF_COOKIE_HTTPONLY = True)
   let token = getCookie('csrftoken');
-  console.log('🔐 Token from cookie:', token ? `Found (${token.substring(0, 10)}...)` : 'Not found (HTTPONLY?)');
   
   // Fallback to form token if cookie not found
   if (!token) {
-    console.log('🔐 Trying fallback: looking for form input');
     const csrfInput = document.querySelector('[name=csrfmiddlewaretoken]');
-    console.log('🔐 Form input element:', csrfInput ? 'Found' : 'Not found');
-    
     if (csrfInput) {
       token = csrfInput.value;
-      console.log('🔐 Token from form:', token ? `Found (${token.substring(0, 10)}...)` : 'Empty');
     }
   }
   
-  console.log('🔐 Final token result:', token ? 'SUCCESS' : 'FAILED');
   return token;
 }
 
 function startDuplicateDetection(fileId) {
-  console.log('🔍 Starting duplicate detection for file ID:', fileId);
-  
   const btn = document.getElementById('start-duplicate-detection-btn');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Scanning...';
@@ -151,14 +125,11 @@ function startDuplicateDetection(fileId) {
   // Get CSRF token
   const csrfToken = getCSRFToken();
   if (!csrfToken) {
-    console.error('❌ CSRF token not found!');
+    console.error('CSRF token not found');
     showError('Security token not found. Please refresh the page.');
     resetButton();
     return;
   }
-  
-  console.log('✅ CSRF token found:', csrfToken.substring(0, 10) + '...');
-  console.log('📤 Sending POST request to /health/raw-data/' + fileId + '/duplicates/start/');
   
   fetch(`/health/raw-data/${fileId}/duplicates/start/`, {
     method: 'POST',
@@ -169,7 +140,6 @@ function startDuplicateDetection(fileId) {
     credentials: 'same-origin',
   })
   .then(response => {
-    console.log('📬 Response status:', response.status);
     if (!response.ok) {
       return response.text().then(text => {
         throw new Error(`Server returned ${response.status}: ${text}`);
@@ -178,46 +148,39 @@ function startDuplicateDetection(fileId) {
     return response.text();
   })
   .then(data => {
-    console.log('✅ Task started successfully');
     // Start polling for status
     duplicateDetectionInterval = setInterval(() => checkStatus(fileId), 2000);
   })
   .catch(error => {
-    console.error('❌ Error starting task:', error);
+    console.error('Error starting task:', error);
     showError('Failed to start duplicate detection: ' + error.message);
     resetButton();
   });
 }
 
 function checkStatus(fileId) {
-  console.log('⏳ Checking status for file ID:', fileId);
-  
   fetch(`/health/raw-data/${fileId}/duplicates/status/`)
     .then(response => {
       if (!response.ok) throw new Error('Status check failed');
       return response.json();
     })
     .then(data => {
-      console.log('📊 Status:', data.status);
-      
       if (data.status === 'completed') {
-        console.log('✅ Task completed!');
         clearInterval(duplicateDetectionInterval);
         displayResults(data, fileId);
         resetButton();
       } else if (data.status === 'failed') {
-        console.error('❌ Task failed:', data.message);
+        console.error('Task failed:', data.message);
         clearInterval(duplicateDetectionInterval);
         showError(data.message || 'Duplicate detection failed');
         resetButton();
       } else if (data.status === 'running') {
-        console.log('⏳ Still running...');
         // Update progress message
         updateProgress('Scanning observations... Please wait.');
       }
     })
     .catch(error => {
-      console.error('❌ Error checking status:', error);
+      console.error('Error checking status:', error);
       clearInterval(duplicateDetectionInterval);
       showError('Error checking status: ' + error.message);
       resetButton();
@@ -345,7 +308,6 @@ function displayResults(data, fileId) {
 }
 
 function showError(message) {
-  console.error('💥 Showing error:', message);
   document.getElementById('duplicate-detection-loading').style.display = 'none';
   const resultsDiv = document.getElementById('duplicate-detection-results');
   resultsDiv.style.display = 'block';
@@ -361,7 +323,6 @@ function updateProgress(message) {
 }
 
 function resetButton() {
-  console.log('🔄 Resetting button');
   const btn = document.getElementById('start-duplicate-detection-btn');
   if (btn) {
     btn.disabled = false;
@@ -373,8 +334,6 @@ function resetButton() {
 let deleteDuplicatesInterval = null;
 
 function startDeleteDuplicates(fileId, totalDups) {
-  console.log('🗑️ Starting duplicate deletion for file ID:', fileId);
-  
   if (!confirm(`Delete ${totalDups} duplicate observations? This will keep the first occurrence of each duplicate.`)) {
     return;
   }
@@ -389,15 +348,13 @@ function startDeleteDuplicates(fileId, totalDups) {
   // Get CSRF token
   const csrfToken = getCSRFToken();
   if (!csrfToken) {
-    console.error('❌ CSRF token not found!');
+    console.error('CSRF token not found');
     alert('Security token not found. Please refresh the page.');
     btn.disabled = false;
     btn.innerHTML = '<i class="fas fa-trash-alt"></i> Clean Up Duplicates';
     progressDiv.style.display = 'none';
     return;
   }
-  
-  console.log('📤 Sending POST request to /health/raw-data/' + fileId + '/duplicates/delete/');
   
   fetch(`/health/raw-data/${fileId}/duplicates/delete/`, {
     method: 'POST',
@@ -408,7 +365,6 @@ function startDeleteDuplicates(fileId, totalDups) {
     credentials: 'same-origin',
   })
   .then(response => {
-    console.log('📬 Delete response status:', response.status);
     if (!response.ok) {
       return response.text().then(text => {
         throw new Error(`Server returned ${response.status}: ${text}`);
@@ -417,12 +373,11 @@ function startDeleteDuplicates(fileId, totalDups) {
     return response.text();
   })
   .then(data => {
-    console.log('✅ Delete task started successfully');
     // Start polling for status
     deleteDuplicatesInterval = setInterval(() => checkDeleteStatus(fileId), 2000);
   })
   .catch(error => {
-    console.error('❌ Error starting delete task:', error);
+    console.error('Error starting delete task:', error);
     alert('Failed to start deletion: ' + error.message);
     btn.disabled = false;
     btn.innerHTML = '<i class="fas fa-trash-alt"></i> Clean Up Duplicates';
@@ -431,18 +386,13 @@ function startDeleteDuplicates(fileId, totalDups) {
 }
 
 function checkDeleteStatus(fileId) {
-  console.log('⏳ Checking delete status for file ID:', fileId);
-  
   fetch(`/health/raw-data/${fileId}/duplicates/delete/status/`)
     .then(response => {
       if (!response.ok) throw new Error('Status check failed');
       return response.json();
     })
     .then(data => {
-      console.log('📊 Delete status:', data.status);
-      
       if (data.status === 'completed') {
-        console.log('✅ Delete task completed!');
         clearInterval(deleteDuplicatesInterval);
         
         const btn = document.getElementById(`delete-duplicates-btn-${fileId}`);
@@ -474,7 +424,7 @@ function checkDeleteStatus(fileId) {
           btn.innerHTML = '<i class="fas fa-trash-alt"></i> Clean Up Duplicates';
         }
       } else if (data.status === 'failed') {
-        console.error('❌ Delete task failed:', data.message);
+        console.error('Delete task failed:', data.message);
         clearInterval(deleteDuplicatesInterval);
         
         const btn = document.getElementById(`delete-duplicates-btn-${fileId}`);
@@ -488,11 +438,11 @@ function checkDeleteStatus(fileId) {
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-trash-alt"></i> Clean Up Duplicates';
       } else if (data.status === 'running') {
-        console.log('⏳ Still running...');
+        // Still running
       }
     })
     .catch(error => {
-      console.error('❌ Error checking delete status:', error);
+      console.error('Error checking delete status:', error);
       clearInterval(deleteDuplicatesInterval);
       
       const btn = document.getElementById(`delete-duplicates-btn-${fileId}`);
@@ -505,63 +455,4 @@ function checkDeleteStatus(fileId) {
     });
 }
 
-// Add debug info on page load
-document.addEventListener('DOMContentLoaded', function() {
-  console.log('═══════════════════════════════════════════════════════');
-  console.log('✅ Duplicate detection script loaded');
-  console.log('📍 Current page:', window.location.pathname);
-  console.log('📍 Current URL:', window.location.href);
-  
-  // Check button
-  const btn = document.getElementById('start-duplicate-detection-btn');
-  console.log('🔘 Button found:', !!btn);
-  if (btn) {
-    console.log('📝 Button onclick:', btn.getAttribute('onclick'));
-    console.log('📝 Button disabled:', btn.disabled);
-    
-    // Add a direct event listener as backup
-    btn.addEventListener('click', function(e) {
-      console.log('�️ Button clicked via event listener!');
-    });
-  }
-  
-  // Check CSRF token availability
-  console.log('═══════════════════════════════════════════════════════');
-  console.log('🔐 CSRF Token Diagnostics:');
-  console.log('═══════════════════════════════════════════════════════');
-  
-  // Check cookie
-  console.log('🍪 Checking cookies...');
-  const csrfCookie = getCookie('csrftoken');
-  console.log('   Cookie "csrftoken":', csrfCookie ? `✅ Found (${csrfCookie.substring(0, 10)}...)` : '❌ Not found');
-  
-  // Check form input
-  console.log('📝 Checking form inputs...');
-  const csrfInputs = document.querySelectorAll('[name=csrfmiddlewaretoken]');
-  console.log('   Form inputs found:', csrfInputs.length);
-  csrfInputs.forEach((input, i) => {
-    console.log(`   Input ${i}:`, input.value ? `✅ Has value (${input.value.substring(0, 10)}...)` : '❌ Empty');
-    console.log(`   Input ${i} in form:`, input.closest('form') ? 'Yes' : 'No');
-  });
-  
-  // Check meta tag (some Django setups use this)
-  const csrfMeta = document.querySelector('meta[name="csrf-token"]');
-  console.log('   Meta tag:', csrfMeta ? `✅ Found (${csrfMeta.getAttribute('content').substring(0, 10)}...)` : '❌ Not found');
-  
-  // Try getCSRFToken function
-  console.log('═══════════════════════════════════════════════════════');
-  console.log('🧪 Testing getCSRFToken() function:');
-  const testToken = getCSRFToken();
-  console.log('   Result:', testToken ? `✅ SUCCESS (${testToken.substring(0, 10)}...)` : '❌ FAILED');
-  console.log('═══════════════════════════════════════════════════════');
-  
-  // Log all available functions
-  console.log('📦 Available functions:');
-  console.log('  - startDuplicateDetection:', typeof startDuplicateDetection);
-  console.log('  - checkStatus:', typeof checkStatus);
-  console.log('  - displayResults:', typeof displayResults);
-  console.log('  - getCSRFToken:', typeof getCSRFToken);
-  console.log('  - getCookie:', typeof getCookie);
-  console.log('═══════════════════════════════════════════════════════');
-});
 </script>

@@ -179,18 +179,47 @@ Parent template must have:
     
     const metaElement = variableItem.querySelector('.variable-meta');
     if (metaElement) {
-      let metaHTML = '';
+      // Clear existing content to prevent XSS
+      metaElement.innerHTML = '';
+      
+      // Safely create and append elements to prevent XSS attacks
       if (unit) {
-        metaHTML += `<span class="variable-unit"><strong>Unit:</strong> ${unit}</span>`;
+        const unitSpan = document.createElement('span');
+        unitSpan.className = 'variable-unit';
+        const unitLabel = document.createElement('strong');
+        unitLabel.textContent = 'Unit:';
+        unitSpan.appendChild(unitLabel);
+        unitSpan.appendChild(document.createTextNode(' ' + unit));
+        metaElement.appendChild(unitSpan);
       }
+      
       if (ontologyCode) {
-        metaHTML += `<span class="variable-ontology"><strong>Code:</strong> ${ontologyCode}</span>`;
+        const codeSpan = document.createElement('span');
+        codeSpan.className = 'variable-ontology';
+        const codeLabel = document.createElement('strong');
+        codeLabel.textContent = 'Code:';
+        codeSpan.appendChild(codeLabel);
+        codeSpan.appendChild(document.createTextNode(' ' + ontologyCode));
+        metaElement.appendChild(codeSpan);
       }
+      
       if (category) {
-        metaHTML += `<span class="variable-category"><strong>Category:</strong> ${category}</span>`;
+        const categorySpan = document.createElement('span');
+        categorySpan.className = 'variable-category';
+        const categoryLabel = document.createElement('strong');
+        categoryLabel.textContent = 'Category:';
+        categorySpan.appendChild(categoryLabel);
+        categorySpan.appendChild(document.createTextNode(' ' + category));
+        metaElement.appendChild(categorySpan);
       }
-      metaHTML += `<span class="variable-type-detail"><strong>Type:</strong> ${variableType || 'Unknown'}</span>`;
-      metaElement.innerHTML = metaHTML;
+      
+      const typeSpan = document.createElement('span');
+      typeSpan.className = 'variable-type-detail';
+      const typeLabel = document.createElement('strong');
+      typeLabel.textContent = 'Type:';
+      typeSpan.appendChild(typeLabel);
+      typeSpan.appendChild(document.createTextNode(' ' + (variableType || 'Unknown')));
+      metaElement.appendChild(typeSpan);
     }
     
     // Update data attribute for filtering
