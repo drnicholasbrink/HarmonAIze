@@ -52,6 +52,13 @@ DATABASES["default"]["ATOMIC_REQUESTS"] = True
 # https://docs.djangoproject.com/en/stable/ref/settings/#std:setting-DEFAULT_AUTO_FIELD
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# DATA UPLOAD LIMITS
+# ------------------------------------------------------------------------------
+# Increase the maximum number of POST parameters to handle large variable selection forms
+# Default is 1000, but we may have many variables with multiple fields each
+# https://docs.djangoproject.com/en/dev/ref/settings/#data-upload-max-number-fields
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000
+
 # URLS
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#root-urlconf
@@ -83,6 +90,7 @@ THIRD_PARTY_APPS = [
     "rest_framework.authtoken",
     "corsheaders",
     "drf_spectacular",
+    "django_ace",
 ]
 
 LOCAL_APPS = [
@@ -359,3 +367,12 @@ SPECTACULAR_SETTINGS = {
 }
 # Your stuff...
 # ------------------------------------------------------------------------------
+
+# OpenAI Embeddings Configuration
+# ------------------------------------------------------------------------------
+OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
+OPENAI_EMBEDDING_MODEL = env("OPENAI_EMBEDDING_MODEL", default="text-embedding-3-large")
+OPENAI_TRANSFORMATION_MODEL = env("OPENAI_TRANSFORMATION_MODEL", default="gpt-5")
+EMBEDDING_CHUNK_TOKENS = env.int("EMBEDDING_CHUNK_TOKENS", default=8000)
+EMBEDDING_CHUNK_OVERLAP = env.int("EMBEDDING_CHUNK_OVERLAP", default=50)
+EMBEDDING_DIMENSIONS = env.int("EMBEDDING_DIMENSIONS", default=3072)  # text-embedding-3-large default
