@@ -34,3 +34,4 @@ pygraphviz==1.7  # https://pygraphviz.github.io/
 # Data processing
 pandas==2.2.3  # https://github.com/pandas-dev/pandas
 openpyxl==3.1.5  # https://openpyxl.readthedocs.io/
+pgvector==0.4.1
