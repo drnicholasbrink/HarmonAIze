@@ -17,7 +17,10 @@ License: MIT
    ```bash
    docker-compose -f docker-compose.local.yml up -d
    ```
-4. **Run database migrations**:
+4. **Make and run database migrations**:
+   ```bash
+   docker-compose -f docker-compose.local.yml run --rm django python manage.py makemigrations
+   ```
    ```bash
    docker-compose -f docker-compose.local.yml run --rm django python manage.py migrate
    ```
