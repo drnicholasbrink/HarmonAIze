@@ -1409,14 +1409,5 @@
 
     map.on('zoom', updateMapInfo);
     map.on('move', updateMapInfo);
-
-    // Show initial message
-    setTimeout(() => {
-      if (locationsData.length > 0) {
-        showMessage(`Map loaded with ${locationsData.length} validated locations`, 'info');
-      } else {
-        showMessage('No validated locations found. Complete validation process first.', 'info');
-      }
-    }, 1000);
   </script>
 {% endblock content %}

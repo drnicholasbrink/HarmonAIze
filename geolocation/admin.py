@@ -1,11 +1,9 @@
-# geolocation/admin.py
+
 from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
 from django.utils.safestring import mark_safe
 from .models import ValidatedDataset, HDXHealthFacility, GeocodingResult, ValidationResult
-
-
 @admin.register(ValidatedDataset)
 class ValidatedDatasetAdmin(admin.ModelAdmin):
     list_display = [
@@ -40,8 +38,6 @@ class ValidatedDatasetAdmin(admin.ModelAdmin):
             return f"{obj.final_lat:.5f}, {obj.final_long:.5f}"
         return "No coordinates"
     coordinates_display.short_description = "Coordinates"
-
-
 @admin.register(HDXHealthFacility)
 class HDXHealthFacilityAdmin(admin.ModelAdmin):
     list_display = [
@@ -75,8 +71,6 @@ class HDXHealthFacilityAdmin(admin.ModelAdmin):
             return f"{obj.hdx_latitude:.5f}, {obj.hdx_longitude:.5f}"
         return "No coordinates"
     hdx_coordinates_display.short_description = "HDX Coordinates"
-
-
 @admin.register(GeocodingResult)
 class GeocodingResultAdmin(admin.ModelAdmin):
     list_display = [
@@ -174,8 +168,6 @@ class GeocodingResultAdmin(admin.ModelAdmin):
         except Exception as e:
             return "Error loading validation"
     view_validation.short_description = "Validation"
-
-
 @admin.register(ValidationResult)
 class ValidationResultAdmin(admin.ModelAdmin):
     list_display = [
@@ -230,7 +222,7 @@ class ValidationResultAdmin(admin.ModelAdmin):
             }
             colour = colours.get(level, '#6b7280')
             
-            # Use .format() method instead of f-strings to avoid SafeString issues
+
             return format_html(
                 '<span style="background-colour: {}; colour: white; padding: 4px 8px; border-radius: 6px; font-weight: bold;">{} ({:.0f}%)</span>',
                 colour, level, score
@@ -244,7 +236,7 @@ class ValidationResultAdmin(admin.ModelAdmin):
         try:
             if obj.validation_metadata:
                 summary = obj.validation_metadata.get('user_friendly_summary', 'No summary available')
-                # Ensure summary is a string before formatting
+
                 summary_str = str(summary)
                 return format_html('<div style="max-width: 400px;">{}</div>', summary_str)
             return "No metadata"
@@ -262,8 +254,6 @@ class ValidationResultAdmin(admin.ModelAdmin):
     view_geocoding_result.short_description = "Geocoding Result"
     
 
-
-# Custom admin site configuration
 admin.site.site_header = "HarmonAIze Geolocation Admin"
 admin.site.site_title = "Geolocation Admin"
 admin.site.index_title = "Geolocation Management"

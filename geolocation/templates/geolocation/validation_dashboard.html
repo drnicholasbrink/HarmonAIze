@@ -560,14 +560,14 @@
       <div class="action-card">
         <div class="action-header" style="background: linear-gradient(135deg, var(--accent-color) 0%, #2ecc71 100%);">
           <h3>{% include 'components/svg_icon.html' with icon='shield' size='24' class='inline-icon' %} Step 2: Auto Validation</h3>
-          <p>Smart validation with reverse geocoding and distance analysis</p>
+          <p>AI-powered coordinate validation and quality checks</p>
         </div>
         <div class="action-content">
           <ul class="feature-list">
-            <li>• Auto coordinates validation </li>
-            <li>• Reverse geocoding analysis</li>
-            <li>• Distance proximity analysis</li>
-            <li>• Best source recommendation</li>
+            <li>• Automated quality checks</li>
+            <li>• Address verification</li>
+            <li>• Source comparison</li>
+            <li>• Best match recommendation</li>
           </ul>
           
           <div style="display: flex; flex-direction: column; gap: 1rem;">
@@ -763,10 +763,6 @@
       .then(data => {
         if (data.success) {
           updateLocationStatusTable(data.locations);
-          
-          if (data.summary) {
-            showMessage(``, 'info');
-          }
         } else {
           showMessage('Failed to load location status: ' + (data.error || 'Unknown error'), 'error');
           
@@ -882,10 +878,9 @@
     function runSmartValidation() {
       const btn = document.getElementById('aiAnalysisBtn');
       
-      if (confirm('🤖 Run auto-validation on all pending locations?\n\nThis will analyze coordinate accuracy with reverse geocoding (70%) and distance proximity (30%) validation.')) {
+      if (confirm('Validate all pending locations automatically?')) {
         btn.disabled = true;
         btn.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><div class="loading-spinner" style="width: 16px; height: 16px; border-width: 2px;"></div><span>Analyzing...</span></div>';
-        showMessage('🤖 Auto-validation started with Celery...', 'info');
         
         // Use modern Celery-based batch validation instead of old API
         fetch('{% url "geolocation:start_batch_validation" %}', {
@@ -918,10 +913,9 @@
     function autoValidateHighConfidence() {
       const btn = document.getElementById('autoValidateBtn');
       
-      if (confirm('⚡ Automatically approve all high-confidence locations (≥80%) auto-validated?\n\nThis will mark them as validated without manual review.')) {
+      if (confirm('Auto-approve all high-confidence locations (≥80%)?')) {
         btn.disabled = true;
         btn.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><div class="loading-spinner" style="width: 12px; height: 12px; border-width: 2px;"></div><span>Processing...</span></div>';
-        showMessage('⚡ Auto-validation in progress with confidence factors...', 'info');
         
         fetch('{% url "geolocation:bulk_validation_actions" %}', {
           method: 'POST',
@@ -938,7 +932,6 @@
             setTimeout(() => {
               refreshStats();
               refreshLocationStatus();
-              showMessage('📊 Dashboard refreshed with updated status', 'info');
             }, 2000);
           } else {
             showMessage('Error: Auto-validation failed: ' + (data.error || 'Processing error occurred'), 'error');
@@ -955,10 +948,9 @@
     function updateCoordinatesFromValidation() {
       const btn = document.getElementById('updateCoordsBtn');
       
-      if (confirm('📍 Update Location coordinates from validated results?\n\nThis will copy validated coordinates to core Location records.')) {
+      if (confirm('Update location coordinates from validated results?')) {
         btn.disabled = true;
         btn.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><div class="loading-spinner" style="width: 12px; height: 12px; border-width: 2px;"></div><span>Updating...</span></div>';
-        showMessage('📍 Updating coordinates from validated results...', 'info');
         
         fetch('{% url "geolocation:validation_dashboard" %}', {
           method: 'POST',
@@ -975,7 +967,6 @@
             setTimeout(() => {
               refreshStats();
               refreshLocationStatus();
-              showMessage('📊 Dashboard refreshed with updated coordinates', 'info');
             }, 2000);
           } else {
             showMessage('Error: Coordinate update failed: ' + (data.error || 'Update error occurred'), 'error');
@@ -1147,11 +1138,6 @@
       // Set up auto-refresh intervals
       setInterval(refreshStats, 10000); // Every 10 seconds
       setInterval(refreshLocationStatus, 15000); // Every 15 seconds
-      
-      // Show initial welcome message
-      setTimeout(() => {
-        showMessage('🌍 Welcome to the Geolocation Dashboard', 'info');
-      }, 1000);
     });
   </script>
 {% endblock content %}

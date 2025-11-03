@@ -37,3 +37,5 @@ openpyxl==3.1.5  # https://openpyxl.readthedocs.io/
 #geocolation
 fuzzywuzzy == 0.18.0
 python-levenshtein ==  0.27.1
+google-generativeai == 0.8.3  # https://github.com/google/generative-ai-python
+pycountry == 24.6.1  # https://github.com/flyingcircusio/pycountry

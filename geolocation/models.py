@@ -21,7 +21,7 @@ class ValidatedDataset(models.Model):
     location_name = models.CharField(max_length=500, db_index=True)
     final_lat = models.FloatField()
     final_long = models.FloatField()
-    source = models.CharField(max_length=50)  # e.g., 'hdx', 'google', 'manual', etc.
+    source = models.CharField(max_length=50)
     country = models.CharField(max_length=100, blank=True)
     state_province = models.CharField(max_length=100, blank=True)
     county = models.CharField(max_length=100, blank=True)
@@ -39,7 +39,7 @@ class ValidatedDataset(models.Model):
             models.Index(fields=['location_name']),
             models.Index(fields=['country', 'location_name']),
         ]
-        db_table = 'geolocation_validationdataset'  # Keep same table name to avoid data loss
+        db_table = 'geolocation_validationdataset'
         verbose_name = "Validated Location"
         verbose_name_plural = "Validated Locations (POI Arsenal)"
 
@@ -150,8 +150,7 @@ class GeocodingResult(models.Model):
         blank=True,
         help_text="Matched HDX facility if found"
     )
-    
-    # Legacy validation fields (kept for compatibility)
+
     validation_status = models.CharField(
         max_length=20, 
         choices=VALIDATION_STATUS_CHOICES, 

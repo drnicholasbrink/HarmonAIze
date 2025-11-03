@@ -1,5 +1,3 @@
-# Command to import HDX Health Facilities data
-
 import csv
 import requests
 import os
@@ -7,8 +5,6 @@ import tempfile
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from geolocation.models import HDXHealthFacility
-
-
 class Command(BaseCommand):
     help = 'Import HDX Health Facilities data from CSV file or URL'
 
@@ -35,9 +31,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        # Silent loading - no console output
 
-        # Validate arguments
         if not options['file'] and not options['url']:
             return
 
@@ -62,7 +56,7 @@ class Command(BaseCommand):
         except Exception:
             pass  # Silent failure
         finally:
-            # Clean up downloaded file
+
             if options['url'] and csv_file_path and os.path.exists(csv_file_path):
                 os.remove(csv_file_path)
 
@@ -89,7 +83,7 @@ class Command(BaseCommand):
         errors = 0
 
         with open(file_path, 'r', encoding='utf-8') as csvfile:
-            # Try to detect CSV format
+
             sample = csvfile.read(1024)
             csvfile.seek(0)
 
@@ -111,7 +105,7 @@ class Command(BaseCommand):
             # Process rows
             for row_num, row in enumerate(reader, 2):  # Start from row 2 (after header)
                 try:
-                    # Extract data using column mapping
+
                     facility_data = self.extract_facility_data(row, column_mapping)
 
                     if not facility_data:
@@ -160,7 +154,7 @@ class Command(BaseCommand):
         # Convert to lowercase for easier matching
         fieldnames_lower = [f.lower() for f in fieldnames]
         
-        # Define possible column name variations
+
         name_patterns = {
             'facility_name': ['facility_name', 'name', 'facility', 'health_facility', 'hospital_name'],
             'facility_type': ['facility_type', 'type', 'facility_category', 'category'],
@@ -190,7 +184,7 @@ class Command(BaseCommand):
     def extract_facility_data(self, row, column_mapping):
         """Extract and validate facility data from CSV row."""
         try:
-            # Get facility name
+
             facility_name = self.get_field_value(row, column_mapping['facility_name'])
             if not facility_name:
                 return None

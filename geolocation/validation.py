@@ -1,4 +1,12 @@
 # geolocation/validation.py
+"""
+Enhanced geocoding validation with LLM-powered improvements:
+1. Intelligent source conflict resolution
+2. Semantic reverse geocoding validation
+3. Contextual sanity checks
+4. Natural language explanations
+"""
+import logging
 import requests
 import time
 import math
@@ -10,27 +18,31 @@ from django.utils import timezone
 from django.conf import settings
 from .models import GeocodingResult, ValidationResult, ValidatedDataset
 from core.models import Location
+from .llm_enhancement import get_llm_enhancer
+
+logger = logging.getLogger(__name__)
 
 
 class SmartGeocodingValidator:
-    """Simplified two-component geocoding validation with reverse geocoding (70%) and distance proximity (30%)."""
-    
+    """Enhanced geocoding validation with LLM-powered improvements."""
+
     def __init__(self):
-        # Simplified confidence thresholds
         self.confidence_thresholds = {
-            'needs_review': 0.60,    # 60% threshold for review
-            'manual_review': 0.40,   # 40% threshold for manual review
+            'needs_review': 0.60,
+            'manual_review': 0.40,
         }
-        
-        # Two-component weighting system
+
         self.confidence_weights = {
-            'reverse_geocoding': 0.70,  # 70% - How well names match
-            'distance_proximity': 0.30  # 30% - How close to other sources
+            'reverse_geocoding': 0.70,
+            'distance_proximity': 0.30
         }
-        
-        # Local Nominatim configuration
+
         self.local_nominatim_url = getattr(settings, 'LOCAL_NOMINATIM_URL', 'http://nominatim:8080')
         self.public_nominatim_url = 'https://nominatim.openstreetmap.org'
+
+        self.llm_enhancer = get_llm_enhancer()
+        if self.llm_enhancer.is_enabled():
+            logger.info("✓ SmartGeocodingValidator initialized with LLM enhancements")
     
     def validate_geocoding_result(self, geocoding_result: GeocodingResult) -> ValidationResult:
         """
@@ -50,76 +62,101 @@ class SmartGeocodingValidator:
         Raises:
             Exception: If validation analysis fails due to API errors or invalid data
         """
-        
-        # Extract coordinates from all sources
+
         coordinates = self._extract_coordinates(geocoding_result)
-        
+
         if not coordinates:
             return self._create_validation_result(
-                geocoding_result, 0.0, 'rejected', 
+                geocoding_result, 0.0, 'rejected',
                 "No successful geocoding results found"
             )
-        
-        # ENHANCED: Perform multi-source reverse geocoding (Google + ArcGIS + Nominatim)
+
         reverse_geocoding_results = self._perform_enhanced_reverse_geocoding_multi_source(
             coordinates, geocoding_result.location_name
         )
 
-        # NEW: Dynamic bounds validation (no hardcoded bounds)
         parsed_location = geocoding_result.parsed_location_data or {}
         bounds_validation = self._validate_coordinates_dynamically(coordinates, parsed_location)
 
-        # Calculate individual source scores using simplified two-component system
         individual_scores = self._calculate_individual_source_scores(
             coordinates,
             reverse_geocoding_results,
             geocoding_result.location_name
         )
 
-        # Find best source and calculate overall confidence
         best_source, best_score, overall_confidence = self._determine_best_source(individual_scores)
 
-        # ENHANCED: Adjust confidence based on bounds validation
-        if bounds_validation.get('any_outside_bounds'):
-            best_score = best_score * 0.8  # Penalize if coordinates outside country bounds
-        if bounds_validation.get('outliers'):
-            best_score = best_score * 0.9  # Penalize if outliers detected
-
-        # Determine status based on best individual source confidence
-        if best_score >= self.confidence_thresholds['needs_review']:
-            status = 'needs_review'  # High confidence but still needs user approval
-        elif best_score >= self.confidence_thresholds['manual_review']:
-            status = 'pending'       # Medium confidence needs review
-        else:
-            status = 'pending'       # Low confidence needs detailed investigation
-
-        # Calculate cluster analysis for distance information
         cluster_analysis = self._calculate_cluster_analysis(coordinates)
 
-        # Create enhanced metadata
+        llm_conflict_resolution = None
+        if self.llm_enhancer.is_enabled() and cluster_analysis.get('max_distance_km', 0) > 5.0:
+            llm_conflict_resolution = self.llm_enhancer.resolve_source_conflict(
+                location_name=geocoding_result.location_name,
+                coordinates=coordinates,
+                reverse_geocoding_results=reverse_geocoding_results,
+                parsed_location=parsed_location
+            )
+
+            if llm_conflict_resolution and llm_conflict_resolution['confidence'] >= 0.7:
+                best_source = llm_conflict_resolution['recommended_source'].lower()
+                best_score = max(best_score, llm_conflict_resolution['confidence'] * 0.9)
+
+        llm_sanity_check = None
+        if self.llm_enhancer.is_enabled():
+            llm_sanity_check = self.llm_enhancer.contextual_sanity_check(
+                location_name=geocoding_result.location_name,
+                coordinates=coordinates,
+                parsed_location=parsed_location,
+                reverse_geocoding_results=reverse_geocoding_results
+            )
+
+            if llm_sanity_check and not llm_sanity_check['passes_sanity_check']:
+                severity = llm_sanity_check.get('severity', 'minor')
+                if severity == 'critical':
+                    best_score = best_score * 0.3
+                elif severity == 'major':
+                    best_score = best_score * 0.5
+                elif severity == 'minor':
+                    best_score = best_score * 0.8
+
+        if bounds_validation.get('any_outside_bounds'):
+            best_score = best_score * 0.8
+        if bounds_validation.get('outliers'):
+            best_score = best_score * 0.9
+
+        if best_score >= self.confidence_thresholds['needs_review']:
+            status = 'needs_review'
+        elif best_score >= self.confidence_thresholds['manual_review']:
+            status = 'pending'
+        else:
+            status = 'pending'
+
+        # Create enhanced metadata with LLM analysis
         metadata = {
             'sources_count': len(coordinates),
             'individual_scores': individual_scores,
             'reverse_geocoding_results': reverse_geocoding_results,
-            'bounds_validation': bounds_validation,  # NEW: Include bounds check
-            'parsed_location': parsed_location,  # NEW: Include parsed data
+            'bounds_validation': bounds_validation,
+            'parsed_location': parsed_location,
             'best_source': best_source,
             'best_score': best_score,
             'cluster_analysis': cluster_analysis,
             'recommendation': self._generate_recommendation(best_source, best_score),
             'user_friendly_summary': self._generate_user_summary(best_score, len(coordinates)),
-            'validation_method': 'two_component_simplified',
+            'validation_method': 'two_component_with_llm' if self.llm_enhancer.is_enabled() else 'two_component_simplified',
             'local_nominatim_used': any(
-                result.get('local_nominatim_used', False) 
+                result.get('local_nominatim_used', False)
                 for result in reverse_geocoding_results.values()
-            )
+            ),
+            # LLM enhancements
+            'llm_conflict_resolution': llm_conflict_resolution,
+            'llm_sanity_check': llm_sanity_check,
+            'llm_enhanced': self.llm_enhancer.is_enabled()
         }
-        
-        # Update coordinate variance on the geocoding result
+
         geocoding_result.coordinate_variance = cluster_analysis.get('max_distance_km', 0)
         geocoding_result.save()
-        
-        # Create validation result using best individual source score as overall confidence
+
         return self._create_validation_result(
             geocoding_result, best_score, status,
             f"Two-component analysis: best source {best_source.upper()} - {best_score:.1%}",
@@ -146,28 +183,35 @@ class SmartGeocodingValidator:
         
         for source, (lat, lng) in coordinates.items():
             try:
-                
-                # Use Nominatim (local first, public fallback) for ALL sources
                 reverse_result = self._reverse_geocode_nominatim_with_fallback(lat, lng)
-                
+
                 if reverse_result and reverse_result.get('display_name'):
-                    # Calculate similarity with original name
                     similarity = self._calculate_improved_name_similarity(
                         original_name, reverse_result.get('display_name', '')
                     )
-                    
+
+                    llm_similarity = None
+                    if self.llm_enhancer.is_enabled():
+                        llm_similarity = self.llm_enhancer.semantic_address_similarity(
+                            query_name=original_name,
+                            reverse_address=reverse_result.get('display_name', '')
+                        )
+
+                        if llm_similarity and llm_similarity['similarity_score'] > similarity:
+                            similarity = llm_similarity['similarity_score']
+
                     reverse_results[source] = {
                         'address': reverse_result.get('display_name', 'No address found'),
                         'similarity_score': similarity,
                         'place_type': reverse_result.get('type', 'unknown'),
                         'confidence': self._assess_reverse_geocoding_confidence(reverse_result, original_name),
-                        'source_api': 'nominatim',  # Always Nominatim now
-                        'original_source': source,  # Track which geocoding source provided the coordinates
+                        'source_api': 'nominatim',
+                        'original_source': source,
                         'fallback_used': reverse_result.get('fallback_used', False),
-                        'local_nominatim_used': reverse_result.get('local_nominatim_used', False)
+                        'local_nominatim_used': reverse_result.get('local_nominatim_used', False),
+                        'llm_similarity': llm_similarity
                     }
-                    
-                    # Show which Nominatim was used
+
                     nominatim_type = "LOCAL" if reverse_result.get('local_nominatim_used') else "PUBLIC"
                 else:
                     reverse_results[source] = {
@@ -198,19 +242,17 @@ class SmartGeocodingValidator:
     
     def _reverse_geocode_nominatim_with_fallback(self, lat: float, lng: float) -> Optional[Dict]:
         """Try local Nominatim first, then fallback to public API if needed."""
-        # First try local Nominatim instance
         result = self._reverse_geocode_nominatim_local(lat, lng)
         if result and result.get('display_name'):
             result['local_nominatim_used'] = True
             result['fallback_used'] = False
             return result
-        
-        # Fallback to public Nominatim
+
         result = self._reverse_geocode_nominatim_public(lat, lng)
         if result:
             result['local_nominatim_used'] = False
             result['fallback_used'] = True
-        
+
         return result
     
     def _reverse_geocode_nominatim_local(self, lat: float, lng: float) -> Optional[Dict]:
@@ -266,10 +308,6 @@ class SmartGeocodingValidator:
         except Exception as e:
             return None
 
-    # ==========================================
-    # MULTI-SOURCE REVERSE GEOCODING
-    # ==========================================
-
     def _reverse_geocode_google(self, lat: float, lng: float) -> Optional[Dict]:
         """
         Reverse geocode using Google Maps Geocoding API.
@@ -303,8 +341,6 @@ class SmartGeocodingValidator:
                 }
 
         except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
             logger.debug(f"Google reverse geocoding failed: {e}")
 
         return None
@@ -337,8 +373,6 @@ class SmartGeocodingValidator:
                 }
 
         except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
             logger.debug(f"ArcGIS reverse geocoding failed: {e}")
 
         return None
@@ -364,15 +398,11 @@ class SmartGeocodingValidator:
         Returns:
             Dict mapping source names to reverse geocoding results with best match selected
         """
-        import logging
-        logger = logging.getLogger(__name__)
-
         reverse_results = {}
 
         for source, (lat, lng) in coordinates.items():
             source_reverse_results = []
 
-            # TRY 1: Google Reverse Geocoding (if API key available)
             google_reverse = self._reverse_geocode_google(lat, lng)
             if google_reverse and google_reverse.get('formatted_address'):
                 try:
@@ -382,7 +412,6 @@ class SmartGeocodingValidator:
                         google_reverse['formatted_address']
                     ) / 100.0
                 except ImportError:
-                    # Fallback to simple containment
                     similarity = 0.5 if original_name.lower() in google_reverse['formatted_address'].lower() else 0.3
 
                 source_reverse_results.append({
@@ -390,11 +419,10 @@ class SmartGeocodingValidator:
                     'address': google_reverse['formatted_address'],
                     'similarity_score': similarity,
                     'place_type': google_reverse.get('types', ['unknown'])[0] if google_reverse.get('types') else 'unknown',
-                    'confidence': 0.8,  # Google has good POI coverage
+                    'confidence': 0.8,
                     'components': google_reverse.get('address_components', [])
                 })
 
-            # TRY 2: ArcGIS Reverse Geocoding
             arcgis_reverse = self._reverse_geocode_arcgis(lat, lng)
             if arcgis_reverse and arcgis_reverse.get('address'):
                 try:
@@ -415,7 +443,6 @@ class SmartGeocodingValidator:
                     'components': arcgis_reverse
                 })
 
-            # TRY 3: Nominatim (FALLBACK - always available)
             nominatim_reverse = self._reverse_geocode_nominatim_with_fallback(lat, lng)
             if nominatim_reverse and nominatim_reverse.get('display_name'):
                 try:
@@ -436,21 +463,18 @@ class SmartGeocodingValidator:
                     'local_used': nominatim_reverse.get('local_nominatim_used', False)
                 })
 
-            # COMBINE: Select best result for this coordinate source
             if source_reverse_results:
                 # Sort by similarity score (descending)
                 source_reverse_results.sort(key=lambda x: x['similarity_score'], reverse=True)
                 best_result = source_reverse_results[0]
 
-                # Include all attempts in metadata
                 reverse_results[source] = {
                     'best_match': best_result,
                     'all_attempts': source_reverse_results,
                     'num_successful': len(source_reverse_results),
-                    **best_result  # Flatten best result to top level for compatibility
+                    **best_result
                 }
             else:
-                # No reverse geocoding successful
                 reverse_results[source] = {
                     'api': 'none',
                     'address': 'No address found',
@@ -460,7 +484,6 @@ class SmartGeocodingValidator:
                     'num_successful': 0
                 }
 
-            # Be respectful to APIs
             time.sleep(0.3)
 
         return reverse_results
@@ -506,35 +529,44 @@ class SmartGeocodingValidator:
         return individual_scores
     
     def _calculate_distance_proximity_score(self, target_source: str, coordinates: Dict[str, Tuple[float, float]]) -> float:
-        """Calculate distance proximity score for a source based on how close it is to other sources."""
+        """
+        Calculate distance proximity score based on the CLOSEST other source (minimum distance).
+
+        This approach correctly handles outliers:
+        - Sources in a tight cluster have close neighbors → HIGH scores
+        - Outliers have no close neighbors → LOW scores
+        - No averaging or centroid needed - simple and effective!
+        """
         if len(coordinates) <= 1:
             return 0.8  # Single source gets good score
-        
+
         target_coords = coordinates[target_source]
-        distances = []
-        
+
+        # Find the MINIMUM distance to any other source
+        min_distance = float('inf')
         for source, coords in coordinates.items():
             if source != target_source:
                 distance_km = self._calculate_distance_km(target_coords, coords)
-                distances.append(distance_km)
-        
-        if not distances:
+                min_distance = min(min_distance, distance_km)
+
+        if min_distance == float('inf'):
             return 0.8
-        
-        # Use average distance to other sources
-        avg_distance_km = sum(distances) / len(distances)
-        
-        # Score based on average distance: <0.5km=1.0, 0.5-1km=0.9, 1-2km=0.7, 2-5km=0.5, >5km=0.2
-        if avg_distance_km < 0.5:
-            return 1.0
-        elif avg_distance_km < 1.0:
-            return 0.9
-        elif avg_distance_km < 2.0:
-            return 0.7
-        elif avg_distance_km < 5.0:
-            return 0.5
+
+        # Score based on distance to CLOSEST neighbor
+        # Close neighbors = in agreement = high score
+        # No close neighbors = outlier = low score
+        if min_distance < 0.5:
+            return 1.0  # Very close agreement (within 500m)
+        elif min_distance < 1.0:
+            return 0.9  # Close agreement (within 1km)
+        elif min_distance < 2.0:
+            return 0.8  # Good agreement (within 2km)
+        elif min_distance < 5.0:
+            return 0.6  # Moderate agreement (within 5km)
+        elif min_distance < 10.0:
+            return 0.4  # Weak agreement (within 10km)
         else:
-            return 0.2
+            return 0.2  # Poor agreement (far from all sources)
     
     def _determine_best_source(self, individual_scores: Dict) -> Tuple[str, float, float]:
         """Determine the best source based on individual confidence scores."""
@@ -777,10 +809,6 @@ class SmartGeocodingValidator:
         else:
             return f"Low confidence ({best_score:.0%}) from {source_count} sources - manual verification recommended."
 
-    # ==========================================
-    # DYNAMIC BOUNDS VALIDATION
-    # ==========================================
-
     def _validate_coordinates_dynamically(self,
                                           coordinates: Dict[str, Tuple[float, float]],
                                           parsed_location: Dict) -> Dict:
@@ -805,18 +833,15 @@ class SmartGeocodingValidator:
         """
         import statistics
 
-        # STEP 1: Calculate coordinate statistics
         lats = [coord[0] for coord in coordinates.values()]
         lngs = [coord[1] for coord in coordinates.values()]
 
         centroid_lat = sum(lats) / len(lats)
         centroid_lng = sum(lngs) / len(lngs)
 
-        # Calculate spread (standard deviation)
         lat_std = statistics.stdev(lats) if len(lats) > 1 else 0
         lng_std = statistics.stdev(lngs) if len(lngs) > 1 else 0
 
-        # STEP 2: Identify outliers (coordinates far from centroid)
         outliers = {}
         for source, (lat, lng) in coordinates.items():
             distance_from_centroid = self._calculate_distance_km(
@@ -824,7 +849,6 @@ class SmartGeocodingValidator:
                 (lat, lng)
             )
 
-            # Flag as outlier if more than 50km from centroid or 3 standard deviations
             if distance_from_centroid > 50 or \
                (lat_std > 0 and abs(lat - centroid_lat) > 3 * lat_std) or \
                (lng_std > 0 and abs(lng - centroid_lng) > 3 * lng_std):
@@ -834,7 +858,6 @@ class SmartGeocodingValidator:
                     'flag': 'potential_outlier'
                 }
 
-        # STEP 3: If country known, validate against country bounds (dynamic lookup)
         country_validation = None
         if parsed_location and parsed_location.get('country_code'):
             country_validation = self._validate_against_country_bounds_dynamic(
@@ -842,13 +865,11 @@ class SmartGeocodingValidator:
                 parsed_location['country_code']
             )
 
-        # STEP 4: Calculate spread-based confidence adjustment
         max_distance = max([
             self._calculate_distance_km((centroid_lat, centroid_lng), coord)
             for coord in coordinates.values()
         ]) if coordinates else 0
 
-        # Confidence based on spread: <1km=1.0, 1-5km=0.9, 5-10km=0.7, >10km=0.5
         if max_distance < 1:
             spread_confidence = 1.0
         elif max_distance < 5:
@@ -930,8 +951,6 @@ class SmartGeocodingValidator:
                     }
 
         except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
             logger.debug(f"Could not fetch country bounds for {country_code}: {e}")
 
         return {
@@ -943,12 +962,12 @@ class SmartGeocodingValidator:
 
     def _create_validation_result(self, geocoding_result: GeocodingResult, confidence: float,
                                 status: str, reason: str, metadata: Optional[Dict] = None) -> ValidationResult:
-        """Create a ValidationResult object."""
-        
+        """Create a ValidationResult object with optional LLM-generated explanation."""
+
         # Extract best source information from metadata
         best_source = metadata.get('best_source', '') if metadata else ''
         individual_scores = metadata.get('individual_scores', {}) if metadata else {}
-        
+
         # Get recommended coordinates from best source
         recommended_lat = None
         recommended_lng = None
@@ -956,22 +975,37 @@ class SmartGeocodingValidator:
             coords = individual_scores[best_source].get('coordinates')
             if coords:
                 recommended_lat, recommended_lng = coords
-        
+
         validation_result, created = ValidationResult.objects.update_or_create(
             geocoding_result=geocoding_result,
             defaults={
                 'confidence_score': confidence,
                 'validation_status': status,
                 'validation_metadata': metadata or {'reason': reason},
-                'reverse_geocoding_score': confidence,  # Use overall confidence as reverse geocoding score
-                'api_agreement_score': confidence,      # Use overall confidence as agreement score
-                'distance_confidence': confidence,      # Use overall confidence as distance confidence
+                'reverse_geocoding_score': confidence,
+                'api_agreement_score': confidence,
+                'distance_confidence': confidence,
                 'recommended_source': best_source,
                 'recommended_lat': recommended_lat,
                 'recommended_lng': recommended_lng,
             }
         )
-        
+
+        if self.llm_enhancer.is_enabled():
+            try:
+                explanation = self.llm_enhancer.explain_validation_detailed(
+                    validation_result,
+                    include_technical=False
+                )
+
+                if metadata:
+                    metadata['llm_explanation'] = explanation
+                    validation_result.validation_metadata = metadata
+                    validation_result.save()
+
+            except Exception as e:
+                logger.warning(f"Failed to generate LLM explanation: {e}")
+
         return validation_result
 
 

@@ -21,30 +21,26 @@ from .validation import SmartGeocodingValidator
 from .tasks import batch_geocode_locations, batch_validate_locations
 from .services import GeocodingService
 from core.models import Location
-
-
 logger = logging.getLogger(__name__)
-
-
 def update_locations_from_validation():
     """
     Update core.Location coordinates from validated results.
     Only updates locations that have been validated (needs_review or validated status).
     """
     updated_count = 0
-    
-    # Get all validation results that have recommended coordinates
+
+
     validation_results = ValidationResult.objects.filter(
         validation_status__in=['needs_review', 'validated'],
         recommended_lat__isnull=False,
         recommended_lng__isnull=False
     ).select_related('geocoding_result')
-    
+
     for validation_result in validation_results:
         try:
             # Find the corresponding location in core
             location = Location.objects.get(name=validation_result.geocoding_result.location_name)
-            
+
             # Only update if location doesn't already have coordinates
             if location.latitude is None or location.longitude is None:
                 with transaction.atomic():
@@ -53,37 +49,35 @@ def update_locations_from_validation():
                     location.save()
                     updated_count += 1
                     logger.info(f"Updated coordinates for location: {location.name}")
-                    
+
         except Location.DoesNotExist:
             logger.warning(f"Location not found in core: {validation_result.geocoding_result.location_name}")
             continue
         except Exception as e:
             logger.error(f"Failed to update location {validation_result.geocoding_result.location_name}: {e}")
             continue
-    
+
     return updated_count
-
-
 @login_required
 def validation_map(request):
     """
     Enhanced map view with individual source scoring and source colours.
-    
+
     Displays geocoding results for validation with interactive map interface.
     Shows results from multiple APIs (HDX, ArcGIS, Google, Nominatim) with
     AI-generated confidence scores and recommendations.
-    
+
     Args:
         request: Django HTTP request object. May contain 'location_id' parameter
                 to display specific location.
-    
+
     Returns:
         HttpResponse: Rendered validation map template with location data
     """
-    
-    # Get locations that need validation (one at a time)
+
+
     location_id = request.GET.get('location_id')
-    
+
     if location_id:
         # Show specific location
         try:
@@ -92,35 +86,35 @@ def validation_map(request):
         except GeocodingResult.DoesNotExist:
             results = []
     else:
-        # Get first location needing validation
+
         results = GeocodingResult.objects.filter(
             validation__validation_status__in=['needs_review', 'pending']
         ).order_by('created_at')[:1]
-        
+
         if not results:
-            # If no pending validations, get the first unvalidated result
+
             results = GeocodingResult.objects.filter(
                 validation__isnull=True
             ).order_by('created_at')[:1]
-    
-    
+
+
     # Prepare enhanced data for the template
     locations_data = []
-    
+
     for result in results:
-        
-        # Extract coordinates from all sources
+
+
         coordinates = []
-        
-      
+
+
         source_colours = {
             'hdx': '#3b82f6',      # Blue
             'arcgis': '#8b5cf6',   # Purple
             'google': '#dc2626',   # Red
             'nominatim': '#f59e0b' # Orange
         }
-        
-        # Check each source and add enhanced information
+
+
         if result.hdx_success and result.hdx_lat and result.hdx_lng:
             coordinates.append({
                 'source': 'HDX',
@@ -129,25 +123,25 @@ def validation_map(request):
                 'lng': result.hdx_lng,
                 'color': source_colours['hdx']
             })
-            
+
         if result.arcgis_success and result.arcgis_lat and result.arcgis_lng:
             coordinates.append({
                 'source': 'ArcGIS',
-                'source_key': 'arcgis', 
+                'source_key': 'arcgis',
                 'lat': result.arcgis_lat,
                 'lng': result.arcgis_lng,
-                'color': source_colours['arcgis']  
+                'color': source_colours['arcgis']
             })
-            
+
         if result.google_success and result.google_lat and result.google_lng:
             coordinates.append({
                 'source': 'Google',
                 'source_key': 'google',
                 'lat': result.google_lat,
-                'lng': result.google_lng, 
+                'lng': result.google_lng,
                 'color': source_colours['google']
             })
-            
+
         if result.nominatim_success and result.nominatim_lat and result.nominatim_lng:
             coordinates.append({
                 'source': 'OpenStreetMap',
@@ -156,21 +150,23 @@ def validation_map(request):
                 'lng': result.nominatim_lng,
                 'color': source_colours['nominatim']
             })
-        
-        if coordinates:  
-            # Get validation data if exists
+
+        if coordinates:
+
             validation = getattr(result, 'validation', None)
             status = validation.validation_status if validation else 'pending'
-            
-            # Extract enhanced analysis data
+
+
             metadata = validation.validation_metadata if validation else {}
             individual_scores = metadata.get('individual_scores', {})
             reverse_geocoding = metadata.get('reverse_geocoding_results', {})
-            
-            # Use best individual source score as overall confidence metric
+            llm_enhanced = metadata.get('llm_enhanced', False)
+            llm_conflict_resolution = metadata.get('llm_conflict_resolution')
+            llm_sanity_check = metadata.get('llm_sanity_check')
+            llm_explanation = metadata.get('llm_explanation')
             best_source = metadata.get('best_source')
             best_score = metadata.get('best_score', 0.0)
-            
+
             # Calculate confidence from available validation data
             if best_score > 0:
                 confidence = best_score * 100
@@ -178,11 +174,11 @@ def validation_map(request):
                 confidence = validation.confidence_score * 100
             else:
                 confidence = 50
-            
+
             # Add individual source scoring data to each coordinate
             for coord in coordinates:
                 source_key = coord['source_key']
-                
+
                 # Add reverse geocoding information if available
                 if source_key in reverse_geocoding:
                     reverse_info = reverse_geocoding[source_key]
@@ -199,35 +195,35 @@ def validation_map(request):
                         'reverse_confidence': 0.0,
                         'place_type': 'unknown'
                     })
-                
-                
+
+
                 if source_key in individual_scores:
                     source_score = individual_scores[source_key]
                     reverse_score = source_score.get('reverse_geocoding_score', 0.0)
                     distance_score = source_score.get('distance_penalty_score', 0.0)
                     individual_confidence = source_score.get('individual_confidence', 0.0)
-                    
+
                     coord['reverse_geocoding_score'] = reverse_score * 100
                     coord['distance_penalty_score'] = distance_score * 100
                     coord['individual_confidence'] = individual_confidence * 100
-                    
-                    
+
+
                     calculated_score = (reverse_score * 0.70) + (distance_score * 0.30)
-                    
+
                 else:
                     # Calculate fallback scores when validation data is unavailable
                     reverse_score = coord['name_similarity']
                     distance_score = 0.5
                     calculated_score = (reverse_score * 0.70) + (distance_score * 0.30)
-                    
+
                     coord['reverse_geocoding_score'] = reverse_score * 100
                     coord['distance_penalty_score'] = distance_score * 100
                     coord['individual_confidence'] = calculated_score * 100
-                
-                
+
+
                 coord['overall_confidence'] = coord['individual_confidence']
-                
-                
+
+
                 if coord['overall_confidence'] >= 90:
                     coord['confidence_description'] = 'Excellent match'
                 elif coord['overall_confidence'] >= 80:
@@ -238,16 +234,16 @@ def validation_map(request):
                     coord['confidence_description'] = 'Fair match'
                 else:
                     coord['confidence_description'] = 'Poor match'
-            
-            
+
+
             coordinates.sort(key=lambda x: x['overall_confidence'], reverse=True)
-            
-            
+
+
             if metadata.get('best_source'):
                 # Map source keys to display names to match coordinates
                 source_mapping = {
                     'hdx': 'HDX',
-                    'arcgis': 'ArcGIS', 
+                    'arcgis': 'ArcGIS',
                     'google': 'Google',
                     'nominatim': 'OpenStreetMap'
                 }
@@ -255,8 +251,8 @@ def validation_map(request):
                 recommended_source = source_mapping.get(best_source_key, best_source_key)
             else:
                 recommended_source = coordinates[0]['source'] if coordinates else None
-            
-            
+
+
             variance = result.coordinate_variance or 0
             if variance < 0.5:
                 accuracy_description = "Excellent agreement - all sources very close"
@@ -268,8 +264,8 @@ def validation_map(request):
                 accuracy_description = "Moderate agreement - some differences between sources"
             else:
                 accuracy_description = "Variable agreement - significant differences between sources"
-            
-            # Enhanced location data with individual source scoring
+
+            # Enhanced location data with individual source scoring + LLM enhancements
             locations_data.append({
                 'id': result.id,
                 'name': result.location_name,
@@ -283,15 +279,21 @@ def validation_map(request):
                 'variance': variance,
                 'accuracy_description': accuracy_description,
                 'max_distance_km': metadata.get('cluster_analysis', {}).get('max_distance_km', 0),
-                'ai_summary': metadata.get('user_friendly_summary', 'auto-validation completed...')
+                'ai_summary': metadata.get('user_friendly_summary', 'Validation completed'),
+                # LLM enhancement data
+                'llm_enhanced': llm_enhanced,
+                'llm_explanation': llm_explanation,
+                'llm_conflict_resolution': llm_conflict_resolution,
+                'llm_sanity_check': llm_sanity_check,
+                'validation_method': metadata.get('validation_method', 'standard')
             })
-    
-    # Get navigation info for next/previous locations
+
+
     navigation_info = get_navigation_info(location_id)
-    
+
     # Calculate stats for the template
     stats = get_validation_stats()
-    
+
     context = {
         'locations_data': json.dumps(locations_data),
         'mapbox_token': getattr(settings, 'MAPBOX_ACCESS_TOKEN', ''),
@@ -300,22 +302,20 @@ def validation_map(request):
         'navigation': navigation_info,
         **stats
     }
-    
+
     return render(request, 'geolocation/validation_map.html', context)
-
-
 def get_navigation_info(current_location_id):
     """Get navigation information for next/previous locations."""
-    # Get all locations that need validation
+
     pending_locations = ValidationResult.objects.filter(
         validation_status__in=['needs_review', 'pending']
     ).order_by('created_at')
-    
+
     if not pending_locations.exists():
         pending_locations = GeocodingResult.objects.filter(
             validation__isnull=True
         ).order_by('created_at')
-    
+
     navigation = {
         'total_pending': pending_locations.count(),
         'current_index': 0,
@@ -324,7 +324,7 @@ def get_navigation_info(current_location_id):
         'has_next': False,
         'has_prev': False
     }
-    
+
     if current_location_id:
         try:
             current_location_id = int(current_location_id)
@@ -332,23 +332,23 @@ def get_navigation_info(current_location_id):
                 location_ids = list(pending_locations.values_list('geocoding_result__id', flat=True))
             else:
                 location_ids = list(pending_locations.values_list('id', flat=True))
-            
+
             if current_location_id in location_ids:
                 current_index = location_ids.index(current_location_id)
                 navigation['current_index'] = current_index + 1
-                
+
                 # Next location
                 if current_index < len(location_ids) - 1:
                     navigation['next_location_id'] = location_ids[current_index + 1]
                     navigation['has_next'] = True
-                
+
                 # Previous location
                 if current_index > 0:
                     navigation['prev_location_id'] = location_ids[current_index - 1]
                     navigation['has_prev'] = True
         except (ValueError, TypeError):
             pass
-    
+
     return navigation
 
 def get_validation_stats():
@@ -356,30 +356,30 @@ def get_validation_stats():
     # Core Location statistics
     total_locations = Location.objects.count()
     locations_with_coords = Location.objects.filter(
-        latitude__isnull=False, 
+        latitude__isnull=False,
         longitude__isnull=False
     ).count()
     locations_without_coords = Location.objects.filter(
-        latitude__isnull=True, 
+        latitude__isnull=True,
         longitude__isnull=True
     ).count()
-    
+
     # Count locations that have geocoding results but need validation
     pending_validation = 0
-    
-    # Check locations without coordinates for existing geocoding results
+
+
     for location in Location.objects.filter(latitude__isnull=True, longitude__isnull=True):
         geocoding_result = GeocodingResult.objects.filter(
             location_name__iexact=location.name
         ).first()
         if geocoding_result and geocoding_result.has_any_results:
             pending_validation += 1
-    
+
     # Add locations with validation results still requiring review
     pending_validation += ValidationResult.objects.filter(
         validation_status__in=['needs_review', 'pending']
     ).count()
-    
+
     # Count locations without coordinates and without geocoding results
     awaiting_geocoding = 0
     for location in Location.objects.filter(latitude__isnull=True, longitude__isnull=True):
@@ -388,7 +388,7 @@ def get_validation_stats():
         ).first()
         if not geocoding_result or not geocoding_result.has_any_results:
             awaiting_geocoding += 1
-    
+
     return {
         'total_locations': total_locations,
         'awaiting_geocoding': awaiting_geocoding,  # No coordinates, no geocoding results
@@ -413,11 +413,11 @@ def get_validation_stats():
 class ValidationDashboardView(LoginRequiredMixin, TemplateView):
     """Enhanced validation dashboard with summary and actions."""
     template_name = 'geolocation/validation_dashboard.html'
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        
-        # Get enhanced validation statistics
+
+
         stats = {
             'total_validations': ValidationResult.objects.count(),
             'auto_validated': ValidationResult.objects.filter(validation_status='validated').count(),
@@ -430,17 +430,17 @@ class ValidationDashboardView(LoginRequiredMixin, TemplateView):
             ).count(),
             'low_confidence': ValidationResult.objects.filter(confidence_score__lt=0.6).count(),
         }
-        
-        # Get recent validations needing attention
+
+
         recent_validations = ValidationResult.objects.filter(
             validation_status__in=['needs_review', 'pending']
         ).select_related('geocoding_result').order_by('-created_at')[:10]
-        
+
         context.update({
             'stats': stats,
             'recent_validations': recent_validations,
         })
-        
+
         return context
 
 @login_required
@@ -451,7 +451,7 @@ def location_status_api(request):
         try:
             locations_data = []
             locations = Location.objects.all().order_by('name')
-            
+
             for location in locations:
                 # Determine current status with automatic validation updates
                 if location.latitude is not None and location.longitude is not None:
@@ -467,24 +467,24 @@ def location_status_api(request):
                     geocoding_result = GeocodingResult.objects.filter(
                         location_name__iexact=location.name
                     ).first()
-                    
+
                     if geocoding_result:
                         geocoding_result_id = geocoding_result.id
-                        
-                        # Check if validation exists and is recent
+
+
                         validation = getattr(geocoding_result, 'validation', None)
-                        
+
                         if validation:
-                        
+
                             if validation.validation_status == 'validated':
-                                # If validation is complete, update core location
+
                                 final_coords = validation.final_coordinates
                                 if final_coords:
                                     lat, lng = final_coords
                                     location.latitude = lat
                                     location.longitude = lng
                                     location.save()
-                                    
+
                                     status = 'validated'
                                     status_display = 'Validated & Complete'
                                     status_colour = 'green'
@@ -503,7 +503,7 @@ def location_status_api(request):
                                 status = 'needs_review'
                                 status_display = 'Good Quality - Quick Review'
                                 status_colour = 'yellow'
-                                
+
                                 metadata = validation.validation_metadata or {}
                                 best_score = metadata.get('best_score', validation.confidence_score)
                                 confidence = int(best_score * 100)
@@ -511,7 +511,7 @@ def location_status_api(request):
                                 status = 'pending'
                                 status_display = 'Lower Quality - Detailed Review'
                                 status_colour = 'orange'
-                                
+
                                 metadata = validation.validation_metadata or {}
                                 best_score = metadata.get('best_score', validation.confidence_score)
                                 confidence = int(best_score * 100)
@@ -522,14 +522,14 @@ def location_status_api(request):
                                 confidence = 0
                             else:
                                 status = 'geocoded'
-                                status_display = 'Geocoded - Awaiting Auto-validation Analysis'
+                                status_display = 'Ready for Validation'
                                 status_colour = 'blue'
                                 confidence = 50
                         else:
                             # No validation yet, but has geocoding results
                             if geocoding_result.has_any_results:
                                 status = 'geocoded'
-                                status_display = 'Geocoded - Awaiting Auto-validation Analysis'
+                                status_display = 'Ready for Validation'
                                 status_colour = 'blue'
                                 confidence = 50
                             else:
@@ -537,11 +537,11 @@ def location_status_api(request):
                                 status_display = 'Awaiting Geocoding'
                                 status_colour = 'red'
                                 confidence = 0
-                        
-                        
+
+
                         sources = []
                         coordinates = None
-                        
+
                         if geocoding_result.has_any_results:
                             if geocoding_result.hdx_success:
                                 sources.append('HDX')
@@ -551,8 +551,8 @@ def location_status_api(request):
                                 sources.append('Google')
                             if geocoding_result.nominatim_success:
                                 sources.append('OSM')
-                            
-                            # Get coordinates from the first successful source for display
+
+
                             if geocoding_result.hdx_success and geocoding_result.hdx_lat:
                                 coordinates = {'lat': geocoding_result.hdx_lat, 'lng': geocoding_result.hdx_lng}
                             elif geocoding_result.arcgis_success and geocoding_result.arcgis_lat:
@@ -570,12 +570,12 @@ def location_status_api(request):
                         sources = []
                         coordinates = None
                         geocoding_result_id = None
-                
-                
+
+
                 if status == 'validated' and location.latitude and location.longitude:
                     coordinates = {'lat': location.latitude, 'lng': location.longitude}
                     sources = ['Final']
-                
+
                 locations_data.append({
                     'id': location.id,
                     'name': location.name,
@@ -587,8 +587,8 @@ def location_status_api(request):
                     'coordinates': coordinates,
                     'geocoding_result_id': geocoding_result_id
                 })
-            
-            
+
+
             summary = {
                 'total': len(locations_data),
                 'awaiting_geocoding': len([l for l in locations_data if l['status'] == 'awaiting_geocoding']),
@@ -598,14 +598,14 @@ def location_status_api(request):
                 'validated': len([l for l in locations_data if l['status'] == 'validated']),
                 'rejected': len([l for l in locations_data if l['status'] == 'rejected'])
             }
-            
+
             return JsonResponse({
                 'success': True,
                 'locations': locations_data,
                 'summary': summary,
-                'timestamp': timezone.now().isoformat()  
+                'timestamp': timezone.now().isoformat()
             })
-            
+
         except Exception as e:
             logger.error(f"Error fetching location status: {str(e)}")
             return JsonResponse({
@@ -621,17 +621,17 @@ def validation_queue_api(request):
     """API endpoint to get actual validation queue data for the table."""
     if request.method == 'GET':
         try:
-            # Get locations that need validation with their details
+
             pending_validations = ValidationResult.objects.filter(
                 validation_status__in=['needs_review', 'pending']
             ).select_related('geocoding_result').order_by('-confidence_score')[:20]
-            
-            # If no validations exist, get unvalidated geocoding results
+
+
             if not pending_validations.exists():
                 unvalidated_results = GeocodingResult.objects.filter(
                     validation__isnull=True
                 ).order_by('-created_at')[:20]
-                
+
                 locations_data = []
                 for result in unvalidated_results:
                     # Determine available sources
@@ -644,7 +644,7 @@ def validation_queue_api(request):
                         sources.append('Google')
                     if result.nominatim_success:
                         sources.append('OSM')
-                    
+
                     locations_data.append({
                         'id': result.id,
                         'name': result.location_name,
@@ -652,18 +652,18 @@ def validation_queue_api(request):
                         'status': 'pending',
                         'sources': sources
                     })
-                
+
                 return JsonResponse({
                     'success': True,
                     'locations': locations_data,
                     'message': 'Showing unanalyzed geocoding results'
                 })
-            
+
             # Process validated results
             locations_data = []
             for validation in pending_validations:
                 result = validation.geocoding_result
-                
+
                 # Determine available sources
                 sources = []
                 if result.hdx_success:
@@ -674,11 +674,11 @@ def validation_queue_api(request):
                     sources.append('Google')
                 if result.nominatim_success:
                     sources.append('OSM')
-                
-                # Use best individual source score if available, otherwise validation confidence
+
+
                 metadata = validation.validation_metadata or {}
                 best_score = metadata.get('best_score', validation.confidence_score)
-                
+
                 locations_data.append({
                     'id': result.id,
                     'name': result.location_name,
@@ -686,22 +686,20 @@ def validation_queue_api(request):
                     'status': validation.validation_status,
                     'sources': sources
                 })
-            
+
             return JsonResponse({
                 'success': True,
                 'locations': locations_data
             })
-            
+
         except Exception as e:
             logger.error(f"Error fetching validation queue: {str(e)}")
             return JsonResponse({
                 'success': False,
                 'error': f'Failed to fetch validation queue: {str(e)}'
             }, status=500)
-    
+
     return JsonResponse({'error': 'Only GET requests are allowed'}, status=405)
-
-
 @login_required
 @csrf_exempt
 def validation_api(request):
@@ -712,8 +710,8 @@ def validation_api(request):
             action = data.get('action')
             validation_id = data.get('validation_id')
             geocoding_result_id = data.get('geocoding_result_id')
-            
-            # Get validation or geocoding result
+
+
             if validation_id:
                 validation = get_object_or_404(ValidationResult, id=validation_id)
             elif geocoding_result_id:
@@ -725,10 +723,10 @@ def validation_api(request):
                     validation = validator.validate_geocoding_result(geocoding_result)
             else:
                 return JsonResponse({
-                    'success': False, 
+                    'success': False,
                     'error': 'Missing location identifier. Please specify either validation_id or geocoding_result_id.'
                 }, status=400)
-            
+
             if action == 'approve_suggestion':
                 return handle_approve_ai_suggestion(validation, data)
             elif action == 'manual_coordinates':
@@ -746,7 +744,7 @@ def validation_api(request):
                     'success': False,
                     'error': f'Unknown action: {action}. Available actions: approve_suggestion, manual_coordinates, reject, get_details, use_source, run_ai_analysis'
                 }, status=400)
-            
+
         except json.JSONDecodeError:
             return JsonResponse({
                 'success': False,
@@ -758,10 +756,8 @@ def validation_api(request):
                 'success': False,
                 'error': f'An unexpected error occurred while processing your request: {str(e)}'
             }, status=500)
-    
+
     return JsonResponse({'error': 'Only POST requests are allowed'}, status=405)
-
-
 @login_required
 @csrf_exempt
 def geocoding_api(request):
@@ -770,47 +766,47 @@ def geocoding_api(request):
         try:
             data = json.loads(request.body)
             action = data.get('action')
-            
+
             if action == 'run_geocoding':
                 limit = data.get('limit', None)
                 force = data.get('force', False)
-                
-                # Use geocoding service
+
+
                 geocoding_service = GeocodingService()
-                
-                # Get locations without coordinates
+
+
                 locations = Location.objects.filter(latitude__isnull=True, longitude__isnull=True)
-                
+
                 if limit:
                     locations = locations[:limit]
-                
+
                 if not locations.exists():
                     return JsonResponse({
                         'success': True,
                         'message': 'All locations already have coordinates',
                         'stats': {
-                            'processed': 0, 
-                            'found_coordinates': 0, 
-                            'no_results': 0, 
+                            'processed': 0,
+                            'found_coordinates': 0,
+                            'no_results': 0,
                             'from_cache': 0,
                             'new_searches': 0
                         }
                     })
-                
+
                 # Process locations
                 found_coordinates = 0
                 no_results = 0
                 from_cache = 0
                 new_searches = 0
-                
+
                 for location in locations:
                     try:
                         logger.info(f"Processing location: '{location.name}' (ID: {location.id})")
-                        
+
                         validated_result = geocoding_service.check_validated_dataset(location)
                         logger.info(f"Validated result for '{location.name}': {validated_result}")
                         if validated_result:
-                            # Use validated data and immediately update Location (like original command)
+
                             with transaction.atomic():
                                 location.latitude = validated_result.final_lat
                                 location.longitude = validated_result.final_long
@@ -818,15 +814,15 @@ def geocoding_api(request):
                             from_cache += 1
                             found_coordinates += 1
                             continue
-                        
-                        # Check if results already exist and use validated ones
+
+
                         if not force:
                             existing_result = GeocodingResult.objects.filter(
                                 location_name__iexact=location.name
                             ).first()
-                            
+
                             if existing_result and existing_result.has_any_results:
-                                # If we have a validated result with coordinates, use it
+
                                 validation_result = getattr(existing_result, 'validation', None)
                                 if validation_result and validation_result.recommended_lat and validation_result.recommended_lng:
                                     with transaction.atomic():
@@ -839,7 +835,7 @@ def geocoding_api(request):
                                     # Results exist but not validated yet
                                     found_coordinates += 1
                                     continue
-                        
+
                         # Perform new geocoding search
                         result = geocoding_service.geocode_single_location(location, force)
                         success = result is not None
@@ -848,13 +844,13 @@ def geocoding_api(request):
                             found_coordinates += 1
                         else:
                             no_results += 1
-                            
+
                     except Exception as e:
                         logger.error(f"Error geocoding {location.name}: {e}")
                         no_results += 1
-                
+
                 processed = found_coordinates + no_results
-                
+
                 return JsonResponse({
                     'success': True,
                     'message': f'Coordinate search completed: {found_coordinates} locations now have coordinates, {no_results} locations could not be geocoded',
@@ -866,39 +862,39 @@ def geocoding_api(request):
                         'new_searches': new_searches  # New API calls made
                     }
                 })
-            
+
             elif action == 'run_validation':
                 # Import validation functionality
                 from .validation import run_smart_validation
-                
+
                 limit = data.get('limit', None)
                 validation_stats = run_smart_validation(limit)
-                
+
                 # After validation, update Location coordinates for validated results
                 updated_locations = update_locations_from_validation()
                 validation_stats['updated_locations'] = updated_locations
-                
+
                 return JsonResponse({
                     'success': True,
                     'message': f'Validation completed: {validation_stats["processed"]} results processed, {updated_locations} locations updated',
                     'stats': validation_stats,
                     'updated_locations': updated_locations
                 })
-            
+
             elif action == 'update_coordinates':
                 # Update Location coordinates from validation results
                 updated_locations = update_locations_from_validation()
-                
+
                 return JsonResponse({
                     'success': True,
                     'message': f'Updated coordinates for {updated_locations} locations',
                     'updated_locations': updated_locations
                 })
-            
+
             elif action == 'get_geocoding_stats':
-                # Get CORRECTED current statistics
+
                 stats = get_validation_stats()
-                
+
                 return JsonResponse({
                     'success': True,
                     'stats': {
@@ -914,7 +910,7 @@ def geocoding_api(request):
                     'success': False,
                     'error': f'Unknown action: {action}. Available actions: run_geocoding, run_validation, update_coordinates, get_geocoding_stats'
                 }, status=400)
-                
+
         except json.JSONDecodeError:
             return JsonResponse({
                 'success': False,
@@ -928,8 +924,6 @@ def geocoding_api(request):
             }, status=500)
 
     return JsonResponse({'error': 'Only POST requests are allowed'}, status=405)
-
-
 @login_required
 @csrf_exempt
 def bulk_validation_actions(request):
@@ -938,57 +932,57 @@ def bulk_validation_actions(request):
         try:
             data = json.loads(request.body)
             action = data.get('action')
-            
+
             if action == 'auto_validate_high_confidence':
-                # Check if any geocoding has been done
+
                 total_geocoding_results = GeocodingResult.objects.count()
                 if total_geocoding_results == 0:
                     return JsonResponse({
                         'success': False,
-                        'error': 'No locations have been geocoded yet. Please run "Start Coordinate Search" first to find coordinates for your locations.'
+                        'error': 'Please run coordinate search first.'
                     }, status=400)
-                
-                # Check if any validations exist
+
+
                 total_validations = ValidationResult.objects.count()
                 if total_validations == 0:
                     return JsonResponse({
                         'success': False,
-                        'error': 'No validation analysis has been performed yet. Please wait for analysis to complete first.'
+                        'error': 'Please wait for validation to complete.'
                     }, status=400)
-                
-                
+
+
                 # Look for ValidationResults with status = 'needs_review'
                 high_confidence_results = ValidationResult.objects.filter(
                     validation_status='needs_review'  # Only those needing review
                 ).select_related('geocoding_result')
-                
+
                 #Filter by best individual source confidence (≥80%)
                 qualified_results = []
                 for validation in high_confidence_results:
                     metadata = validation.validation_metadata or {}
                     best_score = metadata.get('best_score', validation.confidence_score)
-                    
-                    # Check if best score has >= 80% confidence
+
+
                     if best_score >= 0.8:  # 80% threshold
                         qualified_results.append(validation)
-                
+
                 if not qualified_results:
                     return JsonResponse({
                         'success': True,
-                        'message': 'No locations found with ≥80% best source confidence that need auto-validation. All high-confidence locations may already be validated.'
+                        'message': 'No high-confidence locations found to approve.'
                     })
-                
+
                 count = 0
                 errors = 0
                 for validation in qualified_results:
                     try:
-                        
+
                         with transaction.atomic():
                             result = validation.geocoding_result
                             metadata = validation.validation_metadata or {}
                             best_source = metadata.get('best_source')
-                            
-                            # Get coordinates from best source
+
+
                             if best_source == 'hdx' and result.hdx_success:
                                 final_lat, final_lng = result.hdx_lat, result.hdx_lng
                             elif best_source == 'arcgis' and result.arcgis_success:
@@ -1000,7 +994,7 @@ def bulk_validation_actions(request):
                             else:
                                 errors += 1
                                 continue
-                            
+
                             # Update validation status
                             validation.validation_status = 'validated'
                             validation.validated_at = timezone.now()
@@ -1009,7 +1003,7 @@ def bulk_validation_actions(request):
                             validation.recommended_lng = final_lng
                             validation.recommended_source = best_source
                             validation.save()
-                            
+
                             # Add to ValidatedDataset (POI arsenal)
                             ValidatedDataset.objects.update_or_create(
                                 location_name=result.location_name,
@@ -1021,8 +1015,8 @@ def bulk_validation_actions(request):
                                     'validated_at': timezone.now()
                                 }
                             )
-                            
-                            
+
+
                             try:
                                 location = Location.objects.get(name__iexact=result.location_name)
                                 location.latitude = final_lat
@@ -1037,47 +1031,47 @@ def bulk_validation_actions(request):
                                 location.longitude = final_lng
                                 location.save()
                                 count += 1
-                        
+
                     except Exception as e:
                         logger.error(f"Error auto-validating {validation.geocoding_result.location_name}: {e}")
                         errors += 1
                         continue
-                
+
                 if count > 0:
                     return JsonResponse({
                         'success': True,
-                        'message': f'Successfully auto-approved {count} high confidence locations (≥80% best source confidence)' + (f' ({errors} had errors)' if errors > 0 else '')
+                        'message': f'Successfully approved {count} locations' + (f' ({errors} had errors)' if errors > 0 else '')
                     })
                 else:
                     return JsonResponse({
                         'success': False,
                         'error': f'Failed to auto-approve any locations. {errors} errors occurred during processing.'
                     })
-            
+
             elif action == 'run_smart_validation_batch':
-                # Check if any geocoding results exist
+
                 total_geocoding_results = GeocodingResult.objects.count()
                 if total_geocoding_results == 0:
                     return JsonResponse({
                         'success': False,
-                        'error': 'No locations have been geocoded yet. Please run "Start Coordinate Search" first to find coordinates for your locations before running Auto-Validation analysis.'
+                        'error': 'Please run coordinate search first.'
                     }, status=400)
-                
-                # Check if there are results to analyze
+
+
                 pending_results = GeocodingResult.objects.filter(
                     validation__isnull=True
                 ).exclude(validation_status='rejected')
-                
+
                 if not pending_results.exists():
                     return JsonResponse({
                         'success': True,
-                        'message': 'All geocoded locations have already been analyzed by Auto-Validation . No new analysis needed.'
+                        'message': 'All locations already validated.'
                     })
-                
+
                 # Run validation manually with proper error handling
                 try:
                     validator = SmartGeocodingValidator()
-                    
+
                     stats = {
                         'processed': 0,
                         'auto_validated': 0,
@@ -1085,13 +1079,13 @@ def bulk_validation_actions(request):
                         'pending': 0,
                         'rejected': 0
                     }
-                    
+
                     # Process up to 50 results
                     for result in pending_results[:50]:
                         try:
                             validation = validator.validate_geocoding_result(result)
                             stats['processed'] += 1
-                            
+
                             # Map validation status to stats
                             if validation.validation_status == 'validated':
                                 stats['auto_validated'] += 1
@@ -1101,7 +1095,7 @@ def bulk_validation_actions(request):
                                 stats['pending'] += 1
                             else:
                                 stats['rejected'] += 1
-                        
+
                         except requests.exceptions.Timeout:
                             logger.warning(f"External API timeout during validation of {result.location_name}")
                             stats['processed'] += 1
@@ -1111,19 +1105,19 @@ def bulk_validation_actions(request):
                             logger.error(f"Error validating {result.location_name}: {e}")
                             stats['rejected'] += 1
                             continue
-                    
+
                     if stats['processed'] == 0:
                         return JsonResponse({
                             'success': True,
-                            'message': 'No new locations to analyze. All locations have already been processed by Auto-Validation .'
+                            'message': 'All locations already validated.'
                         })
-                    
+
                     return JsonResponse({
                         'success': True,
-                        'message': f'Auto-Validation analysis completed: processed {stats["processed"]} locations with reverse geocoding and distance proximity scoring. {stats["auto_validated"]} auto-validated, {stats["needs_review"]} need review, {stats["pending"]} need manual verification.',
+                        'message': f'Validation completed: {stats["processed"]} locations processed. {stats["needs_review"]} ready for review, {stats["pending"]} need verification.',
                         'stats': stats
                     })
-                    
+
                 except Exception as e:
                     logger.error(f"Error running Auto-Validation : {str(e)}")
                     return JsonResponse({
@@ -1135,7 +1129,7 @@ def bulk_validation_actions(request):
                     'success': False,
                     'error': f'Unknown bulk action: {action}. Available actions: auto_validate_high_confidence, run_smart_validation_batch'
                 }, status=400)
-            
+
         except json.JSONDecodeError:
             return JsonResponse({
                 'success': False,
@@ -1147,28 +1141,26 @@ def bulk_validation_actions(request):
                 'success': False,
                 'error': f'An unexpected error occurred during bulk operation: {str(e)}'
             }, status=500)
-    
+
     return JsonResponse({'error': 'Only POST requests are allowed'}, status=405)
-
-
 
 def handle_approve_ai_suggestion(validation, data):
     """Handle approval of AI suggestion with enhanced error handling and status updates."""
     try:
-        # Get AI recommended source from metadata
+
         metadata = validation.validation_metadata or {}
         best_source = metadata.get('best_source')
-        
+
         if not best_source:
             return JsonResponse({
                 'success': False,
-                'error': 'No Auto-Validation recommendation available for this location. Please run Auto-Validation analysis first or select a source manually.'
+                'error': 'No validation available. Please run validation first.'
             }, status=400)
-        
+
         with transaction.atomic():
             result = validation.geocoding_result
-            
-            # Get coordinates from AI recommended source
+
+
             if best_source == 'hdx' and result.hdx_success:
                 final_lat, final_lng = result.hdx_lat, result.hdx_lng
             elif best_source == 'arcgis' and result.arcgis_success:
@@ -1180,10 +1172,10 @@ def handle_approve_ai_suggestion(validation, data):
             else:
                 return JsonResponse({
                     'success': False,
-                    'error': f'The Auto-Validation recommended source ({best_source}) does not have valid coordinates. Please select a different source manually.'
+                    'error': f'Recommended source ({best_source.upper()}) has invalid coordinates. Please select another source.'
                 }, status=400)
-            
-            
+
+
             validation.validation_status = 'validated'
             validation.validated_at = timezone.now()
             validation.validated_by = 'Two_Component_Recommendation'
@@ -1191,8 +1183,8 @@ def handle_approve_ai_suggestion(validation, data):
             validation.recommended_lng = final_lng
             validation.recommended_source = best_source
             validation.save()
-            
-            
+
+
             ValidatedDataset.objects.update_or_create(
                 location_name=result.location_name,
                 defaults={
@@ -1203,15 +1195,15 @@ def handle_approve_ai_suggestion(validation, data):
                     'validated_at': timezone.now()
                 }
             )
-            
-            
+
+
             try:
                 location = Location.objects.get(name__iexact=result.location_name)
                 location.latitude = final_lat
                 location.longitude = final_lng
                 location.save()
             except Location.DoesNotExist:
-                # Try partial matching if exact match fails
+
                 locations = Location.objects.filter(name__icontains=result.location_name)
                 if locations.exists():
                     location = locations.first()
@@ -1223,16 +1215,16 @@ def handle_approve_ai_suggestion(validation, data):
                 location.latitude = final_lat
                 location.longitude = final_lng
                 location.save()
-            
+
             return JsonResponse({
                 'success': True,
-                'message': f'Auto-Validation recommendation accepted: {result.location_name} validated using {best_source.upper()} coordinates',
+                'message': f'{result.location_name} validated using {best_source.upper()} coordinates',
                 'coordinates': {'lat': final_lat, 'lng': final_lng},
                 'source': best_source,
                 'status': 'validated',
                 'trigger_refresh': True
             })
-    
+
     except Exception as e:
         logger.error(f"Error approving Auto-Validation suggestion: {str(e)}")
         return JsonResponse({
@@ -1240,23 +1232,21 @@ def handle_approve_ai_suggestion(validation, data):
             'error': f'Failed to approve Auto-Validation suggestion: {str(e)}'
         }, status=500)
 
-
-
 def handle_use_source(validation, data):
     """Handle user selecting a specific source with enhanced error handling and status updates."""
     try:
         source = data.get('source')
-        
+
         if not source:
             return JsonResponse({
                 'success': False,
                 'error': 'No source specified. Please select a data source (hdx, arcgis, google, or nominatim).'
             }, status=400)
-        
+
         with transaction.atomic():
             result = validation.geocoding_result
-            
-            # Get coordinates from selected source
+
+
             if source == 'hdx' and result.hdx_success:
                 final_lat, final_lng = result.hdx_lat, result.hdx_lng
             elif source == 'arcgis' and result.arcgis_success:
@@ -1270,8 +1260,8 @@ def handle_use_source(validation, data):
                     'success': False,
                     'error': f'The selected source ({source.upper()}) does not have valid coordinates for this location. Please try a different source.'
                 }, status=400)
-            
-            
+
+
             validation.validation_status = 'validated'
             validation.validated_at = timezone.now()
             validation.validated_by = 'User_Selection'
@@ -1280,8 +1270,8 @@ def handle_use_source(validation, data):
             validation.recommended_lng = final_lng
             validation.recommended_source = source
             validation.save()
-            
-            
+
+
             ValidatedDataset.objects.update_or_create(
                 location_name=result.location_name,
                 defaults={
@@ -1292,15 +1282,15 @@ def handle_use_source(validation, data):
                     'validated_at': timezone.now()
                 }
             )
-            
-            
+
+
             try:
                 location = Location.objects.get(name__iexact=result.location_name)
                 location.latitude = final_lat
                 location.longitude = final_lng
                 location.save()
             except Location.DoesNotExist:
-                # Try partial matching if exact match fails
+
                 locations = Location.objects.filter(name__icontains=result.location_name)
                 if locations.exists():
                     location = locations.first()
@@ -1312,16 +1302,16 @@ def handle_use_source(validation, data):
                 location.latitude = final_lat
                 location.longitude = final_lng
                 location.save()
-            
+
             return JsonResponse({
                 'success': True,
                 'message': f'Using {source.upper()} coordinates for {result.location_name}',
                 'coordinates': {'lat': final_lat, 'lng': final_lng},
                 'source': source,
                 'status': 'validated',
-                'trigger_refresh': True  
+                'trigger_refresh': True
             })
-    
+
     except Exception as e:
         logger.error(f"Error using source: {str(e)}")
         return JsonResponse({
@@ -1329,26 +1319,24 @@ def handle_use_source(validation, data):
             'error': f'Failed to use selected source: {str(e)}'
         }, status=500)
 
-
-
 def handle_manual_coordinates(validation, data):
     """Handle manual coordinate entry with enhanced validation and status updates."""
     try:
         lat = float(data.get('lat', 0))
         lng = float(data.get('lng', 0))
         notes = data.get('notes', '')
-        
+
         # Validate coordinates
         if not (-90 <= lat <= 90 and -180 <= lng <= 180):
             return JsonResponse({
                 'success': False,
                 'error': 'Invalid coordinates: Latitude must be between -90 and 90, longitude between -180 and 180'
             }, status=400)
-        
+
         with transaction.atomic():
             result = validation.geocoding_result
-            
-            
+
+
             validation.manual_lat = lat
             validation.manual_lng = lng
             validation.manual_review_notes = notes
@@ -1357,7 +1345,7 @@ def handle_manual_coordinates(validation, data):
             validation.validated_by = 'Manual_Entry'
             validation.confidence_score = 1.0  # Manual entry gets highest confidence
             validation.save()
-            
+
             #  Add to ValidatedDataset (POI arsenal)
             ValidatedDataset.objects.update_or_create(
                 location_name=result.location_name,
@@ -1369,15 +1357,15 @@ def handle_manual_coordinates(validation, data):
                     'validated_at': timezone.now()
                 }
             )
-            
-            
+
+
             try:
                 location = Location.objects.get(name__iexact=result.location_name)
                 location.latitude = lat
                 location.longitude = lng
                 location.save()
             except Location.DoesNotExist:
-                # Try partial matching if exact match fails
+
                 locations = Location.objects.filter(name__icontains=result.location_name)
                 if locations.exists():
                     location = locations.first()
@@ -1396,9 +1384,9 @@ def handle_manual_coordinates(validation, data):
             'coordinates': {'lat': lat, 'lng': lng},
             'source': 'manual',
             'status': 'validated',
-            'trigger_refresh': True  
+            'trigger_refresh': True
         })
-    
+
     except ValueError:
         return JsonResponse({
             'success': False,
@@ -1410,62 +1398,58 @@ def handle_manual_coordinates(validation, data):
             'success': False,
             'error': f'Failed to save manual coordinates: {str(e)}'
         }, status=500)
-
-
 def handle_reject(validation, data):
     """Handle rejection of location with enhanced validation."""
     try:
         notes = data.get('notes', '')
-        
+
         if not notes or not notes.strip():
             return JsonResponse({
                 'success': False,
                 'error': 'Please provide a reason for rejecting this location.'
             }, status=400)
-        
+
         with transaction.atomic():
             validation.validation_status = 'rejected'
             validation.validated_at = timezone.now()
             validation.validated_by = 'User_Rejection'
             validation.manual_review_notes = notes
             validation.save()
-        
+
         return JsonResponse({
             'success': True,
             'message': f'Location rejected: {validation.geocoding_result.location_name}'
         })
-    
+
     except Exception as e:
         logger.error(f"Error rejecting location: {str(e)}")
         return JsonResponse({
             'success': False,
             'error': f'Failed to reject location: {str(e)}'
         }, status=500)
-
-
 def get_enhanced_validation_details(validation):
     """Get detailed validation information with Auto-Validation analysis."""
     try:
         result = validation.geocoding_result
         metadata = validation.validation_metadata or {}
-        
-        # Extract coordinate details with Auto-Validation scoring information
+
+
         coordinates = []
         sources = ['hdx', 'arcgis', 'google', 'nominatim']
         reverse_geocoding = metadata.get('reverse_geocoding_results', {})
         individual_scores = metadata.get('individual_scores', {})
-        
+
         for source in sources:
             if getattr(result, f"{source}_success", False):
                 lat = getattr(result, f"{source}_lat")
                 lng = getattr(result, f"{source}_lng")
-                
-                # Get reverse geocoding info for this source
+
+
                 reverse_info = reverse_geocoding.get(source, {})
-                
-                # Get individual source scoring info
+
+
                 score_info = individual_scores.get(source, {})
-                
+
                 coordinates.append({
                     'source': source.upper(),
                     'lat': lat,
@@ -1479,11 +1463,11 @@ def get_enhanced_validation_details(validation):
                     'reverse_geocoding_score': score_info.get('reverse_geocoding_score', 0.0) * 100,
                     'distance_penalty_score': score_info.get('distance_penalty_score', 0.0) * 100
                 })
-        
-        # Extract Auto-Validation analysis data
+
+
         best_source = metadata.get('best_source', 'Unknown')
         best_score = metadata.get('best_score', 0.0)
-        
+
         # Convert variance to user-friendly description
         variance = result.coordinate_variance or 0
         if variance < 0.5:
@@ -1498,7 +1482,7 @@ def get_enhanced_validation_details(validation):
         else:
             accuracy_description = "Variable agreement - significant differences between sources"
             distance_quality = "poor"
-        
+
         return JsonResponse({
             'success': True,
             'data': {
@@ -1517,31 +1501,29 @@ def get_enhanced_validation_details(validation):
                 'variance': variance,
                 'accuracy_description': accuracy_description,
                 'distance_quality': distance_quality,
-                'ai_summary': metadata.get('user_friendly_summary', 'Auto-Validation analysis completed with reverse geocoding and distance proximity validation'),
+                'ai_summary': metadata.get('user_friendly_summary', 'Validation analysis completed'),
                 'reverse_geocoding_results': reverse_geocoding,
                 'individual_scores': individual_scores,
                 'validation_flags': metadata.get('validation_flags', [])
             }
         })
-    
+
     except Exception as e:
         logger.error(f"Error getting Auto-Validation  details: {str(e)}")
         return JsonResponse({
             'success': False,
             'error': f'Failed to get Auto-Validation  details: {str(e)}'
         }, status=500)
-
-
 def run_ai_analysis(validation):
     """Re-run Auto-Validation analysis on a validation result with external API timeout handling."""
     try:
         validator = SmartGeocodingValidator()
-        
+
         updated_validation = validator.validate_geocoding_result(validation.geocoding_result)
-        
+
         return JsonResponse({
             'success': True,
-            'message': 'Auto-Validation analysis completed successfully with reverse geocoding and distance proximity validation',
+            'message': 'Validation completed successfully',
             'confidence': updated_validation.confidence_score * 100,
             'status': updated_validation.validation_status,
             'two_component': True
@@ -1561,8 +1543,6 @@ def run_ai_analysis(validation):
             'success': False,
             'error': f'Auto-Validation analysis failed: {str(e)}'
         }, status=500)
-
-
 @login_required
 def validation_statistics(request):
     """Get detailed validation statistics for dashboard with enhanced error handling."""
@@ -1570,27 +1550,27 @@ def validation_statistics(request):
         # Basic counts
         total_locations = GeocodingResult.objects.count()
         total_validations = ValidationResult.objects.count()
-        
+
         # Confidence distribution
         high_confidence = ValidationResult.objects.filter(confidence_score__gte=0.8).count()
         medium_confidence = ValidationResult.objects.filter(
             confidence_score__gte=0.6, confidence_score__lt=0.8
         ).count()
         low_confidence = ValidationResult.objects.filter(confidence_score__lt=0.6).count()
-        
+
         # Status distribution
         validated = ValidationResult.objects.filter(validation_status='validated').count()
         needs_review = ValidationResult.objects.filter(validation_status='needs_review').count()
         pending = ValidationResult.objects.filter(validation_status='pending').count()
         rejected = ValidationResult.objects.filter(validation_status='rejected').count()
-        
+
         # Source reliability stats
         source_usage = {}
         for source in ['google', 'arcgis', 'hdx', 'nominatim']:
             source_usage[source] = ValidationResult.objects.filter(
                 recommended_source=source
             ).count()
-        
+
         return JsonResponse({
             'total_locations': total_locations,
             'total_validations': total_validations,
@@ -1608,7 +1588,7 @@ def validation_statistics(request):
             'source_usage': source_usage,
             'completion_rate': (validated / total_locations * 100) if total_locations > 0 else 0
         })
-    
+
     except Exception as e:
         logger.error(f"Error getting validation statistics: {str(e)}")
         return JsonResponse({
@@ -1619,13 +1599,13 @@ def validation_statistics(request):
 @login_required
 def validated_locations_map(request):
     """Show map of all validated locations with proper data structure."""
-    # Get all validated locations from core Location model
+
     validated_locations = Location.objects.filter(
         latitude__isnull=False,
         longitude__isnull=False
     ).order_by('name')
-    
-    
+
+
     # Prepare location data for map display
     locations_data = []
     for location in validated_locations:
@@ -1636,7 +1616,7 @@ def validated_locations_map(request):
             'lng': float(location.longitude),
             'status': 'validated'
         })
-    
+
     context = {
         'locations_data': json.dumps(locations_data),
         'mapbox_token': getattr(settings, 'MAPBOX_ACCESS_TOKEN', ''),
@@ -1645,11 +1625,7 @@ def validated_locations_map(request):
 
     return render(request, 'geolocation/validated_locations_map.html', context)
 
-
-# ===============================
 # MODERN CELERY-BASED BATCH PROCESSING VIEWS
-# ===============================
-
 @login_required
 @csrf_exempt
 def start_batch_geocoding(request):
@@ -1660,26 +1636,26 @@ def start_batch_geocoding(request):
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
-            
-            # Get parameters
+
+
             location_ids = data.get('location_ids')  # Specific locations or None for all
             force_reprocess = data.get('force_reprocess', False)
             batch_size = data.get('batch_size', 50)
-            
+
             # Start Celery task
             task = batch_geocode_locations.delay(
                 location_ids=location_ids,
                 force_reprocess=force_reprocess,
                 batch_size=batch_size
             )
-            
+
             return JsonResponse({
                 'success': True,
                 'task_id': task.id,
                 'message': 'Batch geocoding started',
                 'monitor_url': f'/geolocation/batch-progress/{task.id}/'
             })
-            
+
         except Exception as e:
             logger.error(f"Failed to start batch geocoding: {e}")
             return JsonResponse({
@@ -1688,10 +1664,8 @@ def start_batch_geocoding(request):
             }, status=500)
 
     return JsonResponse({'error': 'POST required'}, status=405)
-
-
 @login_required
-@csrf_exempt 
+@csrf_exempt
 def start_batch_validation(request):
     """
     Modern view-based batch validation using Celery.
@@ -1700,34 +1674,32 @@ def start_batch_validation(request):
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
-            
-            # Get parameters
+
+
             result_ids = data.get('result_ids')  # Specific results or None for all unvalidated
             batch_size = data.get('batch_size', 50)
-            
+
             # Start Celery task
             task = batch_validate_locations.delay(
                 geocoding_result_ids=result_ids,
                 batch_size=batch_size
             )
-            
+
             return JsonResponse({
                 'success': True,
                 'task_id': task.id,
                 'message': 'Batch validation started',
                 'monitor_url': f'/geolocation/batch-progress/{task.id}/'
             })
-            
+
         except Exception as e:
             logger.error(f"Failed to start batch validation: {e}")
             return JsonResponse({
                 'success': False,
                 'error': str(e)
             }, status=500)
-    
+
     return JsonResponse({'error': 'POST required'}, status=405)
-
-
 @login_required
 def batch_progress(request, task_id):
     """
@@ -1735,20 +1707,20 @@ def batch_progress(request, task_id):
     Provides progress updates for both geocoding and validation.
     """
     try:
-        # Try to get progress from cache first (more detailed)
+
         progress_key = f"geocoding_progress_{task_id}"
         progress_data = cache.get(progress_key)
-        
+
         if not progress_data:
-            # Try validation progress
+
             progress_key = f"validation_progress_{task_id}"
             progress_data = cache.get(progress_key)
-        
+
         if not progress_data:
-            # Fallback to Celery task state
+
             from celery.result import AsyncResult
             task = AsyncResult(task_id)
-            
+
             if task.state == 'PENDING':
                 progress_data = {
                     'status': 'pending',
@@ -1776,14 +1748,12 @@ def batch_progress(request, task_id):
                     'status': task.state.lower(),
                     'message': f'Task is {task.state.lower()}'
                 }
-        
+
         return JsonResponse(progress_data)
-        
+
     except Exception as e:
         logger.error(f"Failed to get batch progress: {e}")
         return JsonResponse({
             'status': 'error',
             'error': str(e)
         }, status=500)
-
-

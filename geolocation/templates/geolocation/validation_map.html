@@ -818,12 +818,74 @@
             </div>
           </div>
           {% endif %}
+
+          <!-- LLM AI Enhancement Section -->
+          {% if current_location.llm_enhanced %}
+          <div style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border: 2px solid #0ea5e9; border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
+              <span style="font-size: 1.2rem;">🤖</span>
+              <span style="font-weight: 700; color: #0c4a6e; font-size: 1rem;">AI-Enhanced Validation</span>
+              <span style="background: #0ea5e9; color: white; padding: 0.2rem 0.6rem; border-radius: 10px; font-size: 0.7rem; font-weight: 600; margin-left: auto;">GEMINI</span>
+            </div>
+
+            {% if current_location.llm_explanation %}
+            <div style="background: white; border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem; border-left: 4px solid #0ea5e9;">
+              <div style="font-size: 0.75rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.5rem;">AI Analysis</div>
+              <p style="margin: 0; line-height: 1.6; color: #1e293b;">{{ current_location.llm_explanation }}</p>
+            </div>
+            {% endif %}
+
+            {% if current_location.llm_sanity_check %}
+              {% if not current_location.llm_sanity_check.passes_sanity_check %}
+              <div style="background: #fef2f2; border: 1px solid #ef4444; border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                  <span style="font-size: 1rem;">⚠️</span>
+                  <span style="font-weight: 700; color: #991b1b; font-size: 0.9rem;">Sanity Check Failed</span>
+                  <span style="background:
+                    {% if current_location.llm_sanity_check.severity == 'critical' %}#dc2626{% elif current_location.llm_sanity_check.severity == 'major' %}#ea580c{% else %}#f59e0b{% endif %};
+                    color: white; padding: 0.2rem 0.5rem; border-radius: 8px; font-size: 0.7rem; font-weight: 600; margin-left: auto;">
+                    {{ current_location.llm_sanity_check.severity|upper }}
+                  </span>
+                </div>
+                <p style="margin: 0 0 0.5rem 0; font-size: 0.85rem; color: #7f1d1d; line-height: 1.5;">{{ current_location.llm_sanity_check.reasoning }}</p>
+                {% if current_location.llm_sanity_check.issues_found %}
+                <ul style="margin: 0; padding-left: 1.25rem; font-size: 0.8rem; color: #991b1b;">
+                  {% for issue in current_location.llm_sanity_check.issues_found %}
+                  <li>{{ issue }}</li>
+                  {% endfor %}
+                </ul>
+                {% endif %}
+              </div>
+              {% endif %}
+            {% endif %}
+
+            {% if current_location.llm_conflict_resolution %}
+            <div style="background: white; border-radius: 8px; padding: 1rem; border: 1px solid #cbd5e1;">
+              <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                <span style="font-size: 0.9rem;">🎯</span>
+                <span style="font-weight: 600; color: #334155; font-size: 0.85rem;">AI Conflict Resolution</span>
+              </div>
+              <p style="margin: 0; font-size: 0.8rem; color: #475569; line-height: 1.5;">{{ current_location.llm_conflict_resolution.reasoning }}</p>
+              <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem; flex-wrap: wrap;">
+                <div style="background: #f1f5f9; padding: 0.35rem 0.75rem; border-radius: 15px; font-size: 0.75rem;">
+                  <span style="color: #64748b;">Confidence:</span>
+                  <span style="font-weight: 600; color: #0f172a;">{{ current_location.llm_conflict_resolution.confidence|floatformat:0 }}%</span>
+                </div>
+                <div style="background: #f1f5f9; padding: 0.35rem 0.75rem; border-radius: 15px; font-size: 0.75rem;">
+                  <span style="color: #64748b;">Agreement:</span>
+                  <span style="font-weight: 600; color: #0f172a; text-transform: capitalize;">{{ current_location.llm_conflict_resolution.agreement_level }}</span>
+                </div>
+              </div>
+            </div>
+            {% endif %}
+          </div>
+          {% endif %}
         </div>
       </div>
 
       <div class="source-selection">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-          <h3 style="margin: 0; font-size: 1.2rem; font-weight: 600;">Auto-validation Scores</h3>
+          <h3 style="margin: 0; font-size: 1.2rem; font-weight: 600;">Validation Scores</h3>
           <span style="background: #e9ecef; color: #495057; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem; font-weight: 500;">
             {{ current_location.coordinates|length }} Sources
           </span>
@@ -854,13 +916,13 @@
           </div>
           
           <div class="scoring-details">
-            <div class="coordinate-label" style="margin-bottom: 0.75rem;">Two-Component Scoring</div>
+            <div class="coordinate-label" style="margin-bottom: 0.75rem;">Validation Scores</div>
             <div class="scoring-item">
-              <span class="scoring-label">Reverse Geocoding (70%):</span>
+              <span class="scoring-label">Address Match:</span>
               <span class="scoring-value">{{ coord.reverse_geocoding_score|default:0|floatformat:0 }}%</span>
             </div>
             <div class="scoring-item">
-              <span class="scoring-label">Distance Proximity (30%):</span>
+              <span class="scoring-label">Source Agreement:</span>
               <span class="scoring-value">{{ coord.distance_penalty_score|default:0|floatformat:0 }}%</span>
             </div>
             <div class="scoring-item">
@@ -1088,21 +1150,19 @@
               <div style="font-family: monospace; font-size: 0.9rem;">${coord.lat.toFixed(5)}, ${coord.lng.toFixed(5)}</div>
             </div>
             <div style="background: #f8f9fa; padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem;">
-              <div style="font-size: 0.8rem; color: #6c757d; margin-bottom: 0.5rem;">Two-Component Scoring</div>
+              <div style="font-size: 0.8rem; color: #6c757d; margin-bottom: 0.5rem;">Validation Scores</div>
               <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
-                <span style="font-size: 0.8rem;">Reverse Geocoding (70%):</span>
+                <span style="font-size: 0.8rem;">Address Match:</span>
                 <span style="font-weight: 600; font-size: 0.8rem;">${Math.round(coord.reverse_geocoding_score || 0)}%</span>
               </div>
               <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
-                <span style="font-size: 0.8rem;">Distance Proximity (30%):</span>
+                <span style="font-size: 0.8rem;">Source Agreement:</span>
                 <span style="font-weight: 600; font-size: 0.8rem;">${Math.round(coord.distance_penalty_score || 0)}%</span>
               </div>
               <div style="display: flex; justify-content: space-between; border-top: 1px solid #dee2e6; padding-top: 0.25rem;">
                 <span style="font-size: 0.8rem; font-weight: 600;">Overall Score:</span>
                 <span style="font-weight: 600; font-size: 0.8rem;">${Math.round(coord.individual_confidence || 0)}%</span>
               </div>
-              <div style="font-size: 0.7rem; color: #6c757d; margin-top: 0.25rem;">
-                (${Math.round(coord.reverse_geocoding_score || 0)}% × 0.70) + (${Math.round(coord.distance_penalty_score || 0)}% × 0.30)
               </div>
             </div>
             <button onclick="selectSource('${coord.source_key}', ${coord.lat}, ${coord.lng})" 
@@ -1364,10 +1424,9 @@
 
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
+      // Clean initialization - no automatic popups
       if (currentLocationData && currentLocationData.coordinates.length > 0) {
-        setTimeout(() => {
-          showMessage('Tip: Click on map markers or source cards to explore. Use keyboard arrows to navigate.', 'info');
-        }, 1000);
+        console.log('Location data loaded successfully');
       }
     });
   </script>

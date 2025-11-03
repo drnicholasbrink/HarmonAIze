@@ -368,3 +368,9 @@ GOOGLE_GEOCODING_API_KEY = env.str('GOOGLE_GEOCODING_API_KEY', default=None)
 # Geocoding timeouts
 GEOCODING_TIMEOUT_LOCAL = env.int('GEOCODING_TIMEOUT_LOCAL', default=5)
 GEOCODING_TIMEOUT_REMOTE = env.int('GEOCODING_TIMEOUT_REMOTE', default=15)
+
+# Gemini LLM Configuration for Enhanced Geocoding
+# ------------------------------------------------------------------------------
+GEMINI_API_KEY = env.str('GEMINI_API_KEY', default=None)
+GEOLOCATION_USE_LLM = env.bool('GEOLOCATION_USE_LLM', default=True)
+GEOLOCATION_LLM_CONFLICT_THRESHOLD_KM = env.float('GEOLOCATION_LLM_CONFLICT_THRESHOLD_KM', default=5.0)

@@ -14,8 +14,6 @@ from .services import GeocodingService
 from core.models import Location
 
 logger = logging.getLogger(__name__)
-
-
 @shared_task(bind=True)
 def batch_geocode_locations(self, location_ids=None, force_reprocess=False, batch_size=50):
     """
@@ -46,16 +44,42 @@ def batch_geocode_locations(self, location_ids=None, force_reprocess=False, batc
             'started_at': timezone.now().isoformat(),
         }, timeout=3600)
         
-        # Get locations to process
+
         if location_ids:
             locations = Location.objects.filter(id__in=location_ids)
         else:
             if force_reprocess:
                 locations = Location.objects.all()
             else:
-                # Find locations that don't have geocoding results yet
-                geocoded_location_names = GeocodingResult.objects.values_list('location_name', flat=True).distinct()
-                locations = Location.objects.exclude(name__in=geocoded_location_names)
+                # Find locations that don't have complete geocoding results
+                # Include locations with:
+                #  1. No GeocodingResult at all
+                #  2. GeocodingResult with only 1 successful API (need to retry other APIs)
+
+                # Get locations with incomplete results (only 1 API succeeded)
+                incomplete_count = 0
+                complete_location_names = []
+
+                for result in GeocodingResult.objects.all():
+                    successful_count = sum([
+                        result.hdx_success,
+                        result.arcgis_success,
+                        result.google_success,
+                        result.nominatim_success
+                    ])
+
+                    if successful_count >= 2:
+                        # Location has complete geocoding (2+ APIs)
+                        complete_location_names.append(result.location_name)
+                    elif successful_count == 1:
+                        # Location has incomplete geocoding (only 1 API) - will be re-processed
+                        incomplete_count += 1
+
+                logger.info(f"Batch geocoding: {incomplete_count} locations have only 1 API result and will be re-processed")
+                logger.info(f"Batch geocoding: {len(complete_location_names)} locations have 2+ API results and will be skipped")
+
+                # Process locations that either have no results OR have incomplete results
+                locations = Location.objects.exclude(name__in=complete_location_names)
             
         total_count = locations.count()
         
@@ -68,7 +92,7 @@ def batch_geocode_locations(self, location_ids=None, force_reprocess=False, batc
             }, timeout=3600)
             return {'status': 'completed', 'message': 'No locations to process'}
         
-        # Update progress with total
+
         cache.set(progress_key, {
             'status': 'processing',
             'progress': 0,
@@ -85,7 +109,7 @@ def batch_geocode_locations(self, location_ids=None, force_reprocess=False, batc
         
         for i, location in enumerate(locations.iterator(chunk_size=batch_size)):
             try:
-                # Update progress
+
                 progress = int((i / total_count) * 100)
                 cache.set(progress_key, {
                     'status': 'processing',
@@ -109,7 +133,7 @@ def batch_geocode_locations(self, location_ids=None, force_reprocess=False, batc
                 logger.error(f"Failed to geocode {location}: {e}")
                 failed += 1
                 
-            # Update task progress for Celery monitoring
+
             self.update_state(
                 state='PROGRESS',
                 meta={
@@ -149,8 +173,6 @@ def batch_geocode_locations(self, location_ids=None, force_reprocess=False, batc
             'failed_at': timezone.now().isoformat()
         }, timeout=3600)
         raise
-
-
 @shared_task(bind=True)
 def batch_validate_locations(self, geocoding_result_ids=None, batch_size=50):
     """
@@ -170,7 +192,7 @@ def batch_validate_locations(self, geocoding_result_ids=None, batch_size=50):
     try:
         validator = SmartGeocodingValidator()
         
-        # Get geocoding results to validate
+
         if geocoding_result_ids:
             results = GeocodingResult.objects.filter(id__in=geocoding_result_ids)
         else:
@@ -199,7 +221,7 @@ def batch_validate_locations(self, geocoding_result_ids=None, batch_size=50):
                 # Run validation
                 validation = validator.validate_geocoding_result(result)
                 
-                # Update statistics
+
                 if validation.validation_status == 'validated':
                     stats['auto_validated'] += 1
                 elif validation.validation_status == 'needs_review':
@@ -207,7 +229,7 @@ def batch_validate_locations(self, geocoding_result_ids=None, batch_size=50):
                 elif validation.validation_status == 'rejected':
                     stats['rejected'] += 1
                 
-                # Update progress
+
                 progress = int(((i + 1) / total_count) * 100)
                 cache.set(progress_key, {
                     'status': 'processing',
@@ -255,8 +277,6 @@ def batch_validate_locations(self, geocoding_result_ids=None, batch_size=50):
             'failed_at': timezone.now().isoformat()
         }, timeout=3600)
         raise
-
-
 def _geocode_single_location(location, force_reprocess=False):
     """
     Geocode a single location using the centralized GeocodingService.
@@ -269,8 +289,6 @@ def _geocode_single_location(location, force_reprocess=False):
     except Exception as e:
         logger.error(f"Failed to geocode {location}: {e}")
         return None
-
-
 @shared_task
 def cleanup_old_progress_data():
     """
