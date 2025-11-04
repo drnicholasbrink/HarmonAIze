@@ -1,0 +1,1413 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Validated Locations Map - HarmonAIze{% endblock title %}
+
+{% block css %}
+  {{ block.super }}
+  <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    :root {
+      --primary-color: #007AFF;
+      --secondary-color: #5AC8FA;
+      --accent-color: #34C759;
+      --health-color: #FF6B6B;
+      --background-color: #F2F2F7;
+      --card-background: #FFFFFF;
+      --text-primary: #1C1C1E;
+      --text-secondary: #8E8E93;
+      --border-color: #C6C6C8;
+      --shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+      --border-radius: 12px;
+    }
+
+    body {
+      background-color: var(--background-color);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--text-primary);
+      line-height: 1.5;
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .hero-section {
+      background: linear-gradient(135deg, var(--accent-color) 0%, #2ecc71 100%);
+      color: white;
+      padding: 1.5rem 0;
+      margin: -1rem -15px 0 -15px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-section::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") repeat;
+      opacity: 0.5;
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 2rem;
+    }
+
+    .hero-title {
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    .hero-subtitle {
+      font-size: 1rem;
+      opacity: 0.9;
+    }
+
+    .hero-nav {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .btn {
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.3s ease;
+      border: none;
+      cursor: pointer;
+      font-size: 0.9rem;
+      text-align: center;
+    }
+
+    .btn-primary {
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .btn-primary:hover {
+      background: rgba(255, 255, 255, 0.3);
+      transform: translateY(-1px);
+      color: white;
+    }
+
+    .btn-secondary {
+      background: white;
+      color: var(--accent-color);
+    }
+
+    .btn-secondary:hover {
+      background: #f8f9fa;
+      transform: translateY(-1px);
+      color: var(--accent-color);
+    }
+
+    .confidence-badge {
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .map-container {
+      height: calc(100vh - 120px);
+      position: relative;
+    }
+
+    .map-area {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+
+    .map-controls {
+      position: absolute;
+      top: 1rem;
+      left: 1rem;
+      z-index: 1000;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: var(--border-radius);
+      padding: 1rem;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border-color);
+    }
+
+    .map-controls h4 {
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .layer-button {
+      display: block;
+      width: 100%;
+      padding: 0.5rem;
+      margin-bottom: 0.25rem;
+      background: none;
+      border: none;
+      border-radius: 6px;
+      text-align: left;
+      font-size: 0.8rem;
+      color: var(--text-primary);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .layer-button:hover {
+      background: #f8f9fa;
+    }
+
+    .layer-button.active {
+      background: var(--accent-color);
+      color: white;
+    }
+
+    .download-panel {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      z-index: 1000;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: var(--border-radius);
+      padding: 1rem;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border-color);
+    }
+
+    .download-panel h4 {
+      margin-bottom: 0.75rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .download-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      width: 100%;
+      padding: 0.75rem;
+      margin-bottom: 0.5rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .download-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .btn-pdf {
+      background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+      color: white;
+    }
+
+    .btn-png {
+      background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+      color: white;
+    }
+
+    .map-legend {
+      position: absolute;
+      bottom: 1rem;
+      left: 1rem;
+      z-index: 1000;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: var(--border-radius);
+      padding: 1rem;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border-color);
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      margin-bottom: 0.5rem;
+      font-size: 0.8rem;
+    }
+
+    .legend-color {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-right: 0.5rem;
+      border: 2px solid white;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    }
+
+    .stats-panel {
+      position: absolute;
+      bottom: 1rem;
+      right: 1rem;
+      z-index: 1000;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: var(--border-radius);
+      padding: 1rem;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border-color);
+    }
+
+    .stats-panel h4 {
+      margin-bottom: 0.75rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .stat-item {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 0.5rem;
+      font-size: 0.8rem;
+    }
+
+    .stat-label {
+      color: var(--text-secondary);
+    }
+
+    .stat-value {
+      font-weight: 600;
+      color: var(--accent-color);
+    }
+
+    .mapboxgl-popup-content {
+      padding: 1rem;
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border-color);
+    }
+
+    .validated-marker {
+      border-radius: 50%;
+      border: 3px solid white;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .validated-marker:hover {
+      transform: scale(1.2);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+    }
+
+    .loading-spinner {
+      border: 3px solid #f3f4f6;
+      border-top: 3px solid var(--accent-color);
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .progress-container {
+      background: rgba(16, 185, 129, 0.1);
+      border-radius: var(--border-radius);
+      padding: 1rem;
+      margin-top: 1rem;
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      display: none;
+    }
+
+    .progress-container.show {
+      display: block;
+    }
+
+    .message-container {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 10000;
+      max-width: 400px;
+    }
+
+    .message {
+      background: var(--card-background);
+      border-radius: var(--border-radius);
+      padding: 1rem 1.5rem;
+      margin-bottom: 1rem;
+      box-shadow: var(--shadow);
+      border-left: 4px solid;
+      font-weight: 500;
+      transform: translateX(100%);
+      transition: transform 0.3s ease;
+    }
+
+    .message.success {
+      border-left-color: var(--accent-color);
+      color: #155724;
+      background: #d4edda;
+    }
+
+    .message.error {
+      border-left-color: #dc3545;
+      color: #721c24;
+      background: #f8d7da;
+    }
+
+    .message.info {
+      border-left-color: var(--primary-color);
+      color: #0c5460;
+      background: #d1ecf1;
+    }
+
+    .message.show {
+      transform: translateX(0);
+    }
+
+    .inline-icon {
+      display: inline-block;
+      vertical-align: middle;
+      margin-right: 0.5rem;
+    }
+
+    @media (max-width: 768px) {
+      .hero-content {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+      }
+
+      .hero-nav {
+        width: 100%;
+        justify-content: space-between;
+      }
+
+      .map-controls,
+      .download-panel,
+      .map-legend,
+      .stats-panel {
+        position: relative;
+        margin: 1rem;
+      }
+
+      .map-container {
+        height: calc(100vh - 160px);
+      }
+    }
+
+    /* Django Messages/Alerts Styling */
+    .error-messages-section {
+      max-width: 1200px;
+      margin: 1rem auto;
+      padding: 0 2rem;
+      z-index: 1000;
+      position: relative;
+    }
+
+    .alert {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 0.5rem;
+      font-weight: 500;
+      border-left: 4px solid;
+      animation: slideIn 0.3s ease;
+      box-shadow: var(--shadow);
+    }
+
+    @keyframes slideIn {
+      from {
+        transform: translateX(-20px);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+
+    .alert-error {
+      background: #fee;
+      border-left-color: #dc3545;
+      color: #721c24;
+    }
+
+    .alert-success {
+      background: #d4edda;
+      border-left-color: #28a745;
+      color: #155724;
+    }
+
+    .alert-info {
+      background: #d1ecf1;
+      border-left-color: #0c5460;
+      color: #0c5460;
+    }
+
+    .alert-warning {
+      background: #fff3cd;
+      border-left-color: #ffc107;
+      color: #856404;
+    }
+
+    .error-icon, .success-icon, .info-icon, .warning-icon {
+      font-size: 1.2rem;
+      font-weight: bold;
+    }
+
+    .error-text, .success-text, .info-text, .warning-text {
+      flex: 1;
+    }
+  </style>
+{% endblock css %}
+
+{% block content %}
+  <div class="hero-section">
+    <div class="hero-content">
+      <div>
+        <h1 class="hero-title">
+          {% include 'components/svg_icon.html' with icon='check-circle' size='24' class='inline-icon' %}
+          Validated Locations Map
+        </h1>
+        <p class="hero-subtitle">Ground-Truth for Impact — Explore {{ total_locations }} Validated Sites in Context</p>
+      </div>
+      
+      <div class="hero-nav">
+        <div class="confidence-badge">
+          {{ total_locations }} Validated Locations
+        </div>
+        
+        <a href="{% url 'geolocation:validation_dashboard' %}" 
+           class="btn btn-primary">
+          📊 Back to Dashboard
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Django Messages/Alerts -->
+  {% if messages %}
+    <div class="error-messages-section">
+      {% for message in messages %}
+        {% if message.tags == 'error' %}
+          <div class="alert alert-error">
+            <span class="error-icon">⚠️</span>
+            <span class="error-text">{{ message }}</span>
+          </div>
+        {% elif message.tags == 'success' %}
+          <div class="alert alert-success">
+            <span class="success-icon">✓</span>
+            <span class="success-text">{{ message }}</span>
+          </div>
+        {% elif message.tags == 'info' %}
+          <div class="alert alert-info">
+            <span class="info-icon">ℹ️</span>
+            <span class="info-text">{{ message }}</span>
+          </div>
+        {% elif message.tags == 'warning' %}
+          <div class="alert alert-warning">
+            <span class="warning-icon">⚡</span>
+            <span class="warning-text">{{ message }}</span>
+          </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="map-container">
+    <div class="map-area">
+      <div id="map" style="width: 100%; height: 100%;"></div>
+      
+      <!-- Map Controls -->
+      <div class="map-controls">
+        <h4>Map Layers</h4>
+        <button onclick="changeMapLayer('satellite')" class="layer-button active" id="satellite-btn">
+          Satellite
+        </button>
+        <button onclick="changeMapLayer('streets')" class="layer-button" id="streets-btn">
+          Streets
+        </button>
+      </div>
+      
+      <!-- Download Panel -->
+      <div class="download-panel">
+        <h4>📥 Download Map</h4>
+        <button onclick="downloadMap('pdf')" class="download-btn btn-pdf">
+          <span>📄</span>
+          <span>Download PDF</span>
+        </button>
+        <button onclick="downloadMap('png')" class="download-btn btn-png">
+          <span>🖼️</span>
+          <span>Download PNG</span>
+        </button>
+        
+        <!-- Download Progress -->
+        <div id="downloadProgress" class="progress-container">
+          <div style="display: flex; align-items: center; gap: 1rem;">
+            <div class="loading-spinner"></div>
+            <div>
+              <div style="font-weight: 600; color: var(--accent-color);">Generating download...</div>
+              <div style="color: var(--text-secondary); font-size: 0.9rem;">Creating enhanced map with basemap</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Map Legend -->
+      <div class="map-legend">
+        <h4 style="margin-bottom: 1rem; font-size: 0.9rem; font-weight: 600;">🏷️ Location Legend</h4>
+        <div id="locationLegend" class="space-y-1">
+          <!-- Dynamic legend will be populated here -->
+        </div>
+        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color); font-size: 0.8rem; color: var(--text-secondary);">
+          Total: {{ total_locations }} validated locations
+        </div>
+      </div>
+      
+      <!-- Statistics Panel -->
+      <div class="stats-panel">
+        <h4>📊 Map Info</h4>
+        <div class="stat-item">
+          <span class="stat-label">Locations:</span>
+          <span class="stat-value">{{ total_locations }}</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Zoom Level:</span>
+          <span class="stat-value" id="currentZoom">-</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Center:</span>
+          <span class="stat-value" id="currentCenter">-</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden canvas for download generation -->
+  <canvas id="downloadCanvas" width="1200" height="800" style="position: absolute; top: -9999px; left: -9999px; pointer-events: none;"></canvas>
+
+  <!-- Messages Container -->
+  <div id="messageContainer" class="message-container"></div>
+
+  <script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
+  <script>
+    // Initialize map
+    mapboxgl.accessToken = '{{ mapbox_token }}';
+    const map = new mapboxgl.Map({
+      container: 'map',
+      style: 'mapbox://styles/mapbox/satellite-streets-v11',
+      center: [25, -15],
+      zoom: 5
+    });
+
+    const locationsData = {{ locations_data|safe }};
+    let markers = [];
+    let currentMapStyle = 'satellite';
+    let locationColors = {};
+
+    // Enhanced color palette for better distinction
+    const colorPalette = [
+      '#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6',
+      '#1abc9c', '#e67e22', '#34495e', '#e91e63', '#ff5722',
+      '#607d8b', '#795548', '#009688', '#4caf50', '#8bc34a',
+      '#cddc39', '#ffeb3b', '#ffc107', '#ff9800', '#ff5722',
+      '#9c27b0', '#673ab7', '#3f51b5', '#2196f3', '#03a9f4',
+      '#00bcd4', '#004d40', '#1b5e20', '#bf360c', '#e65100'
+    ];
+
+    // Map layer styles
+    const mapStyles = {
+      'satellite': 'mapbox://styles/mapbox/satellite-streets-v11',
+      'streets': 'mapbox://styles/mapbox/streets-v11',
+      'terrain': 'mapbox://styles/mapbox/outdoors-v11'
+    };
+
+    // Generate unique colors for each location
+    function assignLocationColors() {
+      locationsData.forEach((location, index) => {
+        locationColors[location.name] = colorPalette[index % colorPalette.length];
+      });
+    }
+
+    // Create enhanced legend
+    function createLocationLegend() {
+      const legendContainer = document.getElementById('locationLegend');
+      legendContainer.innerHTML = '';
+      
+      locationsData.forEach((location) => {
+        const legendItem = document.createElement('div');
+        legendItem.className = 'legend-item';
+        legendItem.innerHTML = `
+          <div class="legend-color" style="background-color: ${locationColors[location.name]}"></div>
+          <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${location.name}</span>
+        `;
+        legendContainer.appendChild(legendItem);
+      });
+    }
+
+    // Map layer switching
+    function changeMapLayer(layerType) {
+      if (layerType === currentMapStyle) return;
+      
+      document.querySelectorAll('.layer-button').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      document.getElementById(`${layerType}-btn`).classList.add('active');
+      
+      map.setStyle(mapStyles[layerType]);
+      currentMapStyle = layerType;
+      
+      map.on('styledata', function() {
+        setTimeout(() => {
+          addMarkersToMap();
+        }, 100);
+      });
+    }
+
+    // Add markers to map with unique colors - FIXED VERSION
+    function addMarkersToMap() {
+      // Clear existing markers
+      markers.forEach(marker => marker.remove());
+      markers = [];
+
+      if (locationsData.length === 0) {
+        showMessage('No validated locations found', 'info');
+        return;
+      }
+
+      const bounds = new mapboxgl.LngLatBounds();
+
+      locationsData.forEach((location, index) => {
+        // Create marker element
+        const el = document.createElement('div');
+        el.className = 'validated-marker';
+        el.style.width = '16px';
+        el.style.height = '16px';
+        el.style.backgroundColor = locationColors[location.name];
+
+        // Create popup HTML
+        const popupHTML = `
+          <div style="min-width: 250px;">
+            <div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 1rem; color: ${locationColors[location.name]}">${location.name}</div>
+            <div style="background: #f0fdf4; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+              <div style="font-size: 0.8rem; color: #15803d; font-weight: 600; margin-bottom: 0.5rem;">Validated Coordinates</div>
+              <div style="font-family: monospace; font-size: 0.9rem; color: #374151;">${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}</div>
+            </div>
+            <div style="background: #f8f9fa; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+              <div style="font-size: 0.8rem; color: #6b7280; margin-bottom: 0.25rem;">Status</div>
+              <div style="font-size: 0.9rem; font-weight: 600; color: var(--accent-color);">Ready for Analysis</div>
+            </div>
+            <button onclick="zoomToLocation(${location.lat}, ${location.lng})" 
+                    style="background: var(--accent-color); color: white; border: none; padding: 0.75rem 1rem; border-radius: 8px; width: 100%; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">
+              Zoom to Location
+            </button>
+          </div>
+        `;
+
+        // Create popup
+        const popup = new mapboxgl.Popup({ 
+          offset: 15,
+          closeButton: true,
+          closeOnClick: false
+        }).setHTML(popupHTML);
+        
+        // Create marker with popup
+        const marker = new mapboxgl.Marker(el)
+          .setLngLat([location.lng, location.lat])
+          .setPopup(popup)
+          .addTo(map);
+        
+        markers.push(marker);
+        bounds.extend([location.lng, location.lat]);
+      });
+
+      // Fit map to bounds
+      if (locationsData.length > 1) {
+        map.fitBounds(bounds, { 
+          padding: 60,
+          maxZoom: 16
+        });
+      } else if (locationsData.length === 1) {
+        map.flyTo({
+          center: [locationsData[0].lng, locationsData[0].lat],
+          zoom: 14,
+          duration: 1500
+        });
+      }
+    }
+
+    function zoomToLocation(lat, lng) {
+      map.flyTo({
+        center: [lng, lat],
+        zoom: 16,
+        duration: 1500,
+        essential: true
+      });
+    }
+
+    // Download functionality
+    function downloadMap(format) {
+      const downloadProgress = document.getElementById('downloadProgress');
+      downloadProgress.classList.add('show');
+      
+      showMessage('🔄 Creating enhanced map with basemap...', 'info');
+      
+      if (format === 'pdf') {
+        generateEnhancedPDF();
+      } else if (format === 'png') {
+        generateEnhancedPNG();
+      }
+    }
+
+    // Generate PDF with proper basemap
+    function generateEnhancedPDF() {
+      const canvas = document.getElementById('downloadCanvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = 1200;
+      canvas.height = 900;
+      
+      // Clear canvas
+      ctx.fillStyle = '#f0f9ff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Calculate map bounds
+      const bounds = getLocationBounds();
+      const zoom = calculateOptimalZoom(bounds, 700, 400);
+      
+      // Centered map area
+      const mapArea = { 
+        x: (canvas.width - 800) / 2,
+        y: 100, 
+        width: 800, 
+        height: 450 
+      };
+      
+      // Get tiles needed
+      const tilesNeeded = calculateTileCoverage(bounds, zoom, mapArea.width, mapArea.height);
+      let tilesLoaded = 0;
+      let totalTiles = tilesNeeded.tiles.length;
+      
+      if (totalTiles === 0) {
+        generateFallbackPDF();
+        return;
+      }
+      
+      // Load tiles
+      const tileImages = [];
+      
+      tilesNeeded.tiles.forEach((tile, index) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        
+        img.onload = function() {
+          tileImages[index] = { img: img, tile: tile };
+          tilesLoaded++;
+          
+          if (tilesLoaded === totalTiles) {
+            drawPDFWithTiles(canvas, ctx, tileImages, tilesNeeded, bounds, mapArea);
+          }
+        };
+        
+        img.onerror = function() {
+          tilesLoaded++;
+          if (tilesLoaded === totalTiles) {
+            drawPDFWithTiles(canvas, ctx, tileImages, tilesNeeded, bounds, mapArea);
+          }
+        };
+        
+        img.src = `https://tile.openstreetmap.org/${zoom}/${tile.x}/${tile.y}.png`;
+      });
+    }
+    
+    function drawPDFWithTiles(canvas, ctx, tileImages, tilesNeeded, bounds, mapArea) {
+      // Clear canvas
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Background
+      ctx.fillStyle = '#f0f9ff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Title
+      ctx.fillStyle = '#059669';
+      ctx.font = 'bold 28px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('Validated Locations Map', canvas.width / 2, 40);
+      
+      ctx.fillStyle = '#6b7280';
+      ctx.font = '16px Arial';
+      ctx.fillText(`HarmonAIze Geolocation Platform | ${locationsData.length} Locations`, canvas.width / 2, 70);
+      
+      // Map background
+      ctx.fillStyle = '#e0f2fe';
+      ctx.fillRect(mapArea.x, mapArea.y, mapArea.width, mapArea.height);
+      ctx.strokeStyle = '#0369a1';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(mapArea.x, mapArea.y, mapArea.width, mapArea.height);
+      
+      // Draw tiles
+      const drawnTiles = new Set();
+      tileImages.forEach((tileData) => {
+        if (tileData && tileData.img) {
+          const tile = tileData.tile;
+          const tileKey = `${tile.x}-${tile.y}`;
+          
+          if (!drawnTiles.has(tileKey)) {
+            drawnTiles.add(tileKey);
+            const tilePixelX = mapArea.x + (tile.x - tilesNeeded.minTileX) * 256;
+            const tilePixelY = mapArea.y + (tile.y - tilesNeeded.minTileY) * 256;
+            
+            if (tilePixelX < mapArea.x + mapArea.width && tilePixelY < mapArea.y + mapArea.height) {
+              ctx.drawImage(tileData.img, tilePixelX, tilePixelY, 256, 256);
+            }
+          }
+        }
+      });
+      
+      // Plot locations
+      locationsData.forEach((location) => {
+        const tileCoords = getTileCoords(location.lat, location.lng, tilesNeeded.zoom);
+        const pixelX = (tileCoords.x - tilesNeeded.minTileX) * 256 + tileCoords.pixelX;
+        const pixelY = (tileCoords.y - tilesNeeded.minTileY) * 256 + tileCoords.pixelY;
+        
+        const mapX = mapArea.x + pixelX;
+        const mapY = mapArea.y + pixelY;
+        
+        if (mapX >= mapArea.x && mapX <= mapArea.x + mapArea.width && 
+            mapY >= mapArea.y && mapY <= mapArea.y + mapArea.height) {
+          
+          // Draw marker
+          ctx.fillStyle = locationColors[location.name];
+          ctx.beginPath();
+          ctx.arc(mapX, mapY, 10, 0, 2 * Math.PI);
+          ctx.fill();
+          
+          // White border
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 3;
+          ctx.stroke();
+          
+          // Label
+          ctx.fillStyle = '#000000';
+          ctx.font = 'bold 12px Arial';
+          ctx.textAlign = 'center';
+          ctx.fillText(location.name, mapX, mapY + 25);
+        }
+      });
+      
+      // Legend
+      const legendY = 620;
+      addLegendToPDF(ctx, 50, legendY, canvas.width - 100, 120);
+      
+      // Metadata
+      ctx.fillStyle = '#6b7280';
+      ctx.font = '10px Arial';
+      ctx.textAlign = 'left';
+      ctx.fillText(`Generated: ${new Date().toLocaleDateString()} | Zoom: ${tilesNeeded.zoom} | Source: HarmonAIze Platform`, 50, canvas.height - 10);
+      
+      // Convert to PDF
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF('l', 'mm', 'a4');
+      const imgData = canvas.toDataURL('image/png');
+      pdf.addImage(imgData, 'PNG', 10, 10, 277, 190);
+      pdf.save(`validated-locations-map-${new Date().toISOString().split('T')[0]}.pdf`);
+      
+      document.getElementById('downloadProgress').classList.remove('show');
+      showMessage('Enhanced PDF downloaded!', 'success');
+    }
+
+    // Generate PNG
+    function generateEnhancedPNG() {
+      const canvas = document.getElementById('downloadCanvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = 1400;
+      canvas.height = 1200;
+      
+      ctx.fillStyle = '#f0f9ff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      const bounds = getLocationBounds();
+      const zoom = calculateOptimalZoom(bounds, 800, 500);
+      
+      const mapArea = { 
+        x: (canvas.width - 1000) / 2,
+        y: 120, 
+        width: 1000, 
+        height: 600 
+      };
+      
+      const tilesNeeded = calculateTileCoverage(bounds, zoom, mapArea.width, mapArea.height);
+      let tilesLoaded = 0;
+      let totalTiles = tilesNeeded.tiles.length;
+      
+      if (totalTiles === 0) {
+        generateFallbackPNG();
+        return;
+      }
+      
+      const tileImages = [];
+      
+      tilesNeeded.tiles.forEach((tile, index) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        
+        img.onload = function() {
+          tileImages[index] = { img: img, tile: tile };
+          tilesLoaded++;
+          
+          if (tilesLoaded === totalTiles) {
+            drawPNGWithTiles(canvas, ctx, tileImages, tilesNeeded, bounds, mapArea);
+          }
+        };
+        
+        img.onerror = function() {
+          tilesLoaded++;
+          if (tilesLoaded === totalTiles) {
+            drawPNGWithTiles(canvas, ctx, tileImages, tilesNeeded, bounds, mapArea);
+          }
+        };
+        
+        img.src = `https://tile.openstreetmap.org/${zoom}/${tile.x}/${tile.y}.png`;
+      });
+    }
+    
+    function drawPNGWithTiles(canvas, ctx, tileImages, tilesNeeded, bounds, mapArea) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      ctx.fillStyle = '#f0f9ff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Title
+      ctx.fillStyle = '#059669';
+      ctx.font = 'bold 32px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('Validated Locations Map', canvas.width / 2, 50);
+      
+      ctx.fillStyle = '#6b7280';
+      ctx.font = '18px Arial';
+      ctx.fillText(`${locationsData.length} Validated Locations | Generated: ${new Date().toLocaleDateString()}`, canvas.width / 2, 80);
+      
+      // Map container
+      ctx.fillStyle = '#e0f2fe';
+      ctx.fillRect(mapArea.x, mapArea.y, mapArea.width, mapArea.height);
+      ctx.strokeStyle = '#0369a1';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(mapArea.x, mapArea.y, mapArea.width, mapArea.height);
+      
+      // Center map content
+      const boundsWidth = bounds.east - bounds.west;
+      const boundsHeight = bounds.north - bounds.south;
+      const mapCenterLng = (bounds.east + bounds.west) / 2;
+      const mapCenterLat = (bounds.north + bounds.south) / 2;
+      
+      const centerTileCoords = getTileCoords(mapCenterLat, mapCenterLng, tilesNeeded.zoom);
+      const centerPixelX = (centerTileCoords.x - tilesNeeded.minTileX) * 256 + centerTileCoords.pixelX;
+      const centerPixelY = (centerTileCoords.y - tilesNeeded.minTileY) * 256 + centerTileCoords.pixelY;
+      
+      const offsetX = mapArea.x + (mapArea.width / 2) - centerPixelX;
+      const offsetY = mapArea.y + (mapArea.height / 2) - centerPixelY;
+      
+      // Draw tiles
+      const drawnTiles = new Set();
+      tileImages.forEach((tileData) => {
+        if (tileData && tileData.img) {
+          const tile = tileData.tile;
+          const tileKey = `${tile.x}-${tile.y}`;
+          
+          if (!drawnTiles.has(tileKey)) {
+            drawnTiles.add(tileKey);
+            const tilePixelX = offsetX + (tile.x - tilesNeeded.minTileX) * 256;
+            const tilePixelY = offsetY + (tile.y - tilesNeeded.minTileY) * 256;
+            
+            if (tilePixelX < mapArea.x + mapArea.width && tilePixelY < mapArea.y + mapArea.height &&
+                tilePixelX + 256 > mapArea.x && tilePixelY + 256 > mapArea.y) {
+              
+              ctx.save();
+              ctx.beginPath();
+              ctx.rect(mapArea.x, mapArea.y, mapArea.width, mapArea.height);
+              ctx.clip();
+              
+              ctx.drawImage(tileData.img, tilePixelX, tilePixelY, 256, 256);
+              ctx.restore();
+            }
+          }
+        }
+      });
+      
+      // Plot locations
+      locationsData.forEach((location) => {
+        const tileCoords = getTileCoords(location.lat, location.lng, tilesNeeded.zoom);
+        const pixelX = offsetX + (tileCoords.x - tilesNeeded.minTileX) * 256 + tileCoords.pixelX;
+        const pixelY = offsetY + (tileCoords.y - tilesNeeded.minTileY) * 256 + tileCoords.pixelY;
+        
+        if (pixelX >= mapArea.x && pixelX <= mapArea.x + mapArea.width && 
+            pixelY >= mapArea.y && pixelY <= mapArea.y + mapArea.height) {
+          
+          ctx.fillStyle = locationColors[location.name];
+          ctx.beginPath();
+          ctx.arc(pixelX, pixelY, 12, 0, 2 * Math.PI);
+          ctx.fill();
+          
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 3;
+          ctx.stroke();
+        }
+      });
+      
+      // Legend
+      const legendY = mapArea.y + mapArea.height + 50;
+      addLegendToCanvas(ctx, 50, legendY, canvas.width - 100, 120);
+      
+      // Download
+      const link = document.createElement('a');
+      link.download = `validated-locations-map-${new Date().toISOString().split('T')[0]}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      
+      document.getElementById('downloadProgress').classList.remove('show');
+      showMessage('Enhanced PNG downloaded!', 'success');
+    }
+
+    // Helper functions
+    function getLocationBounds() {
+      if (locationsData.length === 0) return { north: 0, south: 0, east: 0, west: 0 };
+      
+      const lats = locationsData.map(l => l.lat);
+      const lngs = locationsData.map(l => l.lng);
+      
+      const bounds = {
+        north: Math.max(...lats),
+        south: Math.min(...lats),
+        east: Math.max(...lngs),
+        west: Math.min(...lngs)
+      };
+      
+      const latSpan = bounds.north - bounds.south;
+      const lngSpan = bounds.east - bounds.west;
+      
+      const minSpan = 0.1;
+      const actualLatSpan = Math.max(latSpan, minSpan);
+      const actualLngSpan = Math.max(lngSpan, minSpan);
+      
+      const latPadding = actualLatSpan * 0.3;
+      const lngPadding = actualLngSpan * 0.3;
+      
+      return {
+        north: bounds.north + latPadding,
+        south: bounds.south - latPadding,
+        east: bounds.east + lngPadding,
+        west: bounds.west - lngPadding
+      };
+    }
+
+    function calculateOptimalZoom(bounds, mapWidth, mapHeight) {
+      const latDiff = bounds.north - bounds.south;
+      const lngDiff = bounds.east - bounds.west;
+      
+      const latZoom = Math.floor(Math.log2(360 / latDiff * mapHeight / 256));
+      const lngZoom = Math.floor(Math.log2(360 / lngDiff * mapWidth / 256));
+      
+      let zoom = Math.min(latZoom, lngZoom);
+      zoom = Math.max(1, Math.min(zoom, 15));
+      
+      return zoom;
+    }
+
+    function calculateTileCoverage(bounds, zoom, mapWidth, mapHeight) {
+      const nwTile = getTileCoords(bounds.north, bounds.west, zoom);
+      const seTile = getTileCoords(bounds.south, bounds.east, zoom);
+      
+      const minTileX = Math.min(nwTile.x, seTile.x);
+      const maxTileX = Math.max(nwTile.x, seTile.x);
+      const minTileY = Math.min(nwTile.y, seTile.y);
+      const maxTileY = Math.max(nwTile.y, seTile.y);
+      
+      const tiles = [];
+      for (let x = minTileX; x <= maxTileX; x++) {
+        for (let y = minTileY; y <= maxTileY; y++) {
+          tiles.push({ x, y });
+        }
+      }
+      
+      return {
+        tiles,
+        minTileX,
+        maxTileX,
+        minTileY,
+        maxTileY,
+        zoom
+      };
+    }
+
+    function getTileCoords(lat, lng, zoom) {
+      const n = Math.pow(2, zoom);
+      const x = Math.floor(n * ((lng + 180) / 360));
+      const latRad = lat * Math.PI / 180;
+      const y = Math.floor(n * (1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2);
+      
+      const pixelX = ((lng + 180) / 360 * n - x) * 256;
+      const pixelY = ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n - y) * 256;
+      
+      return { x, y, pixelX, pixelY };
+    }
+
+    function addLegendToPDF(ctx, x, y, width, height) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x, y, width, height);
+      ctx.strokeStyle = '#d1d5db';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x, y, width, height);
+      
+      ctx.fillStyle = '#374151';
+      ctx.font = 'bold 16px Arial';
+      ctx.textAlign = 'left';
+      ctx.fillText('Location Legend', x + 15, y + 25);
+      
+      const itemWidth = (width - 30) / locationsData.length;
+      
+      locationsData.forEach((location, index) => {
+        const itemX = x + 15 + (index * itemWidth);
+        const itemY = y + 45;
+        
+        ctx.fillStyle = locationColors[location.name];
+        ctx.beginPath();
+        ctx.arc(itemX + 8, itemY, 6, 0, 2 * Math.PI);
+        ctx.fill();
+        
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        ctx.fillStyle = '#374151';
+        ctx.font = '11px Arial';
+        ctx.textAlign = 'left';
+        
+        let displayName = location.name;
+        if (displayName.length > 12) {
+          displayName = displayName.substring(0, 10) + '...';
+        }
+        
+        ctx.fillText(displayName, itemX + 18, itemY + 4);
+        
+        ctx.fillStyle = '#6b7280';
+        ctx.font = '9px Arial';
+        const coords = `${location.lat.toFixed(2)}, ${location.lng.toFixed(2)}`;
+        ctx.fillText(coords, itemX + 18, itemY + 16);
+      });
+    }
+
+    function addLegendToCanvas(ctx, x, y, width, height) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x, y, width, height);
+      ctx.strokeStyle = '#d1d5db';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x, y, width, height);
+      
+      ctx.fillStyle = '#374151';
+      ctx.font = 'bold 20px Arial';
+      ctx.textAlign = 'left';
+      ctx.fillText('Location Legend', x + 20, y + 30);
+      
+      const legendCols = 3;
+      const colWidth = (width - 40) / legendCols;
+      let currentCol = 0;
+      let currentY = y + 50;
+      
+      locationsData.forEach((location, index) => {
+        if (index > 0 && index % Math.ceil(locationsData.length / legendCols) === 0) {
+          currentCol++;
+          currentY = y + 50;
+        }
+        
+        const itemX = x + 20 + (currentCol * colWidth);
+        
+        ctx.fillStyle = locationColors[location.name];
+        ctx.beginPath();
+        ctx.arc(itemX + 8, currentY + 5, 6, 0, 2 * Math.PI);
+        ctx.fill();
+        
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        ctx.fillStyle = '#374151';
+        ctx.font = '14px Arial';
+        ctx.fillText(location.name, itemX + 20, currentY + 9);
+        
+        currentY += 25;
+      });
+    }
+
+    function generateFallbackPDF() {
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF('l', 'mm', 'a4');
+      
+      pdf.setFontSize(24);
+      pdf.setTextColor(5, 150, 105);
+      pdf.text('Validated Locations Map', 148, 25, { align: 'center' });
+      
+      pdf.setFontSize(14);
+      pdf.setTextColor(75, 85, 99);
+      pdf.text('HarmonAIze Geolocation Platform', 148, 35, { align: 'center' });
+      
+      let y = 60;
+      pdf.setFontSize(16);
+      pdf.setTextColor(0, 0, 0);
+      pdf.text('Validated Locations:', 20, y);
+      
+      locationsData.forEach((location, index) => {
+        y += 12;
+        const color = hexToRgb(locationColors[location.name]);
+        pdf.setFillColor(color.r, color.g, color.b);
+        pdf.circle(25, y - 2, 2, 'F');
+        
+        pdf.setFontSize(12);
+        pdf.text(`${index + 1}. ${location.name}`, 32, y);
+        pdf.setFontSize(10);
+        pdf.setTextColor(100, 100, 100);
+        pdf.text(`Coordinates: ${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}`, 32, y + 5);
+        pdf.setTextColor(0, 0, 0);
+        y += 5;
+      });
+      
+      pdf.setFontSize(10);
+      pdf.setTextColor(100, 100, 100);
+      pdf.text(`Generated: ${new Date().toLocaleDateString()} | Source: HarmonAIze Platform`, 20, 190);
+      
+      pdf.save(`validated-locations-map-${new Date().toISOString().split('T')[0]}.pdf`);
+      
+      document.getElementById('downloadProgress').classList.remove('show');
+      showMessage('Fallback PDF downloaded!', 'success');
+    }
+
+    function generateFallbackPNG() {
+      const canvas = document.getElementById('downloadCanvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = 1400;
+      canvas.height = 1200;
+      
+      ctx.fillStyle = '#f0f9ff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      ctx.fillStyle = '#059669';
+      ctx.font = 'bold 32px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('Validated Locations Map', canvas.width / 2, 50);
+      
+      ctx.fillStyle = '#6b7280';
+      ctx.font = '18px Arial';
+      ctx.fillText(`${locationsData.length} Validated Locations | Generated: ${new Date().toLocaleDateString()}`, canvas.width / 2, 80);
+      
+      const bounds = getLocationBounds();
+      const plotArea = { 
+        x: (canvas.width - 1000) / 2, 
+        y: 120, 
+        width: 1000, 
+        height: 600 
+      };
+      
+      ctx.fillStyle = '#e0f2fe';
+      ctx.fillRect(plotArea.x, plotArea.y, plotArea.width, plotArea.height);
+      ctx.strokeStyle = '#0369a1';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(plotArea.x, plotArea.y, plotArea.width, plotArea.height);
+      
+      locationsData.forEach((location) => {
+        const x = plotArea.x + ((location.lng - bounds.west) / (bounds.east - bounds.west)) * plotArea.width;
+        const y = plotArea.y + ((bounds.north - location.lat) / (bounds.north - bounds.south)) * plotArea.height;
+        
+        ctx.fillStyle = locationColors[location.name];
+        ctx.beginPath();
+        ctx.arc(x, y, 12, 0, 2 * Math.PI);
+        ctx.fill();
+        
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+      });
+      
+      const legendY = plotArea.y + plotArea.height + 50;
+      addLegendToCanvas(ctx, 50, legendY, canvas.width - 100, 120);
+      
+      const link = document.createElement('a');
+      link.download = `validated-locations-map-${new Date().toISOString().split('T')[0]}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      
+      document.getElementById('downloadProgress').classList.remove('show');
+      showMessage('Fallback PNG downloaded!', 'success');
+    }
+
+    function hexToRgb(hex) {
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      return result ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16)
+      } : null;
+    }
+
+    function updateMapInfo() {
+      const zoom = map.getZoom().toFixed(1);
+      const center = map.getCenter();
+      
+      document.getElementById('currentZoom').textContent = zoom;
+      document.getElementById('currentCenter').textContent = `${center.lat.toFixed(2)}, ${center.lng.toFixed(2)}`;
+    }
+
+    function showMessage(message, type) {
+      const container = document.getElementById('messageContainer');
+      const messageDiv = document.createElement('div');
+      messageDiv.className = `message ${type}`;
+      messageDiv.textContent = message;
+      
+      container.appendChild(messageDiv);
+      
+      setTimeout(() => {
+        messageDiv.classList.add('show');
+      }, 10);
+      
+      setTimeout(() => {
+        messageDiv.classList.remove('show');
+        setTimeout(() => messageDiv.remove(), 300);
+      }, 5000);
+    }
+
+    // Initialize map
+    map.on('load', function() {
+      assignLocationColors();
+      createLocationLegend();
+      addMarkersToMap();
+      updateMapInfo();
+    });
+
+    map.on('zoom', updateMapInfo);
+    map.on('move', updateMapInfo);
+  </script>
+{% endblock content %}

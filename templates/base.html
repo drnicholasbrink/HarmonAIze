@@ -1,0 +1,292 @@
+
+{% load static i18n %}<!DOCTYPE html>
+{% get_current_language as LANGUAGE_CODE %}
+<html lang="{{ LANGUAGE_CODE }}">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="x-ua-compatible" content="ie=edge" />
+    <title>
+      {% block title %}
+      HarmonAIze
+    {% endblock title %}
+  </title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description"
+        content="an open-source toolkit that streamlines the process of harmonizing and integrating climate and health data. Designed for research teams in resource-constrained settings, it leverages AI-assisted workflows to map, clean, and unify heterogeneous datasets, all while preserving privacy through federated approaches. By aligning health data with curated climate data sources, HarmonAIze accelerates climate–health research and enables faster, more accurate analyses of environmental impacts on health outcomes." />
+  <meta name="author"
+        content="HarmonAIze Consortium" />
+  <link rel="icon" href="{% static 'images/favicons/favicon.ico' %}" />
+  {% block css %}
+    <!-- Latest compiled and minified Bootstrap CSS -->
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/css/bootstrap.min.css"
+          integrity="sha512-SbiR/eusphKoMVVXysTKG/7VseWii+Y3FdHrt0EpKgpToZeemhqHeZeLWLhJutz/2ut2Vw1uQEj2MbRF+TVBUA=="
+          crossorigin="anonymous"
+          referrerpolicy="no-referrer" />
+<!-- Your stuff: Third-party CSS libraries go here -->
+<!-- This file stores project-specific CSS -->
+
+  
+  <link href="{% static 'css/project.css' %}" rel="stylesheet" />
+
+
+{% endblock css %}
+<!-- Le javascript
+    ================================================== -->
+{# Placed at the top of the document so pages load faster with defer #}
+{% block javascript %}
+
+
+<!-- Bootstrap JS -->
+<script defer
+        src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/js/bootstrap.min.js"
+        integrity="sha512-1/RvZTcCDEUjY/CypiMz+iqqtaoQfAITmNSJY17Myp4Ms5mdxPS5UV7iOfdZoxcGhzFbOm6sntTKJppjvuhg4g=="
+        crossorigin="anonymous"
+        referrerpolicy="no-referrer"></script>
+<!-- Your stuff: Third-party javascript libraries go here -->
+
+
+<!-- place project specific Javascript in this file -->
+
+  
+  <script defer src="{% static 'js/project.js' %}"></script>
+
+
+{% endblock javascript %}
+</head>
+<body class="{% block bodyclass %}{% endblock bodyclass %}">
+  {% block body %}
+  <div class="mb-1">
+    <nav class="navbar navbar-expand-md navbar-light bg-light">
+      <div class="container-fluid">
+        <button class="navbar-toggler navbar-toggler-right"
+                type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#navbarSupportedContent"
+                aria-controls="navbarSupportedContent"
+                aria-expanded="false"
+                aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <a class="navbar-brand" href="{% url 'home' %}">HarmonAIze</a>
+        <div class="collapse navbar-collapse" id="navbarSupportedContent">
+          <ul class="navbar-nav me-auto">
+            <li class="nav-item active">
+              <a class="nav-link" href="{% url 'home' %}">Home <span class="visually-hidden">(current)</span></a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'about' %}">About</a>
+            </li>
+            {% if request.user.is_authenticated %}
+              <li class="nav-item">
+                <a class="nav-link fw-bold" href="{% url 'core:dashboard' %}">
+                  {% include 'components/svg_icon.html' with icon='dashboard' size='16' class='inline-icon' %} Dashboard
+                </a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link"
+                   href="{% url 'users:detail' request.user.pk %}">{% translate "My Profile" %}</a>
+              </li>
+              <li class="nav-item">
+                {# URL provided by django-allauth/account/urls.py #}
+                <a class="nav-link" href="{% url 'account_logout' %}">{% translate "Sign Out" %}</a>
+              </li>
+            {% else %}
+              {% if ACCOUNT_ALLOW_REGISTRATION %}
+                <li class="nav-item">
+                  {# URL provided by django-allauth/account/urls.py #}
+                  <a id="sign-up-link" class="nav-link" href="{% url 'account_signup' %}">{% translate "Sign Up" %}</a>
+                </li>
+              {% endif %}
+              <li class="nav-item">
+                {# URL provided by django-allauth/account/urls.py #}
+                <a id="log-in-link" class="nav-link" href="{% url 'account_login' %}">{% translate "Sign In" %}</a>
+              </li>
+            {% endif %}
+          </ul>
+        </div>
+      </div>
+    </nav>
+  </div>
+  <div class="container">
+    {% if messages %}
+      <div id="notification-container" class="notification-container">
+        {% for message in messages %}
+          <div class="alert alert-dismissible fade show {% if message.tags %}alert-{{ message.tags }}{% endif %}" 
+               role="alert" 
+               data-message-hash="{{ message|stringformat:'s'|slice:':50'|slugify }}">
+            <div class="d-flex align-items-start">
+              <div class="notification-icon me-2">
+                {% if message.tags == 'success' %}
+                  <i class="fas fa-check-circle"></i>
+                {% elif message.tags == 'error' or message.tags == 'danger' %}
+                  <i class="fas fa-exclamation-circle"></i>
+                {% elif message.tags == 'warning' %}
+                  <i class="fas fa-exclamation-triangle"></i>
+                {% elif message.tags == 'info' %}
+                  <i class="fas fa-info-circle"></i>
+                {% else %}
+                  <i class="fas fa-bell"></i>
+                {% endif %}
+              </div>
+              <div class="notification-content flex-grow-1">
+                {{ message }}
+              </div>
+            </div>
+            <button type="button"
+                    class="btn-close"
+                    data-bs-dismiss="alert"
+                    aria-label="Close"></button>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+    {% block main %}
+      {% block content %}
+        <p>Use this document as a way to quick start any new project.</p>
+      {% endblock content %}
+    {% endblock main %}
+
+  </div>
+  {% endblock body %}
+  <!-- /container -->
+  {% block modal %}
+  {% endblock modal %}
+  {% block inline_javascript %}
+    {% comment %}
+    Script tags with only code, no src (defer by default). To run
+    with a "defer" so that you run inline code:
+    <script>
+      window.addEventListener('DOMContentLoaded', () => {
+        /* Run whatever you want */
+      });
+    </script>
+    {% endcomment %}
+    <style>
+      /* Enhanced notification styling */
+      .notification-container {
+        position: relative;
+        z-index: 1050;
+        margin-bottom: 1rem;
+      }
+      
+      .notification-container .alert {
+        border: none;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        margin-bottom: 0.75rem;
+        animation: slideInDown 0.3s ease-out;
+      }
+      
+      .notification-icon {
+        font-size: 1.1rem;
+        margin-top: 0.1rem;
+        opacity: 0.8;
+      }
+      
+      .alert-success {
+        background-color: #d4edda;
+        border-left: 4px solid #28a745;
+        color: #155724;
+      }
+      
+      .alert-error,
+      .alert-danger {
+        background-color: #f8d7da;
+        border-left: 4px solid #dc3545;
+        color: #721c24;
+      }
+      
+      .alert-warning {
+        background-color: #fff3cd;
+        border-left: 4px solid #ffc107;
+        color: #856404;
+      }
+      
+      .alert-info {
+        background-color: #d1ecf1;
+        border-left: 4px solid #17a2b8;
+        color: #0c5460;
+      }
+      
+      @keyframes slideInDown {
+        from {
+          transform: translateY(-20px);
+          opacity: 0;
+        }
+        to {
+          transform: translateY(0);
+          opacity: 1;
+        }
+      }
+      
+      /* Auto-dismiss styling */
+      .alert.auto-dismiss {
+        animation: slideInDown 0.3s ease-out, fadeOut 0.5s ease-in 4.5s forwards;
+      }
+      
+      @keyframes fadeOut {
+        to {
+          opacity: 0;
+          transform: translateY(-10px);
+        }
+      }
+    </style>
+    
+    <script>
+      function showUpcomingFeature(featureName) {
+        alert('🚧 ' + featureName + ' - Feature Coming Soon!\n\nThis feature is currently under development and will be available in a future release.');
+      }
+      
+      // Enhanced notification management
+      window.addEventListener('DOMContentLoaded', () => {
+        // Auto-dismiss success and info messages after 5 seconds
+        const autoRemoveTags = ['success', 'info'];
+        document.querySelectorAll('.alert').forEach(alert => {
+          const classes = Array.from(alert.classList);
+          const hasAutoRemoveTag = autoRemoveTags.some(tag => classes.includes(`alert-${tag}`));
+          
+          if (hasAutoRemoveTag) {
+            alert.classList.add('auto-dismiss');
+            setTimeout(() => {
+              if (alert.parentNode) {
+                const bsAlert = new bootstrap.Alert(alert);
+                bsAlert.close();
+              }
+            }, 5000);
+          }
+        });
+        
+        // Remove duplicate notifications based on content hash
+        const seenMessages = new Set();
+        document.querySelectorAll('.alert[data-message-hash]').forEach(alert => {
+          const hash = alert.getAttribute('data-message-hash');
+          if (seenMessages.has(hash)) {
+            alert.remove();
+          } else {
+            seenMessages.add(hash);
+          }
+        });
+        
+        // Limit total number of notifications to prevent overwhelming UI
+        const maxNotifications = 5;
+        const alerts = document.querySelectorAll('.notification-container .alert');
+        if (alerts.length > maxNotifications) {
+          Array.from(alerts).slice(maxNotifications).forEach(alert => {
+            alert.remove();
+          });
+          
+          // Add a notice that some notifications were hidden
+          if (alerts.length > maxNotifications) {
+            const hiddenCount = alerts.length - maxNotifications;
+            const notice = document.createElement('div');
+            notice.className = 'alert alert-secondary alert-sm';
+            notice.innerHTML = `<small><i class="fas fa-ellipsis-h me-2"></i>${hiddenCount} additional notification${hiddenCount > 1 ? 's' : ''} hidden to reduce clutter</small>`;
+            document.querySelector('.notification-container').appendChild(notice);
+          }
+        }
+      });
+    </script>
+  {% endblock inline_javascript %}
+</body>
+</html>

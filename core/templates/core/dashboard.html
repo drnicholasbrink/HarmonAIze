@@ -1,0 +1,879 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Dashboard - HarmonAIze{% endblock title %}
+
+{% block css %}
+  {{ block.super }}
+  <style>
+    :root {
+      --primary-color: #007AFF;
+      --secondary-color: #5AC8FA;
+      --accent-color: #34C759;
+      --background-color: #F2F2F7;
+      --card-background: #FFFFFF;
+      --text-primary: #1C1C1E;
+      --text-secondary: #8E8E93;
+      --border-color: #C6C6C8;
+      --shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+      --border-radius: 12px;
+    }
+
+    body {
+      background-color: var(--background-color);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--text-primary);
+      line-height: 1.5;
+    }
+
+    .header-section {
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      color: white;
+      padding: 3rem 0;
+      margin: -1rem -15px 0 -15px;
+      text-align: center;
+    }
+
+    .header-title {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    .header-subtitle {
+      font-size: 1.1rem;
+      opacity: 0.9;
+    }
+
+    .content-wrapper {
+      max-width: 1200px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+
+    .creation-flow-panel {
+      background: var(--card-background);
+      border-radius: var(--border-radius);
+      padding: 2.5rem;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border-color);
+      margin-bottom: 3rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .creation-flow-panel::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, var(--primary-color), var(--secondary-color), var(--accent-color));
+    }
+
+    .flow-title {
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      color: var(--text-primary);
+      text-align: center;
+    }
+
+    .flow-subtitle {
+      font-size: 1.1rem;
+      color: var(--text-secondary);
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .flow-options {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 2rem;
+      align-items: center;
+      margin-bottom: 2rem;
+    }
+
+    .flow-option {
+      display: flex;
+      justify-content: center;
+    }
+
+    .flow-card {
+      background: var(--background-color);
+      border: 2px solid var(--border-color);
+      border-radius: 12px;
+      padding: 2rem;
+      text-align: center;
+      transition: all 0.3s ease;
+      width: 100%;
+      max-width: 300px;
+      position: relative;
+    }
+
+    .flow-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    }
+
+    .source-card {
+      border-color: var(--primary-color);
+    }
+
+    .source-card:hover {
+      border-color: var(--primary-color);
+      background: rgba(0, 122, 255, 0.05);
+    }
+
+    .target-card {
+      border-color: var(--secondary-color);
+    }
+
+    .target-card:hover {
+      border-color: var(--secondary-color);
+      background: rgba(90, 200, 250, 0.05);
+    }
+
+    .existing-target {
+      border-color: var(--accent-color);
+      background: rgba(52, 199, 89, 0.05);
+    }
+
+    .existing-target:hover {
+      border-color: var(--accent-color);
+      background: rgba(52, 199, 89, 0.1);
+    }
+
+    .flow-icon {
+      color: var(--primary-color);
+      margin-bottom: 1rem;
+    }
+
+    .target-card .flow-icon {
+      color: var(--secondary-color);
+    }
+
+    .existing-target .flow-icon {
+      color: var(--accent-color);
+    }
+
+    .flow-card-title {
+      font-size: 1.3rem;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+      color: var(--text-primary);
+    }
+
+    .flow-card-description {
+      color: var(--text-secondary);
+      margin-bottom: 1.5rem;
+      line-height: 1.5;
+      font-size: 0.95rem;
+    }
+
+    .flow-btn {
+      width: 100%;
+      padding: 0.875rem 1.5rem;
+      font-weight: 600;
+    }
+
+    .flow-divider {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      background: var(--background-color);
+      border: 2px solid var(--border-color);
+      border-radius: 50%;
+      width: 60px;
+      height: 60px;
+      margin: 0 auto;
+    }
+
+    .flow-info {
+      border-top: 1px solid var(--border-color);
+      padding-top: 1.5rem;
+    }
+
+    .info-box {
+      background: rgba(0, 122, 255, 0.1);
+      border-left: 4px solid var(--primary-color);
+      padding: 1rem;
+      border-radius: 6px;
+      color: var(--text-primary);
+      text-align: center;
+      font-size: 0.95rem;
+    }
+
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 2rem;
+      margin-bottom: 3rem;
+    }
+
+    .stat-card {
+      background: var(--card-background);
+      border-radius: var(--border-radius);
+      padding: 2rem;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border-color);
+      text-align: center;
+      transition: all 0.3s ease;
+    }
+
+    .stat-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    }
+
+    .stat-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+
+    .stat-number {
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: var(--primary-color);
+      margin-bottom: 0.5rem;
+    }
+
+    .stat-label {
+      color: var(--text-secondary);
+      font-size: 1rem;
+      font-weight: 500;
+    }
+
+    .section-card {
+      background: var(--card-background);
+      border-radius: var(--border-radius);
+      padding: 2rem;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border-color);
+      margin-bottom: 2rem;
+    }
+
+    .section-title {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+      color: var(--text-primary);
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid var(--primary-color);
+    }
+
+    .quick-actions {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+    }
+
+    .action-btn {
+      background: var(--background-color);
+      border: 1px solid var(--border-color);
+      border-radius: var(--border-radius);
+      padding: 1.5rem;
+      text-align: center;
+      text-decoration: none;
+      color: var(--text-primary);
+      transition: all 0.3s ease;
+      display: block;
+    }
+
+    .action-btn:hover {
+      background: white;
+      border-color: var(--primary-color);
+      color: var(--text-primary);
+      text-decoration: none;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(0, 122, 255, 0.2);
+    }
+
+    .action-icon {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+      display: block;
+    }
+
+    .action-title {
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+
+    .action-description {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+    }
+
+    .recent-studies {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .study-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 0;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .study-item:last-child {
+      border-bottom: none;
+    }
+
+    .study-info {
+      flex: 1;
+    }
+
+    .study-name {
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 0.25rem;
+    }
+
+    .study-name a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .study-name a:hover {
+      color: var(--primary-color);
+    }
+
+    .study-meta {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+    }
+
+    .study-status {
+      padding: 0.25rem 0.75rem;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .status-draft {
+      background-color: rgba(255, 193, 7, 0.2);
+      color: #856404;
+    }
+
+    .status-processing {
+      background-color: rgba(0, 122, 255, 0.2);
+      color: #0056b3;
+    }
+
+    .status-completed {
+      background-color: rgba(52, 199, 89, 0.2);
+      color: #155724;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 3rem 2rem;
+      color: var(--text-secondary);
+    }
+
+    .empty-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+
+    .btn {
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.3s ease;
+      border: none;
+      cursor: pointer;
+      display: inline-block;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+      color: white;
+      box-shadow: 0 4px 15px rgba(0, 122, 255, 0.3);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 122, 255, 0.4);
+      color: white;
+      text-decoration: none;
+    }
+
+    .btn-outline {
+      background: transparent;
+      color: var(--primary-color);
+      border: 1px solid var(--primary-color);
+    }
+
+    .btn-outline:hover {
+      background: var(--primary-color);
+      color: white;
+      text-decoration: none;
+    }
+
+    @media (max-width: 768px) {
+      .dashboard-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .quick-actions {
+        grid-template-columns: 1fr;
+      }
+      
+      .study-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+      }
+      
+      .creation-flow-panel {
+        padding: 1.5rem;
+      }
+      
+      .flow-options {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+      }
+      
+      .flow-divider {
+        transform: rotate(90deg);
+      }
+      
+      .flow-title {
+        font-size: 1.5rem;
+      }
+      
+      .flow-subtitle {
+        font-size: 1rem;
+      }
+    }
+  </style>
+{% endblock css %}
+
+{% block content %}
+  <!-- Header Section -->
+  <div class="header-section">
+    <h1 class="header-title">HarmonAIze Dashboard</h1>
+    <p class="header-subtitle">
+      Your central hub for data harmonisation projects
+    </p>
+  </div>
+
+  <!-- Main Content -->
+  <div class="content-wrapper">
+    
+    {% if total_projects == 0 %}
+    <!-- No Projects - Getting Started Section -->
+    <div class="creation-flow-panel">
+      <h2 class="flow-title">Welcome to HarmonAIze!</h2>
+      <p class="flow-subtitle">Let's get you started with your first harmonisation project</p>
+      
+      <div class="flow-info">
+        <div class="info-box">
+          <strong>Step 1:</strong> Create a project to organise your harmonisation work.<br>
+          <strong>Step 2:</strong> Define your target database (harmonisation standards).<br>
+          <strong>Step 3:</strong> Upload source studies to harmonise against your targets.
+        </div>
+      </div>
+      
+      <div style="text-align: center; margin-top: 2rem;">
+        <a href="{% url 'core:create_project' %}" class="btn btn-primary" style="font-size: 1.1rem; padding: 1rem 2rem;">
+          Create Your First Project
+        </a>
+      </div>
+    </div>
+    
+    {% elif not has_target_study %}
+    <!-- Has Projects but No Target Database -->
+    <div class="creation-flow-panel">
+      <h2 class="flow-title">Set Up Your Target Database</h2>
+      <p class="flow-subtitle">Define your harmonisation standards before uploading source data</p>
+      
+      <div class="flow-info">
+        <div class="info-box">
+          You have {{ total_projects }} project{{ total_projects|pluralize }}, but no target database yet.<br>
+          Create your target database to define the harmonisation standards for your research.
+        </div>
+      </div>
+      
+      <div style="text-align: center; margin-top: 2rem;">
+        <a href="{% url 'core:create_target_study' %}" class="btn btn-primary" style="font-size: 1.1rem; padding: 1rem 2rem;">
+          Create Target Database
+        </a>
+      </div>
+    </div>
+    
+    {% else %}
+    <!-- Normal Dashboard - Has Projects and Target Database -->
+    <div class="creation-flow-panel">
+      <h2 class="flow-title">Ready for Harmonisation</h2>
+      <p class="flow-subtitle">Your harmonisation workspace is set up and ready to use</p>
+      
+      <div class="flow-options">
+        <div class="flow-option">
+          <div class="flow-card source-card">
+            <div class="flow-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7,10 12,15 17,10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+            </div>
+            <h3 class="flow-card-title">Upload Source Data</h3>
+            <p class="flow-card-description">Add new datasets to harmonise against your target databases</p>
+            <a href="{% url 'core:upload' %}" class="btn btn-primary flow-btn">
+              Upload Study
+            </a>
+          </div>
+        </div>
+        
+        <div class="flow-divider">OR</div>
+        
+        <div class="flow-option">
+          <div class="flow-card existing-target">
+            <div class="flow-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+            </div>
+            <h3 class="flow-card-title">Manage Target Databases</h3>
+            <p class="flow-card-description">Review and update your harmonisation standards</p>
+            <a href="{% url 'core:study_list' %}?purpose=target" class="btn btn-primary flow-btn">
+              View Target Databases
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  
+    <!-- Quick Actions -->
+    <div class="section-card">
+      <h2 class="section-title">Quick Actions</h2>
+      <div class="quick-actions">
+        <a href="{% url 'core:create_project' %}" class="action-btn">
+          <span class="action-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
+            </svg>
+          </span>
+          <div class="action-title">New Project</div>
+          <div class="action-description">Create a new research project</div>
+        </a>
+        
+        {% if total_projects > 0 %}
+        <a href="{% url 'core:upload' %}" class="action-btn">
+          <span class="action-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7,10 12,15 17,10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+          </span>
+          <div class="action-title">New Source Study</div>
+          <div class="action-description">Upload source data for harmonisation</div>
+        </a>
+        {% else %}
+        <div class="action-btn" style="opacity: 0.5; cursor: not-allowed;" title="Create a project first">
+          <span class="action-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7,10 12,15 17,10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+          </span>
+          <div class="action-title">New Source Study</div>
+          <div class="action-description">Create a project first</div>
+        </div>
+        {% endif %}
+        
+        {% if total_projects > 0 %}
+        <a href="{% url 'core:create_target_study' %}" class="action-btn">
+          <span class="action-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+          </span>
+          <div class="action-title">Create Target Database</div>
+          <div class="action-description">Define harmonisation targets</div>
+        </a>
+        {% else %}
+        <div class="action-btn" style="opacity: 0.5; cursor: not-allowed;" title="Create a project first">
+          <span class="action-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+          </span>
+          <div class="action-title">Create Target Database</div>
+          <div class="action-description">Create a project first</div>
+        </div>
+        {% endif %}
+        
+        {% if target_studies_count > 0 %}
+        <a href="{% url 'core:study_list' %}?purpose=target" class="action-btn">
+          <span class="action-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+          </span>
+          <div class="action-title">View Target Databases</div>
+          <div class="action-description">Manage your harmonisation targets</div>
+        </a>
+        {% endif %}
+        
+        <a href="{% url 'core:project_list' %}" class="action-btn">
+          <span class="action-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
+            </svg>
+          </span>
+          <div class="action-title">View All Projects</div>
+          <div class="action-description">Manage your research projects</div>
+        </a>
+        
+        <a href="{% url 'core:study_list' %}" class="action-btn">
+          <span class="action-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14,2 14,8 20,8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+              <polyline points="10,9 9,9 8,9"></polyline>
+            </svg>
+          </span>
+          <div class="action-title">View All Studies</div>
+          <div class="action-description">Manage your existing studies</div>
+        </a>
+        
+        <!-- Data Ingestion Action -->
+        {% if source_studies_count > 0 %}
+        <a href="{% url 'health:upload_raw_data' %}" class="action-btn">
+          <span class="action-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17,8 12,3 7,8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+          </span>
+          <div class="action-title">Upload Raw Data</div>
+          <div class="action-description">Upload CSV files for data processing</div>
+        </a>
+        {% endif %}
+        
+        <!-- View Raw Data Files Action -->
+        <a href="{% url 'health:raw_data_list' %}" class="action-btn">
+          <span class="action-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="13,2 13,9 20,9"></polyline>
+              <circle cx="10" cy="13" r="2"></circle>
+              <path d="M10 15v2"></path>
+              <path d="M10 11v-2"></path>
+            </svg>
+          </span>
+          <div class="action-title">View Data Files</div>
+          <div class="action-description">Manage your uploaded raw data files</div>
+        </a>
+        
+        <a href="#" class="action-btn" onclick="showUpcomingFeature('Documentation'); return false;">
+          <span class="action-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+            </svg>
+          </span>
+          <div class="action-title">Documentation</div>
+          <div class="action-description">Learn about data harmonisation</div>
+        </a>
+      </div>
+    </div>
+
+    <!-- Stats Overview -->
+    <div class="dashboard-grid">
+      <div class="stat-card">
+        <div class="stat-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
+          </svg>
+        </div>
+        <div class="stat-number">{{ total_projects }}</div>
+        <div class="stat-label">Projects</div>
+      </div>
+      
+      <div class="stat-card">
+        <div class="stat-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 3v18h18"></path>
+            <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"></path>
+          </svg>
+        </div>
+        <div class="stat-number">{{ source_studies_count }}</div>
+        <div class="stat-label">Source Studies</div>
+      </div>
+      
+      <div class="stat-card">
+        <div class="stat-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+        </div>
+        <div class="stat-number">{{ target_studies_count }}</div>
+        <div class="stat-label">Target Databases</div>
+      </div>
+      
+      <div class="stat-card">
+        <div class="stat-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+          </svg>
+        </div>
+        <div class="stat-number">{{ total_variables }}</div>
+        <div class="stat-label">Total Variables</div>
+      </div>
+    </div>
+
+    <!-- Recent Projects Section -->
+    {% if recent_projects %}
+    <div class="section-card">
+      <h2 class="section-title">Recent Projects</h2>
+      <ul class="recent-studies">
+        {% for project in recent_projects %}
+          <li class="study-item">
+            <div class="study-info">
+              <div class="study-name">
+                <a href="{% url 'core:project_detail' project.pk %}">{{ project.name }}</a>
+              </div>
+              <div class="study-meta">
+                Project • {{ project.study_count }} studies • Updated {{ project.updated_at|date:"M j, Y" }}
+              </div>
+            </div>
+            <span class="study-status status-completed">
+              Active
+            </span>
+          </li>
+        {% endfor %}
+      </ul>
+      
+      {% if total_projects > 3 %}
+        <div style="text-align: center; margin-top: 1.5rem;">
+          <a href="{% url 'core:project_list' %}" class="btn btn-outline">
+            View All Projects ({{ total_projects }})
+          </a>
+        </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Target Databases Section -->
+    {% if target_studies %}
+    <div class="section-card">
+      <h2 class="section-title">Target Databases</h2>
+      <ul class="recent-studies">
+        {% for study in target_studies %}
+          <li class="study-item">
+            <div class="study-info">
+              <div class="study-name">
+                <a href="{% url 'core:study_detail' study.pk %}">{{ study.name }}</a>
+              </div>
+              <div class="study-meta">
+                Target Database • {{ study.variables.count }} variables • Updated {{ study.updated_at|date:"M j, Y" }}
+              </div>
+            </div>
+            <span class="study-status status-{{ study.status }}">
+              {{ study.get_status_display }}
+            </span>
+          </li>
+        {% endfor %}
+      </ul>
+      
+      {% if target_studies_count > 3 %}
+        <div style="text-align: center; margin-top: 1.5rem;">
+          <a href="{% url 'core:study_list' %}?purpose=target" class="btn btn-outline">
+            View All Target Databases ({{ target_studies_count }})
+          </a>
+        </div>
+      {% endif %}
+      
+      <div style="text-align: center; margin-top: 1.5rem;">
+        <a href="{% url 'core:create_target_study' %}" class="btn btn-primary">
+          Create New Target Database
+        </a>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Source Studies Section -->
+    <div class="section-card">
+      <h2 class="section-title">Source Studies</h2>
+      {% if source_studies %}
+        <ul class="recent-studies">
+          {% for study in source_studies %}
+            <li class="study-item">
+              <div class="study-info">
+                <div class="study-name">
+                  <a href="{% url 'core:study_detail' study.pk %}">{{ study.name }}</a>
+                </div>
+                <div class="study-meta">
+                  {{ study.get_study_type_display }} • {{ study.variables.count }} variables • Updated {{ study.updated_at|date:"M j, Y" }}
+                </div>
+              </div>
+              <span class="study-status status-{{ study.status }}">
+                {{ study.get_status_display }}
+              </span>
+            </li>
+          {% endfor %}
+        </ul>
+        
+        {% if source_studies_count > 5 %}
+          <div style="text-align: center; margin-top: 1.5rem;">
+            <a href="{% url 'core:study_list' %}?purpose=source" class="btn btn-outline">
+              View All Source Studies ({{ source_studies_count }})
+            </a>
+          </div>
+        {% endif %}
+        
+      {% else %}
+        <div class="empty-state">
+          <div class="empty-icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 3v18h18"></path>
+              <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"></path>
+            </svg>
+          </div>
+          {% if total_projects == 0 %}
+            <p>Create your first project to get started with harmonisation!</p>
+            <a href="{% url 'core:create_project' %}" class="btn btn-primary">
+              Create New Project
+            </a>
+          {% elif not has_target_study %}
+            <p>Set up your target database before uploading source studies.</p>
+            <a href="{% url 'core:create_target_study' %}" class="btn btn-primary">
+              Create Target Database
+            </a>
+          {% else %}
+            <p>No source studies yet. Upload your first dataset to get started!</p>
+            <a href="{% url 'core:upload' %}" class="btn btn-primary">
+              Upload Source Data
+            </a>
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+  </div>
+{% endblock content %}

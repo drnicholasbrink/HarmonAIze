@@ -29,7 +29,7 @@ drf-spectacular==0.28.0  # https://github.com/tfranzel/drf-spectacular
 django-ace==1.43.3
 #pygraphviz for ERD
 graphviz==0.17
-pygraphviz==1.7  # https://pygraphviz.github.io/
+#pygraphviz==1.7  # https://pygraphviz.github.io/ failing to install on RS machine..commented out to proceed with other requirements
 
 # Data processing and ML
 pandas==2.2.3  # https://github.com/pandas-dev/pandas
@@ -38,6 +38,10 @@ pgvector==0.4.1  # https://github.com/pgvector/pgvector-python
 numpy==2.3.4  # https://numpy.org/
 scikit-learn==1.7.2  # https://scikit-learn.org/
 scipy==1.16.3  # https://scipy.org/
+
+# Geolocation
+fuzzywuzzy==0.18.0
+python-levenshtein==0.27.1
 
 # Visualization
 plotly==6.3.1  # https://plotly.com/python/
