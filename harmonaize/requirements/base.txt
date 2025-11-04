@@ -31,7 +31,19 @@ django-ace==1.43.3
 graphviz==0.17
 pygraphviz==1.7  # https://pygraphviz.github.io/
 
-# Data processing
+# Data processing and ML
 pandas==2.2.3  # https://github.com/pandas-dev/pandas
 openpyxl==3.1.5  # https://openpyxl.readthedocs.io/
-pgvector==0.4.1
+pgvector==0.4.1  # https://github.com/pgvector/pgvector-python
+numpy==2.3.4  # https://numpy.org/
+scikit-learn==1.7.2  # https://scikit-learn.org/
+scipy==1.16.3  # https://scipy.org/
+
+# Visualization
+plotly==6.3.1  # https://plotly.com/python/
+matplotlib==3.10.7  # https://matplotlib.org/
+seaborn==0.13.2  # https://seaborn.pydata.org/
+
+# AI/ML APIs
+openai==2.7.1  # https://github.com/openai/openai-python
+tiktoken==0.12.0  # https://github.com/openai/tiktoken
