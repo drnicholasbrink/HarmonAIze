@@ -17,7 +17,10 @@ License: MIT
    ```bash
    docker-compose -f docker-compose.local.yml up -d
    ```
-4. **Run database migrations**:
+4. **Make and run database migrations**:
+   ```bash
+   docker-compose -f docker-compose.local.yml run --rm django python manage.py makemigrations
+   ```
    ```bash
    docker-compose -f docker-compose.local.yml run --rm django python manage.py migrate
    ```
@@ -64,6 +67,22 @@ License: MIT
    ```
 
 5. **Access the application** at http://localhost:8000
+
+### Configure OpenAI access
+
+The transformation suggestion features rely on the OpenAI Responses API. Set an OpenAI API key before starting the containers:
+
+1. Copy your key from https://platform.openai.com/account/api-keys
+2. Add it to the local Django environment file `./.envs/.local/.django`:
+   ```bash
+   echo "OPENAI_API_KEY=sk-your-key" >> ./.envs/.local/.django
+   ```
+3. Restart the Django services so the environment variable is picked up:
+   ```bash
+   docker-compose -f docker-compose.local.yml restart django celeryworker celerybeat flower
+   ```
+
+Repeat the same configuration for other environments (e.g. `.envs/.production/.django`) before deploying.
 
 **Note**: All dependencies are managed within Docker containers - no need to install Python packages locally!
 

@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ page_title }} - HarmonAIze Toolkit{% endblock title %}
+
+{% block css %}
+    {{ block.super }}
+    <style>
+        :root {
+            --primary-color: #007AFF;
+            --secondary-color: #5AC8FA;
+            --accent-color: #34C759;
+            --background-color: #F2F2F7;
+            --card-background: #FFFFFF;
+            --text-primary: #1C1C1E;
+            --text-secondary: #8E8E93;
+            --border-color: #C6C6C8;
+            --shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+            --border-radius: 12px;
+        }
+
+        body { background-color: var(--background-color); font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; }
+
+        .breadcrumb-container { background: linear-gradient(135deg,var(--primary-color) 0%,var(--secondary-color) 100%); padding:1.5rem 0 1rem; margin:-1rem -15px 0; }
+        .breadcrumb { background:transparent; margin:0 auto; max-width:1200px; padding:0 2rem; }
+        .breadcrumb-item a { color:rgba(255,255,255,0.9); text-decoration:none; font-weight:500; }
+        .breadcrumb-item a:hover { color:#fff; text-decoration:underline; }
+        .breadcrumb-item.active { color:#fff; font-weight:600; }
+        .breadcrumb-item + .breadcrumb-item::before { color:rgba(255,255,255,0.7); }
+
+        .page-header { background:linear-gradient(135deg,var(--primary-color) 0%,var(--secondary-color) 100%); color:#fff; padding:2rem 0 3rem; margin:0 -15px; text-align:center; }
+        .page-title { font-size:2rem; font-weight:700; margin-bottom:0.5rem; }
+        .page-subtitle { font-size:1rem; opacity:.9; margin-bottom:1.5rem; }
+        .study-info { background:rgba(255,255,255,0.15); border-radius:8px; padding:.5rem 1rem; display:inline-block; }
+
+        .main-content { max-width:1200px; margin:0 auto; padding:2rem; }
+        .card-like { background:var(--card-background); border-radius:var(--border-radius); box-shadow:var(--shadow); padding:2rem; margin-bottom:2rem; }
+        .section-title { font-size:1.25rem; font-weight:600; margin-bottom:1rem; }
+
+        .summary-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:1rem; margin-top:1rem; }
+        .summary-item { background:linear-gradient(135deg,var(--secondary-color) 0%,var(--primary-color) 100%); color:#fff; border-radius:10px; padding:1.25rem; text-align:center; }
+        .summary-value { font-size:1.75rem; font-weight:700; margin-bottom:.25rem; }
+        .summary-label { font-size:.85rem; letter-spacing:.5px; opacity:.9; text-transform:uppercase; }
+
+        .info-box { background:rgba(0,122,255,0.06); border-left:4px solid var(--primary-color); border-radius:10px; padding:1rem 1.25rem; margin-bottom:1.5rem; }
+        .info-box.success { background:rgba(52,199,89,0.08); border-left-color:var(--accent-color); }
+        .info-box.warning { background:rgba(255,149,0,0.10); border-left-color:#ff9500; }
+        .info-box.error { background:rgba(255,59,48,0.10); border-left-color:#ff3b30; }
+        .info-box-title { font-weight:600; margin-bottom:.25rem; }
+        .info-box small { color:var(--text-secondary); }
+
+        .prereq-list { background:rgba(0,122,255,0.05); border-radius:10px; padding:1rem 1.25rem; margin:1rem 0 1.5rem; }
+        .prereq-list ul { margin:0; padding-left:1.1rem; }
+        .prereq-list li { font-size:.9rem; margin-bottom:.4rem; }
+
+        .action-center { text-align:center; margin-top:1rem; }
+        .btn-primary { background:var(--primary-color); border:none; }
+        .btn-primary:hover { background:#0056CC; }
+        .btn-accent { background:var(--accent-color); border:none; color:#fff; }
+        .btn-accent:hover { background:#249943; }
+        .btn-outline { background:transparent; border:2px solid var(--primary-color); color:var(--primary-color); }
+        .btn-outline:hover { background:var(--primary-color); color:#fff; }
+        .btn-wide { padding:.85rem 2.25rem; font-weight:600; border-radius:10px; }
+
+        .process-steps .step { display:flex; align-items:center; padding:.65rem 0; border-left:2px solid var(--border-color); padding-left:1rem; margin-left:.5rem; position:relative; }
+        .process-steps .step:before { content:''; position:absolute; left:-7px; top:50%; width:12px; height:12px; border-radius:50%; background:var(--border-color); transform:translateY(-50%); }
+        .process-steps .step.completed { border-left-color:var(--accent-color); color:var(--accent-color); }
+        .process-steps .step.completed:before { background:var(--accent-color); }
+        .process-steps .step.active { border-left-color:var(--primary-color); color:var(--primary-color); font-weight:600; }
+        .process-steps .step.active:before { background:var(--primary-color); }
+        .process-steps .step i { margin-right:.6rem; width:16px; }
+
+        .variable-preview .variable-item { padding:.4rem 0; border-bottom:1px solid #f1f3f4; font-size:.85rem; }
+        .variable-preview .variable-item:last-child { border-bottom:none; }
+
+        @media (max-width: 768px){ .summary-grid { grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); } }
+    </style>
+{% endblock css %}
+
+{% block content %}
+    <!-- Breadcrumb Navigation -->
+    <div class="breadcrumb-container">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'home' %}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'core:study_detail' raw_data_file.study.id %}">{{ raw_data_file.study.name }}</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'health:raw_data_detail' raw_data_file.id %}">{{ raw_data_file.original_filename }}</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Validate File</li>
+            </ol>
+        </nav>
+    </div>
+
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="container">
+            <h1 class="page-title">Validate Raw Data</h1>
+            <p class="page-subtitle">Verify structure & prepare for harmonisation</p>
+            <div class="study-info">
+                <span class="study-name">{{ raw_data_file.study.name }}</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="row g-4">
+            <div class="col-lg-8">
+                <!-- File Information -->
+                <div class="card-like">
+                    <div class="section-title">File Information</div>
+                    <div class="info-box" style="margin-top:.5rem;">
+                        <div class="row">
+                            <div class="col-sm-6"><strong>File:</strong> {{ raw_data_file.original_filename }}</div>
+                            <div class="col-sm-6"><strong>Study:</strong> {{ raw_data_file.study.name }}</div>
+                            <div class="col-sm-6 mt-2"><strong>Size:</strong> {{ raw_data_file.file_size|filesizeformat }}</div>
+                            <div class="col-sm-6 mt-2"><strong>Uploaded:</strong> {{ raw_data_file.uploaded_at|date:"M d, Y g:i A" }}</div>
+                        </div>
+                    </div>
+                    {% if raw_data_file.rows_count and raw_data_file.columns_count %}
+                    <div class="summary-grid">
+                        <div class="summary-item">
+                            <div class="summary-value">{{ raw_data_file.rows_count|floatformat:0 }}</div>
+                            <div class="summary-label">Rows</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="summary-value">{{ raw_data_file.columns_count }}</div>
+                            <div class="summary-label">Columns</div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Prerequisites -->
+                <div class="card-like">
+                    <div class="section-title">Prerequisites</div>
+                    {% if study_variables.exists %}
+                        <div class="info-box success">
+                            <div class="info-box-title">Ready for validation</div>
+                            <small>Study codebook has {{ study_variables.count }} extracted variables.</small>
+                        </div>
+                    {% else %}
+                        <div class="info-box warning">
+                            <div class="info-box-title">Variables not extracted</div>
+                            <small>Please extract variables from the study codebook before validating raw data.</small>
+                        </div>
+                        <div class="action-center">
+                            <a href="{% url 'health:map_codebook' raw_data_file.study.id %}" class="btn btn-primary btn-wide">Extract Variables from Codebook</a>
+                        </div>
+                    {% endif %}
+                </div>
+
+                {% if study_variables.exists %}
+                <div class="card-like">
+                    <div class="section-title">Validation Process</div>
+                    <div class="prereq-list">
+                        <p class="mb-2"><strong>This validation will:</strong></p>
+                        <ul>
+                            <li>Check data format compatibility with study requirements</li>
+                            <li>Analyse column structure and data types</li>
+                            <li>Validate against extracted codebook variables</li>
+                            <li>Generate detailed column analysis for mapping</li>
+                            <li>Prepare data for variable mapping workflow</li>
+                        </ul>
+                    </div>
+
+                    {% if raw_data_file.processing_status == 'validated' %}
+                        <div class="info-box success">
+                            <div class="info-box-title">File already validated</div>
+                            <small>{{ raw_data_file.processing_message }}</small>
+                        </div>
+                        <div class="action-center">
+                            <a href="{% url 'health:map_raw_data_columns' raw_data_file.id %}" class="btn btn-primary btn-wide">Proceed to Column Mapping</a>
+                        </div>
+                    {% elif raw_data_file.processing_status == 'error' %}
+                        <div class="info-box error">
+                            <div class="info-box-title">Previous validation failed</div>
+                            <small>{{ raw_data_file.processing_message }}</small>
+                        </div>
+                        <form method="post" class="action-center">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-accent btn-wide">Retry Validation</button>
+                        </form>
+                    {% else %}
+                        <form method="post" class="action-center">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-primary btn-wide">Start Validation</button>
+                            <div class="mt-2"><small class="text-muted">This process may take a few moments for large files</small></div>
+                        </form>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="col-lg-4">
+                <div class="card-like">
+                    <div class="section-title">Processing Pipeline</div>
+                    <div class="process-steps">
+                        <div class="step completed"><i class="fas fa-upload"></i><span>File Uploaded</span></div>
+                        <div class="step {% if raw_data_file.processing_status == 'validated' or raw_data_file.processing_status == 'processed' %}completed{% else %}active{% endif %}"><i class="fas fa-check-circle"></i><span>Validation</span></div>
+                        <div class="step {% if raw_data_file.processing_status == 'processed' %}completed{% endif %}"><i class="fas fa-link"></i><span>Column Mapping</span></div>
+                        <div class="step"><i class="fas fa-cogs"></i><span>Integration</span></div>
+                    </div>
+                </div>
+
+                {% if study_variables.exists %}
+                <div class="card-like">
+                    <div class="section-title">Study Variables ({{ study_variables.count }})</div>
+                    <div class="variable-preview">
+                        {% for variable in study_variables|slice:":5" %}
+                            <div class="variable-item"><strong>{{ variable.variable_name }}</strong><br><small class="text-muted">{{ variable.variable_type|title }}</small></div>
+                        {% endfor %}
+                        {% if study_variables.count > 5 %}
+                            <small class="text-muted">... and {{ study_variables.count|add:"-5" }} more</small>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+{% endblock content %}

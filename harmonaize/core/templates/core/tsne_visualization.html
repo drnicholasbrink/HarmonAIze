@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}t-SNE Visualization - {{ project.name }}{% endblock %}
+
+{% block head %}
+<style>
+  .visualization-container {
+    width: 100%;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 2rem 0;
+  }
+  
+  .control-panel {
+    background: var(--background-color);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+  }
+  
+  .stat-badge {
+    background: rgba(0, 122, 255, 0.1);
+    color: var(--primary-color);
+    padding: 0.25rem 0.75rem;
+    border-radius: 15px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-right: 0.5rem;
+  }
+  
+  .breadcrumb {
+    background: none;
+    padding: 0;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+  }
+  
+  .breadcrumb-item a {
+    color: var(--primary-color);
+    text-decoration: none;
+  }
+  
+  .breadcrumb-item a:hover {
+    text-decoration: underline;
+  }
+  
+  .breadcrumb-item.active {
+    color: var(--text-secondary);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="padding: 2rem;">
+  <!-- Breadcrumb Navigation -->
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:project_list' %}">Projects</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:project_detail' pk=project.pk %}">{{ project.name }}</a></li>
+      <li class="breadcrumb-item active">t-SNE Visualization ({{ embedding_type|title }})</li>
+    </ol>
+  </nav>
+
+  <!-- Page Header -->
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+    <div>
+      <h1 style="margin: 0; color: var(--text-primary); font-size: 1.8rem;">
+        <i class="fas fa-project-diagram" style="color: var(--primary-color); margin-right: 0.5rem;"></i>
+        t-SNE Embedding Visualization
+      </h1>
+      <p style="margin: 0.5rem 0 0 0; color: var(--text-secondary); font-size: 1rem;">
+        {{ project.name }} • {{ embedding_type|title }} Embeddings • {{ data_count }} Variables
+      </p>
+    </div>
+    
+    <div style="display: flex; gap: 1rem; align-items: center;">
+      <!-- Embedding Type Switcher -->
+      <div style="display: flex; gap: 0.5rem;">
+        <a href="{% url 'core:tsne_visualization' project_id=project.id %}?type=name" 
+           class="btn {% if embedding_type == 'name' %}btn-primary{% else %}btn-outline-primary{% endif %}" 
+           style="font-size: 0.9rem;">
+          Variable Names
+        </a>
+        <a href="{% url 'core:tsne_visualization' project_id=project.id %}?type=description" 
+           class="btn {% if embedding_type == 'description' %}btn-primary{% else %}btn-outline-primary{% endif %}" 
+           style="font-size: 0.9rem;">
+          Descriptions
+        </a>
+      </div>
+      
+      <!-- Back Button -->
+      <a href="{% url 'core:project_detail' pk=project.pk %}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left" style="margin-right: 0.5rem;"></i>
+        Back to Project
+      </a>
+    </div>
+  </div>
+
+  <!-- Control Panel -->
+  <div class="control-panel">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+      <div>
+        <h3 style="margin: 0 0 0.5rem 0; font-size: 1.1rem; color: var(--text-primary);">
+          Visualization Statistics
+        </h3>
+        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+          <span class="stat-badge">{{ data_count }} Variables</span>
+          <span class="stat-badge">{{ categories|length }} Categories</span>
+          <span class="stat-badge">{{ variable_types|length }} Types</span>
+          <span class="stat-badge">{{ source_types|length }} Sources</span>
+        </div>
+      </div>
+      
+      <div style="display: flex; gap: 1rem; align-items: center;">
+        <!-- Regenerate Button -->
+        <form method="post" action="{% url 'core:generate_project_tsne' project_id=project.id %}" style="display: inline;">
+          {% csrf_token %}
+          <input type="hidden" name="embedding_type" value="{{ embedding_type }}">
+          <button type="submit" class="btn btn-outline-primary" style="font-size: 0.9rem;">
+            <i class="fas fa-refresh" style="margin-right: 0.5rem;"></i>
+            Regenerate
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Server-Side Generated Plotly Visualization -->
+  <div class="visualization-container">
+    {{ plot_div|safe }}
+  </div>
+
+  <!-- Information Panel -->
+  <div style="margin-top: 2rem; padding: 1.5rem; background: rgba(52, 199, 89, 0.1); border: 1px solid rgba(52, 199, 89, 0.2); border-radius: 8px;">
+    <div style="display: flex; align-items: flex-start; gap: 0.75rem;">
+      <i class="fas fa-info-circle" style="color: var(--accent-color); margin-top: 0.1rem;"></i>
+      <div>
+        <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem;">
+          About t-SNE Visualization
+        </div>
+        <p style="margin: 0; color: var(--text-secondary); font-size: 0.9rem; line-height: 1.4;">
+          <strong>t-SNE</strong> (t-distributed Stochastic Neighbor Embedding) reduces high-dimensional embeddings to 2D coordinates 
+          while preserving local neighborhood relationships. Variables with similar meanings cluster together in the visualization.
+          Use this to explore semantic relationships, identify variable groups, and discover potential harmonisation opportunities.
+        </p>
+        <div style="margin-top: 0.75rem;">
+          <strong style="color: var(--text-primary);">Interactive Features:</strong>
+          <ul style="margin: 0.25rem 0 0 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+            <li>Hover over points to see variable details</li>
+            <li>Click and drag to pan around the visualization</li>
+            <li>Use mouse wheel to zoom in and out</li>
+            <li>Legend shows studies and variable types</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
