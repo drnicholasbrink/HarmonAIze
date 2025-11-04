@@ -8,6 +8,7 @@ RUN apt-get update \
 
 # Copy initialization script
 COPY ./compose/production/postgres/init-db.sh /docker-entrypoint-initdb.d/
+RUN sed -i 's/\r$//g' /docker-entrypoint-initdb.d/init-db.sh
 RUN chmod +x /docker-entrypoint-initdb.d/init-db.sh
 
 COPY ./compose/production/postgres/maintenance /usr/local/bin/maintenance
