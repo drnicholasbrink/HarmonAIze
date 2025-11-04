@@ -21,11 +21,12 @@ logger = logging.getLogger(__name__)
 
 class BaseClimateDataService:
     """Base class for climate data services."""
-    
+
     def __init__(self, data_source: ClimateDataSource):
         self.data_source = data_source
         self.api_key = data_source.api_key
         self.api_endpoint = data_source.api_endpoint
+        self.logger = logging.getLogger(self.__class__.__name__)
     
     def fetch_data(
         self,
@@ -57,15 +58,61 @@ class BaseClimateDataService:
 class EarthEngineDataService(BaseClimateDataService):
     """
     Google Earth Engine data service for satellite-based climate data.
-    Note: This is a simplified implementation. Real Earth Engine integration would require
-    the earthengine-api package and proper authentication.
+
+    Supports both mock and real GEE API calls. When USE_MOCK_DATA=False and credentials
+    are configured, it will make real API calls to Google Earth Engine.
+
+    Setup for real data:
+    1. Install: pip install earthengine-api
+    2. Set up service account credentials (JSON key file)
+    3. Configure GOOGLE_APPLICATION_CREDENTIALS environment variable
+    4. Set USE_MOCK_DATA=False in settings
     """
-    
-    def __init__(self, data_source: ClimateDataSource):
+
+    def __init__(self, data_source: ClimateDataSource, use_mock: bool = True):
         super().__init__(data_source)
-        # In production, initialize Earth Engine here:
-        # import ee
-        # ee.Initialize(credentials)
+        self.use_mock = use_mock
+        self.ee = None
+
+        if not use_mock:
+            try:
+                import ee
+                import os
+                from google.oauth2 import service_account
+
+                self.ee = ee
+
+                # Initialize Earth Engine with service account credentials
+                credentials_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+
+                if credentials_path and os.path.exists(credentials_path):
+                    # Use service account credentials
+                    self.logger.info(f"Initializing Earth Engine with service account: {credentials_path}")
+                    credentials = service_account.Credentials.from_service_account_file(
+                        credentials_path,
+                        scopes=['https://www.googleapis.com/auth/earthengine']
+                    )
+                    # Get project ID from credentials file
+                    import json
+                    with open(credentials_path) as f:
+                        creds_data = json.load(f)
+                        project_id = creds_data.get('project_id', 'joburg-hvi')
+
+                    ee.Initialize(credentials=credentials, project=project_id)
+                    self.logger.info(f"✓ Google Earth Engine initialized successfully with project: {project_id}")
+                else:
+                    # Try default authentication (falls back to user auth)
+                    self.logger.warning("No service account credentials found, trying default auth")
+                    ee.Initialize()
+                    self.logger.info("Google Earth Engine initialized with default credentials")
+
+            except ImportError:
+                self.logger.warning("earthengine-api not installed, using mock data")
+                self.use_mock = True
+            except Exception as e:
+                self.logger.error(f"Failed to initialize Earth Engine: {e}")
+                self.logger.info("Falling back to mock data mode")
+                self.use_mock = True
     
     def fetch_data(
         self,
@@ -77,14 +124,14 @@ class EarthEngineDataService(BaseClimateDataService):
     ) -> List[Dict[str, Any]]:
         """
         Fetch data from Google Earth Engine.
-        This is a mock implementation for the MVP.
+        Uses mock data if use_mock=True, otherwise makes real GEE API calls.
         """
         if not self.validate_location(location):
             raise ValueError(f"Invalid location coordinates: {location}")
-        
+
         if not self.validate_date_range(start_date, end_date):
             raise ValueError(f"Invalid date range for data source")
-        
+
         # Get variable mapping for Earth Engine
         try:
             mapping = ClimateVariableMapping.objects.get(
@@ -93,27 +140,124 @@ class EarthEngineDataService(BaseClimateDataService):
             )
         except ClimateVariableMapping.DoesNotExist:
             raise ValueError(f"Variable {variable} not available in {self.data_source}")
-        
-        # Mock data generation for MVP
-        # In production, this would use the Earth Engine Python API
+
+        # Choose real or mock implementation
+        if self.use_mock:
+            return self._fetch_mock_data(variable, location, start_date, end_date, mapping)
+        else:
+            return self._fetch_real_gee_data(variable, location, start_date, end_date, mapping)
+
+    def _fetch_real_gee_data(
+        self,
+        variable: ClimateVariable,
+        location: Location,
+        start_date: datetime,
+        end_date: datetime,
+        mapping: ClimateVariableMapping
+    ) -> List[Dict[str, Any]]:
+        """
+        Fetch real data from Google Earth Engine API.
+
+        Example for ERA5 temperature:
+        - Dataset: ECMWF/ERA5/DAILY
+        - Band: mean_2m_air_temperature
+        - Point extraction at location coordinates
+        """
+        if not self.ee:
+            raise RuntimeError("Earth Engine not initialized")
+
+        try:
+            # Define point geometry
+            point = self.ee.Geometry.Point([location.longitude, location.latitude])
+
+            # Load image collection
+            collection = (
+                self.ee.ImageCollection(mapping.source_dataset)
+                .filterDate(start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))
+                .filterBounds(point)
+            )
+
+            # Extract time series at point
+            def extract_value(image):
+                """Extract value from image at point location."""
+                # Reduce region to get value
+                value_dict = image.select(mapping.source_band).reduceRegion(
+                    reducer=self.ee.Reducer.first(),
+                    geometry=point,
+                    scale=self.data_source.spatial_resolution_m or 1000,
+                    maxPixels=1e9
+                )
+
+                # Get value for the band
+                value = value_dict.get(mapping.source_band)
+
+                # Get image date
+                date = image.date().format('YYYY-MM-dd')
+
+                return self.ee.Feature(None, {
+                    'date': date,
+                    'value': value,
+                    'band': mapping.source_band
+                })
+
+            # Map over collection
+            features = collection.map(extract_value).getInfo()
+
+            # Process results
+            data = []
+            for feature in features['features']:
+                props = feature['properties']
+                raw_value = props.get('value')
+
+                if raw_value is not None:
+                    # Apply scaling and offset
+                    value = float(raw_value) * mapping.scale_factor + mapping.offset
+
+                    data.append({
+                        'date': datetime.strptime(props['date'], '%Y-%m-%d').date(),
+                        'value': value,
+                        'quality_flag': 'good',
+                        'source': 'Earth Engine',
+                    })
+                else:
+                    self.logger.warning(f"No data for {props.get('date')} - likely cloud cover or missing data")
+
+            self.logger.info(f"Fetched {len(data)} values from GEE for {variable.name}")
+            return data
+
+        except Exception as e:
+            self.logger.error(f"Error fetching GEE data: {e}")
+            raise
+
+    def _fetch_mock_data(
+        self,
+        variable: ClimateVariable,
+        location: Location,
+        start_date: datetime,
+        end_date: datetime,
+        mapping: ClimateVariableMapping
+    ) -> List[Dict[str, Any]]:
+        """
+        Generate mock data for testing without GEE credentials.
+        """
         data = []
         current_date = start_date
         while current_date <= end_date:
             # Simulate fetching data from Earth Engine
             value = self._simulate_climate_value(variable, location, current_date)
-            
+
             # Apply scaling and offset from mapping
             value = value * mapping.scale_factor + mapping.offset
-            
+
             data.append({
                 'date': current_date.date(),
                 'value': value,
-                'quality_flag': 'good',
-                'source': 'Earth Engine',
+                'quality_flag': 'mock',
+                'source': 'Mock (GEE structure)',
             })
-            
+
             current_date += timedelta(days=1)
-        
+
         return data
     
     def _simulate_climate_value(
@@ -149,6 +293,257 @@ class EarthEngineDataService(BaseClimateDataService):
                 variable.max_value or 100
             )
         
+        return base_value
+
+
+class CopernicusDataService(BaseClimateDataService):
+    """
+    Copernicus Climate Data Store (CDS) service for ERA5 reanalysis data.
+
+    Supports both mock and real CDS API calls. When USE_MOCK_DATA=False and API key
+    is configured, it will make real API calls to Copernicus CDS.
+
+    Setup for real data:
+    1. Install: pip install cdsapi
+    2. Register at: https://cds.climate.copernicus.eu/
+    3. Get API key from: https://cds.climate.copernicus.eu/api-how-to
+    4. Create ~/.cdsapirc with:
+       url: https://cds.climate.copernicus.eu/api/v2
+       key: {UID}:{API-KEY}
+    5. Set USE_MOCK_DATA=False in settings
+
+    CDS provides access to:
+    - ERA5 reanalysis (hourly and monthly)
+    - ERA5-Land (higher resolution land data)
+    - Satellite observations
+    - Climate projections
+    """
+
+    def __init__(self, data_source: ClimateDataSource, use_mock: bool = True):
+        super().__init__(data_source)
+        self.use_mock = use_mock
+        self.cds_client = None
+
+        if not use_mock:
+            try:
+                import cdsapi
+                self.cds_client = cdsapi.Client()
+                self.logger.info("Copernicus CDS client initialized successfully")
+            except ImportError:
+                self.logger.warning("cdsapi not installed, using mock data")
+                self.use_mock = True
+            except Exception as e:
+                self.logger.error(f"Failed to initialize CDS client: {e}")
+                self.use_mock = True
+
+    def fetch_data(
+        self,
+        variable: ClimateVariable,
+        location: Location,
+        start_date: datetime,
+        end_date: datetime,
+        **kwargs
+    ) -> List[Dict[str, Any]]:
+        """
+        Fetch data from Copernicus Climate Data Store.
+        Uses mock data if use_mock=True, otherwise makes real CDS API calls.
+        """
+        if not self.validate_location(location):
+            raise ValueError(f"Invalid location coordinates: {location}")
+
+        if not self.validate_date_range(start_date, end_date):
+            raise ValueError(f"Invalid date range for data source")
+
+        # Get variable mapping
+        try:
+            mapping = ClimateVariableMapping.objects.get(
+                variable=variable,
+                data_source=self.data_source
+            )
+        except ClimateVariableMapping.DoesNotExist:
+            raise ValueError(f"Variable {variable} not available in {self.data_source}")
+
+        # Choose real or mock implementation
+        if self.use_mock:
+            return self._fetch_mock_data(variable, location, start_date, end_date, mapping)
+        else:
+            return self._fetch_real_cds_data(variable, location, start_date, end_date, mapping)
+
+    def _fetch_real_cds_data(
+        self,
+        variable: ClimateVariable,
+        location: Location,
+        start_date: datetime,
+        end_date: datetime,
+        mapping: ClimateVariableMapping
+    ) -> List[Dict[str, Any]]:
+        """
+        Fetch real data from Copernicus CDS API.
+
+        Example request for ERA5 2m temperature:
+        - Dataset: reanalysis-era5-single-levels
+        - Variable: 2m_temperature
+        - Format: NetCDF
+        - Area: [north, west, south, east] in degrees
+        """
+        if not self.cds_client:
+            raise RuntimeError("CDS client not initialized")
+
+        try:
+            import tempfile
+            import xarray as xr
+            from pathlib import Path
+
+            # Define bounding box (with small buffer for point extraction)
+            buffer = 0.25  # degrees (~27.5 km)
+            area = [
+                location.latitude + buffer,  # North
+                location.longitude - buffer,  # West
+                location.latitude - buffer,  # South
+                location.longitude + buffer,  # East
+            ]
+
+            # Build date list
+            years = list(range(start_date.year, end_date.year + 1))
+            months = [f"{m:02d}" for m in range(1, 13)]
+            days = [f"{d:02d}" for d in range(1, 32)]
+
+            # CDS request parameters
+            request_params = {
+                'product_type': 'reanalysis',
+                'format': 'netcdf',
+                'variable': mapping.source_variable_name,
+                'year': [str(y) for y in years],
+                'month': months,
+                'day': days,
+                'time': '12:00',  # Midday for daily data
+                'area': area,
+            }
+
+            # Add extra parameters from mapping
+            if mapping.extra_parameters:
+                request_params.update(mapping.extra_parameters)
+
+            # Download data to temporary file
+            with tempfile.NamedTemporaryFile(suffix='.nc', delete=False) as tmp_file:
+                tmp_path = Path(tmp_file.name)
+
+            try:
+                self.logger.info(f"Requesting data from CDS for {variable.name}")
+                self.cds_client.retrieve(
+                    mapping.source_dataset,
+                    request_params,
+                    str(tmp_path)
+                )
+
+                # Read NetCDF file with xarray
+                ds = xr.open_dataset(tmp_path)
+
+                # Extract variable at nearest point
+                ds_point = ds.sel(
+                    latitude=location.latitude,
+                    longitude=location.longitude,
+                    method='nearest'
+                )
+
+                # Convert to list of daily values
+                data = []
+                for time_val in ds_point.time.values:
+                    date_val = datetime.fromisoformat(str(time_val)[:10])
+
+                    # Filter to requested date range
+                    if start_date.date() <= date_val.date() <= end_date.date():
+                        # Get value and apply scaling/offset
+                        raw_value = float(ds_point[mapping.source_band].sel(time=time_val).values)
+                        value = raw_value * mapping.scale_factor + mapping.offset
+
+                        data.append({
+                            'date': date_val.date(),
+                            'value': value,
+                            'quality_flag': 'good',
+                            'source': 'Copernicus CDS',
+                        })
+
+                ds.close()
+                self.logger.info(f"Fetched {len(data)} values from CDS for {variable.name}")
+                return data
+
+            finally:
+                # Clean up temporary file
+                if tmp_path.exists():
+                    tmp_path.unlink()
+
+        except Exception as e:
+            self.logger.error(f"Error fetching CDS data: {e}")
+            raise
+
+    def _fetch_mock_data(
+        self,
+        variable: ClimateVariable,
+        location: Location,
+        start_date: datetime,
+        end_date: datetime,
+        mapping: ClimateVariableMapping
+    ) -> List[Dict[str, Any]]:
+        """
+        Generate mock data for testing without CDS credentials.
+        """
+        data = []
+        current_date = start_date
+        while current_date <= end_date:
+            # Simulate realistic climate values
+            value = self._simulate_climate_value(variable, location, current_date)
+
+            # Apply scaling and offset from mapping
+            value = value * mapping.scale_factor + mapping.offset
+
+            data.append({
+                'date': current_date.date(),
+                'value': value,
+                'quality_flag': 'mock',
+                'source': 'Mock (CDS structure)',
+            })
+
+            current_date += timedelta(days=1)
+
+        return data
+
+    def _simulate_climate_value(
+        self,
+        variable: ClimateVariable,
+        location: Location,
+        date: datetime
+    ) -> float:
+        """
+        Simulate realistic climate values based on location and season.
+        Uses similar logic to EarthEngineDataService for consistency.
+        """
+        base_value = 0
+
+        if variable.category == 'temperature':
+            # Temperature varies by latitude and season
+            base_value = 20 - abs(location.latitude) / 3
+            seasonal_variation = 10 * np.sin((date.timetuple().tm_yday / 365) * 2 * np.pi)
+            base_value += seasonal_variation
+        elif variable.category == 'precipitation':
+            # Precipitation with seasonal pattern
+            base_value = 50 + 30 * np.sin((date.timetuple().tm_yday / 365) * 2 * np.pi + np.pi/2)
+            base_value = max(0, base_value + np.random.normal(0, 10))
+        elif variable.category == 'humidity':
+            # Relative humidity between 30-90%
+            base_value = 60 + 20 * np.sin((date.timetuple().tm_yday / 365) * 2 * np.pi)
+            base_value = max(30, min(90, base_value + np.random.normal(0, 5)))
+        elif variable.category == 'wind':
+            # Wind speed 0-20 m/s with seasonal variation
+            base_value = 5 + 3 * np.sin((date.timetuple().tm_yday / 365) * 2 * np.pi)
+            base_value = max(0, base_value + np.random.normal(0, 2))
+        else:
+            # Generic climate variable
+            base_value = np.random.uniform(
+                variable.min_value or 0,
+                variable.max_value or 100
+            )
+
         return base_value
 
 
@@ -212,13 +607,35 @@ class ClimateDataProcessor:
             }
     
     def _get_data_service(self) -> BaseClimateDataService:
-        """Get appropriate data service based on source type."""
-        if self.request.data_source.source_type == 'gee':
-            return EarthEngineDataService(self.request.data_source)
+        """
+        Get appropriate data service based on source type.
+
+        Service mapping:
+        - 'gee': Google Earth Engine (GEE)
+        - 'era5': Copernicus CDS (ERA5 reanalysis)
+        - 'chirps': Currently via GEE
+        - 'modis': Currently via GEE
+        - 'worldclim': Could be added later
+        """
+        from django.conf import settings
+
+        # Check if we should use mock data (default: True for safety)
+        use_mock = getattr(settings, 'CLIMATE_USE_MOCK_DATA', True)
+
+        source_type = self.request.data_source.source_type
+
+        if source_type == 'gee':
+            return EarthEngineDataService(self.request.data_source, use_mock=use_mock)
+        elif source_type in ['era5', 'worldclim']:
+            # ERA5 and WorldClim available via Copernicus CDS
+            return CopernicusDataService(self.request.data_source, use_mock=use_mock)
+        elif source_type in ['chirps', 'modis']:
+            # CHIRPS and MODIS available via Google Earth Engine
+            return EarthEngineDataService(self.request.data_source, use_mock=use_mock)
         else:
-            # Add other services as needed
             raise NotImplementedError(
-                f"Service for {self.request.data_source.source_type} not implemented"
+                f"Service for {source_type} not implemented. "
+                f"Available: gee, era5, chirps, modis"
             )
     
     def _process_location(

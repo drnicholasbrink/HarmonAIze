@@ -288,8 +288,7 @@
   <nav aria-label="breadcrumb" style="margin: 1rem 0;">
     <ol class="breadcrumb">
       <li class="breadcrumb-item"><a href="{% url 'home' %}">Home</a></li>
-      <li class="breadcrumb-item"><a href="{% url 'climate:landing' %}">Climate</a></li>
-      <li class="breadcrumb-item active" aria-current="page">Dashboard</li>
+      <li class="breadcrumb-item active" aria-current="page">Climate Dashboard</li>
     </ol>
   </nav>
 
@@ -577,30 +576,6 @@
         </div>
         <div style="font-weight: 600; margin-bottom: 0.5rem;">View All Requests</div>
         <div style="font-size: 0.9rem; color: var(--text-secondary);">Manage climate data requests</div>
-      </a>
-
-      <a href="{% url 'climate:demo' %}" style="background: var(--background-color); border: 1px solid var(--border-color); border-radius: var(--border-radius); padding: 1.5rem; text-align: center; text-decoration: none; color: inherit; transition: all 0.3s ease;" onmouseover="this.style.background='white'; this.style.borderColor='var(--primary-color)'; this.style.transform='translateY(-2px)'" onmouseout="this.style.background='var(--background-color)'; this.style.borderColor='var(--border-color)'; this.style.transform='translateY(0)'">
-        <div style="width: 60px; height: 60px; background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem; color: white;">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"></circle>
-            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-            <line x1="12" y1="17" x2="12.01" y2="17"></line>
-          </svg>
-        </div>
-        <div style="font-weight: 600; margin-bottom: 0.5rem;">Interactive Demo</div>
-        <div style="font-size: 0.9rem; color: var(--text-secondary);">Try climate integration</div>
-      </a>
-
-      <a href="{% url 'climate:earth_engine_datasets' %}" style="background: var(--background-color); border: 1px solid var(--border-color); border-radius: var(--border-radius); padding: 1.5rem; text-align: center; text-decoration: none; color: inherit; transition: all 0.3s ease;" onmouseover="this.style.background='white'; this.style.borderColor='var(--primary-color)'; this.style.transform='translateY(-2px)'" onmouseout="this.style.background='var(--background-color)'; this.style.borderColor='var(--border-color)'; this.style.transform='translateY(0)'">
-        <div style="width: 60px; height: 60px; background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem; color: white;">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="3"></circle>
-            <path d="M12 1v6m0 6v6"></path>
-            <path d="m21 12-6-6-6 6-6-6"></path>
-          </svg>
-        </div>
-        <div style="font-weight: 600; margin-bottom: 0.5rem;">Dataset Catalog</div>
-        <div style="font-size: 0.9rem; color: var(--text-secondary);">Browse Earth Engine datasets</div>
       </a>
     </div>
   </div>

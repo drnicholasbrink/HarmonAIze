@@ -26,37 +26,6 @@ from .services import ClimateDataProcessor, SpatioTemporalMatcher
 
 
 @login_required
-def climate_landing_view(request):
-    """
-    Climate module landing page with overview and documentation.
-    """
-    # Get some basic stats for the landing page
-    stats = {
-        'active_sources': ClimateDataSource.objects.filter(is_active=True).count(),
-        'total_variables': ClimateVariable.objects.count(),
-        'user_requests': ClimateDataRequest.objects.filter(
-            study__created_by=request.user
-        ).count(),
-    }
-    
-    # Get available data sources
-    data_sources = ClimateDataSource.objects.filter(is_active=True)[:6]
-    
-    # Get variable categories
-    variable_categories = ClimateVariable.objects.values('category').annotate(
-        count=Count('id')
-    ).order_by('category')
-    
-    context = {
-        'stats': stats,
-        'data_sources': data_sources,
-        'variable_categories': variable_categories,
-    }
-    
-    return render(request, 'climate/landing.html', context)
-
-
-@login_required
 def climate_dashboard_view(request):
     """
     Main climate module dashboard.
@@ -156,111 +125,6 @@ def climate_configuration_view(request, study_id):
     }
     
     return render(request, 'climate/configure.html', context)
-
-
-@login_required
-def climate_data_preview_view(request, request_id):
-    """
-    Preview retrieved climate data before finalising integration.
-    """
-    climate_request = get_object_or_404(
-        ClimateDataRequest,
-        pk=request_id,
-        study__created_by=request.user
-    )
-    
-    # Get sample observations
-    climate_attributes = Attribute.objects.filter(
-        category='climate',
-        variable_name__in=[f"climate_{v.name}" for v in climate_request.variables.all()]
-    )
-    
-    sample_observations = Observation.objects.filter(
-        attribute__in=climate_attributes,
-        location__in=climate_request.locations.all(),
-        time__timestamp__gte=timezone.make_aware(
-            datetime.combine(climate_request.start_date, datetime.min.time())
-        ),
-        time__timestamp__lte=timezone.make_aware(
-            datetime.combine(climate_request.end_date, datetime.min.time())
-        )
-    ).select_related('location', 'attribute', 'time')[:100]
-    
-    # Aggregate statistics
-    stats = {}
-    for variable in climate_request.variables.all():
-        attr = climate_attributes.filter(variable_name=f"climate_{variable.name}").first()
-        if attr:
-            var_stats = Observation.objects.filter(
-                attribute=attr,
-                location__in=climate_request.locations.all()
-            ).aggregate(
-                count=Count('id'),
-                avg_value=Avg('float_value'),
-                min_value=Min('float_value'),
-                max_value=Max('float_value')
-            )
-            stats[variable.display_name] = var_stats
-    
-    context = {
-        'climate_request': climate_request,
-        'sample_observations': sample_observations,
-        'statistics': stats,
-        'can_process': climate_request.status == 'pending',
-    }
-    
-    return render(request, 'climate/preview.html', context)
-
-
-@login_required
-def climate_integration_view(request, request_id):
-    """
-    Execute climate data integration with study.
-    """
-    climate_request = get_object_or_404(
-        ClimateDataRequest,
-        pk=request_id,
-        study__created_by=request.user
-    )
-    
-    if climate_request.status != 'pending':
-        messages.warning(
-            request,
-            f"This request has already been {climate_request.get_status_display().lower()}."
-        )
-        return redirect('climate:request_detail', pk=climate_request.pk)
-    
-    if request.method == 'POST':
-        # Process the climate data request
-        processor = ClimateDataProcessor(climate_request)
-        result = processor.process_request()
-        
-        if result['status'] == 'success':
-            messages.success(
-                request,
-                f"Successfully integrated {result['total_observations']} climate observations "
-                f"for study '{climate_request.study.name}'."
-            )
-        else:
-            messages.error(
-                request,
-                f"Error processing climate data: {result.get('error', 'Unknown error')}"
-            )
-        
-        return redirect('climate:request_detail', pk=climate_request.pk)
-    
-    context = {
-        'climate_request': climate_request,
-        'location_count': climate_request.locations.count(),
-        'variable_count': climate_request.variables.count(),
-        'estimated_observations': (
-            climate_request.locations.count() *
-            climate_request.variables.count() *
-            (climate_request.end_date - climate_request.start_date).days
-        ),
-    }
-    
-    return render(request, 'climate/integration_confirm.html', context)
 
 
 class ClimateRequestListView(LoginRequiredMixin, ListView):
@@ -368,104 +232,113 @@ def climate_data_export_view(request, request_id):
     return response
 
 
+# HTMX Partial Views for Dynamic UI
+# ================================================================================
+
+@login_required
+def data_source_preview_partial(request):
+    """
+    HTMX partial: Return data source preview card.
+    """
+    source_id = request.GET.get('source_id')
+
+    if not source_id:
+        return render(request, 'climate/partials/data_source_preview.html', {
+            'source': None,
+        })
+
+    try:
+        source = ClimateDataSource.objects.get(pk=source_id, is_active=True)
+
+        # Get variable count for this source
+        variable_count = ClimateVariable.objects.filter(
+            data_sources=source
+        ).count()
+
+        context = {
+            'source': source,
+            'variable_count': variable_count,
+        }
+
+        return render(request, 'climate/partials/data_source_preview.html', context)
+
+    except ClimateDataSource.DoesNotExist:
+        return render(request, 'climate/partials/data_source_preview.html', {
+            'source': None,
+        })
 
 
 @login_required
-def climate_demo_view(request):
+def variable_list_partial(request):
     """
-    Interactive demo page for climate data integration.
+    HTMX partial: Return filtered variable list with category filtering.
     """
-    # Sample data for demonstration - using African clinical study locations
-    sample_data = {
-        'study_locations': [
-            {'name': 'Maputo Central Hospital, Mozambique', 'lat': -25.9653, 'lon': 32.5892, 'clinic_type': 'Central Hospital'},
-            {'name': 'Chris Hani Baragwanath Hospital, South Africa', 'lat': -26.2708, 'lon': 27.9147, 'clinic_type': 'Academic Hospital'},
-            {'name': 'Kenyatta National Hospital, Kenya', 'lat': -1.3018, 'lon': 36.8081, 'clinic_type': 'National Referral Hospital'},
-            {'name': 'Manhiça Health Research Centre, Mozambique', 'lat': -25.4069, 'lon': 32.8073, 'clinic_type': 'Research Centre'},
-            {'name': 'Kilifi County Hospital, Kenya', 'lat': -3.5053, 'lon': 39.8502, 'clinic_type': 'County Hospital'},
-        ],
-        'climate_variables': [
-            {'name': 'temperature_mean', 'display_name': 'Mean Temperature', 'unit': '°C'},
-            {'name': 'precipitation_total', 'display_name': 'Total Precipitation', 'unit': 'mm'},
-            {'name': 'humidity_relative', 'display_name': 'Relative Humidity', 'unit': '%'},
-            {'name': 'temperature_max', 'display_name': 'Maximum Temperature', 'unit': '°C'},
-            {'name': 'wind_speed', 'display_name': 'Wind Speed', 'unit': 'm/s'},
-        ],
-        'sample_results': [
-            {'location': 'Maputo Central Hospital, Mozambique', 'date': '2023-01-15', 'temperature': 26.8, 'precipitation': 84.2, 'humidity': 76, 'temp_max': 31.2, 'wind_speed': 3.1},
-            {'location': 'Chris Hani Baragwanath Hospital, South Africa', 'date': '2023-01-15', 'temperature': 22.4, 'precipitation': 45.7, 'humidity': 68, 'temp_max': 28.9, 'wind_speed': 2.8},
-            {'location': 'Kenyatta National Hospital, Kenya', 'date': '2023-01-15', 'temperature': 18.6, 'precipitation': 12.3, 'humidity': 61, 'temp_max': 24.7, 'wind_speed': 1.9},
-            {'location': 'Manhiça Health Research Centre, Mozambique', 'date': '2023-01-15', 'temperature': 27.1, 'precipitation': 88.5, 'humidity': 78, 'temp_max': 32.0, 'wind_speed': 2.9},
-            {'location': 'Kilifi County Hospital, Kenya', 'date': '2023-01-15', 'temperature': 25.9, 'precipitation': 18.6, 'humidity': 73, 'temp_max': 29.4, 'wind_speed': 4.2},
-        ]
-    }
-    
-    context = {
-        'sample_data': sample_data,
-        'available_sources': ClimateDataSource.objects.filter(is_active=True)[:3],
-        'variable_categories': ClimateVariable.objects.values('category').annotate(
+    source_id = request.GET.get('source_id')
+    filter_category = request.GET.get('category')
+    selected_var_ids = request.GET.getlist('selected')
+
+    # Start with all variables
+    variables = ClimateVariable.objects.all()
+
+    # Filter by data source if provided
+    if source_id:
+        try:
+            source = ClimateDataSource.objects.get(pk=source_id)
+            variables = variables.filter(data_sources=source)
+        except ClimateDataSource.DoesNotExist:
+            pass
+
+    # Filter by category if provided
+    if filter_category:
+        variables = variables.filter(category=filter_category)
+
+    # Get category counts for filter buttons
+    if source_id:
+        categories = ClimateVariable.objects.filter(
+            data_sources__pk=source_id
+        ).values('category').annotate(count=Count('id')).order_by('category')
+    else:
+        categories = ClimateVariable.objects.values('category').annotate(
             count=Count('id')
-        ).order_by('category'),
-    }
-    
-    return render(request, 'climate/demo.html', context)
+        ).order_by('category')
 
+    # Convert selected IDs to integers for template comparison
+    selected_variables = [int(vid) for vid in selected_var_ids if vid.isdigit()]
 
-
-
-@login_required  
-def climate_improvements_view(request):
-    """
-    Summary page documenting climate module improvements.
-    """
-    improvements = {
-        'ui_enhancements': [
-            'Modernized climate dashboard with Cupertino design system',
-            'Added visual workflow indicators showing 4-step climate integration process',
-            'Implemented real-time progress tracking with animated progress bars',
-            'Enhanced status monitoring with live updates and pulse indicators',
-            'Improved responsive design for mobile and tablet devices'
-        ],
-        'new_features': [
-            'Created comprehensive climate module landing page',
-            'Built interactive demo showcasing climate data integration workflow',
-            'Added Earth Engine datasets catalog with comprehensive coverage',
-            'Implemented guided workflow for climate data selection',
-            'Created step-by-step guided demo with sample data'
-        ],
-        'documentation': [
-            'Added comprehensive Earth Engine datasets catalog',
-            'Created user guides for climate data integration',
-            'Built FAQ section for common climate module questions',
-            'Added tooltips and contextual help throughout interface',
-            'Implemented breadcrumb navigation for better orientation'
-        ],
-        'integration': [
-            'Added climate module link to main dashboard quick actions',
-            'Improved navigation between climate module pages',
-            'Enhanced status tracking with real-time updates',
-            'Better error handling and user feedback',
-            'Consistent design integration with main application'
-        ]
-    }
-    
     context = {
-        'improvements': improvements,
+        'variables': variables.order_by('category', 'display_name'),
+        'categories': categories,
+        'source_id': source_id,
+        'filter_category': filter_category,
+        'selected_variables': selected_variables,
     }
-    
-    return render(request, 'climate/improvements.html', context)
 
-
+    return render(request, 'climate/partials/variable_list.html', context)
 
 
 @login_required
-def earth_engine_datasets_view(request):
+def request_status_partial(request, request_id):
     """
-    Comprehensive guide to Google Earth Engine datasets available for climate and health research.
+    HTMX partial: Return climate request status for polling.
     """
-    context = {
-        'page_title': 'Google Earth Engine Datasets - Climate & Health Data',
-        'meta_description': 'Comprehensive guide to Google Earth Engine datasets for climate, environmental health, and socioeconomic research in HarmonAIze',
-    }
-    
-    return render(request, 'climate/earth_engine_datasets.html', context)
+    try:
+        climate_request = ClimateDataRequest.objects.get(
+            pk=request_id,
+            study__created_by=request.user
+        )
+
+        # Calculate progress percentage
+        if climate_request.total_locations > 0:
+            progress = int((climate_request.processed_locations / climate_request.total_locations) * 100)
+        else:
+            progress = 0
+
+        context = {
+            'request': climate_request,
+            'progress': progress,
+        }
+
+        return render(request, 'climate/partials/request_status.html', context)
+
+    except ClimateDataRequest.DoesNotExist:
+        return HttpResponse('<div class="alert alert-danger">Request not found</div>')

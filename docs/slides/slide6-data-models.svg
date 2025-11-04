@@ -1,0 +1,242 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720">
+  <defs>
+    <style>
+      .slide-title { font-family: Arial, Helvetica, sans-serif; font-size: 48px; font-weight: bold; fill: #1e3a5f; }
+      .section-title { font-family: Arial, Helvetica, sans-serif; font-size: 20px; font-weight: bold; fill: #2c5282; }
+      .model-title { font-family: Arial, Helvetica, sans-serif; font-size: 16px; font-weight: bold; fill: #ffffff; }
+      .field-text { font-family: Arial, Helvetica, sans-serif; font-size: 11px; fill: #2d3748; }
+      .field-name { font-family: Arial, Helvetica, sans-serif; font-size: 11px; font-weight: bold; fill: #1e3a5f; }
+      .small-text { font-family: Arial, Helvetica, sans-serif; font-size: 12px; fill: #4a5568; }
+      .relationship-label { font-family: Arial, Helvetica, sans-serif; font-size: 12px; font-weight: bold; fill: #ffffff; }
+      .cardinality { font-family: Arial, Helvetica, sans-serif; font-size: 11px; font-weight: bold; fill: #2d3748; }
+    </style>
+
+    <marker id="arrow-rel" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#2d3748" />
+    </marker>
+
+    <marker id="arrow-fk" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#9C27B0" />
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1280" height="720" fill="#f7fafc"/>
+
+  <!-- Header -->
+  <rect x="0" y="0" width="1280" height="90" fill="#1e3a5f" opacity="0.05"/>
+  <text x="640" y="55" class="slide-title" text-anchor="middle">Climate Module Data Model</text>
+
+  <!-- Legend -->
+  <g id="legend">
+    <rect x="1040" y="100" width="200" height="120" fill="#ffffff" rx="6" stroke="#CBD5E0" stroke-width="1"/>
+    <text x="1050" y="120" class="section-title" font-size="14">Legend</text>
+
+    <line x1="1050" y1="135" x2="1100" y2="135" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-rel)"/>
+    <text x="1110" y="140" class="small-text" font-size="11">Foreign Key</text>
+
+    <line x1="1050" y1="155" x2="1100" y2="155" stroke="#9C27B0" stroke-width="2" stroke-dasharray="4,4" marker-end="url(#arrow-fk)"/>
+    <text x="1110" y="160" class="small-text" font-size="11">Many-to-Many</text>
+
+    <text x="1050" y="180" class="cardinality">1</text>
+    <text x="1065" y="180" class="small-text" font-size="11">: One</text>
+
+    <text x="1050" y="200" class="cardinality">M</text>
+    <text x="1065" y="200" class="small-text" font-size="11">: Many</text>
+  </g>
+
+  <!-- Core Models -->
+
+  <!-- ClimateDataSource -->
+  <g id="climate-data-source">
+    <rect x="80" y="120" width="220" height="160" fill="#2196F3" rx="8" stroke="#1976D2" stroke-width="2"/>
+    <text x="190" y="145" class="model-title" text-anchor="middle">ClimateDataSource</text>
+    <line x1="95" y1="152" x2="285" y2="152" stroke="#ffffff" stroke-width="1" opacity="0.6"/>
+
+    <rect x="95" y="160" width="190" height="110" fill="#ffffff" rx="4"/>
+    <text x="105" y="177" class="field-name">id</text>
+    <text x="145" y="177" class="field-text">: AutoField (PK)</text>
+
+    <text x="105" y="194" class="field-name">name</text>
+    <text x="145" y="194" class="field-text">: CharField</text>
+
+    <text x="105" y="211" class="field-name">api_endpoint</text>
+    <text x="175" y="211" class="field-text">: URLField</text>
+
+    <text x="105" y="228" class="field-name">is_active</text>
+    <text x="165" y="228" class="field-text">: BooleanField</text>
+
+    <text x="105" y="245" class="field-name">priority</text>
+    <text x="145" y="245" class="field-text">: IntegerField</text>
+
+    <text x="105" y="262" class="field-name">created_at</text>
+    <text x="170" y="262" class="field-text">: DateTimeField</text>
+  </g>
+
+  <!-- ClimateVariable -->
+  <g id="climate-variable">
+    <rect x="80" y="310" width="220" height="160" fill="#4CAF50" rx="8" stroke="#388E3C" stroke-width="2"/>
+    <text x="190" y="335" class="model-title" text-anchor="middle">ClimateVariable</text>
+    <line x1="95" y1="342" x2="285" y2="342" stroke="#ffffff" stroke-width="1" opacity="0.6"/>
+
+    <rect x="95" y="350" width="190" height="110" fill="#ffffff" rx="4"/>
+    <text x="105" y="367" class="field-name">id</text>
+    <text x="145" y="367" class="field-text">: AutoField (PK)</text>
+
+    <text x="105" y="384" class="field-name">name</text>
+    <text x="145" y="384" class="field-text">: CharField</text>
+
+    <text x="105" y="401" class="field-name">variable_type</text>
+    <text x="180" y="401" class="field-text">: CharField</text>
+
+    <text x="105" y="418" class="field-name">unit</text>
+    <text x="135" y="418" class="field-text">: CharField</text>
+
+    <text x="105" y="435" class="field-name">description</text>
+    <text x="170" y="435" class="field-text">: TextField</text>
+
+    <text x="105" y="452" class="field-name">is_derived</text>
+    <text x="170" y="452" class="field-text">: BooleanField</text>
+  </g>
+
+  <!-- ClimateVariableMapping -->
+  <g id="mapping">
+    <rect x="370" y="220" width="220" height="140" fill="#9C27B0" rx="8" stroke="#7B1FA2" stroke-width="2"/>
+    <text x="480" y="245" class="model-title" text-anchor="middle">ClimateVariableMapping</text>
+    <line x1="385" y1="252" x2="575" y2="252" stroke="#ffffff" stroke-width="1" opacity="0.6"/>
+
+    <rect x="385" y="260" width="190" height="90" fill="#ffffff" rx="4"/>
+    <text x="395" y="277" class="field-name">id</text>
+    <text x="435" y="277" class="field-text">: AutoField (PK)</text>
+
+    <text x="395" y="294" class="field-name">source</text>
+    <text x="445" y="294" class="field-text">: FK → DataSource</text>
+
+    <text x="395" y="311" class="field-name">variable</text>
+    <text x="450" y="311" class="field-text">: FK → Variable</text>
+
+    <text x="395" y="328" class="field-name">source_name</text>
+    <text x="475" y="328" class="field-text">: CharField</text>
+
+    <text x="395" y="345" class="field-name">is_available</text>
+    <text x="475" y="345" class="field-text">: BooleanField</text>
+  </g>
+
+  <!-- ClimateDataRequest -->
+  <g id="request">
+    <rect x="660" y="120" width="260" height="200" fill="#1976D2" rx="8" stroke="#1565C0" stroke-width="2"/>
+    <text x="790" y="145" class="model-title" text-anchor="middle">ClimateDataRequest</text>
+    <line x1="675" y1="152" x2="905" y2="152" stroke="#ffffff" stroke-width="1" opacity="0.6"/>
+
+    <rect x="675" y="160" width="230" height="150" fill="#ffffff" rx="4"/>
+    <text x="685" y="177" class="field-name">id</text>
+    <text x="725" y="177" class="field-text">: AutoField (PK)</text>
+
+    <text x="685" y="194" class="field-name">study</text>
+    <text x="730" y="194" class="field-text">: FK → Study (core)</text>
+
+    <text x="685" y="211" class="field-name">source</text>
+    <text x="735" y="211" class="field-text">: FK → DataSource</text>
+
+    <text x="685" y="228" class="field-name">variables</text>
+    <text x="750" y="228" class="field-text">: M2M → Variable</text>
+
+    <text x="685" y="245" class="field-name">status</text>
+    <text x="730" y="245" class="field-text">: CharField (choices)</text>
+
+    <text x="685" y="262" class="field-name">start_date</text>
+    <text x="750" y="262" class="field-text">: DateField</text>
+
+    <text x="685" y="279" class="field-name">end_date</text>
+    <text x="745" y="279" class="field-text">: DateField</text>
+
+    <text x="685" y="296" class="field-name">progress</text>
+    <text x="740" y="296" class="field-text">: IntegerField (0-100)</text>
+  </g>
+
+  <!-- ClimateDataCache -->
+  <g id="cache">
+    <rect x="660" y="355" width="260" height="160" fill="#388E3C" rx="8" stroke="#2E7D32" stroke-width="2"/>
+    <text x="790" y="380" class="model-title" text-anchor="middle">ClimateDataCache</text>
+    <line x1="675" y1="387" x2="905" y2="387" stroke="#ffffff" stroke-width="1" opacity="0.6"/>
+
+    <rect x="675" y="395" width="230" height="110" fill="#ffffff" rx="4"/>
+    <text x="685" y="412" class="field-name">id</text>
+    <text x="725" y="412" class="field-text">: AutoField (PK)</text>
+
+    <text x="685" y="429" class="field-name">cache_key</text>
+    <text x="750" y="429" class="field-text">: CharField (unique)</text>
+
+    <text x="685" y="446" class="field-name">data</text>
+    <text x="720" y="446" class="field-text">: JSONField</text>
+
+    <text x="685" y="463" class="field-name">created_at</text>
+    <text x="755" y="463" class="field-text">: DateTimeField</text>
+
+    <text x="685" y="480" class="field-name">expires_at</text>
+    <text x="755" y="480" class="field-text">: DateTimeField</text>
+
+    <text x="685" y="497" class="field-name">hit_count</text>
+    <text x="750" y="497" class="field-text">: IntegerField</text>
+  </g>
+
+  <!-- Study (Core Module) -->
+  <g id="study">
+    <rect x="990" y="120" width="200" height="120" fill="#607D8B" rx="8" stroke="#455A64" stroke-width="2" stroke-dasharray="5,5"/>
+    <text x="1090" y="145" class="model-title" text-anchor="middle">Study</text>
+    <text x="1090" y="165" class="model-title" text-anchor="middle" font-size="12">(from core module)</text>
+    <line x1="1005" y1="172" x2="1175" y2="172" stroke="#ffffff" stroke-width="1" opacity="0.6"/>
+
+    <rect x="1005" y="180" width="170" height="50" fill="#ffffff" rx="4"/>
+    <text x="1015" y="197" class="field-name">id</text>
+    <text x="1055" y="197" class="field-text">: AutoField (PK)</text>
+
+    <text x="1015" y="214" class="field-name">title</text>
+    <text x="1050" y="214" class="field-text">: CharField</text>
+
+    <text x="1015" y="227" class="field-text">...</text>
+  </g>
+
+  <!-- Relationships -->
+
+  <!-- DataSource (1) → (M) Mapping -->
+  <line x1="300" y1="200" x2="370" y2="290" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-rel)"/>
+  <text x="310" y="190" class="cardinality">1</text>
+  <text x="355" y="285" class="cardinality">M</text>
+
+  <!-- Variable (1) → (M) Mapping -->
+  <line x1="300" y1="390" x2="370" y2="290" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-rel)"/>
+  <text x="310" y="400" class="cardinality">1</text>
+  <text x="355" y="305" class="cardinality">M</text>
+
+  <!-- DataSource (1) → (M) Request -->
+  <line x1="300" y1="150" x2="660" y2="190" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-rel)"/>
+  <text x="310" y="145" class="cardinality">1</text>
+  <text x="645" y="195" class="cardinality">M</text>
+
+  <!-- Study (1) → (M) Request -->
+  <line x1="990" y1="180" x2="920" y2="180" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-rel)"/>
+  <text x="975" y="175" class="cardinality">1</text>
+  <text x="925" y="175" class="cardinality">M</text>
+
+  <!-- Request (M) ←→ (M) Variable via M2M -->
+  <path d="M 790 320 L 790 500 L 300 500 L 300 470" stroke="#9C27B0" stroke-width="2" stroke-dasharray="4,4" marker-end="url(#arrow-fk)" fill="none"/>
+  <text x="790" y="335" class="cardinality" fill="#9C27B0">M</text>
+  <text x="305" y="485" class="cardinality" fill="#9C27B0">M</text>
+  <rect x="510" y="492" width="60" height="20" fill="#9C27B0" rx="3"/>
+  <text x="540" y="506" class="relationship-label" text-anchor="middle" font-size="10">M2M</text>
+
+  <!-- Request can reference Cache (conceptual, not FK) -->
+  <line x1="790" y1="320" x2="790" y2="355" stroke="#2d3748" stroke-width="1.5" stroke-dasharray="2,2"/>
+  <text x="800" y="340" class="small-text" font-size="10">uses</text>
+
+  <!-- Constraint note for Cache -->
+  <rect x="950" y="405" width="220" height="60" fill="#FFF3E0" rx="4" stroke="#FF9800" stroke-width="1"/>
+  <text x="960" y="423" class="field-text" font-weight="bold">Unique Constraint:</text>
+  <text x="960" y="440" class="field-text">cache_key must be unique</text>
+  <text x="960" y="455" class="field-text">(source + variable + dates)</text>
+
+  <!-- Footer -->
+  <text x="640" y="710" class="small-text" text-anchor="middle">Data Models - Entity Relationships and Foreign Keys</text>
+</svg>

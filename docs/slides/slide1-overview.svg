@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720">
+  <defs>
+    <style>
+      .slide-title { font-family: Arial, Helvetica, sans-serif; font-size: 48px; font-weight: bold; fill: #1e3a5f; }
+      .section-title { font-family: Arial, Helvetica, sans-serif; font-size: 28px; font-weight: bold; fill: #2c5282; }
+      .body-text { font-family: Arial, Helvetica, sans-serif; font-size: 18px; fill: #2d3748; }
+      .component-label { font-family: Arial, Helvetica, sans-serif; font-size: 16px; font-weight: bold; fill: #ffffff; }
+      .small-text { font-family: Arial, Helvetica, sans-serif; font-size: 14px; fill: #4a5568; }
+      .feature-title { font-family: Arial, Helvetica, sans-serif; font-size: 16px; font-weight: bold; fill: #2d3748; }
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1280" height="720" fill="#f7fafc"/>
+
+  <!-- Header -->
+  <rect x="0" y="0" width="1280" height="100" fill="#1e3a5f" opacity="0.05"/>
+  <text x="640" y="60" class="slide-title" text-anchor="middle">HarmonAIze Climate Module</text>
+
+  <!-- Purpose Section -->
+  <text x="80" y="140" class="section-title">Purpose</text>
+  <rect x="80" y="155" width="1120" height="3" fill="#2196F3" rx="1.5"/>
+
+  <text x="80" y="190" class="body-text">Link health data with climate variables from multiple authoritative sources</text>
+  <text x="80" y="220" class="body-text">(Google Earth Engine, Copernicus ERA5, WorldClim, CHIRPS, MODIS, OpenWeather)</text>
+
+  <!-- Key Features Section -->
+  <text x="80" y="280" class="section-title">Key Features</text>
+  <rect x="80" y="295" width="1120" height="3" fill="#2196F3" rx="1.5"/>
+
+  <!-- Feature boxes (4-box grid) -->
+  <g id="features">
+    <!-- Multi-source -->
+    <rect x="80" y="320" width="260" height="100" fill="#2196F3" rx="8" opacity="0.1" stroke="#2196F3" stroke-width="2"/>
+    <circle cx="110" cy="350" r="18" fill="#2196F3"/>
+    <text x="110" y="357" class="component-label" text-anchor="middle" font-size="24">MS</text>
+    <text x="140" y="350" class="feature-title">Multi-Source Support</text>
+    <text x="140" y="375" class="small-text">6+ climate data providers</text>
+    <text x="140" y="395" class="small-text">Unified API interface</text>
+
+    <!-- Caching -->
+    <rect x="360" y="320" width="260" height="100" fill="#4CAF50" rx="8" opacity="0.1" stroke="#4CAF50" stroke-width="2"/>
+    <circle cx="390" cy="350" r="18" fill="#4CAF50"/>
+    <text x="390" y="357" class="component-label" text-anchor="middle" font-size="24">SC</text>
+    <text x="420" y="350" class="feature-title">Smart Caching</text>
+    <text x="420" y="375" class="small-text">30-day default expiration</text>
+    <text x="420" y="395" class="small-text">Automatic cache cleanup</text>
+
+    <!-- Progress -->
+    <rect x="640" y="320" width="260" height="100" fill="#1976D2" rx="8" opacity="0.1" stroke="#1976D2" stroke-width="2"/>
+    <circle cx="670" cy="350" r="18" fill="#1976D2"/>
+    <text x="670" y="357" class="component-label" text-anchor="middle" font-size="24">PT</text>
+    <text x="700" y="350" class="feature-title">Progress Tracking</text>
+    <text x="700" y="375" class="small-text">Real-time request status</text>
+    <text x="700" y="395" class="small-text">Detailed error logging</text>
+
+    <!-- Mock Mode -->
+    <rect x="920" y="320" width="260" height="100" fill="#388E3C" rx="8" opacity="0.1" stroke="#388E3C" stroke-width="2"/>
+    <circle cx="950" cy="350" r="18" fill="#388E3C"/>
+    <text x="950" y="357" class="component-label" text-anchor="middle" font-size="24">MM</text>
+    <text x="980" y="350" class="feature-title">Mock Mode</text>
+    <text x="980" y="375" class="small-text">Testing & development</text>
+    <text x="980" y="395" class="small-text">No API credentials needed</text>
+  </g>
+
+  <!-- Components Section -->
+  <text x="80" y="470" class="section-title">Component Layers</text>
+  <rect x="80" y="485" width="1120" height="3" fill="#2196F3" rx="1.5"/>
+
+  <!-- Component Diagram - Simple Layer Architecture -->
+  <g id="components-diagram">
+    <!-- Models Layer -->
+    <rect x="180" y="510" width="200" height="140" fill="#2196F3" rx="12"/>
+    <text x="280" y="540" class="component-label" text-anchor="middle" font-size="20">Models</text>
+    <line x1="200" y1="555" x2="360" y2="555" stroke="#ffffff" stroke-width="2" opacity="0.7"/>
+    <text x="280" y="575" class="component-label" text-anchor="middle" font-size="13">ClimateDataSource</text>
+    <text x="280" y="595" class="component-label" text-anchor="middle" font-size="13">ClimateVariable</text>
+    <text x="280" y="615" class="component-label" text-anchor="middle" font-size="13">ClimateDataRequest</text>
+    <text x="280" y="635" class="component-label" text-anchor="middle" font-size="13">Cache & Mappings</text>
+
+    <!-- Services Layer -->
+    <rect x="420" y="510" width="200" height="140" fill="#4CAF50" rx="12"/>
+    <text x="520" y="540" class="component-label" text-anchor="middle" font-size="20">Services</text>
+    <line x1="440" y1="555" x2="600" y2="555" stroke="#ffffff" stroke-width="2" opacity="0.7"/>
+    <text x="520" y="575" class="component-label" text-anchor="middle" font-size="13">EarthEngineService</text>
+    <text x="520" y="595" class="component-label" text-anchor="middle" font-size="13">CopernicusService</text>
+    <text x="520" y="615" class="component-label" text-anchor="middle" font-size="13">DataProcessor</text>
+    <text x="520" y="635" class="component-label" text-anchor="middle" font-size="13">SpatioTemporal</text>
+
+    <!-- Views Layer -->
+    <rect x="660" y="510" width="200" height="140" fill="#1976D2" rx="12"/>
+    <text x="760" y="540" class="component-label" text-anchor="middle" font-size="20">Views</text>
+    <line x1="680" y1="555" x2="840" y2="555" stroke="#ffffff" stroke-width="2" opacity="0.7"/>
+    <text x="760" y="575" class="component-label" text-anchor="middle" font-size="13">Dashboard</text>
+    <text x="760" y="595" class="component-label" text-anchor="middle" font-size="13">Configuration</text>
+    <text x="760" y="615" class="component-label" text-anchor="middle" font-size="13">Request Mgmt</text>
+    <text x="760" y="635" class="component-label" text-anchor="middle" font-size="13">Data Export</text>
+
+    <!-- Tasks Layer -->
+    <rect x="900" y="510" width="200" height="140" fill="#388E3C" rx="12"/>
+    <text x="1000" y="540" class="component-label" text-anchor="middle" font-size="20">Tasks (Celery)</text>
+    <line x1="920" y1="555" x2="1080" y2="555" stroke="#ffffff" stroke-width="2" opacity="0.7"/>
+    <text x="1000" y="575" class="component-label" text-anchor="middle" font-size="12">process_climate_data</text>
+    <text x="1000" y="595" class="component-label" text-anchor="middle" font-size="12">cleanup_cache</text>
+    <text x="1000" y="615" class="component-label" text-anchor="middle" font-size="12">update_availability</text>
+    <text x="1000" y="635" class="component-label" text-anchor="middle" font-size="12">generate_report</text>
+
+    <!-- Arrows showing flow -->
+    <defs>
+      <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+        <polygon points="0 0, 10 3, 0 6" fill="#2d3748" />
+      </marker>
+    </defs>
+    <line x1="380" y1="580" x2="420" y2="580" stroke="#2d3748" stroke-width="3" marker-end="url(#arrowhead)"/>
+    <line x1="620" y1="580" x2="660" y2="580" stroke="#2d3748" stroke-width="3" marker-end="url(#arrowhead)"/>
+    <line x1="860" y1="580" x2="900" y2="580" stroke="#2d3748" stroke-width="3" marker-end="url(#arrowhead)"/>
+  </g>
+
+  <!-- Footer -->
+  <text x="640" y="700" class="small-text" text-anchor="middle">HarmonAIze Climate Module - Technical Overview</text>
+</svg>

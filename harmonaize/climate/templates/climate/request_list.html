@@ -84,14 +84,9 @@
                         View
                       </a>
                       {% if request.status == 'completed' %}
-                      <a href="{% url 'climate:data_export' request.pk %}" 
+                      <a href="{% url 'climate:data_export' request.pk %}"
                          class="btn btn-outline-success" title="Download Data">
                         CSV
-                      </a>
-                      {% elif request.status == 'pending' %}
-                      <a href="{% url 'climate:integration' request.pk %}" 
-                         class="btn btn-outline-warning" title="Process Request">
-                        Process
                       </a>
                       {% endif %}
                     </div>

@@ -1,0 +1,205 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap');
+
+      .slide-title { font-family: 'Inter', sans-serif; font-size: 48px; font-weight: 700; fill: #1e3a5f; }
+      .section-title { font-family: 'Inter', sans-serif; font-size: 24px; font-weight: 600; fill: #2c5282; }
+      .subsection-title { font-family: 'Inter', sans-serif; font-size: 18px; font-weight: 600; fill: #ffffff; }
+      .body-text { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 400; fill: #2d3748; }
+      .small-text { font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 400; fill: #4a5568; }
+      .white-text { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 400; fill: #ffffff; }
+    </style>
+
+    <linearGradient id="bg-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#e6f2ff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#f0f9ff;stop-opacity:1" />
+    </linearGradient>
+
+    <linearGradient id="models-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#3182ce;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#2c5282;stop-opacity:1" />
+    </linearGradient>
+
+    <linearGradient id="services-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#38a169;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#2f855a;stop-opacity:1" />
+    </linearGradient>
+
+    <linearGradient id="views-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#5a67d8;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#4c51bf;stop-opacity:1" />
+    </linearGradient>
+
+    <linearGradient id="tasks-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#38b2ac;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#319795;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1280" height="720" fill="url(#bg-gradient)"/>
+
+  <!-- Header -->
+  <rect x="0" y="0" width="1280" height="100" fill="#1e3a5f" opacity="0.05"/>
+  <text x="640" y="60" class="slide-title" text-anchor="middle">Architecture &amp; Components</text>
+
+  <!-- Left Column: Models & Services -->
+  <g id="left-column">
+    <!-- Models Section -->
+    <text x="50" y="130" class="section-title">Models (Database Layer)</text>
+    <rect x="50" y="140" width="280" height="3" fill="#3182ce" rx="1.5"/>
+
+    <!-- ClimateDataSource -->
+    <rect x="50" y="155" width="280" height="85" fill="url(#models-gradient)" rx="8"/>
+    <text x="60" y="175" class="subsection-title">1. ClimateDataSource</text>
+    <text x="60" y="195" class="white-text">• name, source_type, api_endpoint</text>
+    <text x="60" y="210" class="white-text">• is_active, requires_auth</text>
+    <text x="60" y="225" class="white-text">• Tracks external data providers</text>
+
+    <!-- ClimateVariable -->
+    <rect x="50" y="250" width="280" height="85" fill="url(#models-gradient)" rx="8"/>
+    <text x="60" y="270" class="subsection-title">2. ClimateVariable</text>
+    <text x="60" y="290" class="white-text">• name, category, unit</text>
+    <text x="60" y="305" class="white-text">• Categories: temp, precip, humidity,</text>
+    <text x="60" y="320" class="white-text">  wind, solar, vegetation, air quality</text>
+
+    <!-- ClimateVariableMapping -->
+    <rect x="50" y="345" width="280" height="75" fill="url(#models-gradient)" rx="8"/>
+    <text x="60" y="365" class="subsection-title">3. ClimateVariableMapping</text>
+    <text x="60" y="385" class="white-text">• variable, data_source</text>
+    <text x="60" y="400" class="white-text">• source_identifier, parameters</text>
+    <text x="60" y="415" class="white-text">• Maps variables to source APIs</text>
+
+    <!-- ClimateDataRequest -->
+    <rect x="50" y="430" width="280" height="95" fill="url(#models-gradient)" rx="8"/>
+    <text x="60" y="450" class="subsection-title">4. ClimateDataRequest</text>
+    <text x="60" y="470" class="white-text">• study, requested_by, status</text>
+    <text x="60" y="485" class="white-text">• data_source, variables</text>
+    <text x="60" y="500" class="white-text">• start_date, end_date, buffer</text>
+    <text x="60" y="515" class="white-text">• Status: pending → processing →</text>
+    <text x="60" y="530" class="white-text">  completed/failed</text>
+
+    <!-- ClimateDataCache -->
+    <rect x="50" y="535" width="280" height="75" fill="url(#models-gradient)" rx="8"/>
+    <text x="60" y="555" class="subsection-title">5. ClimateDataCache</text>
+    <text x="60" y="575" class="white-text">• cache_key, data, expires_at</text>
+    <text x="60" y="590" class="white-text">• 30-day expiration</text>
+    <text x="60" y="605" class="white-text">• Optimizes repeated queries</text>
+  </g>
+
+  <!-- Middle Column: Services -->
+  <g id="middle-column">
+    <text x="360" y="130" class="section-title">Service Classes</text>
+    <rect x="360" y="140" width="280" height="3" fill="#38a169" rx="1.5"/>
+
+    <!-- BaseClimateDataService -->
+    <rect x="360" y="155" width="280" height="85" fill="url(#services-gradient)" rx="8"/>
+    <text x="370" y="175" class="subsection-title">1. BaseClimateDataService</text>
+    <text x="370" y="195" class="white-text">• Abstract base class</text>
+    <text x="370" y="210" class="white-text">• fetch_data() interface</text>
+    <text x="370" y="225" class="white-text">• validate_parameters()</text>
+
+    <!-- EarthEngineDataService -->
+    <rect x="360" y="250" width="280" height="85" fill="url(#services-gradient)" rx="8"/>
+    <text x="370" y="270" class="subsection-title">2. EarthEngineDataService</text>
+    <text x="370" y="290" class="white-text">• Google Earth Engine integration</text>
+    <text x="370" y="305" class="white-text">• MODIS, Landsat, Sentinel data</text>
+    <text x="370" y="320" class="white-text">• Vegetation indices, land cover</text>
+
+    <!-- CopernicusDataService -->
+    <rect x="360" y="345" width="280" height="85" fill="url(#services-gradient)" rx="8"/>
+    <text x="370" y="365" class="subsection-title">3. CopernicusDataService</text>
+    <text x="370" y="385" class="white-text">• ERA5 reanalysis data</text>
+    <text x="370" y="400" class="white-text">• Temperature, precipitation</text>
+    <text x="370" y="415" class="white-text">• Hourly/daily aggregations</text>
+
+    <!-- ClimateDataProcessor -->
+    <rect x="360" y="440" width="280" height="95" fill="url(#services-gradient)" rx="8"/>
+    <text x="370" y="460" class="subsection-title">4. ClimateDataProcessor</text>
+    <text x="370" y="480" class="white-text">• Orchestrates data retrieval</text>
+    <text x="370" y="495" class="white-text">• Check cache → Fetch → Process</text>
+    <text x="370" y="510" class="white-text">• Apply temporal aggregation</text>
+    <text x="370" y="525" class="white-text">• Create Observation records</text>
+
+    <!-- SpatioTemporalMatcher -->
+    <rect x="360" y="545" width="280" height="65" fill="url(#services-gradient)" rx="8"/>
+    <text x="370" y="565" class="subsection-title">5. SpatioTemporalMatcher</text>
+    <text x="370" y="585" class="white-text">• Match locations to grid points</text>
+    <text x="370" y="600" class="white-text">• Spatial buffer handling</text>
+  </g>
+
+  <!-- Right Column: Views & Tasks -->
+  <g id="right-column">
+    <!-- Views Section -->
+    <text x="670" y="130" class="section-title">Views &amp; Forms</text>
+    <rect x="670" y="140" width="280" height="3" fill="#5a67d8" rx="1.5"/>
+
+    <!-- Dashboard -->
+    <rect x="670" y="155" width="280" height="65" fill="url(#views-gradient)" rx="8"/>
+    <text x="680" y="175" class="subsection-title">Climate Dashboard</text>
+    <text x="680" y="195" class="white-text">• Overview of data sources</text>
+    <text x="680" y="210" class="white-text">• Recent requests &amp; status</text>
+
+    <!-- Configuration -->
+    <rect x="670" y="230" width="280" height="75" fill="url(#views-gradient)" rx="8"/>
+    <text x="680" y="250" class="subsection-title">Configuration View</text>
+    <text x="680" y="270" class="white-text">• Select data source &amp; variables</text>
+    <text x="680" y="285" class="white-text">• Set date range &amp; aggregation</text>
+    <text x="680" y="300" class="white-text">• Configure spatial buffer</text>
+
+    <!-- Request Management -->
+    <rect x="670" y="315" width="280" height="65" fill="url(#views-gradient)" rx="8"/>
+    <text x="680" y="335" class="subsection-title">Request Management</text>
+    <text x="680" y="355" class="white-text">• List view with filters</text>
+    <text x="680" y="370" class="white-text">• Detail view with progress</text>
+
+    <!-- Data Export -->
+    <rect x="670" y="390" width="280" height="55" fill="url(#views-gradient)" rx="8"/>
+    <text x="680" y="410" class="subsection-title">Data Export</text>
+    <text x="680" y="430" class="white-text">• CSV, JSON formats</text>
+
+    <!-- HTMX Partials -->
+    <rect x="670" y="455" width="280" height="65" fill="url(#views-gradient)" rx="8"/>
+    <text x="680" y="475" class="subsection-title">HTMX Partials</text>
+    <text x="680" y="495" class="white-text">• Dynamic UI updates</text>
+    <text x="680" y="510" class="white-text">• Progress indicators</text>
+
+    <!-- Tasks Section -->
+    <text x="980" y="130" class="section-title">Celery Tasks</text>
+    <rect x="980" y="140" width="270" height="3" fill="#38b2ac" rx="1.5"/>
+
+    <!-- Task 1 -->
+    <rect x="980" y="155" width="270" height="75" fill="url(#tasks-gradient)" rx="8"/>
+    <text x="990" y="175" class="subsection-title">process_climate_data</text>
+    <text x="990" y="195" class="white-text">• Async request processing</text>
+    <text x="990" y="210" class="white-text">• Status updates via signals</text>
+    <text x="990" y="225" class="white-text">• Error handling &amp; retry</text>
+
+    <!-- Task 2 -->
+    <rect x="980" y="240" width="270" height="65" fill="url(#tasks-gradient)" rx="8"/>
+    <text x="990" y="260" class="subsection-title">cleanup_expired_cache</text>
+    <text x="990" y="280" class="white-text">• Scheduled daily</text>
+    <text x="990" y="295" class="white-text">• Remove expired entries</text>
+
+    <!-- Task 3 -->
+    <rect x="980" y="315" width="270" height="65" fill="url(#tasks-gradient)" rx="8"/>
+    <text x="990" y="335" class="subsection-title">update_availability</text>
+    <text x="990" y="355" class="white-text">• Check source health</text>
+    <text x="990" y="370" class="white-text">• Update is_active flags</text>
+
+    <!-- Task 4 -->
+    <rect x="980" y="390" width="270" height="65" fill="url(#tasks-gradient)" rx="8"/>
+    <text x="990" y="410" class="subsection-title">generate_report</text>
+    <text x="990" y="430" class="white-text">• Summary statistics</text>
+    <text x="990" y="445" class="white-text">• Data quality metrics</text>
+  </g>
+
+  <!-- Design Patterns Box -->
+  <rect x="50" y="625" width="1200" height="70" fill="#1e3a5f" rx="8" opacity="0.08"/>
+  <text x="640" y="650" class="section-title" text-anchor="middle">Design Patterns Used</text>
+  <text x="640" y="675" class="body-text" text-anchor="middle">Service Layer • Strategy Pattern • Caching • Request-Response • Template Method • HTMX Partial Rendering</text>
+
+  <!-- Footer -->
+  <text x="640" y="710" class="small-text" text-anchor="middle">HarmonAIze Climate Module - Technical Documentation</text>
+</svg>

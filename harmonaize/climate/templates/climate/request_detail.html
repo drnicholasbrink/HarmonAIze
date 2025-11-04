@@ -320,8 +320,7 @@
   <nav aria-label="breadcrumb">
     <ol class="breadcrumb">
       <li class="breadcrumb-item"><a href="{% url 'home' %}">Home</a></li>
-      <li class="breadcrumb-item"><a href="{% url 'climate:landing' %}">Climate</a></li>
-      <li class="breadcrumb-item"><a href="{% url 'climate:dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'climate:dashboard' %}">Climate</a></li>
       <li class="breadcrumb-item active">Request #{{ climate_request.id }}</li>
     </ol>
   </nav>
@@ -451,12 +450,12 @@
         
         <div class="detail-item">
           <div class="detail-label">Requested By</div>
-          <div class="detail-value">{{ climate_request.requested_by.get_full_name|default:climate_request.requested_by.username }}</div>
+          <div class="detail-value">{{ climate_request.study.created_by.get_full_name|default:climate_request.study.created_by.username }}</div>
         </div>
-        
+
         <div class="detail-item">
           <div class="detail-label">Requested At</div>
-          <div class="detail-value">{{ climate_request.requested_at|date:"M d, Y H:i" }}</div>
+          <div class="detail-value">{{ climate_request.created_at|date:"M d, Y H:i" }}</div>
         </div>
       </div>
     </div>
@@ -474,9 +473,6 @@
       <a href="{% url 'climate:data_export' climate_request.id %}" class="btn-climate btn-climate-success">
         Download Climate Data (CSV)
       </a>
-      <a href="{% url 'climate:data_preview' climate_request.id %}" class="btn-climate">
-        Preview Data
-      </a>
     </div>
   </div>
   {% endif %}
@@ -490,11 +486,7 @@
       </a>
       
       <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
-        {% if climate_request.status == 'pending' %}
-        <a href="{% url 'climate:integration' climate_request.id %}" class="btn-climate">
-          Process Climate Data
-        </a>
-        {% elif climate_request.status == 'processing' %}
+        {% if climate_request.status == 'processing' %}
         <button class="btn-climate btn-climate-warning" id="refresh-status">
           Refresh Status
         </button>
