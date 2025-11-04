@@ -1,4 +1,4 @@
- .. _userbut you'll be able to customise it in the future if the need arises.:
+ .. _users:
 
 Users
 ======================================================================

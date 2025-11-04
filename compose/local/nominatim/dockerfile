@@ -1,8 +1,7 @@
 FROM mediagis/nominatim:4.4
-
 USER root
 
-# Install aria2c
+# Download working aria2 static binary from P3TERX
 RUN curl -L https://github.com/P3TERX/Aria2-Pro-Core/releases/download/1.36.0_2021.08.22/aria2-1.36.0-static-linux-amd64.tar.gz \
     -o aria2.tar.gz && \
     tar -xzf aria2.tar.gz && \
@@ -10,12 +9,10 @@ RUN curl -L https://github.com/P3TERX/Aria2-Pro-Core/releases/download/1.36.0_20
     chmod +x /usr/local/bin/aria2c && \
     rm -rf aria2*
 
-# Copy init script
 COPY compose/local/nominatim/init-aria2c.sh /app/init-aria2c.sh
+RUN chmod +x /app/init-aria2c.sh && cp /app/init-aria2c.sh /app/init.sh
 
-# Create nominatim user
-RUN useradd -ms /bin/bash nominatim
+# Remove this line - let the original startup script handle user switching
+# USER nominatim
 
-USER nominatim
-
-ENTRYPOINT ["/app/init-aria2c.sh"]
+ENTRYPOINT ["/app/start.sh"]

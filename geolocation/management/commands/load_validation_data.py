@@ -1,6 +1,6 @@
 import csv
 from django.core.management.base import BaseCommand
-from geolocation.models import ValidatedDataset
+from harmonaize.geolocation.models import ValidatedDataset
 
 class Command(BaseCommand):
     help = 'Load validated location data (POI arsenal) from CSV file'

@@ -660,15 +660,34 @@
           <div class="action-description">Manage your existing studies</div>
         </a>
         
-        <a href="{% url 'geolocation:dashboard_root' %}" class="action-btn">
+        <!-- Data Ingestion Action -->
+        {% if source_studies_count > 0 %}
+        <a href="{% url 'health:upload_raw_data' %}" class="action-btn">
           <span class="action-icon">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-              <circle cx="12" cy="10" r="3"></circle>
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17,8 12,3 7,8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
             </svg>
           </span>
-          <div class="action-title">Geolocation</div>
-          <div class="action-description">Geocode and validate locations</div>
+          <div class="action-title">Upload Raw Data</div>
+          <div class="action-description">Upload CSV files for data processing</div>
+        </a>
+        {% endif %}
+        
+        <!-- View Raw Data Files Action -->
+        <a href="{% url 'health:raw_data_list' %}" class="action-btn">
+          <span class="action-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="13,2 13,9 20,9"></polyline>
+              <circle cx="10" cy="13" r="2"></circle>
+              <path d="M10 15v2"></path>
+              <path d="M10 11v-2"></path>
+            </svg>
+          </span>
+          <div class="action-title">View Data Files</div>
+          <div class="action-description">Manage your uploaded raw data files</div>
         </a>
         
         <a href="#" class="action-btn" onclick="showUpcomingFeature('Documentation'); return false;">

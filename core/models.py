@@ -3,6 +3,8 @@ from django.db import models
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.urls import reverse
+from django.conf import settings
+from pgvector.django import VectorField
 import ast
 
 User = get_user_model()
@@ -91,6 +93,7 @@ class Location(models.Model):
     name = models.CharField(max_length=200, blank=True, help_text="Place name (clinic, city, etc.)")
     latitude = models.FloatField(null=True, blank=True, validators=[MinValueValidator(-90.0), MaxValueValidator(90.0)], help_text="Latitude in decimal degrees (-90 to 90).")
     longitude = models.FloatField(null=True, blank=True, validators=[MinValueValidator(-180.0), MaxValueValidator(180.0)], help_text="Longitude in decimal degrees (-180 to 180).")
+    country = models.CharField(max_length=100, blank=True, help_text="Country of the location.")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -160,12 +163,98 @@ class Attribute(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # Vector embeddings for semantic search and similarity matching
+    name_embedding = VectorField(
+        dimensions=settings.EMBEDDING_DIMENSIONS,
+        null=True,
+        blank=True,
+        help_text="Vector embedding of the variable name for semantic similarity search"
+    )
+    description_embedding = VectorField(
+        dimensions=settings.EMBEDDING_DIMENSIONS,
+        null=True,
+        blank=True,
+        help_text="Vector embedding of the description for semantic similarity search"
+    )
+    
+    # t-SNE 2D projection coordinates for visualization
+    name_tsne_x = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="X coordinate from t-SNE projection of name embedding",
+    )
+    name_tsne_y = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Y coordinate from t-SNE projection of name embedding",
+    )
+    description_tsne_x = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="X coordinate from t-SNE projection of description embedding",
+    )
+    description_tsne_y = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Y coordinate from t-SNE projection of description embedding",
+    )
+
     def __str__(self):
         return self.display_name or self.variable_name
 
     def clean(self):
         if self.variable_type in ['float', 'int'] and not self.unit:
             raise ValidationError("Unit required for numeric types.")
+
+    @property
+    def has_name_embedding(self):
+        """Check if the attribute has a name embedding."""
+        return self.name_embedding is not None
+
+    @property
+    def has_description_embedding(self):
+        """Check if the attribute has a description embedding."""
+        return self.description_embedding is not None
+
+    @property
+    def has_embeddings(self):
+        """Check if the attribute has both name and description embeddings."""
+        return self.has_name_embedding and self.has_description_embedding
+
+    @property
+    def embeddings_status(self):
+        """Return a human-readable embedding status."""
+        if self.has_name_embedding and self.has_description_embedding:
+            return "Complete"
+        elif self.has_name_embedding or self.has_description_embedding:
+            return "Partial"
+        else:
+            return "Pending"
+    
+    @property
+    def has_name_tsne(self):
+        """Check if the attribute has name t-SNE coordinates."""
+        return self.name_tsne_x is not None and self.name_tsne_y is not None
+    
+    @property
+    def has_description_tsne(self):
+        """Check if the attribute has description t-SNE coordinates."""
+        return self.description_tsne_x is not None and self.description_tsne_y is not None
+    
+    @property
+    def has_tsne_projections(self):
+        """Check if the attribute has both name and description t-SNE projections."""
+        return self.has_name_tsne and self.has_description_tsne
+    
+    @property
+    def tsne_status(self):
+        """Return a human-readable t-SNE projection status."""
+        if self.has_name_tsne and self.has_description_tsne:
+            return "Complete"
+        elif self.has_name_tsne or self.has_description_tsne:
+            return "Partial"
+        else:
+            return "Pending"
             
     class Meta:
         # Ensure unique variable names within each source type

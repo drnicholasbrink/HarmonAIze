@@ -52,6 +52,13 @@ DATABASES["default"]["ATOMIC_REQUESTS"] = True
 # https://docs.djangoproject.com/en/stable/ref/settings/#std:setting-DEFAULT_AUTO_FIELD
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# DATA UPLOAD LIMITS
+# ------------------------------------------------------------------------------
+# Increase the maximum number of POST parameters to handle large variable selection forms
+# Default is 1000, but we may have many variables with multiple fields each
+# https://docs.djangoproject.com/en/dev/ref/settings/#data-upload-max-number-fields
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000
+
 # URLS
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#root-urlconf
@@ -83,6 +90,7 @@ THIRD_PARTY_APPS = [
     "rest_framework.authtoken",
     "corsheaders",
     "drf_spectacular",
+    "django_ace",
 ]
 
 LOCAL_APPS = [
@@ -289,7 +297,7 @@ CELERY_RESULT_EXTENDED = True
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#result-backend-always-retry
 # https://github.com/celery/celery/pull/6122
 CELERY_RESULT_BACKEND_ALWAYS_RETRY = True
-# https://docs.celeryq.dev/en/stable/userguide/configuration.html#result-backend-max-retries
+#https://docs.celeryq.dev/en/stable/userguide/configuration.html#result-backend-max-retries
 CELERY_RESULT_BACKEND_MAX_RETRIES = 10
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#std:setting-accept_content
 CELERY_ACCEPT_CONTENT = ["json"]
@@ -369,8 +377,11 @@ GOOGLE_GEOCODING_API_KEY = env.str('GOOGLE_GEOCODING_API_KEY', default=None)
 GEOCODING_TIMEOUT_LOCAL = env.int('GEOCODING_TIMEOUT_LOCAL', default=5)
 GEOCODING_TIMEOUT_REMOTE = env.int('GEOCODING_TIMEOUT_REMOTE', default=15)
 
-# Gemini LLM Configuration for Enhanced Geocoding
+# OpenAI Embeddings Configuration
 # ------------------------------------------------------------------------------
-GEMINI_API_KEY = env.str('GEMINI_API_KEY', default=None)
-GEOLOCATION_USE_LLM = env.bool('GEOLOCATION_USE_LLM', default=True)
-GEOLOCATION_LLM_CONFLICT_THRESHOLD_KM = env.float('GEOLOCATION_LLM_CONFLICT_THRESHOLD_KM', default=5.0)
+OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
+OPENAI_EMBEDDING_MODEL = env("OPENAI_EMBEDDING_MODEL", default="text-embedding-3-large")
+OPENAI_TRANSFORMATION_MODEL = env("OPENAI_TRANSFORMATION_MODEL", default="gpt-5")
+EMBEDDING_CHUNK_TOKENS = env.int("EMBEDDING_CHUNK_TOKENS", default=8000)
+EMBEDDING_CHUNK_OVERLAP = env.int("EMBEDDING_CHUNK_OVERLAP", default=50)
+EMBEDDING_DIMENSIONS = env.int("EMBEDDING_DIMENSIONS", default=3072)  # text-embedding-3-large default

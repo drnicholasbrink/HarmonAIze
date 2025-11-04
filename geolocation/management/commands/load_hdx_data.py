@@ -4,7 +4,7 @@ import os
 import tempfile
 from django.core.management.base import BaseCommand
 from django.db import transaction
-from geolocation.models import HDXHealthFacility
+from harmonaize.geolocation.models import HDXHealthFacility
 class Command(BaseCommand):
     help = 'Import HDX Health Facilities data from CSV file or URL'
 

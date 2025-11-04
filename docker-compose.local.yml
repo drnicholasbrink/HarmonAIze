@@ -81,6 +81,7 @@ services:
       - '5555:5555'
     command: /start-flower
 
+  
   nominatim:
     build:
       context: .
@@ -89,58 +90,61 @@ services:
     container_name: harmonaize_local_nominatim
     environment:
       - NOMINATIM_PASSWORD=harmonaize_secure_pass_2024
-    
-      - PBF_URL=https://planet.openstreetmap.org/pbf/planet-latest.osm.pbf
       
-      # Import settings 
+   
+      - PBF_URL=https://download.geofabrik.de/planet/planet-latest.osm.pbf
+      
+      
       - UPDATE_MODE=import
-      - IMPORT_STYLE=street      # Includes health facilities
+      - IMPORT_STYLE=street      
       - IMPORT_WIKIPEDIA=false
       - IMPORT_US_POSTCODES=false
       - IMPORT_GB_POSTCODES=false
       - IMPORT_TIGER_ADDRESSES=false
       
-      # Enable full geocoding capabilities
+      
       - REVERSE_ONLY=false
       - FREEZE=false
       
-      # Performance settings 
-      - THREADS=8
-      - GUNICORN_WORKERS=4
       
-      # Memory settings 
-      - POSTGRES_SHARED_BUFFERS=8GB
-      - POSTGRES_MAINTENANCE_WORK_MEM=16GB
-      - POSTGRES_AUTOVACUUM_WORK_MEM=4GB
-      - POSTGRES_WORK_MEM=1GB
-      - POSTGRES_EFFECTIVE_CACHE_SIZE=24GB
+      - THREADS=8               
+      - GUNICORN_WORKERS=4     
+      
+      
+      - POSTGRES_SHARED_BUFFERS=4GB          
+      - POSTGRES_MAINTENANCE_WORK_MEM=8GB     
+      - POSTGRES_AUTOVACUUM_WORK_MEM=2GB      
+      - POSTGRES_WORK_MEM=512MB              
+      - POSTGRES_EFFECTIVE_CACHE_SIZE=12GB    
       - POSTGRES_SYNCHRONOUS_COMMIT=off
-      - POSTGRES_MAX_WAL_SIZE=8GB
-      - POSTGRES_CHECKPOINT_TIMEOUT=30min
+      - POSTGRES_MAX_WAL_SIZE=4GB             
+      - POSTGRES_CHECKPOINT_TIMEOUT=20min    
       - POSTGRES_CHECKPOINT_COMPLETION_TARGET=0.9
-      - POSTGRES_WAL_BUFFERS=128MB
+      - POSTGRES_WAL_BUFFERS=64MB             
       - POSTGRES_RANDOM_PAGE_COST=1.1
-      - POSTGRES_MIN_WAL_SIZE=4GB
-      - POSTGRES_CHECKPOINT_SEGMENTS=256
       
-    env_file:
-      - ./.envs/.local/.nominatim  #SCP credentials
+     
+      - POSTGRES_MIN_WAL_SIZE=2GB
+      - POSTGRES_CHECKPOINT_SEGMENTS=128
+      
     ports:
       - "8080:8080"
     volumes:
       - nominatim_data:/var/lib/postgresql/14/main
       - nominatim_flatnode:/nominatim/flatnode
-    shm_size: '16gb'
+     
+    shm_size: '8gb'  
     deploy:
       resources:
         limits:
-          memory: 32G  
-          
+          memory: 32G    
+        reservations:
+          memory: 8G    
     
-   
+    
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/status"]
-      interval: 120s
-      timeout: 60s
-      retries: 15
-      start_period: 14400s 
+      interval: 60s      
+      timeout: 30s       
+      retries: 10        
+      start_period: 7200s 
