@@ -24,4 +24,15 @@ urlpatterns = [
     path('target/<int:study_id>/extract/', views.target_extract_variables, name='target_extract_variables'),
     path('target/<int:study_id>/select/', views.target_select_variables, name='target_select_variables'),
     path('target/<int:study_id>/reset/', views.target_reset_variables, name='target_reset_variables'),
+    
+    # Embedding generation
+    path('studies/<int:study_id>/generate-embeddings/', views.generate_study_embeddings, name='generate_study_embeddings'),
+    path('studies/<int:study_id>/embedding-progress/', views.embedding_progress, name='embedding_progress'),
+    path('attributes/<int:attribute_id>/generate-embedding/', views.generate_attribute_embedding, name='generate_attribute_embedding'),
+    
+    # t-SNE visualization
+    path('projects/<int:project_id>/tsne/generate/', views.generate_project_tsne, name='generate_project_tsne'),
+    path('projects/<int:project_id>/tsne/progress/', views.tsne_progress, name='tsne_progress'),
+    path('projects/<int:project_id>/tsne/visualization/', views.tsne_visualization, name='tsne_visualization'),
+    path('projects/<int:project_id>/tsne/data/', views.tsne_data_api, name='tsne_data_api'),
 ]

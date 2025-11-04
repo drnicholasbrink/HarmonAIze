@@ -10,7 +10,7 @@
       --primary-color: #007AFF;
       --secondary-color: #5AC8FA;
       --accent-color: #34C759;
-      --background-color: #F2F2F7;
+      --background-color: #f2f7f3;
       --card-background: #FFFFFF;
       --text-primary: #1C1C1E;
       --text-secondary: #8E8E93;
@@ -29,11 +29,16 @@
     .hero-section {
       background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
       color: white;
-      padding: 4rem 0;
-      margin: -1rem -15px 0 -15px;
+      padding: 1.2rem 0; /* Reduced vertical padding */
+      margin: 2rem auto 0 auto; /* Center horizontally, add top margin */
       text-align: center;
       position: relative;
       overflow: hidden;
+      border-radius: var(--border-radius);
+      width: 100vw; /* Fit hero section to window width */
+      max-width: none;
+      width: 100%;
+      box-shadow: var(--shadow);
     }
 
     .hero-section::before {
@@ -52,7 +57,7 @@
       z-index: 1;
       max-width: 800px;
       margin: 0 auto;
-      padding: 0 1rem;
+      padding: 0 0.5rem;
     }
 
     .hero-title {
@@ -73,25 +78,55 @@
     }
 
     .content-section {
-      padding: 3rem 0;
+      padding: 1.2rem 0;
     }
 
     .feature-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 2rem;
-      margin: 3rem 0;
+      gap: 1rem;
+      margin: 1.5rem 0;
     }
 
     .feature-card {
       background: var(--card-background);
       border-radius: var(--border-radius);
-      padding: 2rem;
+      padding: 1rem;
       box-shadow: var(--shadow);
       border: 1px solid var(--border-color);
       transition: all 0.3s ease;
       position: relative;
       overflow: hidden;
+    }
+
+    .feature-title-row {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      margin-bottom: 0.3rem;
+    }
+    .feature-title {
+      margin-bottom: 0.1rem !important;
+    }
+
+    .feature-icon {
+      width: 1.6em;
+      height: 1.6em;
+      min-width: 1.6em;
+      min-height: 1.6em;
+      background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      color: white;
+      margin-bottom: 0;
+      flex-shrink: 0;
+    }
+    .feature-title {
+      display: flex;
+      align-items: center;
     }
 
     .feature-card::before {
@@ -117,7 +152,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      margin-bottom: 1.5rem;
+      margin-bottom: 0rem;
       font-size: 1.5rem;
       color: white;
     }
@@ -144,7 +179,8 @@
       font-size: 2.5rem;
       font-weight: 700;
       text-align: center;
-      margin-bottom: 1rem;
+      margin-top: 0.5rem;
+      margin-bottom: 0.5rem;
       color: var(--text-primary);
       letter-spacing: -0.02em;
     }
@@ -153,7 +189,7 @@
       font-size: 1.2rem;
       text-align: center;
       color: var(--text-secondary);
-      margin-bottom: 3rem;
+      margin-bottom: 0.5rem;
       max-width: 600px;
       margin-left: auto;
       margin-right: auto;
@@ -162,23 +198,29 @@
     .cta-section {
       background: var(--card-background);
       border-radius: var(--border-radius);
-      padding: 3rem 2rem;
+      padding: 1.2rem 1rem;
       text-align: center;
       box-shadow: var(--shadow);
       border: 1px solid var(--border-color);
-      margin: 3rem 0;
+      margin: 2.5rem 0 0.7rem 0;
+    }
+
+    .cta-section p, .cta-section .section-title {
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
     }
 
     .stats-container {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 2rem;
-      margin: 3rem 0;
+      gap: 1rem;
+      margin: 1.5rem 0;
     }
 
     .stat-item {
       text-align: center;
-      padding: 1.5rem;
+      padding: 0.7rem;
       background: var(--card-background);
       border-radius: var(--border-radius);
       box-shadow: var(--shadow);
@@ -242,6 +284,7 @@
           discovery and enable evidence-based insights that can inform policy and improve global health outcomes.
         </p>
       </div>
+
       <!-- Core Modules -->
       <div class="row">
         <div class="col-12">
@@ -254,10 +297,12 @@
 
       <div class="feature-grid">
         <div class="feature-card">
-          <div class="feature-icon">
-            {% include 'components/svg_icon.html' with icon='hospital' size='64' color='white' %}
+          <div class="feature-title-row">
+            <div class="feature-icon">
+              {% include 'components/svg_icon.html' with icon='hospital' size='32' color='white' %}
+            </div>
+            <h3 class="feature-title" style="margin-bottom: 0;">Health Module</h3>
           </div>
-          <h3 class="feature-title">Health Module</h3>
           <p class="feature-description">
             Specialized tools for harmonising health variables across diverse datasets. 
             Standardizes medical terminology, units, and coding systems while maintaining 
@@ -266,10 +311,26 @@
         </div>
 
         <div class="feature-card">
-          <div class="feature-icon">
-            {% include 'components/svg_icon.html' with icon='globe' size='64' color='white' %}
+          <div class="feature-title-row">
+            <div class="feature-icon">
+              {% include 'components/svg_icon.html' with icon='map-pin' size='32' color='white' %}
+            </div>
+            <h3 class="feature-title" style="margin-bottom: 0;">Geolocation Module</h3>
           </div>
-          <h3 class="feature-title">Climate Module</h3>
+          <p class="feature-description">
+            Secure geolocation services for health facilities and addresses. 
+            Enables spatial analysis while protecting sensitive location data 
+            through privacy-preserving federated approaches to geocoding.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-title-row">
+            <div class="feature-icon">
+              {% include 'components/svg_icon.html' with icon='thermometer' size='32' color='white' %}
+            </div>
+            <h3 class="feature-title" style="margin-bottom: 0;">Climate Module</h3>
+          </div>
           <p class="feature-description">
             Secure linkage and integration of climate data with health records. 
             Provides access to curated environmental datasets while ensuring 
@@ -277,17 +338,6 @@
           </p>
         </div>
 
-        <div class="feature-card">
-          <div class="feature-icon">
-            {% include 'components/svg_icon.html' with icon='map-pin' size='64' color='white' %}
-          </div>
-          <h3 class="feature-title">Geolocation Module</h3>
-          <p class="feature-description">
-            Secure geolocation services for health facilities and addresses. 
-            Enables spatial analysis while protecting sensitive location data 
-            through privacy-preserving federated approaches to geocoding.
-          </p>
-        </div>
       </div>
 
       <!-- Platform Features -->
@@ -302,10 +352,12 @@
 
       <div class="feature-grid">
         <div class="feature-card">
-          <div class="feature-icon">
-            {% include 'components/svg_icon.html' with icon='link' size='32' color='white' %}
+          <div class="feature-title-row">
+            <div class="feature-icon">
+              {% include 'components/svg_icon.html' with icon='link' size='32' color='white' %}
+            </div>
+            <h3 class="feature-title" style="margin-bottom: 0;">Data Integration</h3>
           </div>
-          <h3 class="feature-title">Data Integration</h3>
           <p class="feature-description">
             Seamlessly map, clean, and unify heterogeneous datasets from multiple sources 
             with intelligent AI-assisted workflows that preserve data integrity.
@@ -313,10 +365,12 @@
         </div>
 
         <div class="feature-card">
-          <div class="feature-icon">
-            {% include 'components/svg_icon.html' with icon='shield' size='32' color='white' %}
+          <div class="feature-title-row">
+            <div class="feature-icon">
+              {% include 'components/svg_icon.html' with icon='shield' size='32' color='white' %}
+            </div>
+            <h3 class="feature-title" style="margin-bottom: 0;">Privacy-First</h3>
           </div>
-          <h3 class="feature-title">Privacy-First</h3>
           <p class="feature-description">
             Built with federated approaches that maintain data privacy and security, 
             ensuring sensitive health information remains protected throughout the process.
@@ -324,10 +378,12 @@
         </div>
 
         <div class="feature-card">
-          <div class="feature-icon">
-            {% include 'components/svg_icon.html' with icon='robot' size='32' color='white' %}
+          <div class="feature-title-row">
+            <div class="feature-icon">
+              {% include 'components/svg_icon.html' with icon='robot' size='32' color='white' %}
+            </div>
+            <h3 class="feature-title" style="margin-bottom: 0;">AI-Powered</h3>
           </div>
-          <h3 class="feature-title">AI-Powered</h3>
           <p class="feature-description">
             Leverage advanced AI algorithms to automate complex data harmonisation tasks, 
             reducing manual effort and improving accuracy.
@@ -335,7 +391,7 @@
         </div>
       </div>
 
-      <!-- Statistics Section -->
+      <!-- Research Impact -->
       <div class="row">
         <div class="col-12">
           <h2 class="section-title">Research Impact</h2>
@@ -345,6 +401,44 @@
         </div>
       </div>
 
+      <div class="feature-grid">
+        <div class="feature-card">
+          <div class="feature-title-row">
+            <div class="feature-icon">
+              {% include 'components/svg_icon.html' with icon='database' size='32' color='white' %}
+            </div>
+            <h3 class="feature-title" style="margin-bottom: 0;">Advancing Harmonisation of Health Data</h3>
+          </div>
+          <p class="feature-description">
+            Reduced reliance on manual, resource-intensive harmonisation processes, improving reproducibility, transparency, and scalability of research across diseases and contexts
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-title-row">
+            <div class="feature-icon">
+              {% include 'components/svg_icon.html' with icon='bolt' size='32' color='white' %}
+            </div>
+            <h3 class="feature-title" style="margin-bottom: 0;">Catalysing Climate–Health Research</h3>
+          </div>
+          <p class="feature-description">
+            Overcoming the bottleneck of linking health and climate data, enabling large-scale spatiotemporal analyses of climate exposures and health outcomes.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-title-row">
+            <div class="feature-icon">
+              {% include 'components/svg_icon.html' with icon='globe' size='32' color='white' %}
+            </div>
+            <h3 class="feature-title" style="margin-bottom: 0;">Global Health and Policy Impacts</h3>
+          </div>
+          <p class="feature-description">
+            Generating evidence on climate change’s health impacts (e.g., heat exposure, maternal outcomes, infectious diseases) to inform public health policy, global disease burden estimates, and adaptation strategies.
+          </p>
+        </div>
+      </div>
+        <!-- Statistics Section -->
       <div class="stats-container">
         <div class="stat-item">
           <span class="stat-number">100%</span>
@@ -355,6 +449,31 @@
           <div class="stat-label">Research Possibilities</div>
         </div>
       </div>
+
+            <!-- The Team -->
+      <div class="row">
+        <div class="col-12">
+          <h2 class="section-title">Meet the Team</h2>
+          <p class="section-subtitle">
+            The HarmonAIze project is a transdisciplinary collaboration within the DS-I Africa consortium, including climate, health, geospatial, data, and machine-learning (ML) expertise
+          </p>
+        </div>
+      </div>
+
+      <div class="feature-grid">
+        <div class="feature-card">
+          <div class="feature-title-row">
+            <div class="feature-icon">
+              {% include 'components/svg_icon.html' with icon='network' size='32' color='white' %}
+            </div>
+            <h3 class="feature-title" style="margin-bottom: 0;">Our Partners</h3>
+          </div>
+          <p class="feature-description">
+            Coming Soon
+          </p>
+        </div>
+      </div>
+
     </div>
   </div>
 {% endblock content %}
