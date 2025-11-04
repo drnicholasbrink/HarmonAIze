@@ -25,7 +25,8 @@ djangorestframework==3.15.2  # https://github.com/encode/django-rest-framework
 django-cors-headers==4.7.0  # https://github.com/adamchainz/django-cors-headers
 # DRF-spectacular for api documentation
 drf-spectacular==0.28.0  # https://github.com/tfranzel/drf-spectacular
-
+# ACE for code editor
+django-ace==1.43.3
 #pygraphviz for ERD
 graphviz==0.17
 #pygraphviz==1.7  # https://pygraphviz.github.io/ failing to install on RS machine..commented out to proceed with other requirements
@@ -37,3 +38,4 @@ openpyxl==3.1.5  # https://openpyxl.readthedocs.io/
 #geocolation
 fuzzywuzzy == 0.18.0
 python-levenshtein ==  0.27.1
+pgvector==0.4.1

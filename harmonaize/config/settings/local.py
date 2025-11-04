@@ -71,9 +71,28 @@ INSTALLED_APPS += ["django_extensions"]
 
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#task-eager-propagates
 CELERY_TASK_EAGER_PROPAGATES = True
+
+# OpenAI API Configuration
+# ------------------------------------------------------------------------------
+# For local development, you can set a default test key or leave empty
+# The actual key should be set in your local environment variables
+OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
+
 # Your stuff...
 # Geocoding
 LOCAL_NOMINATIM_URL = 'http://nominatim:8080'
 GOOGLE_GEOCODING_API_KEY = "AIzaSyBxCNZ27yBk7ZAg73yw7GK3HrgMDQT-Cp4"
 GEOCODING_TIMEOUT_LOCAL = 5   # Local services should be fast
 GEOCODING_TIMEOUT_REMOTE = 10 # Remote services may be slower
+
+# ------------------------------------------------------------------------------
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': env('POSTGRES_DB', default='postgres'),
+        'USER': env('POSTGRES_USER', default='drnicholasbrink'),
+        'PASSWORD': env('POSTGRES_PASSWORD', default='qirvyw-nurkoR-kyzgi7'),
+        'HOST': env('POSTGRES_HOST', default='harmonaize-db.postgres.database.azure.com'),
+        'PORT': env('POSTGRES_PORT', default='5432'),
+    }
+}
