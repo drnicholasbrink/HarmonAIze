@@ -17,75 +17,14 @@
         content="HarmonAIze Consortium" />
   <link rel="icon" href="{% static 'images/favicons/favicon.ico' %}" />
   {% block css %}
-    <!-- Bootstrap 5.3.0 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
-    
-    <!-- Your stuff: Third-party CSS libraries go here -->
-    <!-- This file stores project-specific CSS -->
-    
-    <!-- Custom styles -->
-    <style>
-      /* Custom styles */
-      :root {
-        --primary-color: #2E7D32;
-        --secondary-color: #1565C0;
-        --accent-color: #FF8F00;
-        --light-bg: #F5F5F5;
-      }
-      
-      body {
-        font-family: 'Roboto', sans-serif;
-        background-color: var(--light-bg);
-      }
-      
-      .navbar {
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      }
-      
-      .hero-section {
-        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-        color: white;
-        padding: 6rem 0;
-        margin-bottom: 2rem;
-      }
-      
-      .feature-box {
-        border-radius: 10px;
-        padding: 1.5rem;
-        margin-bottom: 2rem;
-        background-color: white;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        transition: transform 0.3s ease;
-      }
-      
-      .feature-box:hover {
-        transform: translateY(-5px);
-      }
-      
-      .feature-icon {
-        font-size: 2.5rem;
-        margin-bottom: 1rem;
-        color: var(--primary-color);
-      }
-      
-      .accent-btn {
-        background-color: var(--accent-color);
-        border-color: var(--accent-color);
-      }
-
-      .accent-btn:hover {
-        background-color: #F57C00;
-        border-color: #F57C00;
-      }
-
-      footer {
-        background-color: #343a40;
-        color: white;
-        padding: 2rem 0;
-        margin-top: 2rem;
-      }
-    </style>
+    <!-- Latest compiled and minified Bootstrap CSS -->
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/css/bootstrap.min.css"
+          integrity="sha512-SbiR/eusphKoMVVXysTKG/7VseWii+Y3FdHrt0EpKgpToZeemhqHeZeLWLhJutz/2ut2Vw1uQEj2MbRF+TVBUA=="
+          crossorigin="anonymous"
+          referrerpolicy="no-referrer" />
+<!-- Your stuff: Third-party CSS libraries go here -->
+<!-- This file stores project-specific CSS -->
 
   
   <link href="{% static 'css/project.css' %}" rel="stylesheet" />
@@ -96,17 +35,30 @@
     ================================================== -->
 {# Placed at the top of the document so pages load faster with defer #}
 {% block javascript %}
-    <!-- Bootstrap 5.3.0 JS Bundle (with Popper) -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <!-- Project specific JS -->
-    <script defer src="{% static 'js/project.js' %}"></script>
+
+
+<!-- Bootstrap JS -->
+<script defer
+        src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/js/bootstrap.min.js"
+        integrity="sha512-1/RvZTcCDEUjY/CypiMz+iqqtaoQfAITmNSJY17Myp4Ms5mdxPS5UV7iOfdZoxcGhzFbOm6sntTKJppjvuhg4g=="
+        crossorigin="anonymous"
+        referrerpolicy="no-referrer"></script>
+<!-- Your stuff: Third-party javascript libraries go here -->
+
+
+<!-- place project specific Javascript in this file -->
+
+  
+  <script defer src="{% static 'js/project.js' %}"></script>
+
+
 {% endblock javascript %}
 </head>
 <body class="{% block bodyclass %}{% endblock bodyclass %}">
   {% block body %}
   <div class="mb-1">
-    <nav class="navbar navbar-expand-md navbar-dark bg-dark">
-      <div class="container">
+    <nav class="navbar navbar-expand-md navbar-light bg-light">
+      <div class="container-fluid">
         <button class="navbar-toggler navbar-toggler-right"
                 type="button"
                 data-bs-toggle="collapse"
@@ -119,23 +71,23 @@
         <a class="navbar-brand" href="{% url 'home' %}">HarmonAIze</a>
         <div class="collapse navbar-collapse" id="navbarSupportedContent">
           <ul class="navbar-nav me-auto">
-            <li class="nav-item">
-              <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="{% url 'home' %}">Home</a>
+            <li class="nav-item active">
+              <a class="nav-link" href="{% url 'home' %}">Home <span class="visually-hidden">(current)</span></a>
             </li>
             <li class="nav-item">
-              <a class="nav-link {% if request.path == '/about/' %}active{% endif %}" href="{% url 'about' %}">About</a>
-            </li>
-            <li class="nav-item dropdown">
-              <a class="nav-link dropdown-toggle" href="#" id="featuresDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">Features</a>
-              <ul class="dropdown-menu" aria-labelledby="featuresDropdown">
-                <li><a class="dropdown-item" href="{% url 'data_mapping' %}">Data Mapping</a></li>
-                <li><a class="dropdown-item" href="{% url 'data_cleaning' %}">Data Cleaning</a></li>
-                <li><a class="dropdown-item" href="{% url 'data_integration' %}">Data Integration</a></li>
-                <li><hr class="dropdown-divider"></li>
-                <li><a class="dropdown-item" href="{% url 'api-docs' %}">API Documentation</a></li>
-              </ul>
+              <a class="nav-link" href="{% url 'about' %}">About</a>
             </li>
             {% if request.user.is_authenticated %}
+              <li class="nav-item">
+                <a class="nav-link fw-bold" href="{% url 'core:dashboard' %}">
+                  {% include 'components/svg_icon.html' with icon='dashboard' size='16' class='inline-icon' %} Dashboard
+                </a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="{% url 'climate:dashboard' %}">
+                  {% include 'components/svg_icon.html' with icon='cloud' size='16' class='inline-icon' %} Climate Data
+                </a>
+              </li>
               <li class="nav-item">
                 <a class="nav-link"
                    href="{% url 'users:detail' request.user.pk %}">{% translate "My Profile" %}</a>
@@ -178,36 +130,8 @@
         <p>Use this document as a way to quick start any new project.</p>
       {% endblock content %}
     {% endblock main %}
+
   </div>
-  
-  <footer class="footer mt-auto">
-    <div class="container py-4">
-      <div class="row">
-        <div class="col-md-4 mb-4 mb-md-0">
-          <h5>HarmonAIze</h5>
-          <p class="text-muted">Open-source toolkit for harmonizing climate and health data</p>
-        </div>
-        <div class="col-md-4 mb-4 mb-md-0">
-          <h5>Links</h5>
-          <ul class="list-unstyled">
-            <li><a href="{% url 'home' %}" class="text-white">Home</a></li>
-            <li><a href="{% url 'about' %}" class="text-white">About</a></li>
-            <li><a href="{% url 'api-docs' %}" class="text-white">API Documentation</a></li>
-            <li><a href="https://github.com/drnicholasbrink/HarmonAIze" class="text-white">GitHub Repository</a></li>
-          </ul>
-        </div>
-        <div class="col-md-4">
-          <h5>Contact</h5>
-          <ul class="list-unstyled">
-            <li><a href="mailto:info@harmonaize.org" class="text-white">info@harmonaize.org</a></li>
-            <li><a href="https://github.com/drnicholasbrink/HarmonAIze" class="text-white">GitHub Repository</a></li>
-          </ul>
-        </div>
-      </div>
-      <hr class="my-4 bg-white">
-      <p class="mb-0 text-center">© {% now "Y" %} HarmonAIze - Licensed under MIT</p>
-    </div>
-  </footer>
   {% endblock body %}
   <!-- /container -->
   {% block modal %}
@@ -222,6 +146,11 @@
       });
     </script>
     {% endcomment %}
+    <script>
+      function showUpcomingFeature(featureName) {
+        alert('🚧 ' + featureName + ' - Feature Coming Soon!\n\nThis feature is currently under development and will be available in a future release.');
+      }
+    </script>
   {% endblock inline_javascript %}
 </body>
 </html>

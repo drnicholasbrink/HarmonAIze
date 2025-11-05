@@ -1,0 +1,202 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap');
+
+      .slide-title { font-family: 'Inter', sans-serif; font-size: 48px; font-weight: 700; fill: #1e3a5f; }
+      .module-title { font-family: 'Inter', sans-serif; font-size: 24px; font-weight: 600; fill: #ffffff; }
+      .component-title { font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 600; fill: #2d3748; }
+      .component-text { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 400; fill: #2d3748; }
+      .relationship-text { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600; fill: #2d3748; }
+      .small-text { font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 400; fill: #4a5568; }
+    </style>
+
+    <linearGradient id="bg-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#e6f2ff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#f0f9ff;stop-opacity:1" />
+    </linearGradient>
+
+    <linearGradient id="climate-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#3182ce;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#2c5282;stop-opacity:1" />
+    </linearGradient>
+
+    <linearGradient id="core-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#38a169;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#2f855a;stop-opacity:1" />
+    </linearGradient>
+
+    <linearGradient id="users-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#5a67d8;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#4c51bf;stop-opacity:1" />
+    </linearGradient>
+
+    <linearGradient id="health-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#e53e3e;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#c53030;stop-opacity:1" />
+    </linearGradient>
+
+    <linearGradient id="geo-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#d97706;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#b45309;stop-opacity:1" />
+    </linearGradient>
+
+    <marker id="arrow-blue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#3182ce" />
+    </marker>
+
+    <marker id="arrow-green" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#38a169" />
+    </marker>
+
+    <marker id="arrow-purple" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#5a67d8" />
+    </marker>
+
+    <marker id="arrow-red" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#e53e3e" />
+    </marker>
+
+    <marker id="arrow-orange" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#d97706" />
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1280" height="720" fill="url(#bg-gradient)"/>
+
+  <!-- Header -->
+  <rect x="0" y="0" width="1280" height="100" fill="#1e3a5f" opacity="0.05"/>
+  <text x="640" y="60" class="slide-title" text-anchor="middle">Module Integration Map</text>
+
+  <!-- Central Climate Module -->
+  <g id="climate-module">
+    <rect x="440" y="260" width="400" height="200" fill="url(#climate-gradient)" rx="12" stroke="#2c5282" stroke-width="3"/>
+    <text x="640" y="295" class="module-title" text-anchor="middle">CLIMATE MODULE</text>
+
+    <!-- Climate Components -->
+    <g id="climate-components">
+      <rect x="460" y="310" width="360" height="135" fill="#ffffff" rx="8" opacity="0.95"/>
+
+      <text x="470" y="330" class="component-title">ClimateDataRequest</text>
+      <text x="470" y="347" class="component-text">• Request management</text>
+
+      <text x="470" y="375" class="component-title">ClimateDataSource</text>
+      <text x="470" y="392" class="component-text">• External data providers</text>
+
+      <text x="470" y="420" class="component-title">Services: EarthEngine, Copernicus</text>
+      <text x="470" y="437" class="component-text">• Data retrieval &amp; processing</text>
+    </g>
+  </g>
+
+  <!-- Core Module (Top) -->
+  <g id="core-module">
+    <rect x="440" y="120" width="400" height="110" fill="url(#core-gradient)" rx="10" stroke="#2f855a" stroke-width="2"/>
+    <text x="640" y="150" class="module-title" text-anchor="middle">CORE MODULE</text>
+
+    <rect x="460" y="160" width="360" height="60" fill="#ffffff" rx="6" opacity="0.95"/>
+    <text x="475" y="180" class="component-text">Study • Location • TimeDimension</text>
+    <text x="475" y="198" class="component-text">Attribute (category='climate') • Observation</text>
+    <text x="475" y="216" class="component-text">Study.needs_climate_linkage field</text>
+  </g>
+
+  <!-- Users Module (Left) -->
+  <g id="users-module">
+    <rect x="80" y="290" width="280" height="140" fill="url(#users-gradient)" rx="10" stroke="#4c51bf" stroke-width="2"/>
+    <text x="220" y="320" class="module-title" text-anchor="middle">USERS MODULE</text>
+
+    <rect x="100" y="330" width="240" height="85" fill="#ffffff" rx="6" opacity="0.95"/>
+    <text x="115" y="355" class="component-text">User model</text>
+    <text x="115" y="375" class="component-title">Relationships:</text>
+    <text x="115" y="393" class="component-text">• requested_by ForeignKey</text>
+    <text x="115" y="408" class="component-text">• created_by ForeignKey</text>
+  </g>
+
+  <!-- Health Module (Right) -->
+  <g id="health-module">
+    <rect x="920" y="290" width="280" height="140" fill="url(#health-gradient)" rx="10" stroke="#c53030" stroke-width="2"/>
+    <text x="1060" y="320" class="module-title" text-anchor="middle">HEALTH MODULE</text>
+
+    <rect x="940" y="330" width="240" height="85" fill="#ffffff" rx="6" opacity="0.95"/>
+    <text x="955" y="355" class="component-text">Health data collection</text>
+    <text x="955" y="375" class="component-title">Integration:</text>
+    <text x="955" y="393" class="component-text">• Shares Observation model</text>
+    <text x="955" y="408" class="component-text">• Enables climate-health analysis</text>
+  </g>
+
+  <!-- Geolocation Module (Bottom) -->
+  <g id="geo-module">
+    <rect x="440" y="490" width="400" height="110" fill="url(#geo-gradient)" rx="10" stroke="#b45309" stroke-width="2"/>
+    <text x="640" y="520" class="module-title" text-anchor="middle">GEOLOCATION MODULE</text>
+
+    <rect x="460" y="530" width="360" height="60" fill="#ffffff" rx="6" opacity="0.95"/>
+    <text x="475" y="550" class="component-text">Spatial data processing</text>
+    <text x="475" y="568" class="component-text">• Requires geolocated data (lat/lon)</text>
+    <text x="475" y="584" class="component-text">• Spatial buffer functionality for climate data</text>
+  </g>
+
+  <!-- Arrows and Relationships -->
+  <g id="relationships">
+    <!-- Core to Climate -->
+    <line x1="640" y1="230" x2="640" y2="260" stroke="#38a169" stroke-width="4" marker-end="url(#arrow-green)"/>
+    <text x="570" y="248" class="relationship-text" fill="#38a169">Study, Location,</text>
+    <text x="570" y="262" class="relationship-text" fill="#38a169">TimeDimension</text>
+
+    <!-- Climate to Core (reverse) -->
+    <line x1="680" y1="260" x2="680" y2="230" stroke="#3182ce" stroke-width="4" marker-end="url(#arrow-blue)"/>
+    <text x="690" y="248" class="relationship-text" fill="#3182ce">Creates Attributes</text>
+    <text x="690" y="262" class="relationship-text" fill="#3182ce">&amp; Observations</text>
+
+    <!-- Users to Climate -->
+    <line x1="360" y1="360" x2="440" y2="360" stroke="#5a67d8" stroke-width="4" marker-end="url(#arrow-purple)"/>
+    <text x="365" y="345" class="relationship-text" fill="#5a67d8">requested_by</text>
+    <text x="365" y="360" class="relationship-text" fill="#5a67d8">created_by</text>
+
+    <!-- Climate to Health -->
+    <line x1="840" y1="360" x2="920" y2="360" stroke="#3182ce" stroke-width="4" marker-end="url(#arrow-blue)"/>
+    <text x="845" y="345" class="relationship-text" fill="#3182ce">Shared</text>
+    <text x="845" y="360" class="relationship-text" fill="#3182ce">Observation</text>
+    <text x="845" y="375" class="relationship-text" fill="#3182ce">model</text>
+
+    <!-- Geo to Climate -->
+    <line x1="640" y1="490" x2="640" y2="460" stroke="#d97706" stroke-width="4" marker-end="url(#arrow-orange)"/>
+    <text x="560" y="478" class="relationship-text" fill="#d97706">Spatial data</text>
+    <text x="560" y="493" class="relationship-text" fill="#d97706">(lat/lon, buffer)</text>
+  </g>
+
+  <!-- Data Flow Legend -->
+  <g id="legend">
+    <rect x="50" y="520" width="320" height="150" fill="#ffffff" stroke="#cbd5e0" stroke-width="2" rx="8"/>
+    <text x="210" y="545" class="component-title" text-anchor="middle" font-size="18">Data Flow Patterns</text>
+
+    <line x1="70" y1="565" x2="120" y2="565" stroke="#38a169" stroke-width="3" marker-end="url(#arrow-green)"/>
+    <text x="130" y="570" class="small-text">Core → Climate: Model dependencies</text>
+
+    <line x1="70" y1="590" x2="120" y2="590" stroke="#3182ce" stroke-width="3" marker-end="url(#arrow-blue)"/>
+    <text x="130" y="595" class="small-text">Climate → Core: Data storage</text>
+
+    <line x1="70" y1="615" x2="120" y2="615" stroke="#5a67d8" stroke-width="3" marker-end="url(#arrow-purple)"/>
+    <text x="130" y="620" class="small-text">Users → Climate: Authorization</text>
+
+    <line x1="70" y1="640" x2="120" y2="640" stroke="#d97706" stroke-width="3" marker-end="url(#arrow-orange)"/>
+    <text x="130" y="645" class="small-text">Geolocation → Climate: Spatial data</text>
+  </g>
+
+  <!-- Key Integration Points -->
+  <g id="key-points">
+    <rect x="910" y="520" width="320" height="150" fill="#ffffff" stroke="#cbd5e0" stroke-width="2" rx="8"/>
+    <text x="1070" y="545" class="component-title" text-anchor="middle" font-size="18">Key Integration Points</text>
+
+    <text x="930" y="570" class="small-text" font-weight="600">1. Observation Model (Shared)</text>
+    <text x="940" y="588" class="small-text">Climate &amp; health data in unified format</text>
+
+    <text x="930" y="610" class="small-text" font-weight="600">2. Study Configuration</text>
+    <text x="940" y="628" class="small-text">needs_climate_linkage flag enables module</text>
+
+    <text x="930" y="650" class="small-text" font-weight="600">3. Spatial Matching</text>
+    <text x="940" y="668" class="small-text">Location coordinates + buffer zones</text>
+  </g>
+
+  <!-- Footer -->
+  <text x="640" y="710" class="small-text" text-anchor="middle">HarmonAIze Climate Module - Technical Documentation</text>
+</svg>

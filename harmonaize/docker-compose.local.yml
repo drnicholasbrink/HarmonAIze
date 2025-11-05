@@ -18,10 +18,13 @@ services:
       - mailpit
     volumes:
       - .:/app:z
+      - ./credentials:/app/credentials:ro
     env_file:
       - ./.envs/.local/.django
       - ./.envs/.local/.postgres
-
+    environment:
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/gee-service-account.json
+      - CLIMATE_USE_MOCK_DATA=False
     ports:
       - '8000:8000'
     command: /start

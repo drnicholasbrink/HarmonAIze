@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720">
+  <defs>
+    <style>
+      .slide-title { font-family: Arial, Helvetica, sans-serif; font-size: 48px; font-weight: bold; fill: #1e3a5f; }
+      .section-title { font-family: Arial, Helvetica, sans-serif; font-size: 20px; font-weight: bold; fill: #2c5282; }
+      .state-title { font-family: Arial, Helvetica, sans-serif; font-size: 16px; font-weight: bold; fill: #ffffff; }
+      .body-text { font-family: Arial, Helvetica, sans-serif; font-size: 13px; fill: #2d3748; }
+      .small-text { font-family: Arial, Helvetica, sans-serif; font-size: 11px; fill: #4a5568; }
+      .label-text { font-family: Arial, Helvetica, sans-serif; font-size: 12px; font-weight: bold; fill: #2d3748; }
+      .timing-text { font-family: Arial, Helvetica, sans-serif; font-size: 11px; font-style: italic; fill: #9C27B0; }
+      .action-text { font-family: Arial, Helvetica, sans-serif; font-size: 11px; fill: #2d3748; }
+    </style>
+
+    <marker id="arrow-flow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#2d3748" />
+    </marker>
+
+    <marker id="arrow-success" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#4CAF50" />
+    </marker>
+
+    <marker id="arrow-error" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#F44336" />
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1280" height="720" fill="#f7fafc"/>
+
+  <!-- Header -->
+  <rect x="0" y="0" width="1280" height="90" fill="#1e3a5f" opacity="0.05"/>
+  <text x="640" y="55" class="slide-title" text-anchor="middle">Request Processing Lifecycle</text>
+
+  <!-- Timeline/State Flow -->
+  <g id="lifecycle-flow">
+    <text x="640" y="115" class="section-title" text-anchor="middle">State Transition Flow</text>
+
+    <!-- State 1: PENDING -->
+    <g id="state-pending">
+      <rect x="80" y="140" width="200" height="140" fill="#FFC107" rx="8" stroke="#F57C00" stroke-width="2"/>
+      <text x="180" y="165" class="state-title" text-anchor="middle" fill="#000000">PENDING</text>
+      <line x1="95" y1="172" x2="265" y2="172" stroke="#000000" stroke-width="1" opacity="0.3"/>
+
+      <text x="95" y="190" class="body-text" font-weight="bold">Actions:</text>
+      <text x="100" y="208" class="action-text">- Request created</text>
+      <text x="100" y="224" class="action-text">- Validate inputs</text>
+      <text x="100" y="240" class="action-text">- Check cache</text>
+      <text x="100" y="256" class="action-text">- Queue task</text>
+
+      <text x="180" y="273" class="timing-text" text-anchor="middle">~1-2 seconds</text>
+    </g>
+
+    <!-- Arrow: Pending → Processing -->
+    <line x1="280" y1="210" x2="350" y2="210" stroke="#2d3748" stroke-width="3" marker-end="url(#arrow-flow)"/>
+    <text x="315" y="200" class="label-text" text-anchor="middle" font-size="11">Task Started</text>
+
+    <!-- Cache Decision Diamond -->
+    <g id="cache-decision">
+      <path d="M 400 180 L 440 210 L 400 240 L 360 210 Z" fill="#E1BEE7" stroke="#9C27B0" stroke-width="2"/>
+      <text x="400" y="210" class="label-text" text-anchor="middle" font-size="10">Cache</text>
+      <text x="400" y="222" class="label-text" text-anchor="middle" font-size="10">Hit?</text>
+    </g>
+
+    <!-- Cache hit path (bypass) -->
+    <line x1="400" y1="240" x2="400" y2="280" stroke="#4CAF50" stroke-width="2" marker-end="url(#arrow-success)"/>
+    <text x="410" y="265" class="label-text" fill="#4CAF50" font-size="10">Yes</text>
+    <line x1="400" y1="280" x2="575" y2="280" stroke="#4CAF50" stroke-width="2"/>
+    <line x1="575" y1="280" x2="575" y2="210" stroke="#4CAF50" stroke-width="2" marker-end="url(#arrow-success)"/>
+    <text x="480" y="275" class="small-text" fill="#4CAF50">Fast path (skip API)</text>
+
+    <!-- Cache miss path -->
+    <line x1="440" y1="210" x2="500" y2="210" stroke="#2d3748" stroke-width="3" marker-end="url(#arrow-flow)"/>
+    <text x="470" y="200" class="label-text" fill="#2d3748" font-size="10">No</text>
+
+    <!-- State 2: PROCESSING -->
+    <g id="state-processing">
+      <rect x="505" y="140" width="200" height="140" fill="#2196F3" rx="8" stroke="#1976D2" stroke-width="2"/>
+      <text x="605" y="165" class="state-title" text-anchor="middle">PROCESSING</text>
+      <line x1="520" y1="172" x2="690" y2="172" stroke="#ffffff" stroke-width="1" opacity="0.6"/>
+
+      <text x="520" y="190" class="body-text" font-weight="bold">Actions:</text>
+      <text x="525" y="208" class="action-text">- Select data service</text>
+      <text x="525" y="224" class="action-text">- Authenticate API</text>
+      <text x="525" y="240" class="action-text">- Fetch climate data</text>
+      <text x="525" y="256" class="action-text">- Update progress</text>
+
+      <text x="605" y="273" class="timing-text" text-anchor="middle">~30-120 seconds</text>
+    </g>
+
+    <!-- Arrow: Processing → Decision -->
+    <line x1="705" y1="210" x2="775" y2="210" stroke="#2d3748" stroke-width="3" marker-end="url(#arrow-flow)"/>
+    <text x="740" y="200" class="label-text" text-anchor="middle" font-size="11">API Response</text>
+
+    <!-- Success/Failure Decision Diamond -->
+    <g id="result-decision">
+      <path d="M 825 180 L 865 210 L 825 240 L 785 210 Z" fill="#FFE082" stroke="#FFA000" stroke-width="2"/>
+      <text x="825" y="213" class="label-text" text-anchor="middle" font-size="10">Success?</text>
+    </g>
+
+    <!-- Success path -->
+    <line x1="865" y1="210" x2="935" y2="210" stroke="#4CAF50" stroke-width="3" marker-end="url(#arrow-success)"/>
+    <text x="900" y="200" class="label-text" fill="#4CAF50" font-size="11">Yes</text>
+
+    <!-- State 3: COMPLETED -->
+    <g id="state-completed">
+      <rect x="940" y="140" width="200" height="140" fill="#4CAF50" rx="8" stroke="#388E3C" stroke-width="2"/>
+      <text x="1040" y="165" class="state-title" text-anchor="middle">COMPLETED</text>
+      <line x1="955" y1="172" x2="1125" y2="172" stroke="#ffffff" stroke-width="1" opacity="0.6"/>
+
+      <text x="955" y="190" class="body-text" font-weight="bold">Actions:</text>
+      <text x="960" y="208" class="action-text">- Store in cache</text>
+      <text x="960" y="224" class="action-text">- Create observations</text>
+      <text x="960" y="240" class="action-text">- Set progress=100%</text>
+      <text x="960" y="256" class="action-text">- Send notification</text>
+
+      <text x="1040" y="273" class="timing-text" text-anchor="middle">~2-5 seconds</text>
+    </g>
+
+    <!-- Failure path -->
+    <line x1="825" y1="240" x2="825" y2="320" stroke="#F44336" stroke-width="3" marker-end="url(#arrow-error)"/>
+    <text x="835" y="280" class="label-text" fill="#F44336" font-size="11">No</text>
+
+    <!-- State 4: FAILED -->
+    <g id="state-failed">
+      <rect x="725" y="325" width="200" height="140" fill="#F44336" rx="8" stroke="#D32F2F" stroke-width="2"/>
+      <text x="825" y="350" class="state-title" text-anchor="middle">FAILED</text>
+      <line x1="740" y1="357" x2="910" y2="357" stroke="#ffffff" stroke-width="1" opacity="0.6"/>
+
+      <text x="740" y="375" class="body-text" font-weight="bold">Actions:</text>
+      <text x="745" y="393" class="action-text">- Log error details</text>
+      <text x="745" y="409" class="action-text">- Store error message</text>
+      <text x="745" y="425" class="action-text">- Check retry count</text>
+      <text x="745" y="441" class="action-text">- Send alert</text>
+
+      <text x="825" y="458" class="timing-text" text-anchor="middle">~1 second</text>
+    </g>
+
+    <!-- Retry logic -->
+    <line x1="725" y1="395" x2="650" y2="395" stroke="#FF9800" stroke-width="2" stroke-dasharray="4,4"/>
+    <line x1="650" y1="395" x2="650" y2="280" stroke="#FF9800" stroke-width="2" stroke-dasharray="4,4"/>
+    <line x1="650" y1="280" x2="605" y2="280" stroke="#FF9800" stroke-width="2" stroke-dasharray="4,4" marker-end="url(#arrow-flow)"/>
+    <rect x="645" y="320" width="70" height="30" fill="#FF9800" rx="4"/>
+    <text x="680" y="338" class="state-title" text-anchor="middle" font-size="11">Retry</text>
+    <text x="680" y="350" class="state-title" text-anchor="middle" font-size="9">(max 3x)</text>
+  </g>
+
+  <!-- Bottom: Progress Tracking & Error Handling -->
+  <g id="details">
+    <rect x="80" y="490" width="1120" height="200" fill="#F5F5F5" rx="6" stroke="#9E9E9E" stroke-width="1"/>
+
+    <!-- Progress Tracking -->
+    <g id="progress-tracking">
+      <text x="100" y="515" class="section-title" font-size="18">Progress Tracking</text>
+      <rect x="100" y="520" width="340" height="2" fill="#2196F3"/>
+
+      <rect x="100" y="535" width="340" height="140" fill="#E3F2FD" rx="4" stroke="#2196F3" stroke-width="1"/>
+      <text x="115" y="555" class="body-text" font-weight="bold">Real-time Updates:</text>
+      <text x="120" y="575" class="action-text">- Progress field: 0-100%</text>
+      <text x="120" y="593" class="action-text">- Status field: pending/processing/</text>
+      <text x="135" y="608" class="action-text">completed/failed</text>
+      <text x="120" y="626" class="action-text">- Progress messages stored</text>
+      <text x="120" y="644" class="action-text">- WebSocket updates (optional)</text>
+      <text x="120" y="662" class="action-text">- Last updated timestamp</text>
+    </g>
+
+    <!-- Cache Strategy -->
+    <g id="cache-strategy">
+      <text x="480" y="515" class="section-title" font-size="18">Cache Strategy</text>
+      <rect x="480" y="520" width="340" height="2" fill="#4CAF50"/>
+
+      <rect x="480" y="535" width="340" height="140" fill="#E8F5E9" rx="4" stroke="#4CAF50" stroke-width="1"/>
+      <text x="495" y="555" class="body-text" font-weight="bold">Decision Points:</text>
+      <text x="500" y="575" class="action-text">- Cache key: source + variable +</text>
+      <text x="515" y="590" class="action-text">location + date_range</text>
+      <text x="500" y="608" class="action-text">- Check expiration (30 days)</text>
+      <text x="500" y="626" class="action-text">- Hit: Return cached data</text>
+      <text x="500" y="644" class="action-text">- Miss: Fetch from API</text>
+      <text x="500" y="662" class="action-text">- Store result with metadata</text>
+    </g>
+
+    <!-- Error Handling -->
+    <g id="error-handling">
+      <text x="860" y="515" class="section-title" font-size="18">Error Handling</text>
+      <rect x="860" y="520" width="320" height="2" fill="#F44336"/>
+
+      <rect x="860" y="535" width="320" height="140" fill="#FFEBEE" rx="4" stroke="#F44336" stroke-width="1"/>
+      <text x="875" y="555" class="body-text" font-weight="bold">Retry Logic:</text>
+      <text x="880" y="575" class="action-text">- Max retries: 3 attempts</text>
+      <text x="880" y="593" class="action-text">- Backoff: exponential (2^n sec)</text>
+      <text x="880" y="611" class="action-text">- Errors logged to DB</text>
+      <text x="880" y="629" class="action-text">- Admin notification on failure</text>
+      <text x="880" y="647" class="action-text">- Graceful degradation mode</text>
+      <text x="880" y="665" class="action-text">- Manual retry option</text>
+    </g>
+  </g>
+
+  <!-- Footer -->
+  <text x="640" y="710" class="small-text" text-anchor="middle">Request Lifecycle - State Management and Processing Flow</text>
+</svg>

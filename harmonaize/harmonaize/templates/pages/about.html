@@ -1,264 +1,362 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}About HarmonAIze{% endblock %}
+{% block title %}About - HarmonAIze{% endblock title %}
+
+{% block css %}
+  {{ block.super }}
+  <style>
+    :root {
+      --primary-color: #007AFF;
+      --secondary-color: #5AC8FA;
+      --accent-color: #34C759;
+      --background-color: #F2F2F7;
+      --card-background: #FFFFFF;
+      --text-primary: #1C1C1E;
+      --text-secondary: #8E8E93;
+      --border-color: #C6C6C8;
+      --shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+      --border-radius: 12px;
+    }
+
+    body {
+      background-color: var(--background-color);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--text-primary);
+      line-height: 1.5;
+    }
+
+    .hero-section {
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      color: white;
+      padding: 4rem 0;
+      margin: -1rem -15px 0 -15px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-section::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") repeat;
+      opacity: 0.5;
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 1;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 0 1rem;
+    }
+
+    .hero-title {
+      font-size: 3.5rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      letter-spacing: -0.02em;
+    }
+
+    .hero-subtitle {
+      font-size: 1.3rem;
+      font-weight: 400;
+      opacity: 0.9;
+      margin-bottom: 2rem;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .content-section {
+      padding: 3rem 0;
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 2rem;
+      margin: 3rem 0;
+    }
+
+    .feature-card {
+      background: var(--card-background);
+      border-radius: var(--border-radius);
+      padding: 2rem;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border-color);
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+    }
+
+    .feature-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+    }
+
+    .feature-icon {
+      width: 60px;
+      height: 60px;
+      background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1.5rem;
+      font-size: 1.5rem;
+      color: white;
+    }
+
+    .feature-icon svg {
+      width: 32px;
+      height: 32px;
+      stroke: currentColor;
+    }
+
+    .feature-title {
+      font-size: 1.4rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      color: var(--text-primary);
+    }
+
+    .feature-description {
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    .section-title {
+      font-size: 2.5rem;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 1rem;
+      color: var(--text-primary);
+      letter-spacing: -0.02em;
+    }
+
+    .section-subtitle {
+      font-size: 1.2rem;
+      text-align: center;
+      color: var(--text-secondary);
+      margin-bottom: 3rem;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .cta-section {
+      background: var(--card-background);
+      border-radius: var(--border-radius);
+      padding: 3rem 2rem;
+      text-align: center;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border-color);
+      margin: 3rem 0;
+    }
+
+    .stats-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 2rem;
+      margin: 3rem 0;
+    }
+
+    .stat-item {
+      text-align: center;
+      padding: 1.5rem;
+      background: var(--card-background);
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border-color);
+    }
+
+    .stat-number {
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: var(--primary-color);
+      display: block;
+    }
+
+    .stat-label {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      margin-top: 0.5rem;
+    }
+
+    @media (max-width: 768px) {
+      .hero-title {
+        font-size: 2.5rem;
+      }
+      
+      .hero-subtitle {
+        font-size: 1.1rem;
+      }
+      
+      .section-title {
+        font-size: 2rem;
+      }
+      
+      .feature-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .hero-section {
+        padding: 2rem 0;
+      }
+    }
+  </style>
+{% endblock css %}
 
 {% block content %}
-<!-- About Hero Section -->
-<section class="hero-section">
-  <div class="container text-center">
-    <h1 class="display-4 fw-bold">About HarmonAIze</h1>
-    <p class="lead">Learn about our mission, technology, and the team behind this open-source toolkit.</p>
+  <!-- Hero Section -->
+  <div class="hero-section">
+    <div class="hero-content">
+      <h1 class="hero-title">HarmonAIze</h1>
+      <p class="hero-subtitle">
+        An open-source toolkit that streamlines climate and health data harmonisation, 
+        leveraging AI-assisted workflows for accelerated research insights.
+      </p>
+    </div>
   </div>
-</section>
+      <!-- Mission Statement -->
+      <div class="cta-section">
+        <h3 class="section-title" style="margin-bottom: 1rem; font-size: 2rem;">Our Mission</h3>
+        <p style="color: var(--text-secondary); margin-bottom: 0; font-size: 1.1rem; line-height: 1.6;">
+          We're building HarmonAIze to democratise climate-health research by providing researchers worldwide 
+          with powerful, accessible tools for data harmonisation. Our goal is to accelerate scientific 
+          discovery and enable evidence-based insights that can inform policy and improve global health outcomes.
+        </p>
+      </div>
+      <!-- Core Modules -->
+      <div class="row">
+        <div class="col-12">
+          <h2 class="section-title">Core Modules</h2>
+          <p class="section-subtitle">
+            Three specialised modules work together to provide comprehensive data harmonisation capabilities
+          </p>
+        </div>
+      </div>
 
-<!-- Main Content -->
-<div class="container py-5">
-  <!-- Mission Section -->
-  <section class="mb-5">
-    <div class="row">
-      <div class="col-lg-8 mx-auto">
-        <h2 class="mb-4">Our Mission</h2>
-        <p class="lead">Empowering researchers to unlock the insights hidden in complex climate and health datasets</p>
-        <p>HarmonAIze was born from a recognition that researchers in resource-constrained settings face significant 
-        challenges when trying to integrate diverse climate and health data sources. These challenges often create 
-        bottlenecks in research, delaying important discoveries that could inform climate adaptation and health protection strategies.</p>
-        <p>Developed at the Wits Planetary Health Research Division in Johannesburg, South Africa, HarmonAIze is part of the broader initiatives under the Heat and Health African Transdisciplinary Center (HE<sup>2</sup>AT Center), which focuses on developing innovative solutions to mitigate the health impacts of climate change across Africa.</p>
-        <p>Our project is proudly supported by the U.S. National Institutes of Health (NIH) through their Data Science for Health Discovery and Innovation in Africa (DS-I Africa) program, which aims to leverage data science technologies to address Africa's most pressing public health challenges.</p>
-        <p>Our mission is to democratize access to sophisticated data harmonization techniques by providing an open-source 
-        toolkit that leverages AI to simplify the data integration process while maintaining rigorous scientific standards and data privacy.</p>
-      </div>
-    </div>
-  </section>
-  
-  <!-- Technology Section -->
-  <section class="mb-5 bg-light p-5 rounded">
-    <h2 class="mb-4">Our Technology</h2>
-    <div class="row">
-      <div class="col-md-6">
-        <h4><i class="bi bi-robot text-primary me-2"></i> AI-Assisted Workflows</h4>
-        <p>HarmonAIze employs machine learning algorithms to suggest variable mappings across datasets, identify patterns 
-        in data quality issues, and recommend integration strategies tailored to your specific data characteristics.</p>
-      </div>
-      <div class="col-md-6">
-        <h4><i class="bi bi-shield-check text-primary me-2"></i> Privacy Preservation</h4>
-        <p>Our federated approaches allow researchers to harmonize data without centrally aggregating sensitive information, 
-        protecting privacy while still enabling comprehensive analysis.</p>
-      </div>
-    </div>
-    <div class="row mt-4">
-      <div class="col-md-6">
-        <h4><i class="bi bi-database-check text-primary me-2"></i> Data Quality Controls</h4>
-        <p>Built-in validation mechanisms help ensure that integrated datasets maintain scientific integrity by flagging 
-        potential inconsistencies, transformation errors, or outliers that require further investigation.</p>
-      </div>
-      <div class="col-md-6">
-        <h4><i class="bi bi-box-arrow-in-down text-primary me-2"></i> Flexible Input/Output</h4>
-        <p>HarmonAIze supports a wide variety of data formats commonly used in climate and health research, making it easy 
-        to incorporate into existing research workflows and data management systems.</p>
-      </div>
-    </div>
-  </section>
-  
-  <!-- Technical Architecture -->
-  <section class="mb-5">
-    <h2 class="mb-4">Technical Architecture</h2>
-    <div class="row align-items-center">
-      <div class="col-lg-6">
-        <div class="card mb-4">
-          <div class="card-header bg-secondary text-white">
-            Core Components
+      <div class="feature-grid">
+        <div class="feature-card">
+          <div class="feature-icon">
+            {% include 'components/svg_icon.html' with icon='hospital' size='64' color='white' %}
           </div>
-          <ul class="list-group list-group-flush">
-            <li class="list-group-item d-flex align-items-center">
-              <i class="bi bi-arrow-left-right me-3 text-primary"></i>
-              <div>
-                <strong>Data Mapping Engine</strong>
-                <p class="mb-0 text-muted">Connects variables across datasets using semantic and statistical relationships</p>
-              </div>
-            </li>
-            <li class="list-group-item d-flex align-items-center">
-              <i class="bi bi-magic me-3 text-primary"></i>
-              <div>
-                <strong>Data Transformation Pipeline</strong>
-                <p class="mb-0 text-muted">Standardizes formats, units, and temporal/spatial resolution</p>
-              </div>
-            </li>
-            <li class="list-group-item d-flex align-items-center">
-              <i class="bi bi-bandaid me-3 text-primary"></i>
-              <div>
-                <strong>Data Quality Module</strong>
-                <p class="mb-0 text-muted">Identifies and addresses missing values, outliers, and inconsistencies</p>
-              </div>
-            </li>
-            <li class="list-group-item d-flex align-items-center">
-              <i class="bi bi-diagram-3 me-3 text-primary"></i>
-              <div>
-                <strong>Integration Framework</strong>
-                <p class="mb-0 text-muted">Combines datasets while preserving relationships and provenance</p>
-              </div>
-            </li>
-          </ul>
+          <h3 class="feature-title">Health Module</h3>
+          <p class="feature-description">
+            Specialized tools for harmonising health variables across diverse datasets. 
+            Standardizes medical terminology, units, and coding systems while maintaining 
+            data integrity for cross-study comparisons.
+          </p>
         </div>
-      </div>
-      <div class="col-lg-6">
-        <img src="https://via.placeholder.com/600x400?text=HarmonAIze+Architecture" class="img-fluid rounded shadow" alt="HarmonAIze Architecture Diagram">
-      </div>
-    </div>
-  </section>
-  
-  <!-- Team Section -->
-  <section class="mb-5">
-    <h2 class="text-center mb-5">Our Team</h2>
-    <div class="row">
-      <div class="col-md-4 mb-4">
-        <div class="card text-center h-100">
-          <div class="card-body">
-            <div class="rounded-circle overflow-hidden mx-auto mb-3" style="width: 150px; height: 150px;">
-              <img src="https://via.placeholder.com/150?text=NB" class="img-fluid" alt="Dr. Nicholas Brink">
-            </div>
-            <h4 class="card-title">Dr. Nicholas Brink</h4>
-            <p class="card-text text-muted">Project Lead</p>
-            <p class="card-text">Clinical researcher at Wits Planetary Health Research Division who transitioned from clinical medicine to focus on climate and health data integration. Has presented at the UN General Assembly on climate change's impact on health.</p>
-          </div>
-          <div class="card-footer bg-transparent">
-            <a href="#" class="btn btn-sm btn-outline-primary"><i class="bi bi-linkedin"></i></a>
-            <a href="https://github.com/drnicholasbrink" class="btn btn-sm btn-outline-dark"><i class="bi bi-github"></i></a>
-          </div>
-        </div>
-      </div>
-      
-      <div class="col-md-4 mb-4">
-        <div class="card text-center h-100">
-          <div class="card-body">
-            <div class="rounded-circle overflow-hidden mx-auto mb-3" style="width: 150px; height: 150px;">
-              <img src="https://via.placeholder.com/150?text=NL" class="img-fluid" alt="Natasha Lalloo">
-            </div>
-            <h4 class="card-title">Natasha Lalloo</h4>
-            <p class="card-text text-muted">Wits PHR Research Lead</p>
-            <p class="card-text">Research specialist at Wits Planetary Health Research working on data integration techniques for climate and health datasets, with expertise in environmental health impacts.</p>
-          </div>
-          <div class="card-footer bg-transparent">
-            <a href="#" class="btn btn-sm btn-outline-primary"><i class="bi bi-linkedin"></i></a>
-            <a href="mailto:natasha.lalloo@witsphr.org" class="btn btn-sm btn-outline-secondary"><i class="bi bi-envelope"></i></a>
-          </div>
-        </div>
-      </div>
-      
-      <div class="col-md-4 mb-4">
-        <div class="card text-center h-100">
-          <div class="card-body">
-            <div class="rounded-circle overflow-hidden mx-auto mb-3" style="width: 150px; height: 150px;">
-              <img src="https://via.placeholder.com/150?text=KJ" class="img-fluid" alt="Katherine Johnston">
-            </div>
-            <h4 class="card-title">Katherine Johnston</h4>
-            <p class="card-text text-muted">UCT Data Scientist</p>
-            <p class="card-text">Climate data specialist from the University of Cape Town. Focuses on developing data harmonization approaches and climate-health modeling techniques for the African continent.</p>
-          </div>
-          <div class="card-footer bg-transparent">
-            <a href="#" class="btn btn-sm btn-outline-primary"><i class="bi bi-linkedin"></i></a>
-            <a href="mailto:katherine.johnston@uct.ac.za" class="btn btn-sm btn-outline-secondary"><i class="bi bi-envelope"></i></a>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
 
-  <!-- Partners Section -->
-  <section class="mb-5">
-    <h2 class="text-center mb-5">Our Partners</h2>
-    <div class="row align-items-center mb-4">
-      <div class="col-md-6 col-lg-3 mb-4 text-center">
-        <div class="card h-100 border-0 shadow-sm">
-          <div class="card-body">
-            <img src="https://via.placeholder.com/150?text=CSAG" class="img-fluid mb-3" alt="Climate System Analysis Group">
-            <h5 class="card-title">Climate System Analysis Group</h5>
-            <p class="card-text text-muted">University of Cape Town</p>
-            <p class="card-text small">A multi-disciplinary climate change research group focused on developing nation needs, providing climate modeling expertise and data analysis.</p>
-            <a href="https://www.csag.uct.ac.za/" target="_blank" class="btn btn-sm btn-outline-primary">Visit Website</a>
+        <div class="feature-card">
+          <div class="feature-icon">
+            {% include 'components/svg_icon.html' with icon='globe' size='64' color='white' %}
           </div>
+          <h3 class="feature-title">Climate Module</h3>
+          <p class="feature-description">
+            Secure linkage and integration of climate data with health records. 
+            Provides access to curated environmental datasets while ensuring 
+            privacy-preserving connections between climate and health variables.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            {% include 'components/svg_icon.html' with icon='map-pin' size='64' color='white' %}
+          </div>
+          <h3 class="feature-title">Geolocation Module</h3>
+          <p class="feature-description">
+            Secure geolocation services for health facilities and addresses. 
+            Enables spatial analysis while protecting sensitive location data 
+            through privacy-preserving federated approaches to geocoding.
+          </p>
         </div>
       </div>
-      <div class="col-md-6 col-lg-3 mb-4 text-center">
-        <div class="card h-100 border-0 shadow-sm">
-          <div class="card-body">
-            <img src="https://via.placeholder.com/150?text=CeSHHAR" class="img-fluid mb-3" alt="CeSHHAR Zimbabwe">
-            <h5 class="card-title">CeSHHAR Zimbabwe</h5>
-            <p class="card-text text-muted">Centre for Sexual Health and HIV/AIDS Research</p>
-            <p class="card-text small">Expertise in health research and program delivery across Zimbabwe, providing critical insights on health data integration challenges.</p>
-            <a href="https://ceshhar.org/" target="_blank" class="btn btn-sm btn-outline-primary">Visit Website</a>
-          </div>
+
+      <!-- Platform Features -->
+      <div class="row">
+        <div class="col-12">
+          <h2 class="section-title">Platform Features</h2>
+          <p class="section-subtitle">
+            Advanced capabilities that power research acceleration and data integration
+          </p>
         </div>
       </div>
-      <div class="col-md-6 col-lg-3 mb-4 text-center">
-        <div class="card h-100 border-0 shadow-sm">
-          <div class="card-body">
-            <img src="https://via.placeholder.com/150?text=WPHR" class="img-fluid mb-3" alt="Wits Planetary Health Research">
-            <h5 class="card-title">Wits Planetary Health Research</h5>
-            <p class="card-text text-muted">University of the Witwatersrand</p>
-            <p class="card-text small">Lead research division focused on the intersection of climate change and public health across the African continent.</p>
-            <a href="https://witsphr.org/" target="_blank" class="btn btn-sm btn-outline-primary">Visit Website</a>
+
+      <div class="feature-grid">
+        <div class="feature-card">
+          <div class="feature-icon">
+            {% include 'components/svg_icon.html' with icon='link' size='32' color='white' %}
           </div>
+          <h3 class="feature-title">Data Integration</h3>
+          <p class="feature-description">
+            Seamlessly map, clean, and unify heterogeneous datasets from multiple sources 
+            with intelligent AI-assisted workflows that preserve data integrity.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            {% include 'components/svg_icon.html' with icon='shield' size='32' color='white' %}
+          </div>
+          <h3 class="feature-title">Privacy-First</h3>
+          <p class="feature-description">
+            Built with federated approaches that maintain data privacy and security, 
+            ensuring sensitive health information remains protected throughout the process.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            {% include 'components/svg_icon.html' with icon='robot' size='32' color='white' %}
+          </div>
+          <h3 class="feature-title">AI-Powered</h3>
+          <p class="feature-description">
+            Leverage advanced AI algorithms to automate complex data harmonisation tasks, 
+            reducing manual effort and improving accuracy.
+          </p>
         </div>
       </div>
-      <div class="col-md-6 col-lg-3 mb-4 text-center">
-        <div class="card h-100 border-0 shadow-sm">
-          <div class="card-body">
-            <img src="https://via.placeholder.com/150?text=HE2AT" class="img-fluid mb-3" alt="HE2AT Center">
-            <h5 class="card-title">HE<sup>2</sup>AT Center</h5>
-            <p class="card-text text-muted">Heat and Health African Transdisciplinary Center</p>
-            <p class="card-text small">Consortium working across South Africa, Zimbabwe, Côte d'Ivoire and USA to develop innovative solutions for climate-health challenges.</p>
-            <a href="https://www.dsi-africa.org/project/5" target="_blank" class="btn btn-sm btn-outline-primary">Learn More</a>
-          </div>
+
+      <!-- Statistics Section -->
+      <div class="row">
+        <div class="col-12">
+          <h2 class="section-title">Research Impact</h2>
+          <p class="section-subtitle">
+            Empowering researchers worldwide with cutting-edge data harmonisation capabilities
+          </p>
         </div>
       </div>
-    </div>
-    <div class="text-center">
-      <p class="fst-italic">HarmonAIze is proudly developed through a collaboration of these institutions, with funding support from the NIH DS-I Africa program.</p>
-    </div>
-  </section>
-  
-  <!-- Contributing Section -->
-  <section class="mb-5 bg-light p-5 rounded">
-    <h2 class="mb-4">Join Our Community</h2>
-    <div class="row">
-      <div class="col-lg-8">
-        <p>HarmonAIze is an open-source project, and we welcome contributions from developers, data scientists, climate researchers, and health professionals.</p>
-        <p>Whether you're interested in improving our codebase, contributing documentation, or sharing your use case, we'd love to hear from you.</p>
-      </div>
-      <div class="col-lg-4 text-center text-lg-end">
-        <a href="https://github.com/drnicholasbrink/HarmonAIze" class="btn btn-dark btn-lg"><i class="bi bi-github me-2"></i>Fork on GitHub</a>
-      </div>
-    </div>
-    <div class="row mt-4">
-      <div class="col-md-4 mb-3">
-        <div class="card h-100">
-          <div class="card-body text-center">
-            <i class="bi bi-code-square text-primary display-4"></i>
-            <h4 class="mt-3">Code</h4>
-            <p>Contribute to our codebase by fixing bugs, adding features, or improving performance.</p>
-          </div>
+
+      <div class="stats-container">
+        <div class="stat-item">
+          <span class="stat-number">100%</span>
+          <div class="stat-label">Open Source</div>
         </div>
-      </div>
-      <div class="col-md-4 mb-3">
-        <div class="card h-100">
-          <div class="card-body text-center">
-            <i class="bi bi-file-text text-primary display-4"></i>
-            <h4 class="mt-3">Documentation</h4>
-            <p>Help improve our documentation to make HarmonAIze more accessible to researchers.</p>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-4 mb-3">
-        <div class="card h-100">
-          <div class="card-body text-center">
-            <i class="bi bi-people text-primary display-4"></i>
-            <h4 class="mt-3">Community</h4>
-            <p>Share your use cases, provide feedback, or help answer questions from other users.</p>
-          </div>
+        <div class="stat-item">
+          <span class="stat-number">∞</span>
+          <div class="stat-label">Research Possibilities</div>
         </div>
       </div>
     </div>
-  </section>
-</div>
+  </div>
 {% endblock content %}
+
+

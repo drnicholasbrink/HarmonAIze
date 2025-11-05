@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720">
+  <defs>
+    <style>
+      .slide-title { font-family: Arial, Helvetica, sans-serif; font-size: 48px; font-weight: bold; fill: #1e3a5f; }
+      .section-title { font-family: Arial, Helvetica, sans-serif; font-size: 24px; font-weight: bold; fill: #2c5282; }
+      .body-text { font-family: Arial, Helvetica, sans-serif; font-size: 16px; fill: #2d3748; }
+      .class-name { font-family: Arial, Helvetica, sans-serif; font-size: 18px; font-weight: bold; fill: #ffffff; }
+      .method-text { font-family: Arial, Helvetica, sans-serif; font-size: 13px; fill: #ffffff; }
+      .small-text { font-family: Arial, Helvetica, sans-serif; font-size: 12px; fill: #4a5568; }
+      .label-text { font-family: Arial, Helvetica, sans-serif; font-size: 14px; font-weight: bold; fill: #2d3748; }
+      .api-text { font-family: Arial, Helvetica, sans-serif; font-size: 12px; fill: #1e3a5f; }
+    </style>
+
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#2d3748" />
+    </marker>
+
+    <marker id="arrow-green" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#4CAF50" />
+    </marker>
+
+    <marker id="arrow-blue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#2196F3" />
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1280" height="720" fill="#f7fafc"/>
+
+  <!-- Header -->
+  <rect x="0" y="0" width="1280" height="90" fill="#1e3a5f" opacity="0.05"/>
+  <text x="640" y="55" class="slide-title" text-anchor="middle">Climate Data Services Architecture</text>
+
+  <!-- Left Column: Service Hierarchy -->
+  <g id="service-hierarchy">
+    <text x="80" y="120" class="section-title">Service Class Hierarchy</text>
+    <rect x="80" y="125" width="520" height="2" fill="#2196F3"/>
+
+    <!-- Base Service (Abstract) -->
+    <rect x="250" y="145" width="180" height="90" fill="#6B7280" rx="8" stroke="#4B5563" stroke-width="2" stroke-dasharray="5,5"/>
+    <text x="340" y="170" class="class-name" text-anchor="middle" font-size="16">BaseClimateDataService</text>
+    <text x="340" y="188" class="method-text" text-anchor="middle" font-style="italic" font-size="11">(Abstract Base Class)</text>
+    <line x1="265" y1="195" x2="415" y2="195" stroke="#ffffff" stroke-width="1" opacity="0.5"/>
+    <text x="340" y="210" class="method-text" text-anchor="middle" font-size="12">fetch_data()</text>
+    <text x="340" y="225" class="method-text" text-anchor="middle" font-size="12">validate_request()</text>
+
+    <!-- Earth Engine Service -->
+    <rect x="100" y="270" width="200" height="110" fill="#4CAF50" rx="8" stroke="#388E3C" stroke-width="2"/>
+    <text x="200" y="295" class="class-name" text-anchor="middle" font-size="15">EarthEngineDataService</text>
+    <line x1="115" y1="302" x2="285" y2="302" stroke="#ffffff" stroke-width="1" opacity="0.6"/>
+    <text x="200" y="318" class="method-text" text-anchor="middle" font-size="11">fetch_data(location, dates)</text>
+    <text x="200" y="333" class="method-text" text-anchor="middle" font-size="11">_authenticate_gee()</text>
+    <text x="200" y="348" class="method-text" text-anchor="middle" font-size="11">_get_image_collection()</text>
+    <text x="200" y="363" class="method-text" text-anchor="middle" font-size="11">_extract_values()</text>
+
+    <!-- Copernicus Service -->
+    <rect x="330" y="270" width="200" height="110" fill="#2196F3" rx="8" stroke="#1976D2" stroke-width="2"/>
+    <text x="430" y="295" class="class-name" text-anchor="middle" font-size="15">CopernicusDataService</text>
+    <line x1="345" y1="302" x2="515" y2="302" stroke="#ffffff" stroke-width="1" opacity="0.6"/>
+    <text x="430" y="318" class="method-text" text-anchor="middle" font-size="11">fetch_data(location, dates)</text>
+    <text x="430" y="333" class="method-text" text-anchor="middle" font-size="11">_authenticate_cds()</text>
+    <text x="430" y="348" class="method-text" text-anchor="middle" font-size="11">_build_request()</text>
+    <text x="430" y="363" class="method-text" text-anchor="middle" font-size="11">_download_dataset()</text>
+
+    <!-- Inheritance arrows -->
+    <line x1="200" y1="270" x2="300" y2="235" stroke="#4B5563" stroke-width="2" marker-end="url(#arrow)" stroke-dasharray="3,3"/>
+    <line x1="430" y1="270" x2="360" y2="235" stroke="#4B5563" stroke-width="2" marker-end="url(#arrow)" stroke-dasharray="3,3"/>
+  </g>
+
+  <!-- Right Column: Orchestration Flow -->
+  <g id="orchestration">
+    <text x="680" y="120" class="section-title">Data Processor Orchestration</text>
+    <rect x="680" y="125" width="520" height="2" fill="#2196F3"/>
+
+    <!-- Climate Data Processor -->
+    <rect x="750" y="145" width="180" height="85" fill="#1976D2" rx="8" stroke="#1565C0" stroke-width="2"/>
+    <text x="840" y="170" class="class-name" text-anchor="middle" font-size="15">ClimateDataProcessor</text>
+    <line x1="765" y1="177" x2="915" y2="177" stroke="#ffffff" stroke-width="1" opacity="0.6"/>
+    <text x="840" y="193" class="method-text" text-anchor="middle" font-size="11">process_request()</text>
+    <text x="840" y="208" class="method-text" text-anchor="middle" font-size="11">_select_service()</text>
+    <text x="840" y="223" class="method-text" text-anchor="middle" font-size="11">_cache_results()</text>
+
+    <!-- Flow arrows down -->
+    <line x1="840" y1="230" x2="840" y2="260" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <!-- SpatioTemporal Matcher -->
+    <rect x="750" y="265" width="180" height="70" fill="#388E3C" rx="8" stroke="#2E7D32" stroke-width="2"/>
+    <text x="840" y="288" class="class-name" text-anchor="middle" font-size="15">SpatioTemporalMatcher</text>
+    <line x1="765" y1="295" x2="915" y2="295" stroke="#ffffff" stroke-width="1" opacity="0.6"/>
+    <text x="840" y="310" class="method-text" text-anchor="middle" font-size="11">match_locations()</text>
+    <text x="840" y="325" class="method-text" text-anchor="middle" font-size="11">align_dates()</text>
+
+    <!-- Flow description -->
+    <rect x="690" y="355" width="160" height="25" fill="#FFF3CD" rx="4" stroke="#FFC107" stroke-width="1"/>
+    <text x="770" y="372" class="label-text" text-anchor="middle" font-size="12">1. Select Service</text>
+
+    <line x1="770" y1="380" x2="770" y2="395" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <rect x="690" y="400" width="160" height="25" fill="#D1ECF1" rx="4" stroke="#17A2B8" stroke-width="1"/>
+    <text x="770" y="417" class="label-text" text-anchor="middle" font-size="12">2. Fetch Data</text>
+
+    <line x1="770" y1="425" x2="770" y2="440" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <rect x="690" y="445" width="160" height="25" fill="#D4EDDA" rx="4" stroke="#28A745" stroke-width="1"/>
+    <text x="770" y="462" class="label-text" text-anchor="middle" font-size="12">3. Match Locations</text>
+
+    <line x1="770" y1="470" x2="770" y2="485" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <rect x="690" y="490" width="160" height="25" fill="#E7D4F5" rx="4" stroke="#9C27B0" stroke-width="1"/>
+    <text x="770" y="507" class="label-text" text-anchor="middle" font-size="12">4. Cache Results</text>
+
+    <!-- Connection to services -->
+    <line x1="750" y1="185" x2="530" y2="315" stroke="#4CAF50" stroke-width="2" stroke-dasharray="4,4" marker-end="url(#arrow-green)"/>
+    <text x="625" y="240" class="small-text" fill="#4CAF50">GEE API</text>
+
+    <line x1="840" y1="185" x2="840" y2="185" stroke="#2196F3" stroke-width="0"/>
+    <path d="M 840 185 L 700 230 L 530 330" stroke="#2196F3" stroke-width="2" stroke-dasharray="4,4" marker-end="url(#arrow-blue)" fill="none"/>
+    <text x="675" y="275" class="small-text" fill="#2196F3">CDS API</text>
+  </g>
+
+  <!-- Bottom: API Authentication Flow -->
+  <g id="auth-flow">
+    <text x="80" y="545" class="section-title">API Authentication Flow</text>
+    <rect x="80" y="550" width="1120" height="2" fill="#2196F3"/>
+
+    <!-- GEE Auth -->
+    <rect x="120" y="570" width="240" height="120" fill="#E8F5E9" rx="6" stroke="#4CAF50" stroke-width="2"/>
+    <text x="240" y="595" class="label-text" text-anchor="middle" fill="#2E7D32">Google Earth Engine</text>
+    <line x1="135" y1="602" x2="345" y2="602" stroke="#4CAF50" stroke-width="1"/>
+    <text x="135" y="620" class="api-text">1. Load service account key</text>
+    <text x="135" y="638" class="api-text">2. Initialize ee.ServiceAccount</text>
+    <text x="135" y="656" class="api-text">3. Authenticate with credentials</text>
+    <text x="135" y="674" class="api-text">4. ee.Initialize(credentials)</text>
+
+    <!-- CDS Auth -->
+    <rect x="400" y="570" width="240" height="120" fill="#E3F2FD" rx="6" stroke="#2196F3" stroke-width="2"/>
+    <text x="520" y="595" class="label-text" text-anchor="middle" fill="#1565C0">Copernicus CDS</text>
+    <line x1="415" y1="602" x2="625" y2="602" stroke="#2196F3" stroke-width="1"/>
+    <text x="415" y="620" class="api-text">1. Load CDS API key</text>
+    <text x="415" y="638" class="api-text">2. Create CDS Client</text>
+    <text x="415" y="656" class="api-text">3. Set UID and API key</text>
+    <text x="415" y="674" class="api-text">4. Verify connection</text>
+
+    <!-- Mock Mode -->
+    <rect x="680" y="570" width="240" height="120" fill="#FFF3E0" rx="6" stroke="#FF9800" stroke-width="2"/>
+    <text x="800" y="595" class="label-text" text-anchor="middle" fill="#E65100">Mock Mode (Testing)</text>
+    <line x1="695" y1="602" x2="905" y2="602" stroke="#FF9800" stroke-width="1"/>
+    <text x="695" y="620" class="api-text">1. Check MOCK_MODE setting</text>
+    <text x="695" y="638" class="api-text">2. Return synthetic data</text>
+    <text x="695" y="656" class="api-text">3. No API credentials needed</text>
+    <text x="695" y="674" class="api-text">4. Fast testing iteration</text>
+
+    <!-- Error Handling -->
+    <rect x="960" y="570" width="240" height="120" fill="#FFEBEE" rx="6" stroke="#F44336" stroke-width="2"/>
+    <text x="1080" y="595" class="label-text" text-anchor="middle" fill="#C62828">Error Handling</text>
+    <line x1="975" y1="602" x2="1185" y2="602" stroke="#F44336" stroke-width="1"/>
+    <text x="975" y="620" class="api-text">- Invalid credentials</text>
+    <text x="975" y="638" class="api-text">- API rate limits</text>
+    <text x="975" y="656" class="api-text">- Network timeouts</text>
+    <text x="975" y="674" class="api-text">- Retry with backoff</text>
+  </g>
+
+  <!-- Footer -->
+  <text x="640" y="710" class="small-text" text-anchor="middle">Service Layer - Data Fetching and Authentication</text>
+</svg>

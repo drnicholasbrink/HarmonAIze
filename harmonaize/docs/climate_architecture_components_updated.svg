@@ -1,0 +1,262 @@
+<svg viewBox="0 0 1400 820" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .component-header { font-family: Arial, sans-serif; font-size: 32px; font-weight: bold; fill: #1a1a1a; }
+      .section-title { font-family: Arial, sans-serif; font-size: 16px; font-weight: bold; fill: #1a1a1a; }
+      .item-title { font-family: Arial, sans-serif; font-size: 14px; font-weight: bold; fill: #1a1a1a; }
+      .item-text { font-family: Arial, sans-serif; font-size: 12px; fill: #333; }
+      .note-text { font-family: Arial, sans-serif; font-size: 11px; fill: #666; font-style: italic; }
+      .highlight-text { font-family: Arial, sans-serif; font-size: 11px; fill: #0066cc; font-weight: bold; }
+      .models-box { fill: #4A90E2; }
+      .services-box { fill: #50C878; }
+      .views-box { fill: #9B59B6; }
+      .tasks-box { fill: #1ABC9C; }
+      .new-badge { fill: #ff6b6b; }
+      .improved-badge { fill: #4ecdc4; }
+    </style>
+  </defs>
+
+  <!-- Title -->
+  <text x="700" y="40" text-anchor="middle" class="component-header">Architecture &amp; Components</text>
+  <text x="700" y="65" text-anchor="middle" class="note-text">✨ Updated: Core-Centric Design + Flexible Categories</text>
+
+  <!-- Models Section -->
+  <g id="models-section">
+    <rect x="40" y="100" width="310" height="670" rx="10" class="models-box" opacity="0.9"/>
+    <rect x="40" y="100" width="310" height="45" rx="10" class="models-box"/>
+    <text x="195" y="130" text-anchor="middle" class="section-title" fill="white">Models (Database Layer)</text>
+
+    <!-- ClimateDataSource -->
+    <g transform="translate(50, 160)">
+      <rect width="290" height="95" rx="5" fill="white" opacity="0.95"/>
+      <text x="10" y="20" class="item-title">1. ClimateDataSource</text>
+      <text x="10" y="38" class="item-text">• name, source_type, api_endpoint</text>
+      <text x="10" y="53" class="item-text">• is_active, requires_auth</text>
+      <text x="10" y="68" class="item-text">• Tracks external data providers</text>
+      <line x1="10" y1="75" x2="280" y2="75" stroke="#ff6b6b" stroke-width="2"/>
+      <text x="10" y="88" class="highlight-text">✓ No created_by - Core-centric</text>
+    </g>
+
+    <!-- ClimateVariable -->
+    <g transform="translate(50, 265)">
+      <rect width="290" height="115" rx="5" fill="white" opacity="0.95"/>
+      <text x="10" y="20" class="item-title">2. ClimateVariable</text>
+      <text x="10" y="38" class="item-text">• name, category, unit</text>
+      <text x="10" y="53" class="item-text">• Categories: temp, precip, humidity,</text>
+      <text x="18" y="68" class="item-text">wind, solar, vegetation, air quality</text>
+      <line x1="10" y1="75" x2="280" y2="75" stroke="#4ecdc4" stroke-width="2"/>
+      <text x="10" y="88" class="highlight-text">✓ FLEXIBLE categories - user-defined</text>
+      <text x="10" y="103" class="highlight-text">✓ No hardcoded choices</text>
+    </g>
+
+    <!-- ClimateVariableMapping -->
+    <g transform="translate(50, 390)">
+      <rect width="290" height="85" rx="5" fill="white" opacity="0.95"/>
+      <text x="10" y="20" class="item-title">3. ClimateVariableMapping</text>
+      <text x="10" y="38" class="item-text">• variable, data_source</text>
+      <text x="10" y="53" class="item-text">• source_identifier, parameters</text>
+      <text x="10" y="68" class="item-text">• Maps variables to source APIs</text>
+    </g>
+
+    <!-- ClimateDataRequest -->
+    <g transform="translate(50, 485)">
+      <rect width="290" height="115" rx="5" fill="white" opacity="0.95"/>
+      <text x="10" y="20" class="item-title">4. ClimateDataRequest</text>
+      <text x="10" y="38" class="item-text">• study, data_source, variables</text>
+      <text x="10" y="53" class="item-text">• start_date, end_date, buffer</text>
+      <text x="10" y="68" class="item-text">• Status: pending → processing →</text>
+      <text x="18" y="83" class="item-text">completed/failed</text>
+      <line x1="10" y1="90" x2="280" y2="90" stroke="#ff6b6b" stroke-width="2"/>
+      <text x="10" y="103" class="highlight-text">✓ Via Study.created_by (Core)</text>
+    </g>
+
+    <!-- ClimateDataCache -->
+    <g transform="translate(50, 610)">
+      <rect width="290" height="85" rx="5" fill="white" opacity="0.95"/>
+      <text x="10" y="20" class="item-title">5. ClimateDataCache</text>
+      <text x="10" y="38" class="item-text">• cache_key, data, expires_at</text>
+      <text x="10" y="53" class="item-text">• 30-day expiration</text>
+      <text x="10" y="68" class="item-text">• Optimizes repeated queries</text>
+    </g>
+  </g>
+
+  <!-- Service Classes Section -->
+  <g id="services-section">
+    <rect x="380" y="100" width="310" height="360" rx="10" class="services-box" opacity="0.9"/>
+    <rect x="380" y="100" width="310" height="45" rx="10" class="services-box"/>
+    <text x="535" y="130" text-anchor="middle" class="section-title" fill="white">Service Classes</text>
+
+    <!-- BaseClimateDataService -->
+    <g transform="translate(390, 160)">
+      <rect width="290" height="75" rx="5" fill="white" opacity="0.95"/>
+      <text x="10" y="20" class="item-title">1. BaseClimateDataService</text>
+      <text x="10" y="38" class="item-text">• Abstract base class</text>
+      <text x="10" y="53" class="item-text">• fetch_data() interface</text>
+      <text x="10" y="68" class="item-text">• validate_parameters()</text>
+    </g>
+
+    <!-- EarthEngineDataService -->
+    <g transform="translate(390, 245)">
+      <rect width="290" height="75" rx="5" fill="white" opacity="0.95"/>
+      <text x="10" y="20" class="item-title">2. EarthEngineDataService</text>
+      <text x="10" y="38" class="item-text">• Google Earth Engine integration</text>
+      <text x="10" y="53" class="item-text">• MODIS, Landsat, Sentinel data</text>
+      <text x="10" y="68" class="item-text">• Vegetation indices, land cover</text>
+    </g>
+
+    <!-- CopernicusDataService -->
+    <g transform="translate(390, 330)">
+      <rect width="290" height="75" rx="5" fill="white" opacity="0.95"/>
+      <text x="10" y="20" class="item-title">3. CopernicusDataService</text>
+      <text x="10" y="38" class="item-text">• ERA5 reanalysis data</text>
+      <text x="10" y="53" class="item-text">• Temperature, precipitation</text>
+      <text x="10" y="68" class="item-text">• Hourly/daily aggregations</text>
+    </g>
+
+    <!-- ClimateDataProcessor -->
+    <g transform="translate(390, 415)">
+      <rect width="290" height="35" rx="5" fill="white" opacity="0.95"/>
+      <text x="10" y="23" class="item-title">4. ClimateDataProcessor + 5. SpatioTemporalMatcher</text>
+    </g>
+  </g>
+
+  <!-- Views & Forms Section -->
+  <g id="views-section">
+    <rect x="720" y="100" width="310" height="360" rx="10" class="views-box" opacity="0.9"/>
+    <rect x="720" y="100" width="310" height="45" rx="10" class="views-box"/>
+    <text x="875" y="130" text-anchor="middle" class="section-title" fill="white">Views &amp; Forms</text>
+
+    <!-- Climate Dashboard -->
+    <g transform="translate(730, 160)">
+      <rect width="290" height="65" rx="5" fill="white" opacity="0.95"/>
+      <text x="10" y="20" class="item-title">Climate Dashboard</text>
+      <text x="10" y="38" class="item-text">• Overview of data sources</text>
+      <text x="10" y="53" class="item-text">• Recent requests &amp; status</text>
+    </g>
+
+    <!-- Configuration View -->
+    <g transform="translate(730, 235)">
+      <rect width="290" height="80" rx="5" fill="white" opacity="0.95"/>
+      <text x="10" y="20" class="item-title">Configuration View</text>
+      <text x="10" y="38" class="item-text">• Select data source &amp; variables</text>
+      <text x="10" y="53" class="item-text">• Set date range &amp; aggregation</text>
+      <text x="10" y="68" class="item-text">• Configure spatial buffer</text>
+    </g>
+
+    <!-- Request Management -->
+    <g transform="translate(730, 325)">
+      <rect width="290" height="65" rx="5" fill="white" opacity="0.95"/>
+      <text x="10" y="20" class="item-title">Request Management</text>
+      <text x="10" y="38" class="item-text">• List view with filters</text>
+      <text x="10" y="53" class="item-text">• Detail view with progress</text>
+    </g>
+
+    <!-- Data Export -->
+    <g transform="translate(730, 400)">
+      <rect width="290" height="50" rx="5" fill="white" opacity="0.95"/>
+      <text x="10" y="20" class="item-title">Data Export</text>
+      <text x="10" y="38" class="item-text">• CSV, JSON formats</text>
+    </g>
+  </g>
+
+  <!-- Celery Tasks Section -->
+  <g id="tasks-section">
+    <rect x="1060" y="100" width="310" height="360" rx="10" class="tasks-box" opacity="0.9"/>
+    <rect x="1060" y="100" width="310" height="45" rx="10" class="tasks-box"/>
+    <text x="1215" y="130" text-anchor="middle" class="section-title" fill="white">Celery Tasks</text>
+
+    <!-- process_climate_data -->
+    <g transform="translate(1070, 160)">
+      <rect width="290" height="75" rx="5" fill="white" opacity="0.95"/>
+      <text x="10" y="20" class="item-title">process_climate_data</text>
+      <text x="10" y="38" class="item-text">• Async request processing</text>
+      <text x="10" y="53" class="item-text">• Status updates via signals</text>
+      <text x="10" y="68" class="item-text">• Error handling &amp; retry</text>
+    </g>
+
+    <!-- cleanup_expired_cache -->
+    <g transform="translate(1070, 245)">
+      <rect width="290" height="65" rx="5" fill="white" opacity="0.95"/>
+      <text x="10" y="20" class="item-title">cleanup_expired_cache</text>
+      <text x="10" y="38" class="item-text">• Scheduled daily</text>
+      <text x="10" y="53" class="item-text">• Remove expired entries</text>
+    </g>
+
+    <!-- update_availability -->
+    <g transform="translate(1070, 320)">
+      <rect width="290" height="80" rx="5" fill="white" opacity="0.95"/>
+      <text x="10" y="20" class="item-title">update_availability</text>
+      <text x="10" y="38" class="item-text">• Check source health</text>
+      <text x="10" y="53" class="item-text">• Update is_active flags</text>
+      <text x="10" y="68" class="item-text">• API status monitoring</text>
+    </g>
+
+    <!-- generate_report -->
+    <g transform="translate(1070, 410)">
+      <rect width="290" height="40" rx="5" fill="white" opacity="0.95"/>
+      <text x="10" y="23" class="item-title">generate_report (future)</text>
+    </g>
+  </g>
+
+  <!-- HTMX Partials -->
+  <g id="htmx-section">
+    <rect x="720" y="470" width="310" height="120" rx="10" fill="#e74c3c" opacity="0.9"/>
+    <rect x="720" y="470" width="310" height="45" rx="10" fill="#c0392b"/>
+    <text x="875" y="500" text-anchor="middle" class="section-title" fill="white">HTMX Partials</text>
+
+    <g transform="translate(730, 525)">
+      <rect width="290" height="55" rx="5" fill="white" opacity="0.95"/>
+      <text x="10" y="18" class="item-text">• Dynamic UI updates</text>
+      <text x="10" y="33" class="item-text">• Progress indicators</text>
+      <text x="10" y="48" class="item-text">• Real-time status polling</text>
+    </g>
+  </g>
+
+  <!-- Design Patterns -->
+  <g id="patterns-section">
+    <rect x="40" y="600" width="990" height="180" rx="10" fill="#ecf0f1" stroke="#34495e" stroke-width="2"/>
+    <text x="535" y="630" text-anchor="middle" class="section-title">Design Patterns Used</text>
+
+    <g transform="translate(60, 650)">
+      <text x="0" y="0" class="item-text" font-weight="bold">Service Layer + Strategy Pattern + Caching + Request-Response + Template Method + HTMX Partial Rendering</text>
+
+      <text x="0" y="25" class="item-text" font-weight="bold" fill="#0066cc">✨ NEW PATTERNS:</text>
+      <text x="0" y="43" class="item-text">• <tspan font-weight="bold">Core-Centric Authorization:</tspan> All user relationships flow through Core module (Study.created_by)</text>
+      <text x="0" y="61" class="item-text">• <tspan font-weight="bold">Property-Based Access:</tspan> ClimateDataRequest.requested_by via @property for backward compatibility</text>
+      <text x="0" y="79" class="item-text">• <tspan font-weight="bold">Dynamic Category Population:</tspan> Categories loaded from database, not hardcoded choices</text>
+      <text x="0" y="97" class="item-text">• <tspan font-weight="bold">Open-Ended Classification:</tspan> Users define custom categories without code changes</text>
+      <text x="0" y="115" class="item-text">• <tspan font-weight="bold">Module Boundary Respect:</tspan> Climate module independent of User model, integrates only via Core</text>
+    </g>
+  </g>
+
+  <!-- Legend -->
+  <g id="legend">
+    <rect x="1060" y="600" width="310" height="180" rx="10" fill="white" stroke="#34495e" stroke-width="2"/>
+    <text x="1215" y="630" text-anchor="middle" class="section-title">Key Improvements</text>
+
+    <g transform="translate(1075, 650)">
+      <circle cx="5" cy="-3" r="5" class="new-badge"/>
+      <text x="18" y="0" class="item-text" font-weight="bold">Core-Centric Architecture</text>
+      <text x="18" y="18" class="note-text">No direct User relationships in Climate</text>
+
+      <circle cx="5" cy="32" r="5" class="improved-badge"/>
+      <text x="18" y="35" class="item-text" font-weight="bold">Flexible Categories</text>
+      <text x="18" y="53" class="note-text">User-defined, not hardcoded</text>
+
+      <rect x="0" y="65" width="10" height="10" fill="#4A90E2"/>
+      <text x="18" y="73" class="item-text">Database Models</text>
+
+      <rect x="0" y="83" width="10" height="10" fill="#50C878"/>
+      <text x="18" y="91" class="item-text">Business Logic Services</text>
+
+      <rect x="0" y="101" width="10" height="10" fill="#9B59B6"/>
+      <text x="18" y="109" class="item-text">User Interface</text>
+
+      <rect x="0" y="119" width="10" height="10" fill="#1ABC9C"/>
+      <text x="18" y="127" class="item-text">Background Tasks</text>
+    </g>
+  </g>
+
+  <!-- Footer -->
+  <text x="700" y="810" text-anchor="middle" class="note-text">HarmonAIze Climate Module - Technical Documentation (Updated v2.0)</text>
+</svg>

@@ -71,5 +71,16 @@ INSTALLED_APPS += ["django_extensions"]
 
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#task-eager-propagates
 CELERY_TASK_EAGER_PROPAGATES = True
+
+# django-allauth
+# ------------------------------------------------------------------------------
+# Make email verification optional in local development for easier testing
+ACCOUNT_EMAIL_VERIFICATION = "optional"  # Can be: "none", "optional", or "mandatory"
+
+# Climate Module
+# ------------------------------------------------------------------------------
+# Use mock data for climate services (set to False when credentials are configured)
+CLIMATE_USE_MOCK_DATA = env.bool("CLIMATE_USE_MOCK_DATA", default=True)
+
 # Your stuff...
 # ------------------------------------------------------------------------------

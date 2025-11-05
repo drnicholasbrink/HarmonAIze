@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HarmonAIze Climate Module - Slide Deck Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .slides {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .slide-card {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            cursor: pointer;
+        }
+
+        .slide-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.4);
+        }
+
+        .slide-preview {
+            width: 100%;
+            height: 250px;
+            object-fit: contain;
+            background: #f7fafc;
+            border-bottom: 3px solid #2196F3;
+        }
+
+        .slide-info {
+            padding: 20px;
+        }
+
+        .slide-info h3 {
+            font-size: 1.3rem;
+            color: #1e3a5f;
+            margin-bottom: 8px;
+        }
+
+        .slide-info p {
+            color: #4a5568;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-top: 8px;
+            text-transform: uppercase;
+        }
+
+        .badge.new {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .badge.fixed {
+            background: #FF9800;
+            color: white;
+        }
+
+        .badge.existing {
+            background: #607D8B;
+            color: white;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            max-width: 95%;
+            max-height: 95%;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+
+        .modal-content img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .close-modal {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            color: #1e3a5f;
+            border: none;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            transition: transform 0.2s ease;
+        }
+
+        .close-modal:hover {
+            transform: scale(1.1);
+        }
+
+        .navigation {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: white;
+            color: #1e3a5f;
+            border: none;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            transition: transform 0.2s ease;
+        }
+
+        .navigation:hover {
+            transform: translateY(-50%) scale(1.1);
+        }
+
+        .nav-prev {
+            left: 20px;
+        }
+
+        .nav-next {
+            right: 20px;
+        }
+
+        footer {
+            text-align: center;
+            color: white;
+            padding: 20px;
+            opacity: 0.8;
+        }
+
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 1.8rem;
+            }
+
+            .slides {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🌍 HarmonAIze Climate Module</h1>
+            <p>Technical Documentation Slide Deck</p>
+        </header>
+
+        <div class="slides">
+            <div class="slide-card" data-slide="slide1-overview.svg">
+                <img src="slide1-overview.svg" alt="Slide 1" class="slide-preview">
+                <div class="slide-info">
+                    <h3>Slide 1: Climate Module Overview</h3>
+                    <p>Purpose, key features, and component architecture</p>
+                    <span class="badge fixed">Fixed</span>
+                </div>
+            </div>
+
+            <div class="slide-card" data-slide="slide2-architecture.svg">
+                <img src="slide2-architecture.svg" alt="Slide 2" class="slide-preview">
+                <div class="slide-info">
+                    <h3>Slide 2: Architecture Overview</h3>
+                    <p>System architecture and component relationships</p>
+                    <span class="badge existing">Existing</span>
+                </div>
+            </div>
+
+            <div class="slide-card" data-slide="slide3-data-flow.svg">
+                <img src="slide3-data-flow.svg" alt="Slide 3" class="slide-preview">
+                <div class="slide-info">
+                    <h3>Slide 3: Data Flow</h3>
+                    <p>Data processing pipeline and flow between components</p>
+                    <span class="badge existing">Existing</span>
+                </div>
+            </div>
+
+            <div class="slide-card" data-slide="slide4-integration.svg">
+                <img src="slide4-integration.svg" alt="Slide 4" class="slide-preview">
+                <div class="slide-info">
+                    <h3>Slide 4: Integration</h3>
+                    <p>Integration with core HarmonAIze and external APIs</p>
+                    <span class="badge existing">Existing</span>
+                </div>
+            </div>
+
+            <div class="slide-card" data-slide="slide5-service-layer.svg">
+                <img src="slide5-service-layer.svg" alt="Slide 5" class="slide-preview">
+                <div class="slide-info">
+                    <h3>Slide 5: Service Layer Deep Dive</h3>
+                    <p>Service hierarchy, orchestration, and authentication</p>
+                    <span class="badge new">New</span>
+                </div>
+            </div>
+
+            <div class="slide-card" data-slide="slide6-data-models.svg">
+                <img src="slide6-data-models.svg" alt="Slide 6" class="slide-preview">
+                <div class="slide-info">
+                    <h3>Slide 6: Data Models & Relationships</h3>
+                    <p>Entity-relationship diagram and data architecture</p>
+                    <span class="badge new">New</span>
+                </div>
+            </div>
+
+            <div class="slide-card" data-slide="slide7-configuration.svg">
+                <img src="slide7-configuration.svg" alt="Slide 7" class="slide-preview">
+                <div class="slide-info">
+                    <h3>Slide 7: Configuration & Deployment</h3>
+                    <p>Django settings, environment setup, and API credentials</p>
+                    <span class="badge new">New</span>
+                </div>
+            </div>
+
+            <div class="slide-card" data-slide="slide8-request-lifecycle.svg">
+                <img src="slide8-request-lifecycle.svg" alt="Slide 8" class="slide-preview">
+                <div class="slide-info">
+                    <h3>Slide 8: Request Processing Lifecycle</h3>
+                    <p>State transitions, caching, and error handling</p>
+                    <span class="badge new">New</span>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>Click any slide to view in full screen. Use arrow keys or buttons to navigate.</p>
+            <p style="margin-top: 10px; font-size: 0.9rem;">Created with ❤️ for the HarmonAIze Project</p>
+        </footer>
+    </div>
+
+    <!-- Modal for full screen view -->
+    <div id="modal" class="modal">
+        <button class="close-modal" onclick="closeModal()">&times;</button>
+        <button class="navigation nav-prev" onclick="navigateSlide(-1)">‹</button>
+        <button class="navigation nav-next" onclick="navigateSlide(1)">›</button>
+        <div class="modal-content">
+            <img id="modal-image" src="" alt="Full screen slide">
+        </div>
+    </div>
+
+    <script>
+        const slides = [
+            'slide1-overview.svg',
+            'slide2-architecture.svg',
+            'slide3-data-flow.svg',
+            'slide4-integration.svg',
+            'slide5-service-layer.svg',
+            'slide6-data-models.svg',
+            'slide7-configuration.svg',
+            'slide8-request-lifecycle.svg'
+        ];
+
+        let currentSlideIndex = 0;
+
+        // Open modal when clicking on slide card
+        document.querySelectorAll('.slide-card').forEach((card, index) => {
+            card.addEventListener('click', () => {
+                currentSlideIndex = index;
+                openModal(slides[index]);
+            });
+        });
+
+        function openModal(slideSrc) {
+            const modal = document.getElementById('modal');
+            const modalImage = document.getElementById('modal-image');
+            modalImage.src = slideSrc;
+            modal.classList.add('active');
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('modal');
+            modal.classList.remove('active');
+        }
+
+        function navigateSlide(direction) {
+            currentSlideIndex += direction;
+            if (currentSlideIndex < 0) currentSlideIndex = slides.length - 1;
+            if (currentSlideIndex >= slides.length) currentSlideIndex = 0;
+
+            const modalImage = document.getElementById('modal-image');
+            modalImage.src = slides[currentSlideIndex];
+        }
+
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            const modal = document.getElementById('modal');
+            if (modal.classList.contains('active')) {
+                if (e.key === 'Escape') closeModal();
+                if (e.key === 'ArrowLeft') navigateSlide(-1);
+                if (e.key === 'ArrowRight') navigateSlide(1);
+            }
+        });
+
+        // Close modal when clicking outside
+        document.getElementById('modal').addEventListener('click', (e) => {
+            if (e.target.id === 'modal') closeModal();
+        });
+    </script>
+</body>
+</html>

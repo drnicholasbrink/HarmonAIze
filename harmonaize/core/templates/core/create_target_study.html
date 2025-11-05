@@ -1,0 +1,479 @@
+{% extends "base.html" %}
+{% load static crispy_forms_tags %}
+
+{% block title %}Create Target Database - HarmonAIze{% endblock title %}
+
+{% block css %}
+  {{ block.super }}
+  <style>
+    :root {
+      --primary-color: #28a745;
+      --secondary-color: #5AC8FA;
+      --accent-color: #34C759;
+      --background-color: #F2F2F7;
+      --card-background: #FFFFFF;
+      --text-primary: #1C1C1E;
+      --text-secondary: #8E8E93;
+      --border-color: #C6C6C8;
+      --shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+      --border-radius: 12px;
+    }
+
+    body {
+      background-color: var(--background-color);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--text-primary);
+      line-height: 1.5;
+    }
+
+    .hero-section {
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      color: white;
+      padding: 3rem 0;
+      margin: -1rem -15px 0 -15px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-section::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") repeat;
+      opacity: 0.5;
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 1;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 0 1rem;
+    }
+
+    .hero-title {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      letter-spacing: -0.02em;
+    }
+
+    .hero-subtitle {
+      font-size: 1.1rem;
+      font-weight: 400;
+      opacity: 0.9;
+      margin-bottom: 0;
+    }
+
+    .form-container {
+      max-width: 800px;
+      margin: 3rem auto;
+      padding: 0 1rem;
+    }
+
+    .form-card {
+      background: var(--card-background);
+      border-radius: var(--border-radius);
+      padding: 2.5rem;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border-color);
+    }
+
+    .form-section {
+      margin-bottom: 2.5rem;
+    }
+
+    .section-title {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid var(--primary-color);
+    }
+
+    .section-description {
+      color: var(--text-secondary);
+      margin-bottom: 1.5rem;
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+
+    .form-group {
+      margin-bottom: 1.5rem;
+    }
+
+    .form-label {
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 0.5rem;
+      display: block;
+    }
+
+    .form-control {
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      font-size: 1rem;
+      transition: all 0.2s ease;
+      background-color: var(--card-background);
+    }
+
+    .form-control:focus {
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.1);
+      outline: none;
+    }
+
+    .form-select {
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      font-size: 1rem;
+      background-color: var(--card-background);
+    }
+
+    .form-check {
+      margin-bottom: 0.75rem;
+    }
+
+    .form-check-input {
+      margin-right: 0.5rem;
+    }
+
+    .form-check-label {
+      color: var(--text-primary);
+      font-weight: 500;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+      border: none;
+      padding: 0.875rem 2rem;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      color: white;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(40, 167, 69, 0.4);
+      color: white;
+    }
+
+    .file-upload-area {
+      border: 2px dashed var(--border-color);
+      border-radius: var(--border-radius);
+      padding: 2rem;
+      text-align: center;
+      transition: all 0.3s ease;
+      background-color: #FBFBFD;
+    }
+
+    .file-upload-area:hover {
+      border-color: var(--primary-color);
+      background-color: rgba(40, 167, 69, 0.05);
+    }
+
+    .file-upload-icon {
+      font-size: 3rem;
+      color: var(--text-secondary);
+      margin-bottom: 1rem;
+    }
+
+    .file-upload-text {
+      color: var(--text-secondary);
+      margin-bottom: 1rem;
+    }
+
+    .supported-formats {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      margin-top: 0.5rem;
+    }
+
+    .checkbox-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }
+
+    .info-badge {
+      background: rgba(40, 167, 69, 0.1);
+      color: var(--primary-color);
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      margin-bottom: 1.5rem;
+      border: 1px solid rgba(40, 167, 69, 0.2);
+    }
+
+    @media (max-width: 768px) {
+      .hero-title {
+        font-size: 2rem;
+      }
+      
+      .form-card {
+        padding: 1.5rem;
+        margin: 1rem;
+      }
+      
+      .checkbox-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+{% endblock css %}
+
+{% block content %}
+  <!-- Hero Section -->
+  <div class="hero-section">
+    <div class="hero-content">
+      <h1 class="hero-title">Create Target Database</h1>
+      <p class="hero-subtitle">
+        Define harmonisation targets by creating a target database with your desired variable specifications.
+      </p>
+    </div>
+  </div>
+
+  <!-- Main Form -->
+  <div class="form-container">
+    <div class="form-card">
+      <div class="info-badge">
+        <strong>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline; margin-right: 4px;">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14,2 14,8 20,8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+            <polyline points="10,9 9,9 8,9"></polyline>
+          </svg>
+          Target Database:
+        </strong> This will define the variables you want to harmonise your source data TO. 
+        These become the standard format that all your source studies will be transformed into.
+        <br><br>
+        <strong>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline; margin-right: 4px; color: #FF9F0A;">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          Important:
+        </strong> You can only have <strong>one target database</strong> that defines your harmonisation standards. 
+        If you need to make changes, you can edit your existing target database.
+      </div>
+
+      <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        
+        <!-- Study Information Section -->
+        <div class="form-section">
+          <h2 class="section-title">Target Database Information</h2>
+          <p class="section-description">
+            Provide information about your harmonisation target. This defines the standard format for your harmonised data.
+          </p>
+          
+          <div class="form-group">
+            <label for="{{ form.project.id_for_label }}" class="form-label">Project</label>
+            {{ form.project }}
+            {% if form.project.help_text %}
+              <small class="form-text text-muted">{{ form.project.help_text }}</small>
+            {% endif %}
+          </div>
+          
+          <div class="row">
+            <div class="col-md-8">
+              <div class="form-group">
+                <label for="{{ form.name.id_for_label }}" class="form-label">Target Database Name</label>
+                {{ form.name }}
+                {% if form.name.help_text %}
+                  <small class="form-text text-muted">{{ form.name.help_text }}</small>
+                {% endif %}
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="form-group">
+                <label for="{{ form.study_type.id_for_label }}" class="form-label">Database Type</label>
+                {{ form.study_type }}
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="{{ form.description.id_for_label }}" class="form-label">Description</label>
+            {{ form.description }}
+            {% if form.description.help_text %}
+              <small class="form-text text-muted">{{ form.description.help_text }}</small>
+            {% endif %}
+          </div>
+
+          <div class="row">
+            <div class="col-md-6">
+              <div class="form-group">
+                <label for="{{ form.principal_investigator.id_for_label }}" class="form-label">Principal Investigator</label>
+                {{ form.principal_investigator }}
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="form-group">
+                <label for="{{ form.sample_size.id_for_label }}" class="form-label">Expected Sample Size (Optional)</label>
+                {{ form.sample_size }}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Target Characteristics Section -->
+        <div class="form-section">
+          <h2 class="section-title">Target Characteristics</h2>
+          <p class="section-description">
+            Specify the characteristics of your harmonised target format.
+          </p>
+          
+          <div class="checkbox-grid">
+            <div class="form-check">
+              {{ form.has_dates }}
+              <label for="{{ form.has_dates.id_for_label }}" class="form-check-label">
+                Include standardised date/time variables
+              </label>
+            </div>
+            
+            <div class="form-check">
+              {{ form.has_locations }}
+              <label for="{{ form.has_locations.id_for_label }}" class="form-check-label">
+                Include standardised location variables
+              </label>
+            </div>
+            
+            <div class="form-check">
+              {{ form.needs_geolocation }}
+              <label for="{{ form.needs_geolocation.id_for_label }}" class="form-check-label">
+                Include geolocation coordinates
+              </label>
+            </div>
+            
+            <div class="form-check">
+              {{ form.needs_climate_linkage }}
+              <label for="{{ form.needs_climate_linkage.id_for_label }}" class="form-check-label">
+                Include climate variables
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Target Codebook Upload Section -->
+        <div class="form-section">
+          <h2 class="section-title">Target Codebook (Optional)</h2>
+          <p class="section-description">
+            Upload a codebook that defines your target variables, or define them manually later.
+          </p>
+          
+          <div class="form-group">
+            <label for="{{ form.codebook.id_for_label }}" class="form-label">Target Codebook File</label>
+            <div class="file-upload-area">
+              <div class="file-upload-icon">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+              </div>
+              <div class="file-upload-text">
+                <strong>Choose your target codebook file</strong><br>
+                or drag and drop it here (optional)
+              </div>
+              {{ form.codebook }}
+              <div class="supported-formats">
+                Supported formats: CSV, Excel (.xlsx, .xls), SPSS (.sav), Stata (.dta), JSON, SQLite (.db), XML, TXT
+              </div>
+            </div>
+            {% if form.codebook.help_text %}
+              <small class="form-text text-muted">{{ form.codebook.help_text }}</small>
+            {% endif %}
+          </div>
+
+          <div class="row">
+            <div class="col-md-6">
+              <div class="form-group">
+                <label for="{{ form.protocol_file.id_for_label }}" class="form-label">Protocol File (Optional)</label>
+                {{ form.protocol_file }}
+                {% if form.protocol_file.help_text %}
+                  <small class="form-text text-muted">{{ form.protocol_file.help_text }}</small>
+                {% endif %}
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="form-group">
+                <label for="{{ form.additional_files.id_for_label }}" class="form-label">Additional Files (Optional)</label>
+                {{ form.additional_files }}
+                {% if form.additional_files.help_text %}
+                  <small class="form-text text-muted">{{ form.additional_files.help_text }}</small>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Submit Section -->
+        <div class="form-section">
+          <div class="d-grid">
+            <button type="submit" class="btn btn-primary">
+              Create Target Database & Continue
+            </button>
+          </div>
+          <p class="text-center mt-3">
+            <small class="text-muted">
+              After creating your target database, you'll be able to define and manage your target variables.
+            </small>
+          </p>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endblock content %}
+
+{% block inline_javascript %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // File upload styling
+    const fileInputs = document.querySelectorAll('input[type="file"]');
+    fileInputs.forEach(function(input) {
+      input.addEventListener('change', function(e) {
+        const fileName = e.target.files[0]?.name || 'No file chosen';
+        const label = e.target.closest('.file-upload-area').querySelector('.file-upload-text');
+        if (e.target.files[0]) {
+          label.innerHTML = `<strong>Selected:</strong> ${fileName}`;
+        }
+      });
+    });
+
+    // Form validation feedback
+    const form = document.querySelector('form');
+    form.addEventListener('submit', function(e) {
+      const requiredFields = form.querySelectorAll('[required]');
+      let isValid = true;
+      
+      requiredFields.forEach(function(field) {
+        if (!field.value.trim()) {
+          field.classList.add('is-invalid');
+          isValid = false;
+        } else {
+          field.classList.remove('is-invalid');
+        }
+      });
+      
+      if (!isValid) {
+        e.preventDefault();
+        alert('Please fill in all required fields.');
+      }
+    });
+  });
+</script>
+{% endblock inline_javascript %}
