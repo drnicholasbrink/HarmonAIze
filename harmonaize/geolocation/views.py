@@ -1708,6 +1708,51 @@ def validated_locations_map(request):
 
     return render(request, 'geolocation/validated_locations_map.html', context)
 
+
+@login_required
+def download_validated_locations_csv(request):
+    """Download validated locations as CSV file."""
+    import csv
+    from django.http import HttpResponse
+    from datetime import datetime
+
+    # Get all validated locations (Location model has: name, lat, lng, created_at, updated_at)
+    validated_locations = Location.objects.filter(
+        latitude__isnull=False,
+        longitude__isnull=False
+    ).order_by('name')
+
+    # Create the HttpResponse object with CSV header
+    response = HttpResponse(content_type='text/csv')
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    response['Content-Disposition'] = f'attachment; filename="validated_locations_{timestamp}.csv"'
+
+    # Create CSV writer
+    writer = csv.writer(response)
+
+    # Write header row
+    writer.writerow([
+        'Location ID',
+        'Location Name',
+        'Latitude',
+        'Longitude',
+        'Created Date',
+        'Updated Date'
+    ])
+
+    # Write data rows
+    for location in validated_locations:
+        writer.writerow([
+            location.id,
+            location.name,
+            location.latitude,
+            location.longitude,
+            location.created_at.strftime('%Y-%m-%d %H:%M:%S') if location.created_at else 'N/A',
+            location.updated_at.strftime('%Y-%m-%d %H:%M:%S') if location.updated_at else 'N/A'
+        ])
+
+    return response
+
 # MODERN CELERY-BASED BATCH PROCESSING VIEWS
 @login_required
 @csrf_exempt

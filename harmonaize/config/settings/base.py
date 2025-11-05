@@ -389,5 +389,12 @@ MAPBOX_ACCESS_TOKEN = env("MAPBOX_ACCESS_TOKEN", default="")
 LOCAL_NOMINATIM_URL = env("LOCAL_NOMINATIM_URL", default="http://nominatim:8080")
 
 # LLM Enhancement Settings (LLM is default, non-LLM only used as fallback)
+GEMINI_API_KEY = env("GEMINI_API_KEY", default="")
 GEOLOCATION_USE_LLM = env.bool("GEOLOCATION_USE_LLM", default=True)
 GEOLOCATION_LLM_CONFLICT_THRESHOLD_KM = env.float("GEOLOCATION_LLM_CONFLICT_THRESHOLD_KM", default=5.0)
+
+# Validation Scoring Weights (configurable for fine-tuning)
+# Name matching weight: How much to trust semantic name matching (AI-powered)
+# Distance weight: How much to trust source agreement (proximity check)
+GEOLOCATION_NAME_WEIGHT = env.float("GEOLOCATION_NAME_WEIGHT", default=0.70)
+GEOLOCATION_DISTANCE_WEIGHT = env.float("GEOLOCATION_DISTANCE_WEIGHT", default=0.30)
