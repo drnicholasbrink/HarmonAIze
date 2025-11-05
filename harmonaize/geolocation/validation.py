@@ -458,14 +458,33 @@ class SmartGeocodingValidator:
 
             arcgis_reverse = self._reverse_geocode_arcgis(lat, lng)
             if arcgis_reverse and arcgis_reverse.get('address'):
-                try:
-                    from fuzzywuzzy import fuzz
-                    similarity = fuzz.token_set_ratio(
-                        original_name,
-                        arcgis_reverse['address']
-                    ) / 100.0
-                except ImportError:
-                    similarity = 0.5 if original_name.lower() in arcgis_reverse['address'].lower() else 0.3
+                # AI-FIRST: Use Gemini semantic similarity as PRIMARY method
+                similarity = 0.0
+                llm_used = False
+
+                if self.llm_enhancer and self.llm_enhancer.is_enabled():
+                    try:
+                        llm_similarity = self.llm_enhancer.semantic_address_similarity(
+                            query_name=original_name,
+                            reverse_address=arcgis_reverse['address']
+                        )
+                        if llm_similarity and llm_similarity.get('similarity_score'):
+                            similarity = llm_similarity['similarity_score']
+                            llm_used = True
+                            logger.info(f"✓ Gemini AI semantic match (ArcGIS): {original_name} → {similarity:.0%}")
+                    except Exception as e:
+                        logger.warning(f"LLM semantic similarity failed for ArcGIS, falling back to fuzzy: {e}")
+
+                # FALLBACK: Only use fuzzy matching if AI fails
+                if not llm_used:
+                    try:
+                        from fuzzywuzzy import fuzz
+                        similarity = fuzz.token_set_ratio(
+                            original_name,
+                            arcgis_reverse['address']
+                        ) / 100.0
+                    except ImportError:
+                        similarity = 0.5 if original_name.lower() in arcgis_reverse['address'].lower() else 0.3
 
                 source_reverse_results.append({
                     'api': 'arcgis',
@@ -473,19 +492,39 @@ class SmartGeocodingValidator:
                     'similarity_score': similarity,
                     'place_type': arcgis_reverse.get('type', 'unknown'),
                     'confidence': 0.7,
-                    'components': arcgis_reverse
+                    'components': arcgis_reverse,
+                    'llm_used': llm_used
                 })
 
             nominatim_reverse = self._reverse_geocode_nominatim_with_fallback(lat, lng)
             if nominatim_reverse and nominatim_reverse.get('display_name'):
-                try:
-                    from fuzzywuzzy import fuzz
-                    similarity = fuzz.token_set_ratio(
-                        original_name,
-                        nominatim_reverse['display_name']
-                    ) / 100.0
-                except ImportError:
-                    similarity = 0.5 if original_name.lower() in nominatim_reverse['display_name'].lower() else 0.3
+                # AI-FIRST: Use Gemini semantic similarity as PRIMARY method
+                similarity = 0.0
+                llm_used = False
+
+                if self.llm_enhancer and self.llm_enhancer.is_enabled():
+                    try:
+                        llm_similarity = self.llm_enhancer.semantic_address_similarity(
+                            query_name=original_name,
+                            reverse_address=nominatim_reverse['display_name']
+                        )
+                        if llm_similarity and llm_similarity.get('similarity_score'):
+                            similarity = llm_similarity['similarity_score']
+                            llm_used = True
+                            logger.info(f"✓ Gemini AI semantic match (Nominatim): {original_name} → {similarity:.0%}")
+                    except Exception as e:
+                        logger.warning(f"LLM semantic similarity failed for Nominatim, falling back to fuzzy: {e}")
+
+                # FALLBACK: Only use fuzzy matching if AI fails
+                if not llm_used:
+                    try:
+                        from fuzzywuzzy import fuzz
+                        similarity = fuzz.token_set_ratio(
+                            original_name,
+                            nominatim_reverse['display_name']
+                        ) / 100.0
+                    except ImportError:
+                        similarity = 0.5 if original_name.lower() in nominatim_reverse['display_name'].lower() else 0.3
 
                 source_reverse_results.append({
                     'api': 'nominatim',
@@ -493,7 +532,8 @@ class SmartGeocodingValidator:
                     'similarity_score': similarity,
                     'place_type': nominatim_reverse.get('type', 'unknown'),
                     'confidence': 0.6,
-                    'local_used': nominatim_reverse.get('local_nominatim_used', False)
+                    'local_used': nominatim_reverse.get('local_nominatim_used', False),
+                    'llm_used': llm_used
                 })
 
             if source_reverse_results:
