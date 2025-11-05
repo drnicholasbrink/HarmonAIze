@@ -32,9 +32,18 @@ class SmartGeocodingValidator:
             'manual_review': 0.40,
         }
 
+        # AI-powered name-focused scoring for auto-approval (configurable)
+        # Name matching is MORE important than proximity because:
+        # 1. Points can be close but wrong (e.g., different buildings in same area)
+        # 2. AI semantic matching gives high confidence when names clearly match
+        # 3. Enables auto-approval when "Tygerberg Hospital" matches reverse geocode
+        # Default: 70% name + 30% distance (configurable via settings)
+        name_weight = getattr(settings, 'GEOLOCATION_NAME_WEIGHT', 0.70)
+        distance_weight = getattr(settings, 'GEOLOCATION_DISTANCE_WEIGHT', 0.30)
+
         self.confidence_weights = {
-            'reverse_geocoding': 0.70,
-            'distance_proximity': 0.30
+            'reverse_geocoding': name_weight,      # AI-powered name matching
+            'distance_proximity': distance_weight   # Source agreement check
         }
 
         self.local_nominatim_url = getattr(settings, 'LOCAL_NOMINATIM_URL', 'http://nominatim:8080')
@@ -409,14 +418,33 @@ class SmartGeocodingValidator:
 
             google_reverse = self._reverse_geocode_google(lat, lng)
             if google_reverse and google_reverse.get('formatted_address'):
-                try:
-                    from fuzzywuzzy import fuzz
-                    similarity = fuzz.token_set_ratio(
-                        original_name,
-                        google_reverse['formatted_address']
-                    ) / 100.0
-                except ImportError:
-                    similarity = 0.5 if original_name.lower() in google_reverse['formatted_address'].lower() else 0.3
+                # AI-FIRST: Use Gemini semantic similarity as PRIMARY method
+                similarity = 0.0
+                llm_used = False
+
+                if self.llm_enhancer and self.llm_enhancer.is_enabled():
+                    try:
+                        llm_similarity = self.llm_enhancer.semantic_address_similarity(
+                            query_name=original_name,
+                            reverse_address=google_reverse['formatted_address']
+                        )
+                        if llm_similarity and llm_similarity.get('similarity_score'):
+                            similarity = llm_similarity['similarity_score']
+                            llm_used = True
+                            logger.info(f"✓ Gemini AI semantic match: {original_name} → {similarity:.0%}")
+                    except Exception as e:
+                        logger.warning(f"LLM semantic similarity failed, falling back to fuzzy: {e}")
+
+                # FALLBACK: Only use fuzzy matching if AI fails
+                if not llm_used:
+                    try:
+                        from fuzzywuzzy import fuzz
+                        similarity = fuzz.token_set_ratio(
+                            original_name,
+                            google_reverse['formatted_address']
+                        ) / 100.0
+                    except ImportError:
+                        similarity = 0.5 if original_name.lower() in google_reverse['formatted_address'].lower() else 0.3
 
                 source_reverse_results.append({
                     'api': 'google',
@@ -424,7 +452,8 @@ class SmartGeocodingValidator:
                     'similarity_score': similarity,
                     'place_type': google_reverse.get('types', ['unknown'])[0] if google_reverse.get('types') else 'unknown',
                     'confidence': 0.8,
-                    'components': google_reverse.get('address_components', [])
+                    'components': google_reverse.get('address_components', []),
+                    'llm_used': llm_used
                 })
 
             arcgis_reverse = self._reverse_geocode_arcgis(lat, lng)
@@ -658,8 +687,18 @@ class SmartGeocodingValidator:
         location_clean = self._clean_text(location_name)
         address_clean = self._clean_text(full_address)
 
+        # Extract core facility name (remove country/region info from query)
+        location_core = self._extract_core_facility_name(location_name)
+
         if FUZZY_AVAILABLE:
             # FUZZY MATCHING STRATEGIES (using fuzzywuzzy)
+
+            # Strategy 0: Check if core facility name is in address (highest priority)
+            if location_core and len(location_core) > 3:
+                location_core_clean = self._clean_text(location_core).lower()
+                if location_core_clean in address_clean.lower():
+                    # Facility name found in address - very high confidence
+                    return 0.90
 
             # Strategy 1: Token Sort Ratio (handles word order)
             # "hospital parirenyatwa" vs "parirenyatwa hospital" = 100% match
@@ -676,11 +715,20 @@ class SmartGeocodingValidator:
             # Strategy 4: Simple Ratio (baseline character-by-character)
             simple = fuzz.ratio(location_clean, address_clean) / 100.0
 
-            # Take weighted average of best scores
-            scores = sorted([token_sort, token_set, partial, simple], reverse=True)
+            # Strategy 5: Match core facility name with fuzzy
+            core_partial = 0.0
+            if location_core:
+                core_partial = fuzz.partial_ratio(self._clean_text(location_core), address_clean) / 100.0
 
-            # Weight: Best score 50%, second best 30%, third 20%
-            final_score = (scores[0] * 0.5) + (scores[1] * 0.3) + (scores[2] * 0.2)
+            # Take weighted average of best scores, prioritizing token_set and core matching
+            scores = [token_sort, token_set, partial, simple, core_partial]
+            scores_sorted = sorted(scores, reverse=True)
+
+            # Give more weight to token_set (best for facility matching with extra words)
+            final_score = max(
+                token_set * 0.9,  # Prioritize token_set for facility names
+                (scores_sorted[0] * 0.5) + (scores_sorted[1] * 0.3) + (scores_sorted[2] * 0.2)
+            )
 
             # Bonus: Exact substring match (case-insensitive)
             if location_clean.lower() in address_clean.lower():
@@ -695,11 +743,17 @@ class SmartGeocodingValidator:
             if location_clean.lower() in address_clean.lower():
                 return 0.95
 
-            # Strategy 2: Partial containment check (high score)
+            # Strategy 2: Core facility name check
+            if location_core:
+                location_core_clean = self._clean_text(location_core).lower()
+                if location_core_clean in address_clean.lower():
+                    return 0.90
+
+            # Strategy 3: Partial containment check (high score)
             if self._partial_containment_check(location_clean, address_clean):
                 return 0.80
 
-            # Strategy 3: Token-based matching (medium score)
+            # Strategy 4: Token-based matching (medium score)
             location_tokens = set(location_clean.lower().split())
             address_tokens = set(address_clean.lower().split())
 
@@ -711,17 +765,41 @@ class SmartGeocodingValidator:
                 elif token_ratio >= 0.5:
                     return 0.45
 
-            # Strategy 4: Facility-specific matching
+            # Strategy 5: Facility-specific matching
             facility_score = self._calculate_facility_specific_similarity(location_name, full_address)
             if facility_score > 0:
                 return facility_score
 
-            # Strategy 5: Sequence matching (fallback)
+            # Strategy 6: Sequence matching (fallback)
             sequence_score = SequenceMatcher(None, location_clean.lower(), address_clean.lower()).ratio()
             if sequence_score >= 0.6:
                 return sequence_score * 0.5
 
             return 0.0
+
+    def _extract_core_facility_name(self, location_name: str) -> str:
+        """
+        Extract the core facility name, removing country/region info.
+
+        Examples:
+            "Tygerberg Hospital south africa" -> "Tygerberg Hospital"
+            "General Hospital Harare Zimbabwe" -> "General Hospital Harare"
+            "St Mary's Clinic" -> "St Mary's Clinic"
+        """
+        # Common country names and regions to remove
+        location_suffixes = [
+            'south africa', 'zimbabwe', 'kenya', 'uganda', 'tanzania',
+            'zambia', 'malawi', 'mozambique', 'botswana', 'namibia',
+            'south african', 'africa', 'african'
+        ]
+
+        location_lower = location_name.lower()
+        for suffix in location_suffixes:
+            if location_lower.endswith(' ' + suffix):
+                # Remove the suffix
+                return location_name[:-(len(suffix) + 1)].strip()
+
+        return location_name.strip()
     
     def _clean_text(self, text: str) -> str:
         """Clean text for better matching."""

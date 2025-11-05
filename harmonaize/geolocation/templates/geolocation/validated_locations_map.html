@@ -233,6 +233,11 @@
       color: white;
     }
 
+    .btn-csv {
+      background: linear-gradient(135deg, #28a745 0%, #218838 100%);
+      color: white;
+    }
+
     .map-legend {
       position: absolute;
       bottom: 1rem;
@@ -567,7 +572,11 @@
           <span>🖼️</span>
           <span>Download PNG</span>
         </button>
-        
+        <a href="{% url 'geolocation:download_validated_locations_csv' %}" class="download-btn btn-csv" style="text-decoration: none;">
+          <span>📊</span>
+          <span>Download CSV</span>
+        </a>
+
         <!-- Download Progress -->
         <div id="downloadProgress" class="progress-container">
           <div style="display: flex; align-items: center; gap: 1rem;">
