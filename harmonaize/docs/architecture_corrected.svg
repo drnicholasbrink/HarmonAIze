@@ -1,0 +1,188 @@
+<svg viewBox="0 0 1400 900" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .module-box { fill: #f8f9fa; stroke: #333; stroke-width: 2; }
+      .climate-box { fill: #4169E1; }
+      .core-box { fill: #28a745; }
+      .users-box { fill: #9370DB; }
+      .health-box { fill: #dc3545; }
+      .geo-box { fill: #fd7e14; }
+      .title-text { font-family: Arial, sans-serif; font-size: 16px; font-weight: bold; fill: white; }
+      .content-text { font-family: Arial, sans-serif; font-size: 12px; fill: white; }
+      .label-text { font-family: Arial, sans-serif; font-size: 11px; fill: #333; }
+      .header-text { font-family: Arial, sans-serif; font-size: 24px; font-weight: bold; fill: #333; }
+      .subheader-text { font-family: Arial, sans-serif; font-size: 14px; fill: #666; font-style: italic; }
+      .wrong-line { stroke: #dc3545; stroke-width: 3; stroke-dasharray: 5,5; }
+      .correct-line { stroke: #28a745; stroke-width: 2; }
+      .neutral-line { stroke: #666; stroke-width: 2; }
+      .arrow { fill: #333; }
+      .wrong-arrow { fill: #dc3545; }
+      .correct-arrow { fill: #28a745; }
+    </style>
+    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" class="arrow" />
+    </marker>
+    <marker id="arrowhead-wrong" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" class="wrong-arrow" />
+    </marker>
+    <marker id="arrowhead-correct" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" class="correct-arrow" />
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="700" y="30" text-anchor="middle" class="header-text">HarmonAIze Architecture: Current vs. Intended</text>
+  <text x="700" y="50" text-anchor="middle" class="subheader-text">Core-Centric Design Pattern</text>
+
+  <!-- Legend -->
+  <g id="legend">
+    <rect x="50" y="70" width="300" height="80" fill="white" stroke="#333" stroke-width="1" rx="5"/>
+    <text x="60" y="90" class="label-text" font-weight="bold">Legend:</text>
+    <line x1="60" y1="105" x2="120" y2="105" class="wrong-line" marker-end="url(#arrowhead-wrong)"/>
+    <text x="130" y="110" class="label-text">WRONG: Direct User connections (bypassing Core)</text>
+    <line x1="60" y1="125" x2="120" y2="125" class="correct-line" marker-end="url(#arrowhead-correct)"/>
+    <text x="130" y="130" class="label-text">CORRECT: Through Core module</text>
+  </g>
+
+  <!-- CURRENT ARCHITECTURE (WRONG) -->
+  <text x="350" y="180" text-anchor="middle" class="header-text" font-size="18">CURRENT (Incorrect)</text>
+
+  <!-- Users Module -->
+  <g id="users-current">
+    <rect x="50" y="200" width="200" height="120" rx="10" class="users-box"/>
+    <text x="150" y="225" text-anchor="middle" class="title-text">USERS MODULE</text>
+    <text x="60" y="250" class="content-text">User Model</text>
+    <text x="60" y="270" class="content-text">Authentication</text>
+    <text x="60" y="290" class="content-text">Permissions</text>
+  </g>
+
+  <!-- Core Module -->
+  <g id="core-current">
+    <rect x="300" y="350" width="200" height="200" rx="10" class="core-box"/>
+    <text x="400" y="375" text-anchor="middle" class="title-text">CORE MODULE</text>
+    <text x="310" y="400" class="content-text">Study</text>
+    <text x="310" y="420" class="content-text">Location</text>
+    <text x="310" y="440" class="content-text">TimeDimension</text>
+    <text x="310" y="460" class="content-text">Attribute (category='climate')</text>
+    <text x="310" y="480" class="content-text">Observation</text>
+    <text x="310" y="500" class="content-text">Patient</text>
+    <text x="310" y="520" class="content-text">Project</text>
+  </g>
+
+  <!-- Climate Module -->
+  <g id="climate-current">
+    <rect x="50" y="400" width="200" height="120" rx="10" class="climate-box"/>
+    <text x="150" y="425" text-anchor="middle" class="title-text">CLIMATE MODULE</text>
+    <text x="60" y="450" class="content-text">ClimateDataRequest</text>
+    <text x="60" y="470" class="content-text">ClimateDataSource</text>
+    <text x="60" y="490" class="content-text">ClimateVariable</text>
+    <text x="60" y="510" class="content-text">ClimateDataCache</text>
+  </g>
+
+  <!-- Health Module -->
+  <g id="health-current">
+    <rect x="550" y="200" width="200" height="100" rx="10" class="health-box"/>
+    <text x="650" y="225" text-anchor="middle" class="title-text">HEALTH MODULE</text>
+    <text x="560" y="250" class="content-text">Uses Observation model</text>
+    <text x="560" y="270" class="content-text">from Core</text>
+  </g>
+
+  <!-- Geolocation Module -->
+  <g id="geo-current">
+    <rect x="300" y="600" width="200" height="100" rx="10" class="geo-box"/>
+    <text x="400" y="625" text-anchor="middle" class="title-text">GEOLOCATION</text>
+    <text x="310" y="650" class="content-text">Uses Location model</text>
+    <text x="310" y="670" class="content-text">Spatial processing</text>
+  </g>
+
+  <!-- WRONG connections (red dashed) -->
+  <line x1="150" y1="320" x2="150" y2="395" class="wrong-line" marker-end="url(#arrowhead-wrong)"/>
+  <text x="160" y="360" class="label-text" fill="#dc3545">requested_by</text>
+
+  <line x1="250" y1="250" x2="295" y2="400" class="wrong-line" marker-end="url(#arrowhead-wrong)"/>
+  <text x="260" y="320" class="label-text" fill="#dc3545">created_by</text>
+
+  <!-- CORRECT connections (through Core) -->
+  <line x1="250" y1="450" x2="295" y2="450" class="correct-line" marker-end="url(#arrowhead-correct)"/>
+  <text x="255" y="445" class="label-text" fill="#28a745">study</text>
+
+  <line x1="400" y1="550" x2="400" y2="595" class="neutral-line" marker-end="url(#arrowhead)"/>
+  <text x="410" y="575" class="label-text">spatial data</text>
+
+  <line x1="500" y1="450" x2="545" y2="260" class="neutral-line" marker-end="url(#arrowhead)"/>
+  <text x="510" y="360" class="label-text">observations</text>
+
+  <!-- INTENDED ARCHITECTURE (CORRECT) -->
+  <text x="1050" y="180" text-anchor="middle" class="header-text" font-size="18">INTENDED (Correct)</text>
+
+  <!-- Users Module -->
+  <g id="users-intended">
+    <rect x="750" y="200" width="200" height="120" rx="10" class="users-box"/>
+    <text x="850" y="225" text-anchor="middle" class="title-text">USERS MODULE</text>
+    <text x="760" y="250" class="content-text">User Model</text>
+    <text x="760" y="270" class="content-text">Authentication</text>
+    <text x="760" y="290" class="content-text">Permissions</text>
+  </g>
+
+  <!-- Core Module -->
+  <g id="core-intended">
+    <rect x="1000" y="350" width="200" height="200" rx="10" class="core-box"/>
+    <text x="1100" y="375" text-anchor="middle" class="title-text">CORE MODULE</text>
+    <text x="1010" y="400" class="content-text">Study (owns requests)</text>
+    <text x="1010" y="420" class="content-text">Location</text>
+    <text x="1010" y="440" class="content-text">TimeDimension</text>
+    <text x="1010" y="460" class="content-text">Attribute (category='climate')</text>
+    <text x="1010" y="480" class="content-text">Observation</text>
+    <text x="1010" y="500" class="content-text">Patient</text>
+    <text x="1010" y="520" class="content-text">Project</text>
+  </g>
+
+  <!-- Climate Module -->
+  <g id="climate-intended">
+    <rect x="750" y="400" width="200" height="120" rx="10" class="climate-box"/>
+    <text x="850" y="425" text-anchor="middle" class="title-text">CLIMATE MODULE</text>
+    <text x="760" y="450" class="content-text">ClimateDataRequest</text>
+    <text x="760" y="470" class="content-text">ClimateDataSource</text>
+    <text x="760" y="490" class="content-text">ClimateVariable</text>
+    <text x="760" y="510" class="content-text">ClimateDataCache</text>
+  </g>
+
+  <!-- Health Module -->
+  <g id="health-intended">
+    <rect x="1250" y="200" width="200" height="100" rx="10" class="health-box"/>
+    <text x="1350" y="225" text-anchor="middle" class="title-text">HEALTH MODULE</text>
+    <text x="1260" y="250" class="content-text">Uses Observation model</text>
+    <text x="1260" y="270" class="content-text">from Core</text>
+  </g>
+
+  <!-- Geolocation Module -->
+  <g id="geo-intended">
+    <rect x="1000" y="600" width="200" height="100" rx="10" class="geo-box"/>
+    <text x="1100" y="625" text-anchor="middle" class="title-text">GEOLOCATION</text>
+    <text x="1010" y="650" class="content-text">Uses Location model</text>
+    <text x="1010" y="670" class="content-text">Spatial processing</text>
+  </g>
+
+  <!-- ALL connections through Core (green) -->
+  <line x1="850" y1="320" x2="1000" y2="420" class="correct-line" marker-end="url(#arrowhead-correct)"/>
+  <text x="900" y="365" class="label-text" fill="#28a745">via Study.created_by</text>
+
+  <line x1="950" y1="450" x2="995" y2="450" class="correct-line" marker-end="url(#arrowhead-correct)"/>
+  <text x="955" y="445" class="label-text" fill="#28a745">study</text>
+
+  <line x1="1100" y1="550" x2="1100" y2="595" class="correct-line" marker-end="url(#arrowhead-correct)"/>
+  <text x="1110" y="575" class="label-text" fill="#28a745">spatial data</text>
+
+  <line x1="1200" y1="450" x2="1245" y2="260" class="correct-line" marker-end="url(#arrowhead-correct)"/>
+  <text x="1210" y="360" class="label-text" fill="#28a745">observations</text>
+
+  <!-- Key Integration Point -->
+  <g id="integration-note">
+    <rect x="750" y="750" width="650" height="120" fill="#fffacd" stroke="#ffa500" stroke-width="2" rx="5"/>
+    <text x="1075" y="775" text-anchor="middle" class="label-text" font-weight="bold" font-size="14">Key Architecture Principle:</text>
+    <text x="760" y="800" class="label-text">1. Users interact ONLY with Core (Study, Project)</text>
+    <text x="760" y="820" class="label-text">2. Climate module connects to Study (NOT User directly)</text>
+    <text x="760" y="840" class="label-text">3. Authorization determined through Study.created_by relationship</text>
+    <text x="760" y="860" class="label-text">4. All observations stored in Core with Attribute.category='climate'</text>
+  </g>
+</svg>
