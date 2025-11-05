@@ -366,10 +366,15 @@ class GeocodingService:
 
         return None
 
-    def geocode_single_location(self, location, force_reprocess=False):
+    def geocode_single_location(self, location, force_reprocess=False, user=None):
         """
         Geocode a single location using all available sources.
         This extracts the core logic from the management command.
+
+        Args:
+            location: Location model instance
+            force_reprocess: If True, re-geocode even if results exist
+            user: User model instance (required for creating GeocodingResult)
         """
 
         if not force_reprocess:
@@ -401,7 +406,9 @@ class GeocodingService:
             # Create geocoding result from validated data
             geocoding_result, created = GeocodingResult.objects.get_or_create(
                 location_name=location.name,
+                created_by=user or validated_result.created_by,
                 defaults={
+                    'location': location,
                     'validation_status': 'validated',
                     'final_lat': validated_result.final_lat,
                     'final_lng': validated_result.final_long,
@@ -415,7 +422,7 @@ class GeocodingService:
             return geocoding_result
 
         # Step 2: Perform full geocoding using all APIs
-        return self.geocode_location_full(location)
+        return self.geocode_location_full(location, user=user)
     
     def check_validated_dataset(self, location):
         """
@@ -488,12 +495,16 @@ class GeocodingService:
         logger.info(f"VALIDATED DATASET: No match found for '{location.name}'")
         return None
     
-    def geocode_location_full(self, location):
+    def geocode_location_full(self, location, user=None):
         """
         Geocode using all available API sources with intelligent parsing.
 
         Enhanced with LLM parsing for better location component extraction.
         Falls back to traditional parsing if LLM unavailable.
+
+        Args:
+            location: Location model instance
+            user: User model instance (required for creating GeocodingResult)
         """
 
         logger.info(f"=== GEOCODING: {location.name} ===")
@@ -567,13 +578,29 @@ class GeocodingService:
             logger.warning(f"✗ Nominatim: {results['nominatim'].get('error', 'No result')}")
         
         # Create or update geocoding result
-        geocoding_result, created = GeocodingResult.objects.get_or_create(
-            location_name=location.name,
-            defaults={
-                'validation_status': 'pending',
-                'parsed_location_data': parsed_location  # Store parsed components
-            }
-        )
+        # Get or create with location_name and created_by to ensure uniqueness per user
+        if user:
+            geocoding_result, created = GeocodingResult.objects.get_or_create(
+                location_name=location.name,
+                created_by=user,
+                defaults={
+                    'location': location,
+                    'validation_status': 'pending',
+                    'parsed_location_data': parsed_location  # Store parsed components
+                }
+            )
+        else:
+            # Fallback for management commands without user context
+            # In this case, try to find existing result or create with location FK only
+            logger.warning(f"No user provided for geocoding '{location.name}' - this may cause issues with user-scoped queries")
+            geocoding_result, created = GeocodingResult.objects.filter(
+                location_name=location.name
+            ).first(), False
+
+            if not geocoding_result:
+                # Cannot create without user - this will fail
+                logger.error(f"Cannot create GeocodingResult without user for '{location.name}'")
+                return None
 
         # Update parsed data if not created
         if not created:

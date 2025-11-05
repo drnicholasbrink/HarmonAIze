@@ -1722,11 +1722,12 @@ def start_batch_geocoding(request):
             force_reprocess = data.get('force_reprocess', False)
             batch_size = data.get('batch_size', 50)
 
-            # Start Celery task
+            # Start Celery task (pass user_id for GeocodingResult creation)
             task = batch_geocode_locations.delay(
                 location_ids=location_ids,
                 force_reprocess=force_reprocess,
-                batch_size=batch_size
+                batch_size=batch_size,
+                user_id=request.user.id
             )
 
             return JsonResponse({
