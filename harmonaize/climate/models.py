@@ -63,24 +63,19 @@ class ClimateDataSource(models.Model):
 class ClimateVariable(models.Model):
     """
     Defines available climate variables that can be retrieved from data sources.
+    Uses open-ended categories to allow flexibility for any climate variable type.
     """
-    VARIABLE_CATEGORY_CHOICES = [
-        ('temperature', 'Temperature'),
-        ('precipitation', 'Precipitation'),
-        ('humidity', 'Humidity'),
-        ('wind', 'Wind'),
-        ('solar', 'Solar Radiation'),
-        ('vegetation', 'Vegetation Index'),
-        ('air_quality', 'Air Quality'),
-        ('extreme_events', 'Extreme Events'),
-        ('other', 'Other'),
-    ]
-    
+
     # Basic information
     name = models.CharField(max_length=100, unique=True, help_text="Variable name (e.g., 'temperature_2m')")
     display_name = models.CharField(max_length=200, help_text="Human-readable name")
     description = models.TextField(help_text="Detailed description of the variable")
-    category = models.CharField(max_length=50, choices=VARIABLE_CATEGORY_CHOICES)
+    category = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Variable category (e.g., temperature, precipitation, humidity, or custom types). "
+                  "Not restricted to predefined choices - users can define their own categories."
+    )
     
     # Units and measurement
     unit = models.CharField(max_length=50, help_text="Measurement unit (e.g., '°C', 'mm', 'm/s')")

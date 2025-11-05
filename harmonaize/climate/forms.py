@@ -142,7 +142,7 @@ class ClimateDataConfigurationForm(forms.ModelForm):
 
 class ClimateVariableSelectionForm(forms.Form):
     """Simple form for selecting climate variables to view or download."""
-    
+
     variables = forms.ModelMultipleChoiceField(
         queryset=ClimateVariable.objects.all(),
         widget=forms.CheckboxSelectMultiple(
@@ -151,20 +151,27 @@ class ClimateVariableSelectionForm(forms.Form):
         required=False,
         label="Select Climate Variables",
     )
-    
+
     category_filter = forms.MultipleChoiceField(
-        choices=ClimateVariable.VARIABLE_CATEGORY_CHOICES,
+        choices=[],  # Will be populated dynamically in __init__
         widget=forms.CheckboxSelectMultiple(
             attrs={'class': 'form-check-input'}
         ),
         required=False,
         label="Filter by Category",
     )
-    
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Group variables by category
         self.fields['variables'].queryset = ClimateVariable.objects.all().order_by('category', 'display_name')
+
+        # Dynamically populate category choices from existing variables
+        # This allows for open-ended categories without hardcoded choices
+        categories = ClimateVariable.objects.exclude(
+            category=''
+        ).values_list('category', flat=True).distinct().order_by('category')
+        self.fields['category_filter'].choices = [(cat, cat.title()) for cat in categories]
 
 
 class ClimateDataSourceForm(forms.ModelForm):

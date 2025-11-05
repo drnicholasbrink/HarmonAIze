@@ -33,7 +33,7 @@ class ClimateDataSourceAdmin(admin.ModelAdmin):
             'fields': ('global_coverage', 'coverage_description')
         }),
         ('Metadata', {
-            'fields': ('last_checked', 'created_by', 'created_at', 'updated_at')
+            'fields': ('last_checked', 'created_at', 'updated_at')
         }),
     )
 
@@ -97,7 +97,7 @@ class ClimateDataRequestAdmin(admin.ModelAdmin):
         'requested_at'
     ]
     list_filter = ['status', 'data_source', 'temporal_aggregation', 'requested_at']
-    search_fields = ['study__name', 'requested_by__email']
+    search_fields = ['study__name', 'study__created_by__email']
     readonly_fields = [
         'requested_at',
         'started_at',
