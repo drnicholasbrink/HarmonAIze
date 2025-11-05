@@ -1,10 +1,7 @@
 from django.db import models
-from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
 from core.models import Study, Location, TimeDimension, Attribute, Observation
-
-User = get_user_model()
 
 
 class ClimateDataSource(models.Model):
@@ -53,8 +50,7 @@ class ClimateDataSource(models.Model):
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='climate_sources')
-    
+
     class Meta:
         ordering = ['name']
         verbose_name = "Climate Data Source"
@@ -264,7 +260,6 @@ class ClimateDataRequest(models.Model):
     total_observations = models.IntegerField(default=0, help_text="Total observations created")
     
     # Request tracking
-    requested_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     requested_at = models.DateTimeField(auto_now_add=True)
     started_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
@@ -299,6 +294,19 @@ class ClimateDataRequest(models.Model):
         elif self.started_at:
             return timezone.now() - self.started_at
         return None
+
+    @property
+    def requested_by(self):
+        """Get the user who owns the study (and thus this request).
+        Authorization flows through the Core module via Study ownership.
+        """
+        return self.study.created_by if self.study else None
+
+    def user_can_access(self, user):
+        """Check if a user can access this climate data request.
+        Access is determined by Study ownership in the Core module.
+        """
+        return self.study.created_by == user if self.study else False
 
 
 class ClimateDataCache(models.Model):

@@ -122,8 +122,9 @@ class ClimateDataConfigurationForm(forms.ModelForm):
     def save(self, commit=True):
         instance = super().save(commit=False)
         instance.study = self.study
-        instance.requested_by = self.user
-        
+        # User authorization flows through study.created_by (Core module)
+        # No need to set requested_by - accessed via property
+
         if commit:
             instance.save()
             # Save many-to-many relationships

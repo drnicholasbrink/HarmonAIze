@@ -1,0 +1,183 @@
+<svg viewBox="0 0 1400 950" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .module-box { fill: #f8f9fa; stroke: #333; stroke-width: 2; }
+      .climate-box { fill: #4169E1; }
+      .core-box { fill: #28a745; }
+      .users-box { fill: #9370DB; }
+      .health-box { fill: #dc3545; }
+      .geo-box { fill: #fd7e14; }
+      .title-text { font-family: Arial, sans-serif; font-size: 16px; font-weight: bold; fill: white; }
+      .content-text { font-family: Arial, sans-serif; font-size: 12px; fill: white; }
+      .bullet-text { font-family: Arial, sans-serif; font-size: 11px; fill: white; }
+      .label-text { font-family: Arial, sans-serif; font-size: 12px; fill: #333; }
+      .header-text { font-family: Arial, sans-serif; font-size: 28px; font-weight: bold; fill: #333; }
+      .subheader-text { font-family: Arial, sans-serif; font-size: 16px; fill: #666; }
+      .flow-line { stroke: #28a745; stroke-width: 3; }
+      .data-line { stroke: #fd7e14; stroke-width: 2; }
+      .auth-line { stroke: #9370DB; stroke-width: 2; stroke-dasharray: 5,5; }
+      .arrow { fill: #28a745; }
+      .data-arrow { fill: #fd7e14; }
+      .auth-arrow { fill: #9370DB; }
+    </style>
+    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" class="arrow" />
+    </marker>
+    <marker id="data-arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" class="data-arrow" />
+    </marker>
+    <marker id="auth-arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" class="auth-arrow" />
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="700" y="40" text-anchor="middle" class="header-text">HarmonAIze Module Integration Map</text>
+  <text x="700" y="70" text-anchor="middle" class="subheader-text">Core-Centric Architecture</text>
+
+  <!-- Legend -->
+  <g id="legend">
+    <rect x="50" y="90" width="400" height="100" fill="white" stroke="#333" stroke-width="1" rx="5"/>
+    <text x="60" y="110" class="label-text" font-weight="bold" font-size="14">Data Flow Patterns:</text>
+    <line x1="60" y1="130" x2="130" y2="130" class="flow-line" marker-end="url(#arrowhead)"/>
+    <text x="140" y="135" class="label-text">Core → Module: Model dependencies</text>
+    <line x1="60" y1="150" x2="130" y2="150" class="data-line" marker-end="url(#data-arrowhead)"/>
+    <text x="140" y="155" class="label-text">Module → Core: Data storage (via Observation)</text>
+    <line x1="60" y1="170" x2="130" y2="170" class="auth-line" marker-end="url(#auth-arrowhead)"/>
+    <text x="140" y="175" class="label-text">Authorization flow (via Study.created_by)</text>
+  </g>
+
+  <!-- CORE MODULE (Center) -->
+  <g id="core-module">
+    <rect x="550" y="350" width="300" height="280" rx="15" class="core-box"/>
+    <text x="700" y="385" text-anchor="middle" class="title-text" font-size="20">CORE MODULE</text>
+    <line x1="565" y1="395" x2="835" y2="395" stroke="white" stroke-width="2"/>
+
+    <text x="570" y="420" class="content-text" font-weight="bold">Study • Location • TimeDimension</text>
+    <text x="570" y="445" class="content-text" font-weight="bold">Attribute • Observation</text>
+
+    <text x="570" y="475" class="bullet-text">• Shared Observation model</text>
+    <text x="570" y="495" class="bullet-text">• Attribute.category = 'climate'</text>
+    <text x="570" y="515" class="bullet-text">• Study.needs_climate_linkage flag</text>
+    <text x="570" y="535" class="bullet-text">• Location coordinates for spatial data</text>
+    <text x="570" y="555" class="bullet-text">• TimeDimension for temporal data</text>
+
+    <text x="700" y="590" text-anchor="middle" class="content-text" font-weight="bold" font-size="14">Central Hub</text>
+    <text x="700" y="610" text-anchor="middle" class="bullet-text">All modules integrate through Core models</text>
+  </g>
+
+  <!-- USERS MODULE (Top) -->
+  <g id="users-module">
+    <rect x="550" y="100" width="300" height="150" rx="15" class="users-box"/>
+    <text x="700" y="135" text-anchor="middle" class="title-text" font-size="20">USERS MODULE</text>
+    <line x1="565" y1="145" x2="835" y2="145" stroke="white" stroke-width="2"/>
+
+    <text x="570" y="170" class="content-text">User Model</text>
+    <text x="570" y="195" class="bullet-text">• Relationships:</text>
+    <text x="590" y="215" class="bullet-text">requested_by ForeignKey</text>
+    <text x="590" y="232" class="bullet-text">created_by ForeignKey</text>
+  </g>
+
+  <!-- Authorization flow from Users to Core -->
+  <line x1="700" y1="250" x2="700" y2="345" class="auth-line" marker-end="url(#auth-arrowhead)"/>
+  <text x="710" y="300" class="label-text" fill="#9370DB" font-weight="bold">Authorization</text>
+  <text x="710" y="315" class="label-text" fill="#9370DB">via Study.created_by</text>
+
+  <!-- CLIMATE MODULE (Left) -->
+  <g id="climate-module">
+    <rect x="100" y="250" width="350" height="250" rx="15" class="climate-box"/>
+    <text x="275" y="285" text-anchor="middle" class="title-text" font-size="20">CLIMATE MODULE</text>
+    <line x1="115" y1="295" x2="435" y2="295" stroke="white" stroke-width="2"/>
+
+    <text x="120" y="320" class="content-text">ClimateDataRequest</text>
+    <text x="130" y="340" class="bullet-text">• Request management</text>
+
+    <text x="120" y="365" class="content-text">ClimateDataSource</text>
+    <text x="130" y="385" class="bullet-text">• External data providers</text>
+
+    <text x="120" y="410" class="content-text">Services: EarthEngine, Copernicus</text>
+    <text x="130" y="430" class="bullet-text">• Data retrieval &amp; processing</text>
+
+    <text x="120" y="455" class="content-text">Integration:</text>
+    <text x="130" y="475" class="bullet-text">• Shares Observation model</text>
+    <text x="130" y="490" class="bullet-text">• Enables climate-health analysis</text>
+  </g>
+
+  <!-- Climate to Core connections -->
+  <line x1="450" y1="350" x2="545" y2="410" class="flow-line" marker-end="url(#arrowhead)"/>
+  <text x="470" y="375" class="label-text" fill="#28a745" font-weight="bold">study</text>
+  <text x="455" y="390" class="label-text" fill="#28a745">locations</text>
+
+  <line x1="450" y1="450" x2="545" y2="500" class="data-line" marker-end="url(#data-arrowhead)"/>
+  <text x="460" y="470" class="label-text" fill="#fd7e14" font-weight="bold">Creates Attributes</text>
+  <text x="460" y="485" class="label-text" fill="#fd7e14">&amp; Observations</text>
+
+  <!-- HEALTH MODULE (Right) -->
+  <g id="health-module">
+    <rect x="950" y="250" width="350" height="250" rx="15" class="health-box"/>
+    <text x="1125" y="285" text-anchor="middle" class="title-text" font-size="20">HEALTH MODULE</text>
+    <line x1="965" y1="295" x2="1285" y2="295" stroke="white" stroke-width="2"/>
+
+    <text x="970" y="320" class="content-text">Health data collection</text>
+
+    <text x="970" y="350" class="content-text">Integration:</text>
+    <text x="980" y="370" class="bullet-text">• Shares Observation model</text>
+    <text x="980" y="390" class="bullet-text">• Enables climate-health analysis</text>
+
+    <text x="970" y="420" class="content-text">Climate linkage:</text>
+    <text x="980" y="440" class="bullet-text">• Study.needs_climate_linkage</text>
+    <text x="980" y="460" class="bullet-text">• Unified data format</text>
+    <text x="980" y="480" class="bullet-text">• Temporal &amp; spatial matching</text>
+  </g>
+
+  <!-- Core to Health connection -->
+  <line x1="850" y1="450" x2="945" y2="390" class="flow-line" marker-end="url(#arrowhead)"/>
+  <text x="870" y="415" class="label-text" fill="#28a745" font-weight="bold">Shared</text>
+  <text x="860" y="430" class="label-text" fill="#28a745">Observation model</text>
+
+  <!-- GEOLOCATION MODULE (Bottom) -->
+  <g id="geo-module">
+    <rect x="500" y="720" width="400" height="180" rx="15" class="geo-box"/>
+    <text x="700" y="755" text-anchor="middle" class="title-text" font-size="20">GEOLOCATION MODULE</text>
+    <line x1="515" y1="765" x2="885" y2="765" stroke="white" stroke-width="2"/>
+
+    <text x="520" y="790" class="content-text">Spatial data processing</text>
+
+    <text x="520" y="820" class="bullet-text">• Requires geolocated data (lat/lon, buffer)</text>
+    <text x="520" y="840" class="bullet-text">• Spatial buffer functionality for climate data</text>
+    <text x="520" y="860" class="bullet-text">• Uses Location model from Core</text>
+    <text x="520" y="880" class="bullet-text">• Provides spatial matching services</text>
+  </g>
+
+  <!-- Core to Geolocation connection -->
+  <line x1="700" y1="630" x2="700" y2="715" class="data-line" marker-end="url(#data-arrowhead)"/>
+  <text x="710" y="670" class="label-text" fill="#fd7e14" font-weight="bold">Spatial data</text>
+  <text x="710" y="685" class="label-text" fill="#fd7e14">(lat/lon, buffer)</text>
+
+  <!-- Key Integration Points -->
+  <g id="integration-points">
+    <rect x="100" y="560" width="350" height="130" fill="#fffacd" stroke="#ffa500" stroke-width="2" rx="10"/>
+    <text x="275" y="585" text-anchor="middle" class="label-text" font-weight="bold" font-size="15">Key Integration Points</text>
+    <line x1="115" y1="593" x2="435" y2="593" stroke="#ffa500" stroke-width="1"/>
+
+    <text x="110" y="610" class="label-text" font-weight="bold">1. Observation Model (Shared)</text>
+    <text x="120" y="628" class="label-text">Climate &amp; health data in unified format</text>
+
+    <text x="110" y="648" class="label-text" font-weight="bold">2. Study Configuration</text>
+    <text x="120" y="666" class="label-text">needs_climate_linkage flag enables module</text>
+
+    <text x="110" y="682" class="label-text" font-weight="bold">3. Spatial Matching</text>
+  </g>
+
+  <!-- Authorization Note -->
+  <g id="auth-note">
+    <rect x="950" y="560" width="350" height="130" fill="#e6e6fa" stroke="#9370DB" stroke-width="2" rx="10"/>
+    <text x="1125" y="585" text-anchor="middle" class="label-text" font-weight="bold" font-size="15">Authorization Pattern</text>
+    <line x1="965" y1="593" x2="1285" y2="593" stroke="#9370DB" stroke-width="1"/>
+
+    <text x="960" y="615" class="label-text">✓ Users interact ONLY with Core (Study, Project)</text>
+    <text x="960" y="635" class="label-text">✓ Climate connects to Study (NOT User)</text>
+    <text x="960" y="655" class="label-text">✓ Authorization via Study.created_by</text>
+    <text x="960" y="675" class="label-text">✓ All observations via Attribute.category</text>
+  </g>
+</svg>
