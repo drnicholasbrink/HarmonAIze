@@ -376,3 +376,18 @@ OPENAI_TRANSFORMATION_MODEL = env("OPENAI_TRANSFORMATION_MODEL", default="gpt-5"
 EMBEDDING_CHUNK_TOKENS = env.int("EMBEDDING_CHUNK_TOKENS", default=8000)
 EMBEDDING_CHUNK_OVERLAP = env.int("EMBEDDING_CHUNK_OVERLAP", default=50)
 EMBEDDING_DIMENSIONS = env.int("EMBEDDING_DIMENSIONS", default=3072)  # text-embedding-3-large default
+
+# Geolocation Configuration
+# ------------------------------------------------------------------------------
+# Google Geocoding API (required for geocoding service)
+GOOGLE_GEOCODING_API_KEY = env("GOOGLE_GEOCODING_API_KEY", default="")
+
+# Mapbox Access Token (required for interactive map visualisations)
+MAPBOX_ACCESS_TOKEN = env("MAPBOX_ACCESS_TOKEN", default="")
+
+# Local Nominatim URL (optional, falls back to public API if not available)
+LOCAL_NOMINATIM_URL = env("LOCAL_NOMINATIM_URL", default="http://nominatim:8080")
+
+# LLM Enhancement Settings (LLM is default, non-LLM only used as fallback)
+GEOLOCATION_USE_LLM = env.bool("GEOLOCATION_USE_LLM", default=True)
+GEOLOCATION_LLM_CONFLICT_THRESHOLD_KM = env.float("GEOLOCATION_LLM_CONFLICT_THRESHOLD_KM", default=5.0)
