@@ -15,16 +15,17 @@ from core.models import Location
 
 logger = logging.getLogger(__name__)
 @shared_task(bind=True)
-def batch_geocode_locations(self, location_ids=None, force_reprocess=False, batch_size=50):
+def batch_geocode_locations(self, location_ids=None, force_reprocess=False, batch_size=50, user_id=None):
     """
     Celery task for batch geocoding locations.
     Replaces geocode_locations.py management command.
-    
+
     Args:
         location_ids: List of location IDs to process (None = all unprocessed)
         force_reprocess: Re-geocode existing results
         batch_size: Number of locations to process per batch
-        
+        user_id: ID of user initiating the geocoding (required for GeocodingResult)
+
     Returns:
         dict: Processing statistics and results
     """
@@ -122,7 +123,7 @@ def batch_geocode_locations(self, location_ids=None, force_reprocess=False, batc
                 }, timeout=3600)
                 
                 # Geocode the location (extract from management command)
-                result = _geocode_single_location(location, force_reprocess)
+                result = _geocode_single_location(location, force_reprocess, user_id)
                 
                 if result:
                     successful += 1
@@ -277,14 +278,35 @@ def batch_validate_locations(self, geocoding_result_ids=None, batch_size=50):
             'failed_at': timezone.now().isoformat()
         }, timeout=3600)
         raise
-def _geocode_single_location(location, force_reprocess=False):
+def _geocode_single_location(location, force_reprocess=False, user_id=None):
     """
     Geocode a single location using the centralized GeocodingService.
     This replaces the management command logic.
+
+    Args:
+        location: Location model instance
+        force_reprocess: If True, re-geocode even if results exist
+        user_id: ID of user initiating the geocoding (required for GeocodingResult)
     """
     try:
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+
+        # Retrieve user from ID
+        user = None
+        if user_id:
+            try:
+                user = User.objects.get(id=user_id)
+            except User.DoesNotExist:
+                logger.error(f"User with ID {user_id} not found")
+                return None
+
+        if not user:
+            logger.error(f"No user provided for geocoding '{location.name}' - cannot create GeocodingResult without user")
+            return None
+
         geocoding_service = GeocodingService()
-        result = geocoding_service.geocode_single_location(location, force_reprocess)
+        result = geocoding_service.geocode_single_location(location, force_reprocess, user=user)
         return result
     except Exception as e:
         logger.error(f"Failed to geocode {location}: {e}")
