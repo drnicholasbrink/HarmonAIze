@@ -44,16 +44,17 @@ class SmartGeocodingValidator:
         if self.llm_enhancer.is_enabled():
             logger.info("✓ SmartGeocodingValidator initialized with LLM enhancements")
     
-    def validate_geocoding_result(self, geocoding_result: GeocodingResult) -> ValidationResult:
+    def validate_geocoding_result(self, geocoding_result: GeocodingResult, user=None) -> ValidationResult:
         """
         Main validation entry point with simplified two-component analysis.
-        
+
         Validates geocoding results using a 2-component approach:
-        - 70% weight: Reverse geocoding name similarity analysis  
+        - 70% weight: Reverse geocoding name similarity analysis
         - 30% weight: Distance proximity clustering between sources
-        
+
         Args:
             geocoding_result: GeocodingResult instance with coordinates from multiple APIs
+            user: User model instance (required for creating ValidationResult)
             
         Returns:
             ValidationResult: Analysis with confidence score, recommended coordinates,
@@ -68,7 +69,9 @@ class SmartGeocodingValidator:
         if not coordinates:
             return self._create_validation_result(
                 geocoding_result, 0.0, 'rejected',
-                "No successful geocoding results found"
+                "No successful geocoding results found",
+                None,
+                user
             )
 
         reverse_geocoding_results = self._perform_enhanced_reverse_geocoding_multi_source(
@@ -160,7 +163,8 @@ class SmartGeocodingValidator:
         return self._create_validation_result(
             geocoding_result, best_score, status,
             f"Two-component analysis: best source {best_source.upper()} - {best_score:.1%}",
-            metadata
+            metadata,
+            user
         )
     
     def _extract_coordinates(self, result: GeocodingResult) -> Dict[str, Tuple[float, float]]:
@@ -961,7 +965,7 @@ class SmartGeocodingValidator:
         }
 
     def _create_validation_result(self, geocoding_result: GeocodingResult, confidence: float,
-                                status: str, reason: str, metadata: Optional[Dict] = None) -> ValidationResult:
+                                status: str, reason: str, metadata: Optional[Dict] = None, user=None) -> ValidationResult:
         """Create a ValidationResult object with optional LLM-generated explanation."""
 
         # Extract best source information from metadata
@@ -976,9 +980,15 @@ class SmartGeocodingValidator:
             if coords:
                 recommended_lat, recommended_lng = coords
 
+        # Determine user for created_by field
+        if not user:
+            # Fallback to geocoding_result's creator if user not provided
+            user = geocoding_result.created_by
+
         validation_result, created = ValidationResult.objects.update_or_create(
             geocoding_result=geocoding_result,
             defaults={
+                'created_by': user,
                 'confidence_score': confidence,
                 'validation_status': status,
                 'validation_metadata': metadata or {'reason': reason},
