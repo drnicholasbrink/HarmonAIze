@@ -811,10 +811,13 @@
           </div>
           
           {% if current_location.recommended_source %}
-          <div style="background: rgba(52, 199, 89, 0.2); border: 1px solid rgba(52, 199, 89, 0.3); border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
-            <div style="display: flex; align-items: center; gap: 0.5rem;">
-              <span style="font-size: 1.2rem; font-weight: bold;">★</span>
-              <span style="font-weight: 600;">Recommended Source: {{ current_location.recommended_source }}</span>
+          <div style="background: linear-gradient(135deg, rgba(52, 199, 89, 0.15) 0%, rgba(52, 199, 89, 0.25) 100%); border: 2px solid rgba(52, 199, 89, 0.4); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; box-shadow: 0 4px 12px rgba(52, 199, 89, 0.15);">
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+              <span style="font-size: 1.5rem; font-weight: bold; color: #16a34a; text-shadow: 0 2px 4px rgba(0,0,0,0.1);">★</span>
+              <div>
+                <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #059669; font-weight: 600; margin-bottom: 0.25rem;">Recommended Source</div>
+                <div style="font-weight: 700; font-size: 1.1rem; color: #065f46;">{{ current_location.recommended_source }}</div>
+              </div>
             </div>
           </div>
           {% endif %}
