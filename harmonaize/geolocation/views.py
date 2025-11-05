@@ -1085,6 +1085,7 @@ def bulk_validation_actions(request):
                             # Add to ValidatedDataset (POI arsenal)
                             ValidatedDataset.objects.update_or_create(
                                 location_name=result.location_name,
+                                created_by=validation.created_by,
                                 defaults={
                                     'final_lat': final_lat,
                                     'final_long': final_lng,
@@ -1266,6 +1267,7 @@ def handle_approve_ai_suggestion(validation, data):
 
             ValidatedDataset.objects.update_or_create(
                 location_name=result.location_name,
+                created_by=validation.created_by,
                 defaults={
                     'final_lat': final_lat,
                     'final_long': final_lng,
@@ -1428,6 +1430,7 @@ def handle_manual_coordinates(validation, data):
             #  Add to ValidatedDataset (POI arsenal)
             ValidatedDataset.objects.update_or_create(
                 location_name=result.location_name,
+                created_by=validation.created_by,
                 defaults={
                     'final_lat': lat,
                     'final_long': lng,
