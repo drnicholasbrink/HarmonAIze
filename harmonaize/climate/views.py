@@ -103,13 +103,24 @@ def climate_configuration_view(request, study_id):
         )
         if form.is_valid():
             climate_request = form.save()
-            messages.success(
-                request,
-                f"Climate data request created successfully. "
-                f"Processing {climate_request.total_locations} locations..."
-            )
-            # In production, trigger async task here
-            # For MVP, we'll process synchronously (or redirect to processing view)
+
+            # Trigger processing (async if Celery available, sync otherwise)
+            try:
+                from .tasks import process_climate_data_request
+                task = process_climate_data_request.delay(climate_request.pk)
+                messages.success(
+                    request,
+                    f"Climate data request created successfully. "
+                    f"Processing {climate_request.total_locations} locations in the background..."
+                )
+            except Exception as e:
+                # Celery not available, will be processed on demand via API
+                messages.success(
+                    request,
+                    f"Climate data request created successfully. "
+                    f"Use the 'Process Request' button to fetch climate data."
+                )
+
             return redirect('climate:request_detail', pk=climate_request.pk)
     else:
         form = ClimateDataConfigurationForm(study=study, user=request.user)
@@ -342,6 +353,139 @@ def request_status_partial(request, request_id):
 
     except ClimateDataRequest.DoesNotExist:
         return HttpResponse('<div class="alert alert-danger">Request not found</div>')
+
+
+@login_required
+def process_climate_request_api(request, request_id):
+    """
+    API endpoint to trigger processing of a climate data request.
+    Returns JSON with status and task information.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST request required'}, status=405)
+
+    try:
+        climate_request = ClimateDataRequest.objects.get(
+            pk=request_id,
+            study__created_by=request.user
+        )
+
+        # Check if already processing or completed
+        if climate_request.status in ['processing', 'completed']:
+            return JsonResponse({
+                'status': climate_request.status,
+                'message': f'Request is already {climate_request.status}',
+                'request_id': request_id
+            })
+
+        # Try to use Celery for async processing, fall back to synchronous if not available
+        try:
+            from .tasks import process_climate_data_request
+            task = process_climate_data_request.delay(request_id)
+
+            return JsonResponse({
+                'status': 'started',
+                'message': 'Climate data processing started',
+                'task_id': task.id,
+                'request_id': request_id
+            })
+        except Exception as celery_error:
+            # Celery not available, process synchronously
+            from .services import ClimateDataProcessor
+            processor = ClimateDataProcessor(climate_request)
+            result = processor.process_request()
+
+            return JsonResponse({
+                'status': 'completed',
+                'message': 'Climate data processed synchronously',
+                'result': result,
+                'request_id': request_id
+            })
+
+    except ClimateDataRequest.DoesNotExist:
+        return JsonResponse({'error': 'Climate request not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+def data_sources_api(request):
+    """
+    API endpoint to get available climate data sources.
+    Returns JSON with list of active data sources.
+    """
+    sources = ClimateDataSource.objects.filter(is_active=True).values(
+        'id', 'name', 'source_type', 'description',
+        'spatial_resolution_m', 'temporal_resolution_days',
+        'global_coverage'
+    )
+
+    return JsonResponse({'sources': list(sources)})
+
+
+@login_required
+def climate_variables_api(request):
+    """
+    API endpoint to get climate variables, optionally filtered by data source and category.
+    Query params:
+    - source_id: Filter by data source
+    - category: Filter by variable category
+    """
+    source_id = request.GET.get('source_id')
+    category = request.GET.get('category')
+
+    variables = ClimateVariable.objects.all()
+
+    if source_id:
+        variables = variables.filter(data_sources__id=source_id)
+
+    if category:
+        variables = variables.filter(category=category)
+
+    # Get variable data with categories
+    variable_data = list(variables.values(
+        'id', 'name', 'display_name', 'description',
+        'category', 'unit', 'unit_symbol',
+        'min_value', 'max_value', 'health_relevance'
+    ).distinct())
+
+    # Get available categories
+    categories = ClimateVariable.CATEGORY_CHOICES
+
+    return JsonResponse({
+        'variables': variable_data,
+        'categories': [{'value': c[0], 'label': c[1]} for c in categories]
+    })
+
+
+@login_required
+def climate_request_status_api(request, request_id):
+    """
+    API endpoint to check status of a climate data request.
+    Returns JSON with request status and progress.
+    """
+    try:
+        climate_request = ClimateDataRequest.objects.get(
+            pk=request_id,
+            study__created_by=request.user
+        )
+
+        return JsonResponse({
+            'request_id': request_id,
+            'status': climate_request.status,
+            'progress_percentage': climate_request.progress_percentage,
+            'total_locations': climate_request.total_locations,
+            'processed_locations': climate_request.processed_locations,
+            'total_observations': climate_request.total_observations,
+            'error_message': climate_request.error_message,
+            'started_at': climate_request.started_at.isoformat() if climate_request.started_at else None,
+            'completed_at': climate_request.completed_at.isoformat() if climate_request.completed_at else None,
+        })
+
+    except ClimateDataRequest.DoesNotExist:
+        return JsonResponse({'error': 'Climate request not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 
 @login_required

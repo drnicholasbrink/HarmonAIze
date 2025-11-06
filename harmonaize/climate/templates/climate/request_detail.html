@@ -486,7 +486,11 @@
       </a>
       
       <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
-        {% if climate_request.status == 'processing' %}
+        {% if climate_request.status == 'pending' %}
+        <button class="btn-climate btn-climate-success" id="process-request">
+          Process Climate Request
+        </button>
+        {% elif climate_request.status == 'processing' %}
         <button class="btn-climate btn-climate-warning" id="refresh-status">
           Refresh Status
         </button>
@@ -495,21 +499,89 @@
           Create New Request
         </a>
         {% elif climate_request.status == 'failed' %}
-        <a href="{% url 'climate:configure' climate_request.study.id %}" class="btn-climate btn-climate-warning">
-          Retry Configuration
-        </a>
+        <button class="btn-climate btn-climate-warning" id="retry-processing">
+          Retry Processing
+        </button>
         {% endif %}
       </div>
     </div>
   </div>
 </div>
 
-{% if climate_request.status == 'processing' %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+  // Process request button
+  const processBtn = document.getElementById('process-request');
+  if (processBtn) {
+    processBtn.addEventListener('click', function() {
+      processBtn.textContent = 'Processing...';
+      processBtn.disabled = true;
+
+      // Get CSRF token
+      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+                       document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+
+      fetch(`{% url 'climate:process_request_api' climate_request.id %}`, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': csrfToken,
+          'Content-Type': 'application/json'
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.status === 'started' || data.status === 'completed') {
+          // Reload page to show updated status
+          location.reload();
+        } else {
+          alert('Error: ' + (data.error || data.message));
+          processBtn.textContent = 'Process Climate Request';
+          processBtn.disabled = false;
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while processing the request');
+        processBtn.textContent = 'Process Climate Request';
+        processBtn.disabled = false;
+      });
+    });
+  }
+
+  // Retry processing button (for failed requests)
+  const retryBtn = document.getElementById('retry-processing');
+  if (retryBtn) {
+    retryBtn.addEventListener('click', function() {
+      retryBtn.textContent = 'Retrying...';
+      retryBtn.disabled = true;
+
+      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+                       document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+
+      fetch(`{% url 'climate:process_request_api' climate_request.id %}`, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': csrfToken,
+          'Content-Type': 'application/json'
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        location.reload();
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while retrying the request');
+        retryBtn.textContent = 'Retry Processing';
+        retryBtn.disabled = false;
+      });
+    });
+  }
+
+  {% if climate_request.status == 'processing' %}
   // Auto-refresh status for processing requests
   function checkStatus() {
-    fetch(`{% url 'climate:status_api' climate_request.id %}`)
+    fetch(`{% url 'climate:request_status_api' climate_request.id %}`)
       .then(response => response.json())
       .then(data => {
         if (data.status !== 'processing') {
@@ -519,22 +591,22 @@ document.addEventListener('DOMContentLoaded', function() {
           // Update progress bar
           const progressBar = document.getElementById('progress-bar');
           if (progressBar) {
-            progressBar.style.width = data.progress + '%';
+            progressBar.style.width = data.progress_percentage + '%';
           }
-          
+
           // Update progress percentage text
           const progressText = document.querySelector('.progress-container span:last-child');
           if (progressText) {
-            progressText.textContent = data.progress + '%';
+            progressText.textContent = data.progress_percentage + '%';
           }
-          
+
           // Update status values
           const statusValues = document.querySelectorAll('.status-value');
           if (statusValues.length >= 4) {
             statusValues[0].textContent = data.processed_locations || 0;
             statusValues[2].textContent = data.total_observations || 0;
           }
-          
+
           // Check again in 3 seconds
           setTimeout(checkStatus, 3000);
         }
@@ -545,10 +617,10 @@ document.addEventListener('DOMContentLoaded', function() {
         setTimeout(checkStatus, 10000);
       });
   }
-  
+
   // Start checking status after 2 seconds
   setTimeout(checkStatus, 2000);
-  
+
   // Manual refresh button
   const refreshBtn = document.getElementById('refresh-status');
   if (refreshBtn) {
@@ -558,7 +630,7 @@ document.addEventListener('DOMContentLoaded', function() {
       location.reload();
     });
   }
+  {% endif %}
 });
 </script>
-{% endif %}
 {% endblock %}
