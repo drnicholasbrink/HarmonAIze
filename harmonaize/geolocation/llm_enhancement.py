@@ -61,7 +61,7 @@ class GeocodingLLMEnhancer:
             try:
                 # Flash model for fast, cheap operations (parsing, simple matching)
                 self.model_flash = genai.GenerativeModel(
-                    'gemini-1.5-flash',
+                    'gemini-flash-latest',  # Updated to use stable latest version
                     generation_config=genai.GenerationConfig(
                         temperature=0.1,  # Low temperature for structured output
                         max_output_tokens=500,
@@ -71,7 +71,7 @@ class GeocodingLLMEnhancer:
 
                 # Pro model for complex reasoning (conflict resolution)
                 self.model_pro = genai.GenerativeModel(
-                    'gemini-1.5-pro',
+                    'gemini-pro-latest',  # Updated to use stable latest version
                     generation_config=genai.GenerationConfig(
                         temperature=0.2,
                         max_output_tokens=1000,
@@ -720,7 +720,7 @@ Return ONLY the explanation text (no JSON, no markdown formatting).
 """
 
             # Use Flash model with text response
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            model = genai.GenerativeModel('gemini-flash-latest')
             response = model.generate_content(prompt)
             explanation = response.text.strip()
 
