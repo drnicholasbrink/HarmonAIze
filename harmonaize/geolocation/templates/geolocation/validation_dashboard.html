@@ -459,22 +459,22 @@
       {% for message in messages %}
         {% if message.tags == 'error' %}
           <div class="alert alert-error">
-            <span class="error-icon">⚠️</span>
+            <span class="error-icon">{% include 'components/svg_icon.html' with icon='alert-circle' size='20' %}</span>
             <span class="error-text">{{ message }}</span>
           </div>
         {% elif message.tags == 'success' %}
           <div class="alert alert-success">
-            <span class="success-icon">✓</span>
+            <span class="success-icon">{% include 'components/svg_icon.html' with icon='check' size='20' %}</span>
             <span class="success-text">{{ message }}</span>
           </div>
         {% elif message.tags == 'info' %}
           <div class="alert alert-info">
-            <span class="info-icon">ℹ️</span>
+            <span class="info-icon">{% include 'components/svg_icon.html' with icon='info' size='20' %}</span>
             <span class="info-text">{{ message }}</span>
           </div>
         {% elif message.tags == 'warning' %}
           <div class="alert alert-warning">
-            <span class="warning-icon">⚡</span>
+            <span class="warning-icon">{% include 'components/svg_icon.html' with icon='zap' size='20' %}</span>
             <span class="warning-text">{{ message }}</span>
           </div>
         {% endif %}
@@ -487,7 +487,7 @@
     <div class="stats-grid">
       <div class="stat-card">
         <div class="stat-icon" style="background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);">
-          📝
+          {% include 'components/svg_icon.html' with icon='clipboard' size='32' %}
         </div>
         <div class="stat-number" id="totalLocations">-</div>
         <div class="stat-label">Total Location Names</div>
@@ -496,7 +496,7 @@
 
       <div class="stat-card">
         <div class="stat-icon" style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);">
-          •
+          {% include 'components/svg_icon.html' with icon='alert-circle' size='32' %}
         </div>
         <div class="stat-number" id="awaitingGeocoding" style="color: #dc3545;">-</div>
         <div class="stat-label">Awaiting Geocoding</div>
@@ -505,7 +505,7 @@
 
       <div class="stat-card">
         <div class="stat-icon" style="background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%);">
-          ⏳
+          {% include 'components/svg_icon.html' with icon='refresh' size='32' %}
         </div>
         <div class="stat-number" id="pendingValidation" style="color: #ffc107;">-</div>
         <div class="stat-label">Pending Validation</div>
@@ -514,7 +514,7 @@
 
       <div class="stat-card">
         <div class="stat-icon" style="background: linear-gradient(135deg, var(--accent-color) 0%, #2ecc71 100%);">
-          ✓
+          {% include 'components/svg_icon.html' with icon='check' size='32' %}
         </div>
         <div class="stat-number" id="validatedComplete" style="color: var(--accent-color);">-</div>
         <div class="stat-label">Validated & Complete</div>
