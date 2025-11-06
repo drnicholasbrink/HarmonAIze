@@ -1,0 +1,89 @@
+{% if source %}
+<div class="card border-primary mt-3" id="source-preview">
+  <div class="card-body">
+    <div class="mb-3">
+      <h6 class="card-title mb-1">{{ source.name }}</h6>
+      <span class="badge bg-primary">{{ source.get_source_type_display }}</span>
+      {% if source.global_coverage %}
+        <span class="badge bg-success">Global Coverage</span>
+      {% endif %}
+    </div>
+
+    {% if source.description %}
+    <p class="text-muted small mb-3">{{ source.description }}</p>
+    {% endif %}
+
+    <div class="row g-2">
+      <!-- Spatial Resolution -->
+      {% if source.spatial_resolution_m %}
+      <div class="col-md-4">
+        <div class="d-flex align-items-center">
+          <i class="bi bi-grid text-primary me-2"></i>
+          <div>
+            <small class="text-muted d-block">Spatial Resolution</small>
+            <strong>{{ source.spatial_resolution_m }}m</strong>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Temporal Resolution -->
+      {% if source.temporal_resolution %}
+      <div class="col-md-4">
+        <div class="d-flex align-items-center">
+          <i class="bi bi-clock text-primary me-2"></i>
+          <div>
+            <small class="text-muted d-block">Temporal Resolution</small>
+            <strong>{{ source.get_temporal_resolution_display }}</strong>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Available Variables -->
+      <div class="col-md-4">
+        <div class="d-flex align-items-center">
+          <i class="bi bi-list-task text-primary me-2"></i>
+          <div>
+            <small class="text-muted d-block">Available Variables</small>
+            <strong>{{ variable_count }}</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Data Availability -->
+    {% if source.data_start_date or source.data_end_date %}
+    <div class="alert alert-info mt-3 mb-0 small">
+      <i class="bi bi-calendar3"></i>
+      <strong>Data Available:</strong>
+      {% if source.data_start_date %}{{ source.data_start_date }}{% else %}Historic{% endif %}
+      to
+      {% if source.data_end_date %}{{ source.data_end_date }}{% else %}Present{% endif %}
+    </div>
+    {% endif %}
+
+    <!-- API Status -->
+    {% if source.is_active %}
+    <div class="mt-2">
+      <small class="text-success">
+        <i class="bi bi-check-circle-fill"></i> API Active
+      </small>
+      {% if source.last_checked %}
+        <small class="text-muted">- Last checked {{ source.last_checked|timesince }} ago</small>
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="mt-2">
+      <small class="text-danger">
+        <i class="bi bi-exclamation-triangle-fill"></i> API Unavailable
+      </small>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% else %}
+<div class="alert alert-light mt-3" id="source-preview">
+  <i class="bi bi-info-circle"></i> Select a data source to see details
+</div>
+{% endif %}
