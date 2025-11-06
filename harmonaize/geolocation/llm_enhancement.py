@@ -89,6 +89,18 @@ class GeocodingLLMEnhancer:
         """Check if LLM enhancements are enabled and available."""
         return self.enabled
 
+    def _strip_markdown_json(self, text: str) -> str:
+        """Strip markdown code blocks from Gemini response if present."""
+        text = text.strip()
+        if text.startswith('```'):
+            lines = text.split('\n')
+            if lines[0].startswith('```'):
+                lines = lines[1:]  # Remove ```json or ```
+            if lines and lines[-1].strip() == '```':
+                lines = lines[:-1]  # Remove closing ```
+            text = '\n'.join(lines)
+        return text
+
     def parse_location_structured(self, location_name: str) -> Optional[Dict]:
         """
         Extract structured data from unstructured location name using Gemini.
@@ -160,7 +172,7 @@ Examples:
 """
 
             response = self.model_flash.generate_content(prompt)
-            result = json.loads(response.text)
+            result = json.loads(self._strip_markdown_json(response.text))
 
             # Validate that we got a dict with expected structure
             if not isinstance(result, dict):
@@ -243,7 +255,7 @@ Be strict: Only return is_match=true if you're reasonably confident they're the 
 """
 
             response = self.model_flash.generate_content(prompt)
-            result = json.loads(response.text)
+            result = json.loads(self._strip_markdown_json(response.text))
 
             # Validate result structure
             if not isinstance(result, dict) or 'is_match' not in result or 'confidence' not in result:
@@ -431,7 +443,7 @@ Return JSON:
 """
 
             response = self.model_pro.generate_content(prompt)  # Use Pro for complex reasoning
-            llm_decision = json.loads(response.text)
+            llm_decision = json.loads(self._strip_markdown_json(response.text))
 
             logger.info(f"✓ LLM Conflict Resolution for '{location_name}':")
             logger.info(f"  Recommended: {llm_decision['recommended_source']} (confidence: {llm_decision['confidence']:.1%})")
@@ -523,7 +535,19 @@ Examples:
 """
 
             response = self.model_flash.generate_content(prompt)
-            result = json.loads(response.text)
+
+            # Strip markdown code blocks if present (Gemini sometimes wraps JSON in ```json ... ```)
+            response_text = response.text.strip()
+            if response_text.startswith('```'):
+                # Remove ```json or ``` from start and ``` from end
+                lines = response_text.split('\n')
+                if lines[0].startswith('```'):
+                    lines = lines[1:]  # Remove first line
+                if lines and lines[-1].strip() == '```':
+                    lines = lines[:-1]  # Remove last line
+                response_text = '\n'.join(lines)
+
+            result = json.loads(response_text)
 
             # Cache for 1 hour
             cache.set(cache_key, result, 3600)
@@ -618,7 +642,7 @@ Examples:
 """
 
             response = self.model_flash.generate_content(prompt)
-            result = json.loads(response.text)
+            result = json.loads(self._strip_markdown_json(response.text))
 
             if not result['passes_sanity_check']:
                 logger.warning(f"⚠ LLM Sanity Check FAILED for '{location_name}':")
