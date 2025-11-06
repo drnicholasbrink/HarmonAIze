@@ -84,6 +84,9 @@
                 </a>
               </li>
               <li class="nav-item">
+                <a class="nav-link" href="{% url 'climate:dashboard' %}">Climate</a>
+              </li>
+              <li class="nav-item">
                 <a class="nav-link"
                    href="{% url 'users:detail' request.user.pk %}">{% translate "My Profile" %}</a>
               </li>

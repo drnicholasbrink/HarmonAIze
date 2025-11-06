@@ -342,3 +342,132 @@ def request_status_partial(request, request_id):
 
     except ClimateDataRequest.DoesNotExist:
         return HttpResponse('<div class="alert alert-danger">Request not found</div>')
+
+
+@login_required
+def core_integration_view(request):
+    """
+    Demonstrates how climate data integrates with Core module.
+    Uses raw SQL to avoid embedding field issues while showing integration.
+    """
+    from django.db import connection
+
+    with connection.cursor() as cursor:
+        # Get climate attributes from Core
+        cursor.execute("""
+            SELECT variable_name, display_name, category, unit, variable_type
+            FROM core_attribute
+            WHERE category = 'climate'
+            ORDER BY variable_name
+        """)
+        climate_attributes = [
+            {
+                'variable_name': row[0],
+                'display_name': row[1],
+                'category': row[2],
+                'unit': row[3],
+                'variable_type': row[4],
+            }
+            for row in cursor.fetchall()
+        ]
+
+        # Count climate observations
+        cursor.execute("""
+            SELECT COUNT(*)
+            FROM core_observation o
+            JOIN core_attribute a ON o.attribute_id = a.id
+            WHERE a.category = 'climate'
+        """)
+        total_observations = cursor.fetchone()[0]
+
+        # Get sample observations with location and time
+        cursor.execute("""
+            SELECT
+                a.display_name,
+                a.unit,
+                o.float_value,
+                l.name as location_name,
+                l.latitude,
+                l.longitude,
+                t.timestamp
+            FROM core_observation o
+            JOIN core_attribute a ON o.attribute_id = a.id
+            JOIN core_location l ON o.location_id = l.id
+            JOIN core_timedimension t ON o.time_id = t.id
+            WHERE a.category = 'climate'
+            ORDER BY t.timestamp DESC
+            LIMIT 20
+        """)
+        sample_observations = [
+            {
+                'variable': row[0],
+                'unit': row[1],
+                'value': row[2],
+                'location': row[3],
+                'latitude': row[4],
+                'longitude': row[5],
+                'timestamp': row[6],
+            }
+            for row in cursor.fetchall()
+        ]
+
+        # Get observations grouped by location
+        cursor.execute("""
+            SELECT
+                l.name,
+                COUNT(o.id) as observation_count,
+                l.latitude,
+                l.longitude
+            FROM core_observation o
+            JOIN core_attribute a ON o.attribute_id = a.id
+            JOIN core_location l ON o.location_id = l.id
+            WHERE a.category = 'climate'
+            GROUP BY l.id, l.name, l.latitude, l.longitude
+            ORDER BY observation_count DESC
+        """)
+        observations_by_location = [
+            {
+                'location': row[0],
+                'count': row[1],
+                'latitude': row[2],
+                'longitude': row[3],
+            }
+            for row in cursor.fetchall()
+        ]
+
+        # Get observations grouped by variable
+        cursor.execute("""
+            SELECT
+                a.display_name,
+                a.unit,
+                COUNT(o.id) as observation_count,
+                AVG(o.float_value) as avg_value,
+                MIN(o.float_value) as min_value,
+                MAX(o.float_value) as max_value
+            FROM core_observation o
+            JOIN core_attribute a ON o.attribute_id = a.id
+            WHERE a.category = 'climate'
+            GROUP BY a.id, a.display_name, a.unit
+            ORDER BY observation_count DESC
+        """)
+        observations_by_variable = [
+            {
+                'variable': row[0],
+                'unit': row[1],
+                'count': row[2],
+                'avg': row[3],
+                'min': row[4],
+                'max': row[5],
+            }
+            for row in cursor.fetchall()
+        ]
+
+    context = {
+        'climate_attributes': climate_attributes,
+        'total_observations': total_observations,
+        'sample_observations': sample_observations,
+        'observations_by_location': observations_by_location,
+        'observations_by_variable': observations_by_variable,
+    }
+
+    return render(request, 'climate/core_integration.html', context)

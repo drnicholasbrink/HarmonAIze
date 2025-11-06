@@ -577,6 +577,16 @@
         <div style="font-weight: 600; margin-bottom: 0.5rem;">View All Requests</div>
         <div style="font-size: 0.9rem; color: var(--text-secondary);">Manage climate data requests</div>
       </a>
+
+      <a href="{% url 'climate:core_integration' %}" style="background: var(--background-color); border: 1px solid var(--border-color); border-radius: var(--border-radius); padding: 1.5rem; text-align: center; text-decoration: none; color: inherit; transition: all 0.3s ease;" onmouseover="this.style.background='white'; this.style.borderColor='var(--primary-color)'; this.style.transform='translateY(-2px)'" onmouseout="this.style.background='var(--background-color)'; this.style.borderColor='var(--border-color)'; this.style.transform='translateY(0)'">
+        <div style="width: 60px; height: 60px; background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem; color: white;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+          </svg>
+        </div>
+        <div style="font-weight: 600; margin-bottom: 0.5rem;">Core Integration</div>
+        <div style="font-size: 0.9rem; color: var(--text-secondary);">View climate data in Core module</div>
+      </a>
     </div>
   </div>
 </div>
