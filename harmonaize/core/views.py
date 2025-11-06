@@ -153,14 +153,9 @@ class StudyDetailView(LoginRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         study = self.object
-
+        
         # Calculate variable statistics
-        # Defer embedding fields that may not exist in database yet
-        variables = study.variables.defer(
-            'name_embedding', 'description_embedding',
-            'name_tsne_x', 'name_tsne_y',
-            'description_tsne_x', 'description_tsne_y'
-        ).all()
+        variables = study.variables.all()
         total_vars = variables.count()
         
         # Variable type distribution
