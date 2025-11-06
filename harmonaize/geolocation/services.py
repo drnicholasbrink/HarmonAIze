@@ -810,12 +810,12 @@ class GeocodingService:
                     )
 
                     for match_name, score in matches:
-                        if score > best_score and score >= 65:  # Threshold for fuzzy matching
+                        if score > best_score and score >= 80:  # Threshold for fuzzy matching (increased from 65 to 80)
                             best_match = match_name
                             best_score = score
                             best_strategy = strategy_name
 
-                if best_match and best_score >= 65:
+                if best_match and best_score >= 80:
                     matched_facility = hdx_facilities.filter(
                         facility_name=best_match
                     ).first()
@@ -841,29 +841,27 @@ class GeocodingService:
                                 "confidence": best_score / 100.0
                             }
 
-            # Step 6: Enhanced containment matching
-            search_terms = search_name.lower().split()
-            if len(search_terms) > 0:
-                logger.info(f"HDX: Trying containment matching with terms: {search_terms}")
-                
-                for facility in hdx_facilities:
-                    facility_name_lower = facility.facility_name.lower()
-                    
+            # Step 6: Enhanced containment matching (DISABLED - too aggressive, matches partial words like "hospital")
+            # This was matching "Nharira Rural Hospital" for "Parirenyatwa Hospital" just because both have "hospital"
+            # Uncomment only if you want very loose matching (NOT RECOMMENDED)
+            # search_terms = search_name.lower().split()
+            # if len(search_terms) > 0:
+            #     logger.info(f"HDX: Trying containment matching with terms: {search_terms}")
+            #     for facility in hdx_facilities:
+            #         facility_name_lower = facility.facility_name.lower()
+            #         matching_terms = sum(1 for term in search_terms if term in facility_name_lower)
+            #         match_ratio = matching_terms / len(search_terms)
+            #         if match_ratio >= 0.9:  # Increased from 0.7 to 0.9 - require 90% term match
+            #             confidence = 0.6 + (match_ratio * 0.3)
+            #             logger.info(f"HDX: CONTAINMENT match found - '{facility.facility_name}' (terms: {matching_terms}/{len(search_terms)}, confidence: {confidence:.1%})")
+            #             return {
+            #                 "coordinates": (facility.hdx_latitude, facility.hdx_longitude),
+            #                 "facility": facility,
+            #                 "match_type": "containment",
+            #                 "confidence": confidence
+            #             }
 
-                    matching_terms = sum(1 for term in search_terms if term in facility_name_lower)
-                    match_ratio = matching_terms / len(search_terms)
-                    
-
-                    if match_ratio >= 0.7:
-                        confidence = 0.6 + (match_ratio * 0.3)  # 60-90% confidence
-                        logger.info(f"HDX: CONTAINMENT match found - '{facility.facility_name}' (terms: {matching_terms}/{len(search_terms)}, confidence: {confidence:.1%})")
-                        return {
-                            "coordinates": (facility.hdx_latitude, facility.hdx_longitude),
-                            "facility": facility,
-                            "match_type": "containment",
-                            "confidence": confidence
-                        }
-            
+            logger.info(f"HDX: All matching strategies exhausted - no suitable match found")
             return {"error": f"No HDX facility match found for '{location.name}'"}
             
         except Exception as e:
