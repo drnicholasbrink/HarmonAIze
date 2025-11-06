@@ -65,8 +65,7 @@ class ClimateModelsTestCase(TestCase):
             spatial_resolution_m=1000.0,
             temporal_resolution_days=1.0,
             global_coverage=True,
-            created_by=self.user
-        )
+            )
         
         self.assertEqual(source.name, 'Test GEE Source')
         self.assertEqual(source.source_type, 'gee')
@@ -100,8 +99,7 @@ class ClimateModelsTestCase(TestCase):
             name='GEE Source',
             source_type='gee',
             description='Test source',
-            created_by=self.user
-        )
+            )
         
         variable = ClimateVariable.objects.create(
             name='temperature_2m',
@@ -131,8 +129,7 @@ class ClimateModelsTestCase(TestCase):
             name='Test Source',
             source_type='gee',
             description='Test',
-            created_by=self.user
-        )
+            )
         
         variable = ClimateVariable.objects.create(
             name='temperature',
@@ -149,7 +146,6 @@ class ClimateModelsTestCase(TestCase):
             end_date=date(2023, 12, 31),
             temporal_aggregation='monthly',
             spatial_buffer_km=5.0,
-            requested_by=self.user
         )
         
         request.variables.add(variable)
@@ -166,8 +162,7 @@ class ClimateModelsTestCase(TestCase):
             name='Test Source',
             source_type='gee',
             description='Test',
-            created_by=self.user
-        )
+            )
         
         variable = ClimateVariable.objects.create(
             name='temperature',
@@ -224,8 +219,7 @@ class ClimateServicesTestCase(TestCase):
             name='GEE Test',
             source_type='gee',
             description='Test GEE source',
-            created_by=self.user
-        )
+            )
         
         self.variable = ClimateVariable.objects.create(
             name='temperature_2m',
@@ -313,7 +307,6 @@ class ClimateServicesTestCase(TestCase):
             start_date=date(2023, 6, 1),
             end_date=date(2023, 6, 3),
             temporal_aggregation='none',
-            requested_by=self.user,
             total_locations=1
         )
         request.variables.add(self.variable)
@@ -387,8 +380,7 @@ class ClimateViewsTestCase(TestCase):
             source_type='gee',
             description='Test source',
             is_active=True,
-            created_by=self.user
-        )
+            )
         
         self.variable = ClimateVariable.objects.create(
             name='temperature',
@@ -461,7 +453,6 @@ class ClimateViewsTestCase(TestCase):
             data_source=self.source,
             start_date=date(2023, 1, 1),
             end_date=date(2023, 12, 31),
-            requested_by=self.user
         )
         
         url = reverse('climate:request_list')
@@ -478,7 +469,6 @@ class ClimateViewsTestCase(TestCase):
             data_source=self.source,
             start_date=date(2023, 1, 1),
             end_date=date(2023, 12, 31),
-            requested_by=self.user
         )
         
         url = reverse('climate:request_detail', kwargs={'pk': request.pk})
@@ -517,8 +507,7 @@ class ClimateAPITestCase(APITestCase):
             source_type='gee',
             description='Test source',
             is_active=True,
-            created_by=self.user
-        )
+            )
         
         self.variable = ClimateVariable.objects.create(
             name='temperature',
@@ -745,8 +734,7 @@ class ClimateIntegrationTestCase(TestCase):
             source_type='gee',
             description='Test source for integration',
             is_active=True,
-            created_by=self.user
-        )
+            )
         
         self.temp_var = ClimateVariable.objects.create(
             name='temperature_2m',
@@ -784,7 +772,6 @@ class ClimateIntegrationTestCase(TestCase):
             end_date=date(2023, 6, 7),  # 7 days
             temporal_aggregation='none',
             spatial_buffer_km=0.0,
-            requested_by=self.user,
             total_locations=len(self.locations)
         )
         
@@ -830,7 +817,6 @@ class ClimateIntegrationTestCase(TestCase):
             data_source=self.source,
             start_date=date(2023, 6, 1),
             end_date=date(2023, 6, 3),
-            requested_by=self.user
         )
         request1.variables.add(self.temp_var)
         request1.locations.set([self.locations[0]])
@@ -848,7 +834,6 @@ class ClimateIntegrationTestCase(TestCase):
             data_source=self.source,
             start_date=date(2023, 6, 1),
             end_date=date(2023, 6, 3),
-            requested_by=self.user
         )
         request2.variables.add(self.temp_var)
         request2.locations.set([self.locations[0]])

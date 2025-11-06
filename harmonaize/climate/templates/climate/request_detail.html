@@ -509,6 +509,22 @@
 </div>
 
 <script>
+// Helper function to get CSRF token from cookie
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   // Process request button
   const processBtn = document.getElementById('process-request');
@@ -517,15 +533,12 @@ document.addEventListener('DOMContentLoaded', function() {
       processBtn.textContent = 'Processing...';
       processBtn.disabled = true;
 
-      // Get CSRF token
-      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
-                       document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+      const csrftoken = getCookie('csrftoken');
 
       fetch(`{% url 'climate:process_request_api' climate_request.id %}`, {
         method: 'POST',
         headers: {
-          'X-CSRFToken': csrfToken,
-          'Content-Type': 'application/json'
+          'X-CSRFToken': csrftoken,
         }
       })
       .then(response => response.json())
@@ -555,14 +568,12 @@ document.addEventListener('DOMContentLoaded', function() {
       retryBtn.textContent = 'Retrying...';
       retryBtn.disabled = true;
 
-      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
-                       document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+      const csrftoken = getCookie('csrftoken');
 
       fetch(`{% url 'climate:process_request_api' climate_request.id %}`, {
         method: 'POST',
         headers: {
-          'X-CSRFToken': csrfToken,
-          'Content-Type': 'application/json'
+          'X-CSRFToken': csrftoken,
         }
       })
       .then(response => response.json())
