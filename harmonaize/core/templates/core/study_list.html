@@ -421,7 +421,7 @@
               <a href="{% url 'core:study_detail' study.pk %}" class="btn btn-outline btn-small">
                 View Details
               </a>
-              {% if study.status in ['created', 'codebook_uploaded', 'variables_extracted', 'variables_mapped'] %}
+              {% if study.status == 'created' or study.status == 'codebook_uploaded' or study.status == 'variables_extracted' or study.status == 'variables_mapped' %}
                 <a href="#" class="btn btn-primary btn-small" onclick="showUpcomingFeature('Continue Study'); return false;">
                   Continue
                 </a>

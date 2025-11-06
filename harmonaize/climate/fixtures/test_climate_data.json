@@ -1,0 +1,138 @@
+[
+  {
+    "model": "climate.climatedatasource",
+    "pk": 1,
+    "fields": {
+      "name": "Google Earth Engine (Test)",
+      "source_type": "gee",
+      "description": "Test Google Earth Engine data source for automated tests",
+      "api_endpoint": "https://earthengine.googleapis.com",
+      "api_key": "",
+      "requires_authentication": true,
+      "spatial_resolution_m": 1000.0,
+      "temporal_resolution_days": 1.0,
+      "data_start_date": "1940-01-01",
+      "data_end_date": null,
+      "global_coverage": true,
+      "coverage_description": "Global coverage via satellite observations",
+      "is_active": true,
+      "last_checked": null
+    }
+  },
+  {
+    "model": "climate.climatedatasource",
+    "pk": 2,
+    "fields": {
+      "name": "ERA5 Reanalysis (Test)",
+      "source_type": "era5",
+      "description": "Test Copernicus ERA5 climate reanalysis data",
+      "api_endpoint": "https://cds.climate.copernicus.eu",
+      "api_key": "",
+      "requires_authentication": true,
+      "spatial_resolution_m": 27000.0,
+      "temporal_resolution_days": 1.0,
+      "data_start_date": "1940-01-01",
+      "data_end_date": null,
+      "global_coverage": true,
+      "coverage_description": "Global atmospheric reanalysis",
+      "is_active": true,
+      "last_checked": null
+    }
+  },
+  {
+    "model": "climate.climatevariable",
+    "pk": 1,
+    "fields": {
+      "name": "temperature_2m",
+      "display_name": "2m Air Temperature",
+      "description": "Air temperature at 2 meters above the surface",
+      "category": "temperature",
+      "unit": "degrees Celsius",
+      "unit_symbol": "°C",
+      "min_value": -50.0,
+      "max_value": 50.0,
+      "supports_temporal_aggregation": true,
+      "supports_spatial_aggregation": true,
+      "default_aggregation_method": "mean",
+      "health_relevance": "Temperature affects heat-related health outcomes, respiratory conditions, and infectious disease transmission"
+    }
+  },
+  {
+    "model": "climate.climatevariable",
+    "pk": 2,
+    "fields": {
+      "name": "precipitation",
+      "display_name": "Total Precipitation",
+      "description": "Total precipitation amount",
+      "category": "precipitation",
+      "unit": "millimeters",
+      "unit_symbol": "mm",
+      "min_value": 0.0,
+      "max_value": 500.0,
+      "supports_temporal_aggregation": true,
+      "supports_spatial_aggregation": true,
+      "default_aggregation_method": "sum",
+      "health_relevance": "Precipitation affects waterborne diseases, vector breeding, and flooding impacts on health"
+    }
+  },
+  {
+    "model": "climate.climatevariable",
+    "pk": 3,
+    "fields": {
+      "name": "relative_humidity",
+      "display_name": "Relative Humidity",
+      "description": "Relative humidity percentage",
+      "category": "humidity",
+      "unit": "percent",
+      "unit_symbol": "%",
+      "min_value": 0.0,
+      "max_value": 100.0,
+      "supports_temporal_aggregation": true,
+      "supports_spatial_aggregation": true,
+      "default_aggregation_method": "mean",
+      "health_relevance": "Humidity affects respiratory conditions, heat index, and pathogen survival"
+    }
+  },
+  {
+    "model": "climate.climatevariablemapping",
+    "pk": 1,
+    "fields": {
+      "variable": 1,
+      "data_source": 1,
+      "source_variable_name": "temperature_2m",
+      "source_dataset": "ECMWF/ERA5/DAILY",
+      "source_band": "mean_2m_air_temperature",
+      "scale_factor": 1.0,
+      "offset": -273.15,
+      "extra_parameters": {}
+    }
+  },
+  {
+    "model": "climate.climatevariablemapping",
+    "pk": 2,
+    "fields": {
+      "variable": 2,
+      "data_source": 1,
+      "source_variable_name": "total_precipitation",
+      "source_dataset": "ECMWF/ERA5/DAILY",
+      "source_band": "total_precipitation",
+      "scale_factor": 1000.0,
+      "offset": 0.0,
+      "extra_parameters": {}
+    }
+  },
+  {
+    "model": "climate.climatevariablemapping",
+    "pk": 3,
+    "fields": {
+      "variable": 3,
+      "data_source": 1,
+      "source_variable_name": "relative_humidity",
+      "source_dataset": "ECMWF/ERA5/DAILY",
+      "source_band": "relative_humidity_2m",
+      "scale_factor": 100.0,
+      "offset": 0.0,
+      "extra_parameters": {}
+    }
+  }
+]
