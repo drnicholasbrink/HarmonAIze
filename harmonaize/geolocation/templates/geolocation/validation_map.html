@@ -720,7 +720,7 @@
         </h1>
         <p class="hero-subtitle">coordinates visualisation for all sources</p>
       </div>
-      
+
       <div class="hero-nav">
         {% if current_location %}
         <div style="display: flex; align-items: center; gap: 1rem;">
@@ -732,27 +732,27 @@
           </div>
         </div>
         {% endif %}
-        
+
         <div style="display: flex; align-items: center; gap: 1rem;">
           {% if navigation.has_prev %}
-          <a href="{% url 'geolocation:validation_map' %}?location_id={{ navigation.prev_location_id }}" 
+          <a href="{% url 'geolocation:validation_map' %}?location_id={{ navigation.prev_location_id }}"
              class="btn btn-primary">
             ← Previous
           </a>
           {% endif %}
-          
+
           <span style="color: rgba(255,255,255,0.8); font-size: 0.9rem;">
             {{ navigation.current_index }} of {{ navigation.total_pending }}
           </span>
-          
+
           {% if navigation.has_next %}
-          <a href="{% url 'geolocation:validation_map' %}?location_id={{ navigation.next_location_id }}" 
+          <a href="{% url 'geolocation:validation_map' %}?location_id={{ navigation.next_location_id }}"
              class="btn btn-secondary">
             Next →
           </a>
           {% endif %}
-          
-          <a href="{% url 'geolocation:validation_dashboard' %}" 
+
+          <a href="{% url 'geolocation:validation_dashboard' %}"
              class="btn btn-primary">
             Geolocation Dashboard
           </a>
@@ -797,19 +797,19 @@
       <div class="sidebar-header">
         <div class="sidebar-content">
           <h2 class="location-title">{{ current_location.name }}</h2>
-          
+
           <div class="confidence-container">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
               <span>Best Source Confidence</span>
               <span style="font-size: 1.2rem; font-weight: 700;">{{ current_location.confidence|floatformat:0 }}%</span>
             </div>
             <div class="confidence-meter">
-              <div class="confidence-fill {% if current_location.confidence >= 80 %}high{% elif current_location.confidence >= 60 %}medium{% else %}low{% endif %}" 
+              <div class="confidence-fill {% if current_location.confidence >= 80 %}high{% elif current_location.confidence >= 60 %}medium{% else %}low{% endif %}"
                    style="width: {{ current_location.confidence }}%"></div>
             </div>
             <p style="font-size: 0.9rem; opacity: 0.9; margin: 0;">{{ current_location.accuracy_description }}</p>
           </div>
-          
+
           {% if current_location.recommended_source %}
           <div style="background: linear-gradient(135deg, rgba(52, 199, 89, 0.15) 0%, rgba(52, 199, 89, 0.25) 100%); border: 2px solid rgba(52, 199, 89, 0.4); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; box-shadow: 0 4px 12px rgba(52, 199, 89, 0.15);">
             <div style="display: flex; align-items: center; gap: 0.75rem;">
@@ -893,11 +893,11 @@
             {{ current_location.coordinates|length }} Sources
           </span>
         </div>
-        
+
         {% for coord in current_location.coordinates %}
-        <div class="source-card {% if coord.source == current_location.recommended_source %}recommended{% endif %}" 
+        <div class="source-card {% if coord.source == current_location.recommended_source %}recommended{% endif %}"
              onclick="zoomToSource('{{ coord.source_key }}', {{ coord.lat }}, {{ coord.lng }})">
-          
+
           <div class="source-header">
             <div class="source-name">
               <div class="source-marker" style="background-color: {{ coord.color }}"></div>
@@ -912,12 +912,12 @@
               {% if coord.source == current_location.recommended_source %}Use Best{% else %}Use This{% endif %}
             </button>
           </div>
-          
+
           <div class="coordinate-info">
             <div class="coordinate-label">Coordinates</div>
             <div class="coordinate-value">{{ coord.lat|floatformat:5 }}, {{ coord.lng|floatformat:5 }}</div>
           </div>
-          
+
           <div class="scoring-details">
             <div class="coordinate-label" style="margin-bottom: 0.75rem;">Validation Scores</div>
             <div class="scoring-item">
@@ -935,7 +935,7 @@
               </span>
             </div>
           </div>
-          
+
           {% if coord.reverse_address != 'Not checked' and coord.reverse_address != 'Reverse geocoding failed' %}
           <div class="coordinate-info">
             <div class="coordinate-label">Reverse Lookup</div>
@@ -945,10 +945,10 @@
             </div>
           </div>
           {% endif %}
-          
+
           <div class="confidence-display">
             <div class="confidence-bar">
-              <div class="confidence-progress" 
+              <div class="confidence-progress"
                    style="width: {{ coord.individual_confidence|default:0 }}%; background-color: {% if coord.individual_confidence >= 80 %}#28a745{% elif coord.individual_confidence >= 60 %}#ffc107{% else %}#dc3545{% endif %};">
               </div>
             </div>
@@ -964,7 +964,7 @@
           Accept Best Source Recommendation
         </button>
         {% endif %}
-        
+
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
           <button onclick="toggleManualEntry()" class="btn btn-warning">
             Manual Entry
@@ -973,28 +973,28 @@
             Reject Location
           </button>
         </div>
-        
+
         <!-- Manual Entry Form -->
         <div id="manualEntry" class="form-section">
           <h4>Manual Coordinate Entry</h4>
           <div class="form-group">
-            <input type="number" id="manualLat" placeholder="Latitude (e.g., -26.2041)" 
+            <input type="number" id="manualLat" placeholder="Latitude (e.g., -26.2041)"
                    step="any" class="form-control">
           </div>
           <div class="form-group">
-            <input type="number" id="manualLng" placeholder="Longitude (e.g., 28.0473)" 
+            <input type="number" id="manualLng" placeholder="Longitude (e.g., 28.0473)"
                    step="any" class="form-control">
           </div>
           <button onclick="saveManualCoordinates()" class="btn btn-success">
             Save Coordinates
           </button>
         </div>
-        
+
         <!-- Reject Form -->
         <div id="rejectForm" class="form-section">
           <h4>Reject Location</h4>
           <div class="form-group">
-            <textarea id="rejectNotes" placeholder="Please provide a reason for rejection..." 
+            <textarea id="rejectNotes" placeholder="Please provide a reason for rejection..."
                       rows="3" class="form-control"></textarea>
           </div>
           <button onclick="rejectLocation()" class="btn btn-danger">
@@ -1019,7 +1019,7 @@
     <!-- Map Area -->
     <div class="map-area">
       <div id="map" style="width: 100%; height: 100%;"></div>
-      
+
       <!-- Map Controls -->
       <div class="map-controls">
         <h4>Map Layers</h4>
@@ -1030,7 +1030,7 @@
           Streets
         </button>
       </div>
-      
+
       <!-- Map Legend -->
       <div class="map-legend">
         <h4 style="margin-bottom: 1rem; font-size: 0.9rem; font-weight: 600;">Data Sources</h4>
@@ -1096,15 +1096,15 @@
     // Map layer switching
     function changeMapLayer(layerType) {
       if (layerType === currentMapStyle) return;
-      
+
       document.querySelectorAll('.layer-button').forEach(btn => {
         btn.classList.remove('active');
       });
       document.getElementById(`${layerType}-btn`).classList.add('active');
-      
+
       map.setStyle(mapStyles[layerType]);
       currentMapStyle = layerType;
-      
+
       map.on('styledata', function() {
         setTimeout(() => {
           addMarkersToMap();
@@ -1125,7 +1125,7 @@
       coordinates.forEach((coord, index) => {
         const el = document.createElement('div');
         el.className = 'source-marker-map';
-        
+
         if (coord.source === currentLocationData.recommended_source) {
           el.classList.add('recommended');
           el.style.width = '18px';
@@ -1134,9 +1134,9 @@
           el.style.width = '14px';
           el.style.height = '14px';
         }
-        
+
         el.style.backgroundColor = coord.color;
-        
+
         el.addEventListener('click', () => {
           zoomToSource(coord.source_key, coord.lat, coord.lng);
         });
@@ -1168,31 +1168,31 @@
               </div>
               </div>
             </div>
-            <button onclick="selectSource('${coord.source_key}', ${coord.lat}, ${coord.lng})" 
-                    class="btn ${isBest ? 'btn-success' : 'btn-secondary'}" 
+            <button onclick="selectSource('${coord.source_key}', ${coord.lat}, ${coord.lng})"
+                    class="btn ${isBest ? 'btn-success' : 'btn-secondary'}"
                     style="width: 100%; padding: 0.75rem; font-size: 0.9rem;">
               ${isBest ? 'Use Best Source' : 'Use This Source'}
             </button>
           </div>
         `;
 
-        const popup = new mapboxgl.Popup({ 
+        const popup = new mapboxgl.Popup({
           offset: 20,
           closeButton: true,
           closeOnClick: false
         }).setHTML(popupHTML);
-        
+
         const marker = new mapboxgl.Marker(el)
           .setLngLat([coord.lng, coord.lat])
           .setPopup(popup)
           .addTo(map);
-        
+
         markers.push(marker);
         bounds.extend([coord.lng, coord.lat]);
       });
 
       if (coordinates.length > 1) {
-        map.fitBounds(bounds, { 
+        map.fitBounds(bounds, {
           padding: 60,
           maxZoom: 16
         });
@@ -1224,7 +1224,7 @@
     function selectSource(source, lat, lng) {
       if (!currentLocationData) return;
       showLoading(true);
-      
+
       fetch('{% url "geolocation:validation_api" %}', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -1259,7 +1259,7 @@
     function approveBestSource() {
       if (!currentLocationData) return;
       showLoading(true);
-      
+
       fetch('{% url "geolocation:validation_api" %}', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -1293,7 +1293,7 @@
     function toggleManualEntry() {
       const form = document.getElementById('manualEntry');
       const rejectForm = document.getElementById('rejectForm');
-      
+
       form.classList.toggle('active');
       rejectForm.classList.remove('active');
     }
@@ -1344,7 +1344,7 @@
     function toggleRejectForm() {
       const form = document.getElementById('rejectForm');
       const manualForm = document.getElementById('manualEntry');
-      
+
       form.classList.toggle('active');
       manualForm.classList.remove('active');
     }
@@ -1393,13 +1393,13 @@
       const messageDiv = document.createElement('div');
       messageDiv.className = `message ${type}`;
       messageDiv.textContent = message;
-      
+
       container.appendChild(messageDiv);
-      
+
       setTimeout(() => {
         messageDiv.classList.add('show');
       }, 10);
-      
+
       setTimeout(() => {
         messageDiv.classList.remove('show');
         setTimeout(() => messageDiv.remove(), 300);
