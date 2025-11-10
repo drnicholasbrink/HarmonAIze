@@ -11,6 +11,7 @@ import os
 import time
 import requests
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from django.conf import settings
 from django.utils import timezone
 from django.db import transaction
@@ -545,37 +546,45 @@ class GeocodingService:
 
         logger.info(f"Querying APIs with: country='{country}', iso='{iso_code}', query='{query}'")
 
+        # PARALLEL GEOCODING: Call all APIs simultaneously using ThreadPoolExecutor
+        logger.info(f">>> Calling all geocoding APIs in parallel...")
+
         results = {}
 
-        logger.info(f">>> Calling HDX...")
-        results["hdx"] = self.geocode_hdx_enhanced(location, country)
-        if results["hdx"].get("coordinates"):
-            logger.info(f"✓ HDX: SUCCESS - {results['hdx']['coordinates']}")
-        else:
-            logger.warning(f"✗ HDX: {results['hdx'].get('error', 'No result')}")
+        # Define API call functions
+        def call_hdx():
+            return ("hdx", self.geocode_hdx_enhanced(location, country))
 
-        logger.info(f">>> Calling ArcGIS...")
-        results["arcgis"] = self.geocode_arcgis(query, country, iso_code)
-        if results["arcgis"].get("coordinates"):
-            logger.info(f"✓ ArcGIS: SUCCESS - {results['arcgis']['coordinates']}")
-        else:
-            logger.warning(f"✗ ArcGIS: {results['arcgis'].get('error', 'No result')}")
-        time.sleep(0.5)
+        def call_arcgis():
+            return ("arcgis", self.geocode_arcgis(query, country, iso_code))
 
-        logger.info(f">>> Calling Google Maps...")
-        results["google"] = self.geocode_google(query, country, iso_code)
-        if results["google"].get("coordinates"):
-            logger.info(f"✓ Google: SUCCESS - {results['google']['coordinates']}")
-        else:
-            logger.warning(f"✗ Google: {results['google'].get('error', 'No result')}")
-        time.sleep(0.5)
+        def call_google():
+            return ("google", self.geocode_google(query, country, iso_code))
 
-        logger.info(f">>> Calling Nominatim/OSM...")
-        results["nominatim"] = self.geocode_nominatim_with_fallback(query, country, iso_code)
-        if results["nominatim"].get("coordinates"):
-            logger.info(f"✓ Nominatim: SUCCESS - {results['nominatim']['coordinates']}")
-        else:
-            logger.warning(f"✗ Nominatim: {results['nominatim'].get('error', 'No result')}")
+        def call_nominatim():
+            return ("nominatim", self.geocode_nominatim_with_fallback(query, country, iso_code))
+
+        # Execute all API calls in parallel
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = [
+                executor.submit(call_hdx),
+                executor.submit(call_arcgis),
+                executor.submit(call_google),
+                executor.submit(call_nominatim)
+            ]
+
+            # Collect results as they complete
+            for future in as_completed(futures):
+                try:
+                    source, result = future.result()
+                    results[source] = result
+
+                    if result.get("coordinates"):
+                        logger.info(f"✓ {source.upper()}: SUCCESS - {result['coordinates']}")
+                    else:
+                        logger.warning(f"✗ {source.upper()}: {result.get('error', 'No result')}")
+                except Exception as e:
+                    logger.error(f"API call failed: {e}")
         
         # Create or update geocoding result
         # Get or create with location_name and created_by to ensure uniqueness per user
@@ -885,10 +894,10 @@ class GeocodingService:
             elif country and country in self.country_name_to_iso2:
                 params['sourceCountry'] = self.country_name_to_iso2[country]
 
-            response = requests.get(url, params=params, timeout=15)
+            response = requests.get(url, params=params, timeout=3)
             response.raise_for_status()
             data = response.json()
-            
+
             if data.get("candidates") and len(data["candidates"]) > 0:
                 candidate = data["candidates"][0]
                 location = candidate["location"]
@@ -921,10 +930,10 @@ class GeocodingService:
             elif country:
                 params["region"] = self.country_name_to_iso2.get(country, country.lower())
 
-            response = requests.get(url, params=params, timeout=15)
+            response = requests.get(url, params=params, timeout=3)
             response.raise_for_status()
             data = response.json()
-            
+
             if data["status"] == "OK" and data["results"]:
                 result = data["results"][0]
                 location = result["geometry"]["location"]
@@ -933,7 +942,7 @@ class GeocodingService:
                     "raw_response": data
                 }
             return {
-                "error": f"Status: {data.get('status', 'No results')}", 
+                "error": f"Status: {data.get('status', 'No results')}",
                 "raw_response": data
             }
             
@@ -1022,10 +1031,10 @@ class GeocodingService:
                 'User-Agent': 'HarmonAIze-Geocoder/1.0 (harmonaize@project.com)'
             }
             
-            response = requests.get(url, params=params, headers=headers, timeout=15)
+            response = requests.get(url, params=params, headers=headers, timeout=3)
             response.raise_for_status()
             data = response.json()
-            
+
             if data and len(data) > 0:
                 result = data[0]
                 return {
@@ -1033,7 +1042,7 @@ class GeocodingService:
                     "raw_response": data
                 }
             return {"error": "No results found", "raw_response": data}
-            
+
         except requests.exceptions.Timeout:
             return {"error": "Public Nominatim timeout"}
         except requests.exceptions.RequestException as e:

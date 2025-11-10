@@ -11,6 +11,7 @@ import requests
 import time
 import math
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from difflib import SequenceMatcher
 from typing import Dict, List, Tuple, Optional
 from django.db import transaction
@@ -312,10 +313,10 @@ class SmartGeocodingValidator:
                 'User-Agent': 'HarmonAIze-Geocoder/1.0 (harmonaize@project.com)'
             }
             
-            response = requests.get(url, params=params, headers=headers, timeout=10)
+            response = requests.get(url, params=params, headers=headers, timeout=3)
             response.raise_for_status()
             data = response.json()
-            
+
             return data if data else None
             
         except Exception as e:
@@ -340,7 +341,7 @@ class SmartGeocodingValidator:
                 "key": key
             }
 
-            response = requests.get(url, params=params, timeout=10)
+            response = requests.get(url, params=params, timeout=3)
             response.raise_for_status()
             data = response.json()
 
@@ -372,7 +373,7 @@ class SmartGeocodingValidator:
                 "outSR": 4326
             }
 
-            response = requests.get(url, params=params, timeout=10)
+            response = requests.get(url, params=params, timeout=3)
             response.raise_for_status()
             data = response.json()
 
@@ -394,171 +395,148 @@ class SmartGeocodingValidator:
                                                           coordinates: Dict[str, Tuple[float, float]],
                                                           original_name: str) -> Dict:
         """
-        Perform reverse geocoding using MULTIPLE sources with fallback strategy.
+        OPTIMIZED: Perform reverse geocoding with matching APIs in PARALLEL.
 
-        Strategy:
-            1. Try Google Reverse Geocoding (best for POIs/facilities)
-            2. Try ArcGIS Reverse Geocoding (good for infrastructure)
-            3. Fallback to Nominatim (always available)
+        Strategy (OPTIMIZED for performance):
+            - hdx → use Google (best for POIs/facilities, HDX has no reverse API)
+            - arcgis → use ArcGIS reverse
+            - google → use Google reverse
+            - nominatim → use Nominatim reverse
+            - All API calls run in parallel using ThreadPoolExecutor
 
-        For each coordinate source, tries multiple reverse geocoding APIs and
-        uses the best match.
+        This reduces API calls from 12 per location to 1-4 per location (67-92% reduction).
 
         Args:
             coordinates: Dict mapping source names to (lat, lng) tuples
             original_name: Original location name for similarity comparison
 
         Returns:
-            Dict mapping source names to reverse geocoding results with best match selected
+            Dict mapping source names to reverse geocoding results
         """
+        logger.info(f">>> Starting PARALLEL reverse geocoding for {len(coordinates)} sources...")
+
+        # Define reverse geocoding task function
+        def reverse_geocode_source(source: str, lat: float, lng: float):
+            """Reverse geocode a single source using its matching API."""
+            try:
+                # Choose the appropriate reverse geocoding API based on source
+                if source == 'google':
+                    reverse_result = self._reverse_geocode_google(lat, lng)
+                    address_key = 'formatted_address'
+                elif source == 'arcgis':
+                    reverse_result = self._reverse_geocode_arcgis(lat, lng)
+                    address_key = 'address'
+                elif source == 'nominatim':
+                    reverse_result = self._reverse_geocode_nominatim_with_fallback(lat, lng)
+                    address_key = 'display_name'
+                elif source == 'hdx':
+                    # HDX has no reverse API, use Google as fallback (best for facilities)
+                    reverse_result = self._reverse_geocode_google(lat, lng)
+                    address_key = 'formatted_address'
+                else:
+                    return (source, None)
+
+                # Process the result
+                if reverse_result and reverse_result.get(address_key):
+                    address = reverse_result[address_key]
+
+                    # Calculate similarity using LLM (AI-first) or fuzzy matching
+                    similarity = 0.0
+                    llm_used = False
+
+                    if self.llm_enhancer and self.llm_enhancer.is_enabled():
+                        try:
+                            llm_similarity = self.llm_enhancer.semantic_address_similarity(
+                                query_name=original_name,
+                                reverse_address=address
+                            )
+                            if llm_similarity and llm_similarity.get('similarity_score'):
+                                similarity = llm_similarity['similarity_score']
+                                llm_used = True
+                                logger.info(f"✓ {source.upper()}: LLM match {similarity:.0%}")
+                        except Exception as e:
+                            logger.debug(f"LLM similarity failed for {source}: {e}")
+
+                    # Fallback to fuzzy matching if LLM didn't work
+                    if not llm_used:
+                        try:
+                            from fuzzywuzzy import fuzz
+                            similarity = fuzz.token_set_ratio(original_name, address) / 100.0
+                        except ImportError:
+                            similarity = 0.5 if original_name.lower() in address.lower() else 0.3
+
+                    # Build result dict based on source API
+                    result_dict = {
+                        'api': 'google' if source == 'hdx' else source,
+                        'address': address,
+                        'similarity_score': similarity,
+                        'confidence': 0.8 if source in ['google', 'hdx'] else (0.7 if source == 'arcgis' else 0.6),
+                        'llm_used': llm_used,
+                        'source_matched': source  # Track which geocoding source this validates
+                    }
+
+                    # Add source-specific fields
+                    if source in ['google', 'hdx']:
+                        result_dict['place_type'] = reverse_result.get('types', ['unknown'])[0] if reverse_result.get('types') else 'unknown'
+                        result_dict['components'] = reverse_result.get('address_components', [])
+                    elif source == 'arcgis':
+                        result_dict['place_type'] = reverse_result.get('type', 'unknown')
+                        result_dict['components'] = reverse_result
+                    elif source == 'nominatim':
+                        result_dict['place_type'] = reverse_result.get('type', 'unknown')
+                        result_dict['local_nominatim_used'] = reverse_result.get('local_nominatim_used', False)
+
+                    return (source, result_dict)
+                else:
+                    return (source, None)
+
+            except Exception as e:
+                logger.error(f"Reverse geocoding failed for {source}: {e}")
+                return (source, None)
+
+        # Execute all reverse geocoding calls in PARALLEL
         reverse_results = {}
 
-        for source, (lat, lng) in coordinates.items():
-            source_reverse_results = []
+        with ThreadPoolExecutor(max_workers=len(coordinates)) as executor:
+            # Submit all tasks
+            futures = {
+                executor.submit(reverse_geocode_source, source, lat, lng): source
+                for source, (lat, lng) in coordinates.items()
+            }
 
-            google_reverse = self._reverse_geocode_google(lat, lng)
-            if google_reverse and google_reverse.get('formatted_address'):
-                # AI-FIRST: Use Gemini semantic similarity as PRIMARY method
-                similarity = 0.0
-                llm_used = False
+            # Collect results as they complete
+            for future in as_completed(futures):
+                try:
+                    source, result = future.result()
 
-                if self.llm_enhancer and self.llm_enhancer.is_enabled():
-                    try:
-                        llm_similarity = self.llm_enhancer.semantic_address_similarity(
-                            query_name=original_name,
-                            reverse_address=google_reverse['formatted_address']
-                        )
-                        if llm_similarity and llm_similarity.get('similarity_score'):
-                            similarity = llm_similarity['similarity_score']
-                            llm_used = True
-                            logger.info(f"✓ Gemini AI semantic match: {original_name} → {similarity:.0%}")
-                    except Exception as e:
-                        logger.warning(f"LLM semantic similarity failed, falling back to fuzzy: {e}")
+                    if result:
+                        reverse_results[source] = {
+                            **result,
+                            'all_attempts': [result],  # Only one attempt per source now
+                            'num_successful': 1
+                        }
+                    else:
+                        reverse_results[source] = {
+                            'api': 'none',
+                            'address': 'No address found',
+                            'similarity_score': 0.0,
+                            'confidence': 0.0,
+                            'all_attempts': [],
+                            'num_successful': 0
+                        }
+                except Exception as e:
+                    source_name = futures[future]
+                    logger.error(f"Failed to process reverse geocoding for {source_name}: {e}")
+                    reverse_results[source_name] = {
+                        'api': 'error',
+                        'address': f'Error: {str(e)}',
+                        'similarity_score': 0.0,
+                        'confidence': 0.0,
+                        'all_attempts': [],
+                        'num_successful': 0
+                    }
 
-                # FALLBACK: Only use fuzzy matching if AI fails
-                if not llm_used:
-                    try:
-                        from fuzzywuzzy import fuzz
-                        similarity = fuzz.token_set_ratio(
-                            original_name,
-                            google_reverse['formatted_address']
-                        ) / 100.0
-                    except ImportError:
-                        similarity = 0.5 if original_name.lower() in google_reverse['formatted_address'].lower() else 0.3
-
-                source_reverse_results.append({
-                    'api': 'google',
-                    'address': google_reverse['formatted_address'],
-                    'similarity_score': similarity,
-                    'place_type': google_reverse.get('types', ['unknown'])[0] if google_reverse.get('types') else 'unknown',
-                    'confidence': 0.8,
-                    'components': google_reverse.get('address_components', []),
-                    'llm_used': llm_used
-                })
-
-            arcgis_reverse = self._reverse_geocode_arcgis(lat, lng)
-            if arcgis_reverse and arcgis_reverse.get('address'):
-                # AI-FIRST: Use Gemini semantic similarity as PRIMARY method
-                similarity = 0.0
-                llm_used = False
-
-                if self.llm_enhancer and self.llm_enhancer.is_enabled():
-                    try:
-                        llm_similarity = self.llm_enhancer.semantic_address_similarity(
-                            query_name=original_name,
-                            reverse_address=arcgis_reverse['address']
-                        )
-                        if llm_similarity and llm_similarity.get('similarity_score'):
-                            similarity = llm_similarity['similarity_score']
-                            llm_used = True
-                            logger.info(f"✓ Gemini AI semantic match (ArcGIS): {original_name} → {similarity:.0%}")
-                    except Exception as e:
-                        logger.warning(f"LLM semantic similarity failed for ArcGIS, falling back to fuzzy: {e}")
-
-                # FALLBACK: Only use fuzzy matching if AI fails
-                if not llm_used:
-                    try:
-                        from fuzzywuzzy import fuzz
-                        similarity = fuzz.token_set_ratio(
-                            original_name,
-                            arcgis_reverse['address']
-                        ) / 100.0
-                    except ImportError:
-                        similarity = 0.5 if original_name.lower() in arcgis_reverse['address'].lower() else 0.3
-
-                source_reverse_results.append({
-                    'api': 'arcgis',
-                    'address': arcgis_reverse['address'],
-                    'similarity_score': similarity,
-                    'place_type': arcgis_reverse.get('type', 'unknown'),
-                    'confidence': 0.7,
-                    'components': arcgis_reverse,
-                    'llm_used': llm_used
-                })
-
-            nominatim_reverse = self._reverse_geocode_nominatim_with_fallback(lat, lng)
-            if nominatim_reverse and nominatim_reverse.get('display_name'):
-                # AI-FIRST: Use Gemini semantic similarity as PRIMARY method
-                similarity = 0.0
-                llm_used = False
-
-                if self.llm_enhancer and self.llm_enhancer.is_enabled():
-                    try:
-                        llm_similarity = self.llm_enhancer.semantic_address_similarity(
-                            query_name=original_name,
-                            reverse_address=nominatim_reverse['display_name']
-                        )
-                        if llm_similarity and llm_similarity.get('similarity_score'):
-                            similarity = llm_similarity['similarity_score']
-                            llm_used = True
-                            logger.info(f"✓ Gemini AI semantic match (Nominatim): {original_name} → {similarity:.0%}")
-                    except Exception as e:
-                        logger.warning(f"LLM semantic similarity failed for Nominatim, falling back to fuzzy: {e}")
-
-                # FALLBACK: Only use fuzzy matching if AI fails
-                if not llm_used:
-                    try:
-                        from fuzzywuzzy import fuzz
-                        similarity = fuzz.token_set_ratio(
-                            original_name,
-                            nominatim_reverse['display_name']
-                        ) / 100.0
-                    except ImportError:
-                        similarity = 0.5 if original_name.lower() in nominatim_reverse['display_name'].lower() else 0.3
-
-                source_reverse_results.append({
-                    'api': 'nominatim',
-                    'address': nominatim_reverse['display_name'],
-                    'similarity_score': similarity,
-                    'place_type': nominatim_reverse.get('type', 'unknown'),
-                    'confidence': 0.6,
-                    'local_used': nominatim_reverse.get('local_nominatim_used', False),
-                    'llm_used': llm_used
-                })
-
-            if source_reverse_results:
-                # Sort by similarity score (descending)
-                source_reverse_results.sort(key=lambda x: x['similarity_score'], reverse=True)
-                best_result = source_reverse_results[0]
-
-                reverse_results[source] = {
-                    'best_match': best_result,
-                    'all_attempts': source_reverse_results,
-                    'num_successful': len(source_reverse_results),
-                    **best_result
-                }
-            else:
-                reverse_results[source] = {
-                    'api': 'none',
-                    'address': 'No address found',
-                    'similarity_score': 0.0,
-                    'confidence': 0.0,
-                    'all_attempts': [],
-                    'num_successful': 0
-                }
-
-            time.sleep(0.3)
-
+        logger.info(f"✓ Completed PARALLEL reverse geocoding for {len(reverse_results)} sources")
         return reverse_results
 
     def _calculate_individual_source_scores(self, 

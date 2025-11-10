@@ -536,7 +536,7 @@
             <li>• ArcGIS World Geocoding Service</li>
             <li>• HDX Health Facilities database</li>
           </ul>
-          
+
           <div class="progress-container" id="geocodingProgress">
             <div style="display: flex; align-items: center; gap: 1rem;">
               <div class="loading-spinner"></div>
@@ -549,7 +549,7 @@
               <div id="geocodingProgressBar" class="progress-fill" style="width: 0%"></div>
             </div>
           </div>
-          
+
           <button onclick="runGeocoding()" id="geocodingBtn" class="btn btn-primary">
             {% include 'components/svg_icon.html' with icon='search' size='16' class='inline-icon' %}
             Start Coordinate Search
@@ -569,23 +569,23 @@
             <li>• Source comparison</li>
             <li>• Best match recommendation</li>
           </ul>
-          
+
           <div style="display: flex; flex-direction: column; gap: 1rem;">
             <button onclick="runSmartValidation()" id="aiAnalysisBtn" class="btn btn-secondary">
-              {% include 'components/svg_icon.html' with icon='brain' size='16' class='inline-icon' %}
+              {% include 'components/svg_icon.html' with icon='robot' size='16' class='inline-icon' %}
               Run Auto-validation
             </button>
-            
+
             <a href="{% url 'geolocation:validation_map' %}" class="btn btn-tertiary">
               {% include 'components/svg_icon.html' with icon='map' size='16' class='inline-icon' %}
               Manual Validation Interface
             </a>
 
             <button onclick="autoValidateHighConfidence()" id="autoValidateBtn" class="btn btn-small btn-tertiary">
-              ⚡ Auto-approve High Confidence (≥80%)
+              {% include 'components/svg_icon.html' with icon='zap' size='14' class='inline-icon' %} Auto-approve High Confidence (≥80%)
             </button>
             <button onclick="updateCoordinatesFromValidation()" id="updateCoordsBtn" class="btn btn-small btn-secondary">
-              📍 Update Location Coordinates
+              {% include 'components/svg_icon.html' with icon='map-pin' size='14' class='inline-icon' %} Update Location Coordinates
             </button>
 
             <a href="{% url 'geolocation:validated_locations_map' %}" class="btn btn-small btn-secondary">
@@ -606,11 +606,11 @@
             <p style="margin: 0; opacity: 0.9;">Complete validation status for all locations</p>
           </div>
           <button onclick="refreshLocationStatus()" class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.9rem; width: auto;">
-            🔄 Refresh
+            <svg class="svg-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display: inline-block; vertical-align: middle; margin-right: 0.25rem;"><polyline points="23,4 23,10 17,10"/><polyline points="1,20 1,14 7,14"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg> Refresh
           </button>
         </div>
       </div>
-      
+
       <div style="background: #f8f9fa; padding: 1rem; border-bottom: 1px solid var(--border-color);">
         <div style="display: flex; flex-wrap: wrap; gap: 1rem; font-size: 0.8rem;">
           <div style="display: flex; align-items: center; gap: 0.5rem;">
@@ -622,7 +622,7 @@
             <span style="color: var(--text-secondary);">- Coordinates found, awaiting Validation</span>
           </div>
           <div style="display: flex; align-items: center; gap: 0.5rem;">
-            <span class="status-badge status-needs_review">⚠️ Quick Review</span>
+            <span class="status-badge status-needs_review"><svg class="svg-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display: inline-block; vertical-align: middle; margin-right: 0.25rem;"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg> Quick Review</span>
             <span style="color: var(--text-secondary);">- Good quality (≥60%), quick review</span>
           </div>
           <div style="display: flex; align-items: center; gap: 0.5rem;">
@@ -635,7 +635,7 @@
           </div>
         </div>
       </div>
-      
+
       <div class="table-container">
         <table class="table">
           <thead>
@@ -669,7 +669,7 @@
   <script>
     function updateLocationStatusTable(locations) {
       const tableBody = document.getElementById('locationStatusTable');
-      
+
       if (!locations || locations.length === 0) {
         tableBody.innerHTML = `
           <tr>
@@ -687,12 +687,12 @@
       tableBody.innerHTML = '';
       locations.forEach(location => {
         const row = document.createElement('tr');
-        
+
         const confidenceColor = location.confidence >= 80 ? '#28a745' :
                                location.confidence >= 60 ? '#ffc107' : '#dc3545';
-        
+
         const statusClass = `status-${location.status}`;
-        
+
         row.innerHTML = `
           <td>
             <div style="font-weight: 600;">${location.name}</div>
@@ -710,32 +710,32 @@
           </td>
           <td>
             <div style="display: flex; flex-wrap: wrap; gap: 0.25rem;">
-              ${location.sources.map(source => 
+              ${location.sources.map(source =>
                 `<span style="background: #e9ecef; color: #495057; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">${source}</span>`
               ).join('')}
             </div>
           </td>
           <td>
             <div style="font-family: monospace; font-size: 0.9rem;">
-              ${location.coordinates ? 
-                `${location.coordinates.lat.toFixed(5)}, ${location.coordinates.lng.toFixed(5)}` : 
+              ${location.coordinates ?
+                `${location.coordinates.lat.toFixed(5)}, ${location.coordinates.lng.toFixed(5)}` :
                 '<span style="color: var(--text-secondary);">No coordinates</span>'
               }
             </div>
           </td>
           <td>
-            ${location.status === 'needs_review' || location.status === 'pending' ? 
-              `<a href="{% url 'geolocation:validation_map' %}?location_id=${location.geocoding_result_id}" 
+            ${location.status === 'needs_review' || location.status === 'pending' ?
+              `<a href="{% url 'geolocation:validation_map' %}?location_id=${location.geocoding_result_id}"
                  style="color: var(--primary-color); text-decoration: none; font-weight: 500;">
                  {% include 'components/svg_icon.html' with icon='eye' size='14' class='inline-icon' %} Review
-               </a>` : 
-              location.status === 'validated' ? 
-                '<span style="color: var(--accent-color); font-weight: 500;">Complete</span>' : 
+               </a>` :
+              location.status === 'validated' ?
+                '<span style="color: var(--accent-color); font-weight: 500;">Complete</span>' :
                 '<span style="color: var(--text-secondary);">-</span>'
             }
           </td>
         `;
-        
+
         tableBody.appendChild(row);
       });
     }
@@ -743,7 +743,7 @@
     function refreshLocationStatus() {
       const refreshButton = document.querySelector('button[onclick="refreshLocationStatus()"]');
       if (refreshButton) {
-        refreshButton.innerHTML = '🔄 Refreshing...';
+        refreshButton.innerHTML = '<svg class="svg-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display: inline-block; vertical-align: middle; margin-right: 0.25rem;"><polyline points="23,4 23,10 17,10"/><polyline points="1,20 1,14 7,14"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg> Refreshing...';
         refreshButton.disabled = true;
       }
 
@@ -765,7 +765,7 @@
           updateLocationStatusTable(data.locations);
         } else {
           showMessage('Failed to load location status: ' + (data.error || 'Unknown error'), 'error');
-          
+
           const tableBody = document.getElementById('locationStatusTable');
           if (tableBody) {
             tableBody.innerHTML = `
@@ -787,7 +787,7 @@
       })
       .catch(error => {
         showMessage('Connection error while refreshing location status', 'error');
-        
+
         const tableBody = document.getElementById('locationStatusTable');
         if (tableBody) {
           tableBody.innerHTML = `
@@ -808,7 +808,7 @@
       })
       .finally(() => {
         if (refreshButton) {
-          refreshButton.innerHTML = '🔄 Refresh';
+          refreshButton.innerHTML = '<svg class="svg-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display: inline-block; vertical-align: middle; margin-right: 0.25rem;"><polyline points="23,4 23,10 17,10"/><polyline points="1,20 1,14 7,14"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg> Refresh';
           refreshButton.disabled = false;
         }
       });
@@ -824,12 +824,12 @@
       .then(data => {
         if (data.success) {
           const stats = data.stats;
-          
+
           // Update the stats as received from backend
           document.getElementById('totalLocations').textContent = stats.total_locations;
           document.getElementById('awaitingGeocoding').textContent = stats.awaiting_geocoding;
           document.getElementById('validatedComplete').textContent = stats.validated_complete;
-          
+
           // Calculate pending validation correctly: Total - Awaiting - Validated
           const pendingValidation = stats.total_locations - stats.awaiting_geocoding - stats.validated_complete;
           document.getElementById('pendingValidation').textContent = pendingValidation;
@@ -843,12 +843,12 @@
     function runGeocoding() {
       const force = document.getElementById('forceGeocode') ? document.getElementById('forceGeocode').checked : false;
       const btn = document.getElementById('geocodingBtn');
-      
+
       document.getElementById('geocodingProgress').style.display = 'block';
       btn.disabled = true;
       btn.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><div class="loading-spinner" style="width: 16px; height: 16px; border-width: 2px;"></div><span>Processing...</span></div>';
       document.getElementById('geocodingStatus').textContent = 'Starting batch geocoding with Celery...';
-      
+
       // Use modern Celery-based batch processing instead of old API
       fetch('{% url "geolocation:start_batch_geocoding" %}', {
         method: 'POST',
@@ -877,11 +877,11 @@
 
     function runSmartValidation() {
       const btn = document.getElementById('aiAnalysisBtn');
-      
+
       if (confirm('Validate all pending locations automatically?')) {
         btn.disabled = true;
         btn.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><div class="loading-spinner" style="width: 16px; height: 16px; border-width: 2px;"></div><span>Analyzing...</span></div>';
-        
+
         // Use modern Celery-based batch validation instead of old API
         fetch('{% url "geolocation:start_batch_validation" %}', {
           method: 'POST',
@@ -898,13 +898,13 @@
             showMessage('Batch validation started successfully!', 'success');
           } else {
             btn.disabled = false;
-            btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span>🧠</span><span>Run Auto-validation</span></span>';
+            btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><svg class="svg-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2" ry="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg><span>Run Auto-validation</span></span>';
             showMessage('Error: Failed to start validation - ' + (data.error || 'Unknown error occurred'), 'error');
           }
         })
         .catch(error => {
           btn.disabled = false;
-          btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span>🧠</span><span>Run Auto-validation</span></span>';
+          btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><svg class="svg-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2" ry="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg><span>Run Auto-validation</span></span>';
           showMessage('Error: Connection error during validation start', 'error');
         });
       }
@@ -912,11 +912,11 @@
 
     function autoValidateHighConfidence() {
       const btn = document.getElementById('autoValidateBtn');
-      
+
       if (confirm('Auto-approve all high-confidence locations (≥80%)?')) {
         btn.disabled = true;
         btn.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><div class="loading-spinner" style="width: 12px; height: 12px; border-width: 2px;"></div><span>Processing...</span></div>';
-        
+
         fetch('{% url "geolocation:bulk_validation_actions" %}', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
@@ -925,8 +925,8 @@
         .then(response => response.json())
         .then(data => {
           btn.disabled = false;
-          btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span>⚡</span><span>Auto-approve High Confidence (≥80%)</span></span>';
-          
+          btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><svg class="svg-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13,2 3,14 12,14 11,22 21,10 12,10"/></svg><span>Auto-approve High Confidence (≥80%)</span></span>';
+
           if (data.success) {
             showMessage('Auto-validation completed: ' + data.message, 'success');
             setTimeout(() => {
@@ -939,19 +939,19 @@
         })
         .catch(error => {
           btn.disabled = false;
-          btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span>⚡</span><span>Auto-approve High Confidence (≥80%)</span></span>';
+          btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><svg class="svg-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13,2 3,14 12,14 11,22 21,10 12,10"/></svg><span>Auto-approve High Confidence (≥80%)</span></span>';
           showMessage('Error: Connection error during auto-validation', 'error');
         });
       }
     }
-    
+
     function updateCoordinatesFromValidation() {
       const btn = document.getElementById('updateCoordsBtn');
-      
+
       if (confirm('Update location coordinates from validated results?')) {
         btn.disabled = true;
         btn.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><div class="loading-spinner" style="width: 12px; height: 12px; border-width: 2px;"></div><span>Updating...</span></div>';
-        
+
         fetch('{% url "geolocation:validation_dashboard" %}', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
@@ -960,8 +960,8 @@
         .then(response => response.json())
         .then(data => {
           btn.disabled = false;
-          btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span>📍</span><span>Update Location Coordinates</span></span>';
-          
+          btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><svg class="svg-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg><span>Update Location Coordinates</span></span>';
+
           if (data.success) {
             showMessage('Coordinates updated: ' + data.message, 'success');
             setTimeout(() => {
@@ -974,7 +974,7 @@
         })
         .catch(error => {
           btn.disabled = false;
-          btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span>📍</span><span>Update Location Coordinates</span></span>';
+          btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><svg class="svg-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg><span>Update Location Coordinates</span></span>';
           showMessage('Error: Connection error during coordinate update', 'error');
         });
       }
@@ -987,9 +987,9 @@
         'error': { bg: '#f8d7da', text: '#721c24', border: '#f5c6cb' },
         'info': { bg: '#d1ecf1', text: '#0c5460', border: '#bee5eb' }
       };
-      
+
       const color = colors[type] || colors.info;
-      
+
       const messageDiv = document.createElement('div');
       messageDiv.style.cssText = `
         background: ${color.bg};
@@ -1004,14 +1004,14 @@
         transform: translateX(100%);
         transition: transform 0.3s ease;
       `;
-      
+
       messageDiv.textContent = message;
       container.appendChild(messageDiv);
-      
+
       setTimeout(() => {
         messageDiv.style.transform = 'translateX(0)';
       }, 10);
-      
+
       setTimeout(() => {
         messageDiv.style.transform = 'translateX(100%)';
         setTimeout(() => messageDiv.remove(), 300);
@@ -1024,9 +1024,9 @@
         try {
           const response = await fetch(`/geolocation/batch-progress/${taskId}/`);
           const data = await response.json();
-          
+
           updateGeocodingProgress(data);
-          
+
           if (data.status === 'completed' || data.status === 'failed') {
             resetGeocodingUI(btn);
             if (data.status === 'completed') {
@@ -1040,7 +1040,7 @@
             }
             return;
           }
-          
+
           setTimeout(poll, 2000); // Poll every 2 seconds
         } catch (error) {
           console.error('Error polling geocoding progress:', error);
@@ -1048,7 +1048,7 @@
           showMessage('Error monitoring geocoding progress', 'error');
         }
       };
-      
+
       poll();
     }
 
@@ -1058,7 +1058,7 @@
       if (progressBar) {
         progressBar.style.width = progress + '%';
       }
-      
+
       const statusElement = document.getElementById('geocodingStatus');
       if (statusElement) {
         let statusText = `Progress: ${progress}%`;
@@ -1080,7 +1080,7 @@
       if (progressContainer) {
         progressContainer.style.display = 'none';
       }
-      
+
       if (btn) {
         btn.disabled = false;
         btn.innerHTML = `
@@ -1095,15 +1095,15 @@
         try {
           const response = await fetch(`/geolocation/batch-progress/${taskId}/`);
           const data = await response.json();
-          
+
           // Update progress display if needed
-          
+
           if (data.status === 'completed' || data.status === 'failed') {
             if (btn) {
               btn.disabled = false;
-              btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span>🧠</span><span>Run Auto-validation</span></span>';
+              btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><svg class="svg-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2" ry="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg><span>Run Auto-validation</span></span>';
             }
-            
+
             if (data.status === 'completed') {
               showMessage('Batch validation completed successfully!', 'success');
               setTimeout(() => {
@@ -1115,18 +1115,18 @@
             }
             return;
           }
-          
+
           setTimeout(poll, 2000); // Poll every 2 seconds
         } catch (error) {
           console.error('Error polling validation progress:', error);
           if (btn) {
             btn.disabled = false;
-            btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span>🧠</span><span>Run Auto-validation</span></span>';
+            btn.innerHTML = '<span style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><svg class="svg-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2" ry="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg><span>Run Auto-validation</span></span>';
           }
           showMessage('Error monitoring validation progress', 'error');
         }
       };
-      
+
       poll();
     }
 
@@ -1134,7 +1134,7 @@
     document.addEventListener('DOMContentLoaded', function() {
       refreshStats();
       refreshLocationStatus();
-      
+
       // Set up auto-refresh intervals
       setInterval(refreshStats, 10000); // Every 10 seconds
       setInterval(refreshLocationStatus, 15000); // Every 15 seconds
