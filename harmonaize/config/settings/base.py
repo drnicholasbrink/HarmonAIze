@@ -319,6 +319,19 @@ CELERY_WORKER_SEND_TASK_EVENTS = True
 CELERY_TASK_SEND_SENT_EVENT = True
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#worker-hijack-root-logger
 CELERY_WORKER_HIJACK_ROOT_LOGGER = False
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#worker-concurrency
+# Number of concurrent worker processes/threads (default: # of CPU cores)
+# Set to 20 to allow parallel processing of 20 locations simultaneously
+CELERY_WORKER_CONCURRENCY = env.int("CELERY_WORKER_CONCURRENCY", default=20)
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#worker-prefetch-multiplier
+# How many tasks to prefetch per worker (4 = each worker grabs 4 tasks at once)
+CELERY_WORKER_PREFETCH_MULTIPLIER = env.int("CELERY_WORKER_PREFETCH_MULTIPLIER", default=4)
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#task-acks-late
+# Acknowledge tasks after completion (not before) - ensures failed tasks are retried
+CELERY_TASK_ACKS_LATE = True
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#worker-max-tasks-per-child
+# Restart worker after N tasks to prevent memory leaks
+CELERY_WORKER_MAX_TASKS_PER_CHILD = env.int("CELERY_WORKER_MAX_TASKS_PER_CHILD", default=1000)
 # django-allauth
 # ------------------------------------------------------------------------------
 ACCOUNT_ALLOW_REGISTRATION = env.bool("DJANGO_ACCOUNT_ALLOW_REGISTRATION", True)
