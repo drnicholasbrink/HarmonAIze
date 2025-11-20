@@ -325,18 +325,13 @@ ACCOUNT_ALLOW_REGISTRATION = env.bool("DJANGO_ACCOUNT_ALLOW_REGISTRATION", True)
 # https://docs.allauth.org/en/latest/account/configuration.html
 ACCOUNT_LOGIN_METHODS = {"email"}
 # https://docs.allauth.org/en/latest/account/configuration.html
-# Temporarily set to False for demo (no email verification)
-ACCOUNT_EMAIL_REQUIRED = False
+ACCOUNT_EMAIL_REQUIRED = True
 # https://docs.allauth.org/en/latest/account/configuration.html
 ACCOUNT_USERNAME_REQUIRED = False
 # https://docs.allauth.org/en/latest/account/configuration.html
 ACCOUNT_USER_MODEL_USERNAME_FIELD = None
 # https://docs.allauth.org/en/latest/account/configuration.html
-# TODO: Change back to "mandatory" for production with proper email backend (SendGrid)
-ACCOUNT_EMAIL_VERIFICATION = "none"  # Temporarily disabled for demo
-# https://docs.allauth.org/en/latest/account/configuration.html
-# Disable email enumeration prevention (which tries to send emails)
-ACCOUNT_PREVENT_ENUMERATION = False
+ACCOUNT_EMAIL_VERIFICATION = "mandatory"
 # https://docs.allauth.org/en/latest/account/configuration.html
 ACCOUNT_ADAPTER = "harmonaize.users.adapters.AccountAdapter"
 # https://docs.allauth.org/en/latest/account/forms.html
