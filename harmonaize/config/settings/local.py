@@ -15,6 +15,10 @@ SECRET_KEY = env(
 # Allow environment variable override for Azure deployment
 ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["localhost", "0.0.0.0", "127.0.0.1"])  # noqa: S104
 
+# https://docs.djangoproject.com/en/dev/ref/settings/#csrf-trusted-origins
+# Required for Azure deployment to accept form submissions
+CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=["http://localhost:8000", "http://127.0.0.1:8000"])
+
 # CACHES
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#caches
