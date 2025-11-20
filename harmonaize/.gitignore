@@ -285,3 +285,6 @@ obj/
 .vscode/tasks.json
 .vscode/launch.json
 .vscode/extensions.json
+secrets/
+*-credentials.json
+gee-credentials.json
