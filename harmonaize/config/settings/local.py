@@ -12,7 +12,8 @@ SECRET_KEY = env(
     default="XSCNrK2XUK0x6WcVEGLARr3TvJqwTMjtHOyLpEg8ghJnczUdtbV5FaoXf13Wo1vG",
 )
 # https://docs.djangoproject.com/en/dev/ref/settings/#allowed-hosts
-ALLOWED_HOSTS = ["localhost", "0.0.0.0", "127.0.0.1"]  # noqa: S104
+# Allow environment variable override for Azure deployment
+ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["localhost", "0.0.0.0", "127.0.0.1"])  # noqa: S104
 
 # CACHES
 # ------------------------------------------------------------------------------
