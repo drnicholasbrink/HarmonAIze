@@ -335,6 +335,9 @@ ACCOUNT_USER_MODEL_USERNAME_FIELD = None
 # TODO: Change back to "mandatory" for production with proper email backend (SendGrid)
 ACCOUNT_EMAIL_VERIFICATION = "none"  # Temporarily disabled for demo
 # https://docs.allauth.org/en/latest/account/configuration.html
+# Disable email enumeration prevention (which tries to send emails)
+ACCOUNT_PREVENT_ENUMERATION = False
+# https://docs.allauth.org/en/latest/account/configuration.html
 ACCOUNT_ADAPTER = "harmonaize.users.adapters.AccountAdapter"
 # https://docs.allauth.org/en/latest/account/forms.html
 ACCOUNT_FORMS = {"signup": "harmonaize.users.forms.UserSignupForm"}
