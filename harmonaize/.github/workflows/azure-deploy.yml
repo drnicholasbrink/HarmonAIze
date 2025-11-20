@@ -1,0 +1,63 @@
+name: Deploy to Azure Container Apps
+
+on:
+  push:
+    branches:
+      - climate-module-clean
+      - main
+  workflow_dispatch:  # Allow manual triggers
+
+env:
+  AZURE_CONTAINER_APP: harmonaize-django
+  AZURE_RESOURCE_GROUP: rg_harmonaize
+  AZURE_CONTAINER_REGISTRY: harmonaizeacr
+  IMAGE_NAME: harmonaize
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Log in to Azure Container Registry
+        run: |
+          az acr login --name ${{ env.AZURE_CONTAINER_REGISTRY }}
+
+      - name: Build and push Docker image
+        run: |
+          az acr build \
+            --registry ${{ env.AZURE_CONTAINER_REGISTRY }} \
+            --image ${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            --image ${{ env.IMAGE_NAME }}:latest \
+            -f compose/production/django/Dockerfile \
+            .
+
+      - name: Deploy to Azure Container Apps
+        run: |
+          az containerapp update \
+            --name ${{ env.AZURE_CONTAINER_APP }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --image ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            --set-env-vars "GITHUB_SHA=${{ github.sha }}"
+
+      - name: Check deployment status
+        run: |
+          REVISION=$(az containerapp revision list \
+            --name ${{ env.AZURE_CONTAINER_APP }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --query "[0].name" -o tsv)
+          echo "✅ Deployed revision: $REVISION"
+
+          HEALTH=$(az containerapp revision show \
+            --name ${{ env.AZURE_CONTAINER_APP }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --revision $REVISION \
+            --query "properties.healthState" -o tsv)
+          echo "🏥 Health state: $HEALTH"
