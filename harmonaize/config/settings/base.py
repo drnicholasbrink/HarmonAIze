@@ -331,7 +331,8 @@ ACCOUNT_USERNAME_REQUIRED = False
 # https://docs.allauth.org/en/latest/account/configuration.html
 ACCOUNT_USER_MODEL_USERNAME_FIELD = None
 # https://docs.allauth.org/en/latest/account/configuration.html
-ACCOUNT_EMAIL_VERIFICATION = "mandatory"
+# TODO: Change back to "mandatory" for production with proper email backend (SendGrid)
+ACCOUNT_EMAIL_VERIFICATION = "none"  # Temporarily disabled for demo
 # https://docs.allauth.org/en/latest/account/configuration.html
 ACCOUNT_ADAPTER = "harmonaize.users.adapters.AccountAdapter"
 # https://docs.allauth.org/en/latest/account/forms.html
