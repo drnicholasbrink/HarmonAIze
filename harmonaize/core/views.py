@@ -153,27 +153,33 @@ class StudyDetailView(LoginRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         study = self.object
-        
+
         # Calculate variable statistics
-        variables = study.variables.all()
+        # Defer embedding fields to avoid issues when pgvector extension is not installed
+        variables = study.variables.all().defer('name_embedding', 'description_embedding')
         total_vars = variables.count()
-        
+
         # Variable type distribution
         variable_types = {}
         for variable in variables:
             var_type = variable.variable_type
             variable_types[var_type] = variable_types.get(var_type, 0) + 1
-        
+
         # Additional statistics
         variables_with_units = variables.exclude(unit='').count()
         variables_with_codes = variables.exclude(ontology_code='').count()
-        
-        # Embedding statistics
-        variables_with_embeddings = variables.filter(
-            name_embedding__isnull=False,
-            description_embedding__isnull=False,
-        ).count()
-        embedding_progress = round((variables_with_embeddings / total_vars * 100), 1) if total_vars > 0 else 0
+
+        # Embedding statistics - skip if pgvector extension is not installed
+        try:
+            variables_with_embeddings = study.variables.filter(
+                name_embedding__isnull=False,
+                description_embedding__isnull=False,
+            ).count()
+            embedding_progress = round((variables_with_embeddings / total_vars * 100), 1) if total_vars > 0 else 0
+        except Exception:
+            # pgvector extension not installed or embedding columns don't exist
+            variables_with_embeddings = 0
+            embedding_progress = 0
         
         # Calculate percentages for type distribution bars
         if total_vars > 0:

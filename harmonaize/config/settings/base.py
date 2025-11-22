@@ -83,7 +83,7 @@ THIRD_PARTY_APPS = [
     "crispy_bootstrap5",
     "allauth",
     "allauth.account",
-    "allauth.mfa",
+    # "allauth.mfa",  # Disabled: fido2 compatibility issue for demo
     "allauth.socialaccount",
     "django_celery_beat",
     "rest_framework",
