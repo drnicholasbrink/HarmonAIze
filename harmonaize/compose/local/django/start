@@ -6,4 +6,9 @@ set -o nounset
 
 
 python manage.py migrate
+
+# Auto-load geolocation reference data in background (don't block server startup)
+(python manage.py load_hdx_data || true) &
+(python manage.py load_validation_data || true) &
+
 exec uvicorn config.asgi:application --host 0.0.0.0 --reload --reload-include '*.html'

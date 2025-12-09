@@ -319,6 +319,19 @@ CELERY_WORKER_SEND_TASK_EVENTS = True
 CELERY_TASK_SEND_SENT_EVENT = True
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#worker-hijack-root-logger
 CELERY_WORKER_HIJACK_ROOT_LOGGER = False
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#worker-concurrency
+# Number of concurrent worker processes/threads (default: # of CPU cores)
+# Set to 20 to allow parallel processing of 20 locations simultaneously
+CELERY_WORKER_CONCURRENCY = env.int("CELERY_WORKER_CONCURRENCY", default=20)
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#worker-prefetch-multiplier
+# How many tasks to prefetch per worker (4 = each worker grabs 4 tasks at once)
+CELERY_WORKER_PREFETCH_MULTIPLIER = env.int("CELERY_WORKER_PREFETCH_MULTIPLIER", default=4)
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#task-acks-late
+# Acknowledge tasks after completion (not before) - ensures failed tasks are retried
+CELERY_TASK_ACKS_LATE = True
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#worker-max-tasks-per-child
+# Restart worker after N tasks to prevent memory leaks
+CELERY_WORKER_MAX_TASKS_PER_CHILD = env.int("CELERY_WORKER_MAX_TASKS_PER_CHILD", default=1000)
 # django-allauth
 # ------------------------------------------------------------------------------
 ACCOUNT_ALLOW_REGISTRATION = env.bool("DJANGO_ACCOUNT_ALLOW_REGISTRATION", True)
@@ -376,3 +389,25 @@ OPENAI_TRANSFORMATION_MODEL = env("OPENAI_TRANSFORMATION_MODEL", default="gpt-5"
 EMBEDDING_CHUNK_TOKENS = env.int("EMBEDDING_CHUNK_TOKENS", default=8000)
 EMBEDDING_CHUNK_OVERLAP = env.int("EMBEDDING_CHUNK_OVERLAP", default=50)
 EMBEDDING_DIMENSIONS = env.int("EMBEDDING_DIMENSIONS", default=3072)  # text-embedding-3-large default
+
+# Geolocation Configuration
+# ------------------------------------------------------------------------------
+# Google Geocoding API (required for geocoding service)
+GOOGLE_GEOCODING_API_KEY = env("GOOGLE_GEOCODING_API_KEY", default="")
+
+# Mapbox Access Token (required for interactive map visualisations)
+MAPBOX_ACCESS_TOKEN = env("MAPBOX_ACCESS_TOKEN", default="")
+
+# Local Nominatim URL (optional, falls back to public API if not available)
+LOCAL_NOMINATIM_URL = env("LOCAL_NOMINATIM_URL", default="http://nominatim:8080")
+
+# LLM Enhancement Settings (LLM is default, non-LLM only used as fallback)
+GEMINI_API_KEY = env("GEMINI_API_KEY", default="")
+GEOLOCATION_USE_LLM = env.bool("GEOLOCATION_USE_LLM", default=True)
+GEOLOCATION_LLM_CONFLICT_THRESHOLD_KM = env.float("GEOLOCATION_LLM_CONFLICT_THRESHOLD_KM", default=5.0)
+
+# Validation Scoring Weights (configurable for fine-tuning)
+# Name matching weight: How much to trust semantic name matching (AI-powered)
+# Distance weight: How much to trust source agreement (proximity check)
+GEOLOCATION_NAME_WEIGHT = env.float("GEOLOCATION_NAME_WEIGHT", default=0.70)
+GEOLOCATION_DISTANCE_WEIGHT = env.float("GEOLOCATION_DISTANCE_WEIGHT", default=0.30)
