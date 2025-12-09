@@ -47,3 +47,6 @@ seaborn==0.13.2  # https://seaborn.pydata.org/
 # AI/ML APIs
 openai==2.7.1  # https://github.com/openai/openai-python
 tiktoken==0.12.0  # https://github.com/openai/tiktoken
+google-generativeai==0.8.3  # https://github.com/google/generative-ai-python
+fuzzywuzzy==0.18.0  # https://github.com/seatgeek/fuzzywuzzy
+python-Levenshtein==0.27.1  # https://github.com/maxbachmann/Levenshtein (speedup for fuzzywuzzy)
