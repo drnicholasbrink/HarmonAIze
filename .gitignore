@@ -109,6 +109,7 @@ env.bak/
 venv.bak/
 *.env
 .env.*
+harmonaize/.envs
 
 # Spyder project settings
 .spyderproject

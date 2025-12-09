@@ -426,34 +426,34 @@
       .dashboard-grid {
         grid-template-columns: 1fr;
       }
-      
+
       .quick-actions {
         grid-template-columns: 1fr;
       }
-      
+
       .study-item {
         flex-direction: column;
         align-items: flex-start;
         gap: 0.5rem;
       }
-      
+
       .creation-flow-panel {
         padding: 1.5rem;
       }
-      
+
       .flow-options {
         grid-template-columns: 1fr;
         gap: 1.5rem;
       }
-      
+
       .flow-divider {
         transform: rotate(90deg);
       }
-      
+
       .flow-title {
         font-size: 1.5rem;
       }
-      
+
       .flow-subtitle {
         font-size: 1rem;
       }
@@ -472,13 +472,13 @@
 
   <!-- Main Content -->
   <div class="content-wrapper">
-    
+
     {% if total_projects == 0 %}
     <!-- No Projects - Getting Started Section -->
     <div class="creation-flow-panel">
       <h2 class="flow-title">Welcome to HarmonAIze!</h2>
       <p class="flow-subtitle">Let's get you started with your first harmonisation project</p>
-      
+
       <div class="flow-info">
         <div class="info-box">
           <strong>Step 1:</strong> Create a project to organise your harmonisation work.<br>
@@ -486,40 +486,40 @@
           <strong>Step 3:</strong> Upload source studies to harmonise against your targets.
         </div>
       </div>
-      
+
       <div style="text-align: center; margin-top: 2rem;">
         <a href="{% url 'core:create_project' %}" class="btn btn-primary" style="font-size: 1.1rem; padding: 1rem 2rem;">
           Create Your First Project
         </a>
       </div>
     </div>
-    
+
     {% elif not has_target_study %}
     <!-- Has Projects but No Target Database -->
     <div class="creation-flow-panel">
       <h2 class="flow-title">Set Up Your Target Database</h2>
       <p class="flow-subtitle">Define your harmonisation standards before uploading source data</p>
-      
+
       <div class="flow-info">
         <div class="info-box">
           You have {{ total_projects }} project{{ total_projects|pluralize }}, but no target database yet.<br>
           Create your target database to define the harmonisation standards for your research.
         </div>
       </div>
-      
+
       <div style="text-align: center; margin-top: 2rem;">
         <a href="{% url 'core:create_target_study' %}" class="btn btn-primary" style="font-size: 1.1rem; padding: 1rem 2rem;">
           Create Target Database
         </a>
       </div>
     </div>
-    
+
     {% else %}
     <!-- Normal Dashboard - Has Projects and Target Database -->
     <div class="creation-flow-panel">
       <h2 class="flow-title">Ready for Harmonisation</h2>
       <p class="flow-subtitle">Your harmonisation workspace is set up and ready to use</p>
-      
+
       <div class="flow-options">
         <div class="flow-option">
           <div class="flow-card source-card">
@@ -537,9 +537,9 @@
             </a>
           </div>
         </div>
-        
+
         <div class="flow-divider">OR</div>
-        
+
         <div class="flow-option">
           <div class="flow-card existing-target">
             <div class="flow-icon">
@@ -558,7 +558,7 @@
       </div>
     </div>
     {% endif %}
-  
+
     <!-- Quick Actions -->
     <div class="section-card">
       <h2 class="section-title">Quick Actions</h2>
@@ -572,7 +572,7 @@
           <div class="action-title">New Project</div>
           <div class="action-description">Create a new research project</div>
         </a>
-        
+
         {% if total_projects > 0 %}
         <a href="{% url 'core:upload' %}" class="action-btn">
           <span class="action-icon">
@@ -598,7 +598,7 @@
           <div class="action-description">Create a project first</div>
         </div>
         {% endif %}
-        
+
         {% if total_projects > 0 %}
         <a href="{% url 'core:create_target_study' %}" class="action-btn">
           <span class="action-icon">
@@ -622,7 +622,7 @@
           <div class="action-description">Create a project first</div>
         </div>
         {% endif %}
-        
+
         {% if target_studies_count > 0 %}
         <a href="{% url 'core:study_list' %}?purpose=target" class="action-btn">
           <span class="action-icon">
@@ -635,7 +635,7 @@
           <div class="action-description">Manage your harmonisation targets</div>
         </a>
         {% endif %}
-        
+
         <a href="{% url 'core:project_list' %}" class="action-btn">
           <span class="action-icon">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -645,7 +645,7 @@
           <div class="action-title">View All Projects</div>
           <div class="action-description">Manage your research projects</div>
         </a>
-        
+
         <a href="{% url 'core:study_list' %}" class="action-btn">
           <span class="action-icon">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -659,7 +659,7 @@
           <div class="action-title">View All Studies</div>
           <div class="action-description">Manage your existing studies</div>
         </a>
-        
+
         <!-- Data Ingestion Action -->
         {% if source_studies_count > 0 %}
         <a href="{% url 'health:upload_raw_data' %}" class="action-btn">
@@ -674,7 +674,7 @@
           <div class="action-description">Upload CSV files for data processing</div>
         </a>
         {% endif %}
-        
+
         <!-- View Raw Data Files Action -->
         <a href="{% url 'health:raw_data_list' %}" class="action-btn">
           <span class="action-icon">
@@ -689,6 +689,19 @@
           <div class="action-title">View Data Files</div>
           <div class="action-description">Manage your uploaded raw data files</div>
         </a>
+
+        <!-- Geolocation Module -->
+        <a href="{% url 'geolocation:validation_dashboard' %}" class="action-btn">
+          <span class="action-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+              <circle cx="12" cy="10" r="3"></circle>
+            </svg>
+          </span>
+          <div class="action-title">Geolocation</div>
+          <div class="action-description">Geocode and validate locations</div>
+        </a>
+
 
         <!-- Climate Module Action -->
         <a href="{% url 'climate:dashboard' %}" class="action-btn">
@@ -726,7 +739,7 @@
         <div class="stat-number">{{ total_projects }}</div>
         <div class="stat-label">Projects</div>
       </div>
-      
+
       <div class="stat-card">
         <div class="stat-icon">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -737,7 +750,7 @@
         <div class="stat-number">{{ source_studies_count }}</div>
         <div class="stat-label">Source Studies</div>
       </div>
-      
+
       <div class="stat-card">
         <div class="stat-icon">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -748,7 +761,7 @@
         <div class="stat-number">{{ target_studies_count }}</div>
         <div class="stat-label">Target Databases</div>
       </div>
-      
+
       <div class="stat-card">
         <div class="stat-icon">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -781,7 +794,7 @@
           </li>
         {% endfor %}
       </ul>
-      
+
       {% if total_projects > 3 %}
         <div style="text-align: center; margin-top: 1.5rem;">
           <a href="{% url 'core:project_list' %}" class="btn btn-outline">
@@ -813,7 +826,7 @@
           </li>
         {% endfor %}
       </ul>
-      
+
       {% if target_studies_count > 3 %}
         <div style="text-align: center; margin-top: 1.5rem;">
           <a href="{% url 'core:study_list' %}?purpose=target" class="btn btn-outline">
@@ -821,7 +834,7 @@
           </a>
         </div>
       {% endif %}
-      
+
       <div style="text-align: center; margin-top: 1.5rem;">
         <a href="{% url 'core:create_target_study' %}" class="btn btn-primary">
           Create New Target Database
@@ -851,7 +864,7 @@
             </li>
           {% endfor %}
         </ul>
-        
+
         {% if source_studies_count > 5 %}
           <div style="text-align: center; margin-top: 1.5rem;">
             <a href="{% url 'core:study_list' %}?purpose=source" class="btn btn-outline">
@@ -859,7 +872,7 @@
             </a>
           </div>
         {% endif %}
-        
+
       {% else %}
         <div class="empty-state">
           <div class="empty-icon">
