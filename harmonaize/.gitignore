@@ -285,3 +285,19 @@ obj/
 .vscode/tasks.json
 .vscode/launch.json
 .vscode/extensions.json
+
+# Environments within harmonaize project
+harmonaize/.env
+harmonaize/.envs/
+harmonaize/.envs/**
+.envs/
+.envs/**
+harmonaize/.venv
+harmonaize/env/
+harmonaize/venv/
+harmonaize/ENV/
+env.bak/
+venv.bak/
+*.env
+.env.*
+harmonaize/.envs
