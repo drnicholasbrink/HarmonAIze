@@ -1030,11 +1030,11 @@
           if (data.status === 'completed' || data.status === 'failed') {
             resetGeocodingUI(btn);
             if (data.status === 'completed') {
-              showMessage('Batch geocoding completed successfully!', 'success');
+              showMessage('Batch geocoding completed successfully! Refreshing results in 5 seconds...', 'success');
               setTimeout(() => {
                 refreshStats();
                 refreshLocationStatus();
-              }, 1000);
+              }, 5000);
             } else {
               showMessage('Batch geocoding failed: ' + (data.error || 'Unknown error'), 'error');
             }
@@ -1105,11 +1105,11 @@
             }
 
             if (data.status === 'completed') {
-              showMessage('Batch validation completed successfully!', 'success');
+              showMessage('Batch validation completed successfully! Refreshing results in 5 seconds...', 'success');
               setTimeout(() => {
                 refreshStats();
                 refreshLocationStatus();
-              }, 1000);
+              }, 5000);
             } else {
               showMessage('Batch validation failed: ' + (data.error || 'Unknown error'), 'error');
             }

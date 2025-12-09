@@ -1,7 +1,7 @@
 # geolocation/forms.py
 from django import forms
 from django.core.validators import MinValueValidator, MaxValueValidator
-from .models import ValidationResult, GeocodingResult
+from .models import ValidationResult
 
 
 class ManualCoordinateForm(forms.Form):

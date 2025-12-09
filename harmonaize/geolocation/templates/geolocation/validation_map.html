@@ -28,8 +28,6 @@
       line-height: 1.5;
       margin: 0;
       padding: 0;
-      height: 100vh;
-      overflow: hidden;
     }
 
     .hero-section {
@@ -146,6 +144,7 @@
       padding: 2rem;
       position: relative;
       overflow: hidden;
+      flex-shrink: 0;
     }
 
     .sidebar-header::before {
@@ -209,6 +208,7 @@
       flex: 1;
       overflow-y: auto;
       padding: 1.5rem;
+      min-height: 0;
     }
 
     .source-card {
@@ -335,6 +335,10 @@
       padding: 1.5rem;
       border-top: 1px solid var(--border-color);
       background: #f8f9fa;
+      flex-shrink: 0;
+      position: sticky;
+      bottom: 0;
+      z-index: 10;
     }
 
     .btn-action {
@@ -824,17 +828,11 @@
 
           <!-- LLM AI Enhancement Section -->
           {% if current_location.llm_enhanced %}
-          <div style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border: 2px solid #0ea5e9; border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem;">
-            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
-              <span style="font-size: 1.2rem;">🤖</span>
-              <span style="font-weight: 700; color: #0c4a6e; font-size: 1rem;">AI-Enhanced Validation</span>
-              <span style="background: #0ea5e9; color: white; padding: 0.2rem 0.6rem; border-radius: 10px; font-size: 0.7rem; font-weight: 600; margin-left: auto;">GEMINI</span>
-            </div>
-
+          <div style="margin-bottom: 1rem;">
             {% if current_location.llm_explanation %}
-            <div style="background: white; border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem; border-left: 4px solid #0ea5e9;">
-              <div style="font-size: 0.75rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.5rem;">AI Analysis</div>
-              <p style="margin: 0; line-height: 1.6; color: #1e293b;">{{ current_location.llm_explanation }}</p>
+            <div style="background: #f8fafc; border-left: 3px solid #0ea5e9; border-radius: 4px; padding: 0.75rem; margin-bottom: 0.75rem;">
+              <div style="font-size: 0.7rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.3rem;">AI Analysis</div>
+              <p style="margin: 0; line-height: 1.5; color: #334155; font-size: 0.9rem;">{{ current_location.llm_explanation }}</p>
             </div>
             {% endif %}
 

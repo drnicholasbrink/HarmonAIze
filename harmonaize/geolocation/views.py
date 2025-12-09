@@ -1,16 +1,13 @@
 
 import json
-import traceback
 import logging
 import requests
 from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from django.utils.decorators import method_decorator
 from django.views.generic import TemplateView
 from django.conf import settings
 from django.db import transaction
-from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.utils import timezone
@@ -173,7 +170,6 @@ def validation_map(request):
             llm_conflict_resolution = metadata.get('llm_conflict_resolution')
             llm_sanity_check = metadata.get('llm_sanity_check')
             llm_explanation = metadata.get('llm_explanation')
-            best_source = metadata.get('best_source')
             best_score = metadata.get('best_score', 0.0)
 
             # Calculate confidence from available validation data
@@ -215,9 +211,6 @@ def validation_map(request):
                     coord['reverse_geocoding_score'] = reverse_score * 100
                     coord['distance_penalty_score'] = distance_score * 100
                     coord['individual_confidence'] = individual_confidence * 100
-
-
-                    calculated_score = (reverse_score * 0.70) + (distance_score * 0.30)
 
                 else:
                     # Calculate fallback scores when validation data is unavailable
@@ -367,8 +360,9 @@ def get_navigation_info(current_location_id, user=None):
                 if current_index > 0:
                     navigation['prev_location_id'] = location_ids[current_index - 1]
                     navigation['has_prev'] = True
-        except (ValueError, TypeError):
-            pass
+        except (ValueError, TypeError) as e:
+            # Could not determine navigation info (invalid location ID or empty queryset); ignore silently
+            logger.warning(f"Could not determine navigation info for location ID '{current_location_id}': {e}")
 
     return navigation
 
@@ -379,10 +373,6 @@ def get_validation_stats(user=None):
     locations_with_coords = Location.objects.filter(
         latitude__isnull=False,
         longitude__isnull=False
-    ).count()
-    locations_without_coords = Location.objects.filter(
-        latitude__isnull=True,
-        longitude__isnull=True
     ).count()
 
     # Count locations that have geocoding results but need validation
@@ -527,8 +517,6 @@ def location_status_api(request):
                     status_display = 'Validated & Complete'
                     status_colour = 'green'
                     confidence = 100
-                    sources = ['Final']
-                    coordinates = {'lat': location.latitude, 'lng': location.longitude}
                     geocoding_result_id = None
                 else:
                     # Look for geocoding result (user's own results only)
@@ -558,8 +546,6 @@ def location_status_api(request):
                                     status_display = 'Validated & Complete'
                                     status_colour = 'green'
                                     confidence = 100
-                                    sources = ['Final']
-                                    coordinates = {'lat': lat, 'lng': lng}
                                 else:
                                     # Validation exists but no final coordinates
                                     status = 'needs_review'
@@ -812,7 +798,7 @@ def validation_api(request):
             elif action == 'get_details':
                 return get_enhanced_validation_details(validation)
             elif action == 'use_source':
-                return handle_use_source(validation, data)
+                return handle_use_source(validation, data, request.user)
             elif action == 'run_ai_analysis':
                 return run_ai_analysis(validation)
             else:
@@ -1313,7 +1299,7 @@ def handle_approve_ai_suggestion(validation, data):
             'error': f'Failed to approve Auto-Validation suggestion: {str(e)}'
         }, status=500)
 
-def handle_use_source(validation, data):
+def handle_use_source(validation, data, user):
     """Handle user selecting a specific source with enhanced error handling and status updates."""
     try:
         source = data.get('source')
@@ -1360,7 +1346,8 @@ def handle_use_source(validation, data):
                     'final_long': final_lng,
                     'country': '',
                     'source': source,
-                    'validated_at': timezone.now()
+                    'validated_at': timezone.now(),
+                    'created_by': user
                 }
             )
 

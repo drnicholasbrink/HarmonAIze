@@ -8,17 +8,13 @@ and facility matching using Google Gemini.
 """
 
 import os
-import time
 import requests
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from django.conf import settings
-from django.utils import timezone
-from django.db import transaction
 from django.db.models import Q
 
 from .models import ValidatedDataset, GeocodingResult, HDXHealthFacility
-from core.models import Location
 from .llm_enhancement import get_llm_enhancer
 
 try:
@@ -43,9 +39,9 @@ class GeocodingService:
 
         self.llm_enhancer = get_llm_enhancer()
         if self.llm_enhancer.is_enabled():
-            logger.info("✓ GeocodingService initialized with LLM enhancements enabled")
+            logger.debug("✓ GeocodingService initialized with LLM enhancements enabled")
         else:
-            logger.info("GeocodingService initialized (LLM enhancements disabled)")
+            logger.debug("GeocodingService initialized (LLM enhancements disabled)")
 
         self.country_name_to_iso2 = {
             "Algeria": "DZ", "Angola": "AO", "Benin": "BJ", "Botswana": "BW", "Burkina Faso": "BF",
@@ -363,6 +359,7 @@ class GeocodingService:
                         }
 
         except (KeyError, LookupError):
+            # Subdivisions may not exist for some countries, or lookup may fail; ignore and return None
             pass
 
         return None
@@ -755,7 +752,7 @@ class GeocodingService:
             
             # Step 4: Try LLM-enhanced semantic matching (if enabled)
             if self.llm_enhancer.is_enabled():
-                logger.info(f"HDX: Trying LLM-enhanced semantic matching...")
+                logger.debug(f"HDX: Trying LLM-enhanced semantic matching...")
 
                 all_facilities = list(hdx_facilities)
                 facility_names = [f.facility_name for f in all_facilities]
@@ -772,8 +769,8 @@ class GeocodingService:
                     ).first()
 
                     if matched_facility:
-                        logger.info(f"✓ HDX: LLM SEMANTIC match - '{matched_name}' in {matched_facility.country} (confidence: {confidence:.1%})")
-                        logger.info(f"  Reasoning: {reasoning}")
+                        logger.debug(f"✓ HDX: LLM SEMANTIC match - '{matched_name}' in {matched_facility.country} (confidence: {confidence:.1%})")
+                        logger.debug(f"  Reasoning: {reasoning}")
 
                         # CRITICAL: Validate coordinates are actually in the expected country
                         is_valid, validation_msg = self._validate_coordinates_in_country(

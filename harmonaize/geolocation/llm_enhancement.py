@@ -29,7 +29,7 @@ try:
     if hasattr(settings, 'GEMINI_API_KEY') and settings.GEMINI_API_KEY:
         genai.configure(api_key=settings.GEMINI_API_KEY)
         GEMINI_AVAILABLE = True
-        logger.info("✓ Gemini LLM initialized successfully for geocoding enhancements")
+        logger.debug("✓ Gemini LLM initialized successfully for geocoding enhancements")
     else:
         logger.warning("Gemini API key not configured - LLM enhancements disabled")
 
@@ -79,7 +79,7 @@ class GeocodingLLMEnhancer:
                     )
                 )
 
-                logger.info("✓ Gemini Flash and Pro models initialized")
+                logger.debug("✓ Gemini Flash and Pro models initialized")
 
             except Exception as e:
                 logger.error(f"Failed to initialize Gemini models: {e}")
@@ -182,7 +182,7 @@ Examples:
             # Cache successful result for 1 hour
             cache.set(cache_key, result, 3600)
 
-            logger.info(f"✓ LLM parsed '{location_name}': facility={result.get('facility_name')}, city={result.get('city')}, country={result.get('country')}")
+            logger.debug(f"✓ LLM parsed '{location_name}': facility={result.get('facility_name')}, city={result.get('city')}, country={result.get('country')}")
             return result
 
         except json.JSONDecodeError as e:
@@ -266,7 +266,7 @@ Be strict: Only return is_match=true if you're reasonably confident they're the 
             cache.set(cache_key, result, 3600)
 
             if result['is_match']:
-                logger.info(f"✓ LLM matched '{query}' → '{candidate}' (confidence: {result['confidence']:.1%})")
+                logger.debug(f"✓ LLM matched '{query}' → '{candidate}' (confidence: {result['confidence']:.1%})")
             else:
                 logger.debug(f"✗ LLM: '{query}' != '{candidate}' (confidence: {result['confidence']:.1%})")
 
@@ -327,7 +327,7 @@ Be strict: Only return is_match=true if you're reasonably confident they're the 
                         best_reasoning = llm_result['reasoning']
 
             if best_match and best_confidence > 0.6:  # Threshold for accepting match
-                logger.info(f"✓ LLM best match for '{query}': '{best_match}' (confidence: {best_confidence:.1%})")
+                logger.debug(f"✓ LLM best match for '{query}': '{best_match}' (confidence: {best_confidence:.1%})")
                 return (best_match, best_confidence, best_reasoning)
 
             return None
@@ -445,9 +445,9 @@ Return JSON:
             response = self.model_pro.generate_content(prompt)  # Use Pro for complex reasoning
             llm_decision = json.loads(self._strip_markdown_json(response.text))
 
-            logger.info(f"✓ LLM Conflict Resolution for '{location_name}':")
-            logger.info(f"  Recommended: {llm_decision['recommended_source']} (confidence: {llm_decision['confidence']:.1%})")
-            logger.info(f"  Reasoning: {llm_decision['reasoning']}")
+            logger.debug(f"✓ LLM Conflict Resolution for '{location_name}':")
+            logger.debug(f"  Recommended: {llm_decision['recommended_source']} (confidence: {llm_decision['confidence']:.1%})")
+            logger.debug(f"  Reasoning: {llm_decision['reasoning']}")
 
             # Cache the decision
             cache_key = f"llm_conflict:{location_name}:{max_distance_km:.1f}"
@@ -649,7 +649,7 @@ Examples:
                 logger.warning(f"  Issues: {', '.join(result['issues_found'])}")
                 logger.warning(f"  Severity: {result['severity']}")
             else:
-                logger.info(f"✓ LLM Sanity Check PASSED for '{location_name}' (confidence: {result['confidence']:.1%})")
+                logger.debug(f"✓ LLM Sanity Check PASSED for '{location_name}' (confidence: {result['confidence']:.1%})")
 
             return result
 
@@ -686,6 +686,12 @@ Examples:
                 return f"Low confidence result ({score:.0%}). Manual verification needed."
 
         try:
+            # Check if model is initialized
+            if not self.model_flash:
+                logger.error("LLM model not initialized - cannot generate explanation")
+                score = validation_result.confidence_score
+                return f"Confidence: {score:.0%}. {'Safe to approve' if score >= 0.8 else 'Review recommended' if score >= 0.6 else 'Manual verification needed'}."
+
             metadata = validation_result.validation_metadata or {}
             geocoding_result = validation_result.geocoding_result
 
@@ -743,9 +749,10 @@ Use friendly, non-technical language. Be direct and helpful.
 Return ONLY the explanation text (no JSON, no markdown formatting).
 """
 
+            logger.info(f"Generating LLM explanation for '{geocoding_result.location_name}'...")
+
             # Use Flash model with text response (without JSON mode for text output)
-            model = genai.GenerativeModel('gemini-2.5-flash')
-            response = model.generate_content(prompt)
+            response = self.model_flash.generate_content(prompt)
             explanation = response.text.strip()
 
             logger.info(f"✓ Generated validation explanation for '{geocoding_result.location_name}'")
@@ -753,7 +760,9 @@ Return ONLY the explanation text (no JSON, no markdown formatting).
             return explanation
 
         except Exception as e:
-            logger.warning(f"LLM explanation generation failed: {e}")
+            logger.error(f"LLM explanation generation failed for '{validation_result.geocoding_result.location_name}': {type(e).__name__}: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             # Fallback
             score = validation_result.confidence_score
             return f"Confidence: {score:.0%}. {'Safe to approve' if score >= 0.8 else 'Review recommended' if score >= 0.6 else 'Manual verification needed'}."

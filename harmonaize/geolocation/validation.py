@@ -10,15 +10,11 @@ import logging
 import requests
 import time
 import math
-import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from difflib import SequenceMatcher
-from typing import Dict, List, Tuple, Optional
-from django.db import transaction
-from django.utils import timezone
+from typing import Dict, Tuple, Optional
 from django.conf import settings
-from .models import GeocodingResult, ValidationResult, ValidatedDataset
-from core.models import Location
+from .models import GeocodingResult, ValidationResult
 from .llm_enhancement import get_llm_enhancer
 
 logger = logging.getLogger(__name__)
@@ -52,7 +48,7 @@ class SmartGeocodingValidator:
 
         self.llm_enhancer = get_llm_enhancer()
         if self.llm_enhancer.is_enabled():
-            logger.info("✓ SmartGeocodingValidator initialized with LLM enhancements")
+            logger.debug("✓ SmartGeocodingValidator initialized with LLM enhancements")
     
     def validate_geocoding_result(self, geocoding_result: GeocodingResult, user=None) -> ValidationResult:
         """
@@ -226,7 +222,6 @@ class SmartGeocodingValidator:
                         'llm_similarity': llm_similarity
                     }
 
-                    nominatim_type = "LOCAL" if reverse_result.get('local_nominatim_used') else "PUBLIC"
                 else:
                     reverse_results[source] = {
                         'address': 'No address found',
@@ -453,7 +448,7 @@ class SmartGeocodingValidator:
                             if llm_similarity and llm_similarity.get('similarity_score'):
                                 similarity = llm_similarity['similarity_score']
                                 llm_used = True
-                                logger.info(f"✓ {source.upper()}: LLM match {similarity:.0%}")
+                                logger.debug(f"✓ {source.upper()}: LLM match {similarity:.0%}")
                         except Exception as e:
                             logger.debug(f"LLM similarity failed for {source}: {e}")
 
@@ -571,7 +566,6 @@ class SmartGeocodingValidator:
             }
             
             # Show if local Nominatim was used for this source
-            nominatim_info = ""
             if source in reverse_results:
                 local_used = reverse_results[source].get('local_nominatim_used', False)
                 nominatim_info = f" (Nominatim: {'LOCAL' if local_used else 'PUBLIC'})"
