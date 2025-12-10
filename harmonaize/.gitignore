@@ -276,6 +276,9 @@ harmonaize/media/
 .env
 .envs/*
 !.envs/.local/
+# Ignore sensitive API keys and credentials in local environment files
+.envs/.local/.django
+.envs/.local/.postgres
 
 # Azure Functions local settings and build artifacts
 local.settings.json
