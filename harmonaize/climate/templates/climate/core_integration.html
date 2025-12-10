@@ -1,0 +1,315 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Climate-Core Integration - HarmonAIze{% endblock title %}
+
+{% block css %}
+  {{ block.super }}
+  <style>
+    :root {
+      --primary-color: #007AFF;
+      --secondary-color: #5AC8FA;
+      --accent-color: #34C759;
+      --background-color: #F2F2F7;
+      --card-background: #FFFFFF;
+      --text-primary: #1C1C1E;
+      --text-secondary: #8E8E93;
+      --border-color: #C6C6C8;
+      --shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+      --border-radius: 12px;
+    }
+
+    body {
+      background-color: var(--background-color);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    .hero-section {
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      color: white;
+      padding: 3rem 0;
+      margin: -1rem -15px 0 -15px;
+      text-align: center;
+    }
+
+    .content-wrapper {
+      max-width: 1200px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+
+    .section-card {
+      background: var(--card-background);
+      border-radius: var(--border-radius);
+      padding: 2rem;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border-color);
+      margin-bottom: 2rem;
+    }
+
+    .section-title {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+      color: var(--text-primary);
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid var(--primary-color);
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .stat-box {
+      background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+      color: white;
+      padding: 2rem;
+      border-radius: var(--border-radius);
+      text-align: center;
+    }
+
+    .stat-number {
+      font-size: 3rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    .stat-label {
+      font-size: 1rem;
+      opacity: 0.9;
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+    }
+
+    .data-table th {
+      background: var(--background-color);
+      padding: 1rem;
+      text-align: left;
+      font-weight: 600;
+      color: var(--text-primary);
+      border-bottom: 2px solid var(--border-color);
+    }
+
+    .data-table td {
+      padding: 1rem;
+      border-bottom: 1px solid var(--border-color);
+      color: var(--text-secondary);
+    }
+
+    .data-table tr:hover {
+      background: var(--background-color);
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .badge-climate {
+      background: rgba(52, 199, 89, 0.2);
+      color: #155724;
+    }
+
+    .info-box {
+      background: rgba(0, 122, 255, 0.1);
+      border-left: 4px solid var(--primary-color);
+      padding: 1.5rem;
+      border-radius: 6px;
+      margin: 1rem 0;
+    }
+  </style>
+{% endblock css %}
+
+{% block content %}
+<!-- Hero Section -->
+<div class="hero-section">
+  <h1 style="font-size: 2.5rem; font-weight: 700; margin-bottom: 0.5rem;">Climate ↔ Core Integration</h1>
+  <p style="font-size: 1.1rem; opacity: 0.9;">How climate data flows into Core's unified data model</p>
+</div>
+
+<div class="content-wrapper">
+  <!-- Integration Summary -->
+  <div class="stat-grid">
+    <div class="stat-box">
+      <div class="stat-number">{{ climate_attributes|length }}</div>
+      <div class="stat-label">Climate Attributes in Core</div>
+    </div>
+
+    <div class="stat-box">
+      <div class="stat-number">{{ total_observations }}</div>
+      <div class="stat-label">Climate Observations Stored</div>
+    </div>
+
+    <div class="stat-box">
+      <div class="stat-number">{{ observations_by_location|length }}</div>
+      <div class="stat-label">Locations with Climate Data</div>
+    </div>
+  </div>
+
+  <!-- How It Works -->
+  <div class="section-card">
+    <h2 class="section-title">🔄 How Integration Works</h2>
+
+    <div class="info-box">
+      <h3 style="font-weight: 600; margin-bottom: 1rem;">Climate Module → Core Module Data Flow</h3>
+      <ol style="margin: 0; padding-left: 1.5rem; line-height: 1.8;">
+        <li><strong>Climate Variables</strong> are stored as <code>Attribute</code> objects in Core with <code>category='climate'</code></li>
+        <li><strong>Climate Data</strong> retrieved from APIs becomes <code>Observation</code> objects in Core</li>
+        <li><strong>Observations</strong> are linked to:
+          <ul style="margin-top: 0.5rem;">
+            <li><code>Location</code> (where the data was measured)</li>
+            <li><code>TimeDimension</code> (when it was measured)</li>
+            <li><code>Attribute</code> (what variable was measured)</li>
+          </ul>
+        </li>
+        <li><strong>Result:</strong> Climate data can be queried alongside health data using Core's unified API!</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- Climate Attributes in Core -->
+  <div class="section-card">
+    <h2 class="section-title">📊 Climate Attributes in Core Module</h2>
+    <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">
+      These climate variables are stored as Attribute objects in the Core module:
+    </p>
+
+    {% if climate_attributes %}
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Variable Name</th>
+            <th>Display Name</th>
+            <th>Unit</th>
+            <th>Category</th>
+            <th>Type</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for attr in climate_attributes %}
+            <tr>
+              <td><code>{{ attr.variable_name }}</code></td>
+              <td><strong>{{ attr.display_name }}</strong></td>
+              <td>{{ attr.unit }}</td>
+              <td><span class="badge badge-climate">{{ attr.category }}</span></td>
+              <td>{{ attr.variable_type }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p style="text-align: center; color: var(--text-secondary); padding: 2rem;">
+        No climate attributes in Core yet. Create a climate data request to populate this!
+      </p>
+    {% endif %}
+  </div>
+
+  <!-- Observations by Variable -->
+  <div class="section-card">
+    <h2 class="section-title">📈 Climate Observations by Variable</h2>
+
+    {% if observations_by_variable %}
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Variable</th>
+            <th>Observations</th>
+            <th>Average</th>
+            <th>Min</th>
+            <th>Max</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in observations_by_variable %}
+            <tr>
+              <td><strong>{{ item.variable }}</strong></td>
+              <td>{{ item.count }} observations</td>
+              <td>{{ item.avg|floatformat:2 }} {{ item.unit }}</td>
+              <td>{{ item.min|floatformat:2 }} {{ item.unit }}</td>
+              <td>{{ item.max|floatformat:2 }} {{ item.unit }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </div>
+
+  <!-- Observations by Location -->
+  <div class="section-card">
+    <h2 class="section-title">📍 Climate Observations by Location</h2>
+
+    {% if observations_by_location %}
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Location</th>
+            <th>Observations</th>
+            <th>Coordinates</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in observations_by_location %}
+            <tr>
+              <td><strong>{{ item.location }}</strong></td>
+              <td>{{ item.count }} observations</td>
+              <td>{{ item.latitude|floatformat:4 }}, {{ item.longitude|floatformat:4 }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </div>
+
+  <!-- Sample Observations -->
+  <div class="section-card">
+    <h2 class="section-title">🔬 Sample Climate Observations (Latest 20)</h2>
+    <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">
+      These observations are stored in Core's <code>Observation</code> table and linked to Locations and TimeDimensions:
+    </p>
+
+    {% if sample_observations %}
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Variable</th>
+            <th>Value</th>
+            <th>Location</th>
+            <th>Timestamp</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for obs in sample_observations %}
+            <tr>
+              <td><strong>{{ obs.variable }}</strong></td>
+              <td>{{ obs.value|floatformat:2 }} {{ obs.unit }}</td>
+              <td>{{ obs.location }} <small style="color: var(--text-secondary);">({{ obs.latitude|floatformat:2 }}, {{ obs.longitude|floatformat:2 }})</small></td>
+              <td>{{ obs.timestamp|date:"Y-m-d H:i" }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p style="text-align: center; color: var(--text-secondary); padding: 2rem;">
+        No observations yet. Process some climate data requests to see them here!
+      </p>
+    {% endif %}
+  </div>
+
+  <!-- Back Navigation -->
+  <div style="text-align: center; margin: 2rem 0;">
+    <a href="{% url 'climate:dashboard' %}" style="display: inline-block; background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: white; padding: 1rem 2rem; border-radius: 8px; text-decoration: none; font-weight: 600;">
+      ← Back to Climate Dashboard
+    </a>
+  </div>
+</div>
+{% endblock content %}
