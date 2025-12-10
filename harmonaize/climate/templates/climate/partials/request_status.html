@@ -1,0 +1,102 @@
+<div id="request-status-{{ request.id }}"
+     {% if request.status == 'processing' %}
+     hx-get="{% url 'climate:request_status_partial' request.id %}"
+     hx-trigger="every 2s"
+     hx-swap="outerHTML"
+     {% endif %}>
+
+  {% if request.status == 'pending' %}
+    <div class="alert alert-info">
+      <div class="d-flex align-items-center">
+        <i class="bi bi-hourglass-split me-2"></i>
+        <div class="flex-grow-1">
+          <strong>Pending</strong>
+          <p class="mb-0 small">Request queued for processing</p>
+        </div>
+      </div>
+    </div>
+
+  {% elif request.status == 'processing' %}
+    <div class="alert alert-warning">
+      <div class="d-flex align-items-center mb-2">
+        <div class="spinner-border spinner-border-sm text-warning me-2" role="status">
+          <span class="visually-hidden">Processing...</span>
+        </div>
+        <div class="flex-grow-1">
+          <strong>Processing Climate Data</strong>
+          <p class="mb-0 small">
+            {{ request.processed_locations }} of {{ request.total_locations }} locations processed
+            {% if request.total_observations %}
+              ({{ request.total_observations }} observations created)
+            {% endif %}
+          </p>
+        </div>
+        <span class="badge bg-warning">{{ progress }}%</span>
+      </div>
+
+      <!-- Progress Bar -->
+      <div class="progress" style="height: 8px;">
+        <div class="progress-bar progress-bar-striped progress-bar-animated bg-warning"
+             role="progressbar"
+             style="width: {{ progress }}%"
+             aria-valuenow="{{ progress }}"
+             aria-valuemin="0"
+             aria-valuemax="100"></div>
+      </div>
+
+      {% if request.started_at %}
+        <small class="text-muted mt-2 d-block">
+          Started {{ request.started_at|timesince }} ago
+        </small>
+      {% endif %}
+    </div>
+
+  {% elif request.status == 'completed' %}
+    <div class="alert alert-success">
+      <div class="d-flex align-items-center">
+        <i class="bi bi-check-circle-fill me-2"></i>
+        <div class="flex-grow-1">
+          <strong>Completed Successfully</strong>
+          <p class="mb-0 small">
+            Processed {{ request.total_locations }} locations,
+            created {{ request.total_observations }} climate observations
+          </p>
+          {% if request.duration %}
+            <small class="text-muted">Duration: {{ request.duration }}</small>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Stop polling when completed -->
+    <script>
+      htmx.trigger('#request-status-{{ request.id }}', 'htmx:abort');
+    </script>
+
+  {% elif request.status == 'failed' %}
+    <div class="alert alert-danger">
+      <div class="d-flex align-items-center">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+        <div class="flex-grow-1">
+          <strong>Processing Failed</strong>
+          {% if request.error_message %}
+            <p class="mb-0 small">{{ request.error_message }}</p>
+          {% else %}
+            <p class="mb-0 small">An error occurred during processing</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Stop polling when failed -->
+    <script>
+      htmx.trigger('#request-status-{{ request.id }}', 'htmx:abort');
+    </script>
+
+  {% else %}
+    <div class="alert alert-secondary">
+      <i class="bi bi-info-circle"></i> Status: {{ request.get_status_display }}
+    </div>
+  {% endif %}
+
+</div>
