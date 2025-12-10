@@ -217,20 +217,12 @@ class Attribute(models.Model):
     @property
     def has_name_embedding(self):
         """Check if the attribute has a name embedding."""
-        try:
-            return self.name_embedding is not None
-        except AttributeError:
-            # pgvector not installed or embedding fields don't exist
-            return False
+        return self.name_embedding is not None
 
     @property
     def has_description_embedding(self):
         """Check if the attribute has a description embedding."""
-        try:
-            return self.description_embedding is not None
-        except AttributeError:
-            # pgvector not installed or embedding fields don't exist
-            return False
+        return self.description_embedding is not None
 
     @property
     def has_embeddings(self):
@@ -240,16 +232,12 @@ class Attribute(models.Model):
     @property
     def embeddings_status(self):
         """Return a human-readable embedding status."""
-        try:
-            if self.has_name_embedding and self.has_description_embedding:
-                return "Complete"
-            elif self.has_name_embedding or self.has_description_embedding:
-                return "Partial"
-            else:
-                return "Pending"
-        except AttributeError:
-            # pgvector not installed or embedding fields don't exist
-            return "N/A"
+        if self.has_name_embedding and self.has_description_embedding:
+            return "Complete"
+        elif self.has_name_embedding or self.has_description_embedding:
+            return "Partial"
+        else:
+            return "Pending"
     
     @property
     def has_name_tsne(self):
@@ -300,29 +288,10 @@ class Observation(models.Model):
 
     def __str__(self):
         entity = self.patient or self.location or "Unknown"
-        # Fetch attribute with deferred embedding fields to avoid pgvector issues
-        try:
-            if self.attribute_id:
-                attr = Attribute.objects.defer('name_embedding', 'description_embedding').get(id=self.attribute_id)
-                attr_name = attr.display_name
-            else:
-                attr_name = "Unknown"
-        except Exception:
-            attr_name = "Unknown"
-        return f"{attr_name} for {entity} at {self.time}"
+        return f"{self.attribute.display_name} for {entity} at {self.time}"
 
     def clean(self):
-        # Fetch attribute with deferred embedding fields to avoid pgvector issues
-        try:
-            if self.attribute_id:
-                attr = Attribute.objects.defer('name_embedding', 'description_embedding').get(id=self.attribute_id)
-                expected_type = attr.variable_type
-            else:
-                return  # No attribute, skip validation
-        except Exception:
-            return  # Can't fetch attribute, skip validation
-
-        # attribute now holds type info directly
+        expected_type = self.attribute.variable_type  # attribute now holds type info directly
         value_fields = {
             'float': self.float_value,
             'int': self.int_value,
@@ -356,16 +325,7 @@ class Observation(models.Model):
 
     @property
     def value(self):
-        # Fetch attribute with deferred embedding fields to avoid pgvector issues
-        try:
-            if self.attribute_id:
-                attr = Attribute.objects.defer('name_embedding', 'description_embedding').get(id=self.attribute_id)
-                expected_type = attr.variable_type
-            else:
-                return None
-        except Exception:
-            return None
-
+        expected_type = self.attribute.variable_type
         if expected_type in ['float', 'int']:
             return self.float_value if expected_type == 'float' else self.int_value
         elif expected_type in ['string', 'categorical']:
