@@ -26,6 +26,7 @@ urlpatterns = [
     # Your stuff: custom urls includes go here
     path("app/", include("core.urls", namespace="core")),
     path("health/", include("health.urls", namespace="health")),
+    path("climate/", include("climate.urls", namespace="climate")),
     path("geolocation/", include("geolocation.urls", namespace="geolocation")),
     # ...
     # Media files
