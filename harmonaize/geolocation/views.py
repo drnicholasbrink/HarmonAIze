@@ -1265,6 +1265,7 @@ def handle_approve_ai_suggestion(validation, data):
             validation.save()
 
 
+            # Persist validated coordinates per user; created_by is required (NOT NULL)
             ValidatedDataset.objects.update_or_create(
                 location_name=result.location_name,
                 created_by=validation.created_by,
@@ -1353,8 +1354,10 @@ def handle_use_source(validation, data):
             validation.save()
 
 
+            # Ensure created_by is set to avoid NOT NULL constraint violations
             ValidatedDataset.objects.update_or_create(
                 location_name=result.location_name,
+                created_by=validation.created_by,
                 defaults={
                     'final_lat': final_lat,
                     'final_long': final_lng,
