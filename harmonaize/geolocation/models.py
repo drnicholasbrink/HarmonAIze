@@ -419,3 +419,176 @@ class ValidationResult(models.Model):
         if self.validation_status == 'validated' and not self.validated_at:
             self.validated_at = timezone.now()
         super().save(*args, **kwargs)
+
+
+class LocationCSVUpload(models.Model):
+    """
+    Track location CSV file uploads and column mappings.
+    Follows the same pattern as health/models.py RawDataFile for consistency.
+    """
+
+    PROCESSING_STATUS_CHOICES = [
+        ('uploaded', 'Uploaded'),
+        ('validated', 'Validated'),
+        ('processed', 'Processed'),
+        ('ingested', 'Ingested'),
+        ('error', 'Error'),
+    ]
+
+    # File information
+    file = models.FileField(upload_to='location_csv/%Y/%m/%d/')
+    original_filename = models.CharField(max_length=255)
+    file_format = models.CharField(max_length=20, default='csv')
+    file_size = models.PositiveIntegerField(help_text="File size in bytes")
+
+    # Column mappings (user-selected)
+    location_name_column = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Column containing location names (required)"
+    )
+    latitude_column = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Column containing latitude values (optional)"
+    )
+    longitude_column = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Column containing longitude values (optional)"
+    )
+
+    # Detected metadata
+    detected_columns = models.JSONField(
+        default=list,
+        help_text="List of all columns detected in the file"
+    )
+    total_rows = models.PositiveIntegerField(
+        default=0,
+        help_text="Total number of data rows in the file"
+    )
+
+    # Processing status
+    processing_status = models.CharField(
+        max_length=30,
+        choices=PROCESSING_STATUS_CHOICES,
+        default='uploaded'
+    )
+    processing_message = models.TextField(
+        blank=True,
+        help_text="Status message or error details"
+    )
+
+    # Ingestion results
+    locations_created = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of Location objects created from this upload"
+    )
+    locations_skipped = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of rows skipped (duplicates or invalid data)"
+    )
+
+    # Duplicate detection
+    checksum = models.CharField(
+        max_length=64,
+        blank=True,
+        help_text="SHA256 checksum for duplicate detection"
+    )
+
+    # Tracking
+    uploaded_by = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='location_uploads'
+    )
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    processed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-uploaded_at']
+        indexes = [
+            models.Index(fields=['uploaded_by', 'uploaded_at']),
+            models.Index(fields=['processing_status']),
+            models.Index(fields=['checksum']),
+        ]
+        verbose_name = "Location CSV Upload"
+        verbose_name_plural = "Location CSV Uploads"
+
+    def __str__(self):
+        return f"{self.original_filename} ({self.processing_status})"
+
+    @property
+    def is_processed(self):
+        """Check if file has been fully processed."""
+        return self.processing_status in ['processed', 'ingested']
+
+    @property
+    def has_coordinates(self):
+        """Check if upload includes coordinate columns."""
+        return bool(self.latitude_column and self.longitude_column)
+
+
+class LocationCSVColumn(models.Model):
+    """
+    Metadata about individual columns in a location CSV upload.
+    Follows the same pattern as health/models.py RawDataColumn.
+    """
+
+    INFERRED_TYPE_CHOICES = [
+        ('text', 'Text'),
+        ('float', 'Float'),
+        ('integer', 'Integer'),
+        ('date', 'Date'),
+        ('datetime', 'DateTime'),
+    ]
+
+    upload = models.ForeignKey(
+        LocationCSVUpload,
+        on_delete=models.CASCADE,
+        related_name='columns'
+    )
+    column_name = models.CharField(max_length=200)
+    column_index = models.PositiveIntegerField(help_text="0-based index in the file")
+
+    # Detected metadata
+    inferred_type = models.CharField(
+        max_length=50,
+        choices=INFERRED_TYPE_CHOICES,
+        default='text'
+    )
+    sample_values = models.JSONField(
+        default=list,
+        help_text="Sample values from this column for preview"
+    )
+    non_null_count = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of non-null values"
+    )
+    unique_count = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of unique values"
+    )
+
+    # Auto-detection hints
+    is_potential_location_name = models.BooleanField(
+        default=False,
+        help_text="System detected this might be a location name column"
+    )
+    is_potential_latitude = models.BooleanField(
+        default=False,
+        help_text="System detected this might be a latitude column"
+    )
+    is_potential_longitude = models.BooleanField(
+        default=False,
+        help_text="System detected this might be a longitude column"
+    )
+
+    class Meta:
+        ordering = ['column_index']
+        unique_together = ['upload', 'column_name']
+        verbose_name = "Location CSV Column"
+        verbose_name_plural = "Location CSV Columns"
+
+    def __str__(self):
+        return f"{self.column_name} ({self.inferred_type})"

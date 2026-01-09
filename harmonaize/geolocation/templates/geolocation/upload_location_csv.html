@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Upload Location CSV - HarmonAIze{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <div class="row">
+    <div class="col-lg-8 mx-auto">
+
+      <!-- Page Header -->
+      <div class="d-flex align-items-center mb-4">
+        <h2 class="mb-0">📍 Upload Location CSV</h2>
+      </div>
+
+      <p class="lead">
+        Upload a CSV/Excel file containing location names. The system will detect columns and help you map them.
+      </p>
+
+      <!-- Upload Form -->
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h5 class="card-title">Select File</h5>
+
+          <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+
+            <div class="mb-3">
+              <label for="{{ form.file.id_for_label }}" class="form-label">
+                Choose a CSV, Excel, or JSON file
+              </label>
+              {{ form.file }}
+              <div class="form-text">
+                Supported formats: .csv, .xlsx, .xls, .json (max 100MB)
+              </div>
+              {% if form.file.errors %}
+                <div class="alert alert-danger mt-2">
+                  {{ form.file.errors }}
+                </div>
+              {% endif %}
+            </div>
+
+            <div class="alert alert-info">
+              <strong>💡 Tip:</strong> Your file can have any column names. The system will:
+              <ul class="mb-0 mt-2">
+                <li>Auto-detect location name columns (e.g., "facility", "clinic", "location")</li>
+                <li>Detect coordinate columns if present (latitude/longitude)</li>
+                <li>Show you previews and let you confirm the mappings</li>
+              </ul>
+            </div>
+
+            <div class="d-grid gap-2">
+              <button type="submit" class="btn btn-primary btn-lg">
+                <i class="fas fa-upload"></i> Upload & Analyze
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Recent Uploads -->
+      {% if recent_uploads %}
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title">Recent Uploads</h5>
+          <div class="table-responsive">
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>Filename</th>
+                  <th>Uploaded</th>
+                  <th>Status</th>
+                  <th>Locations</th>
+                  <th>Delete</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for upload in recent_uploads %}
+                <tr>
+                  <td>
+                    <small>{{ upload.original_filename }}</small>
+                  </td>
+                  <td>
+                    <small>{{ upload.uploaded_at|date:"Y-m-d H:i" }}</small>
+                  </td>
+                  <td>
+                    {% if upload.processing_status == 'ingested' %}
+                      <span class="badge bg-success">{{ upload.get_processing_status_display }}</span>
+                    {% elif upload.processing_status == 'error' %}
+                      <span class="badge bg-danger">{{ upload.get_processing_status_display }}</span>
+                    {% else %}
+                      <span class="badge bg-secondary">{{ upload.get_processing_status_display }}</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if upload.processing_status == 'ingested' %}
+                      <small>{{ upload.locations_created }} created</small>
+                    {% else %}
+                      <small>-</small>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <form method="post" action="{% url 'geolocation:delete_location_csv_upload' upload.id %}" style="display: inline;" onsubmit="return confirm('Delete this upload record?');">
+                      {% csrf_token %}
+                      <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                        <i class="fas fa-trash"></i>
+                      </button>
+                    </form>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Help Section -->
+      <div class="card shadow-sm mt-4 border-0 bg-light">
+        <div class="card-body">
+          <h6 class="card-title">📋 Example CSV Formats</h6>
+
+          <p class="mb-2"><strong>Simple (names only):</strong></p>
+          <pre class="bg-white p-2 rounded"><code>facility_name
+Chitungwiza Hospital
+Parirenyatwa Hospital
+Harare Central Hospital</code></pre>
+
+          <p class="mb-2 mt-3"><strong>With coordinates:</strong></p>
+          <pre class="bg-white p-2 rounded"><code>location,latitude,longitude
+Mbare Clinic,-17.8252,31.0335
+Budiriro Clinic,-17.8666,30.9258</code></pre>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}

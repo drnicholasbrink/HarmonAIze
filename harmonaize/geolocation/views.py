@@ -2,7 +2,7 @@
 import json
 import logging
 import requests
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import TemplateView
@@ -1957,3 +1957,380 @@ def batch_progress(request, task_id):
             'status': 'error',
             'error': str(e)
         }, status=500)
+
+
+# ============================================================================
+# LOCATION CSV UPLOAD VIEWS
+# ============================================================================
+
+@login_required
+def upload_location_csv(request):
+    """
+    Upload and validate location CSV files.
+    Step 1 of the location CSV import workflow.
+    """
+    from .forms import LocationCSVUploadForm
+    from .models import LocationCSVUpload, LocationCSVColumn
+    from .utils import analyze_location_csv_columns
+    from django.contrib import messages
+    import hashlib
+
+    if request.method == 'POST':
+        form = LocationCSVUploadForm(request.POST, request.FILES)
+
+        if form.is_valid():
+            upload = form.save(commit=False)
+            upload.uploaded_by = request.user
+            upload.original_filename = request.FILES['file'].name
+            upload.file_size = request.FILES['file'].size
+
+            # Detect file format
+            file_ext = upload.original_filename.split('.')[-1].lower()
+            upload.file_format = file_ext
+
+            # Calculate checksum for duplicate detection
+            file_obj = request.FILES['file']
+            file_obj.seek(0)
+            checksum = hashlib.sha256(file_obj.read()).hexdigest()
+            upload.checksum = checksum
+            file_obj.seek(0)
+
+            # Check for duplicate uploads (but ignore failed ones)
+            duplicate = LocationCSVUpload.objects.filter(
+                uploaded_by=request.user,
+                checksum=checksum
+            ).exclude(processing_status='error').first()
+
+            if duplicate:
+                messages.warning(
+                    request,
+                    f"Identical file already uploaded on {duplicate.uploaded_at.strftime('%Y-%m-%d %H:%M')}. "
+                    f"Status: {duplicate.get_processing_status_display()}"
+                )
+                return redirect('geolocation:upload_location_csv')
+
+            upload.save()
+
+            # Analyze columns
+            try:
+                analysis = analyze_location_csv_columns(upload.file.path)
+
+                if not analysis.get('success'):
+                    upload.processing_status = 'error'
+                    upload.processing_message = analysis.get('error', 'Unknown error during analysis')
+                    upload.save()
+                    messages.error(request, f"Could not analyze file: {upload.processing_message}")
+                    return redirect('geolocation:upload_location_csv')
+
+                # Store detected columns and row count
+                upload.detected_columns = analysis['columns']
+                upload.total_rows = analysis['total_rows']
+                upload.processing_status = 'validated'
+                upload.processing_message = f"Detected {len(analysis['columns'])} columns, {analysis['total_rows']} rows"
+                upload.save()
+
+                # Create LocationCSVColumn records
+                for idx, col_name in enumerate(analysis['columns']):
+                    col_analysis = analysis['column_analysis'][col_name]
+
+                    LocationCSVColumn.objects.create(
+                        upload=upload,
+                        column_name=col_name,
+                        column_index=idx,
+                        inferred_type=col_analysis['inferred_type'],
+                        sample_values=col_analysis['sample_values'],
+                        non_null_count=col_analysis['non_null_count'],
+                        unique_count=col_analysis['unique_count'],
+                        is_potential_location_name=col_analysis['is_potential_location_name'],
+                        is_potential_latitude=col_analysis['is_potential_latitude'],
+                        is_potential_longitude=col_analysis['is_potential_longitude'],
+                    )
+
+                messages.success(
+                    request,
+                    f"File analyzed successfully! Found {len(analysis['columns'])} columns in {analysis['total_rows']} rows. "
+                    "Please confirm column mappings."
+                )
+                return redirect('geolocation:map_location_columns', upload_id=upload.id)
+
+            except Exception as e:
+                upload.processing_status = 'error'
+                upload.processing_message = str(e)
+                upload.save()
+                logger.error(f"Failed to analyze location CSV: {e}", exc_info=True)
+                messages.error(request, f"Could not analyze file: {e}")
+                return redirect('geolocation:upload_location_csv')
+
+    else:
+        form = LocationCSVUploadForm()
+
+    # Get recent uploads for display
+    recent_uploads = LocationCSVUpload.objects.filter(
+        uploaded_by=request.user
+    ).order_by('-uploaded_at')[:5]
+
+    return render(request, 'geolocation/upload_location_csv.html', {
+        'form': form,
+        'recent_uploads': recent_uploads,
+    })
+
+
+@login_required
+def map_location_columns(request, upload_id):
+    """
+    Map CSV columns to location fields with preview.
+    Step 2 of the location CSV import workflow.
+    """
+    from .models import LocationCSVUpload
+    from .utils import suggest_location_column_mappings
+    from django.contrib import messages
+
+    upload = get_object_or_404(
+        LocationCSVUpload,
+        id=upload_id,
+        uploaded_by=request.user
+    )
+
+    columns = upload.columns.all().order_by('column_index')
+
+    if request.method == 'POST':
+        # Save column mappings
+        location_name_col = request.POST.get('location_name_column')
+        latitude_col = request.POST.get('latitude_column')
+        longitude_col = request.POST.get('longitude_column')
+
+        # Validation
+        if not location_name_col or location_name_col == '':
+            messages.error(request, "Location name column is required. Please select one.")
+            return redirect('geolocation:map_location_columns', upload_id=upload_id)
+
+        # Save mappings
+        upload.location_name_column = location_name_col
+        upload.latitude_column = latitude_col if latitude_col and latitude_col != '' else ''
+        upload.longitude_column = longitude_col if longitude_col and longitude_col != '' else ''
+        upload.processing_status = 'processed'
+        upload.save()
+
+        messages.success(request, "Column mappings saved! Ready to import locations.")
+        return redirect('geolocation:ingest_location_csv', upload_id=upload_id)
+
+    # Generate suggestions for pre-filling
+    column_metadata = []
+    for col in columns:
+        column_metadata.append({
+            'column_name': col.column_name,
+            'is_potential_location_name': col.is_potential_location_name,
+            'is_potential_latitude': col.is_potential_latitude,
+            'is_potential_longitude': col.is_potential_longitude,
+        })
+
+    suggestions = suggest_location_column_mappings(column_metadata)
+
+    return render(request, 'geolocation/map_location_columns.html', {
+        'upload': upload,
+        'columns': columns,
+        'suggestions': suggestions,
+    })
+
+
+@login_required
+def ingest_location_csv(request, upload_id):
+    """
+    Import locations from CSV into Location model.
+    Step 3 of the location CSV import workflow.
+    """
+    from .models import LocationCSVUpload
+    from core.models import Location
+    from django.contrib import messages
+    from django.utils import timezone
+    import pandas as pd
+
+    upload = get_object_or_404(
+        LocationCSVUpload,
+        id=upload_id,
+        uploaded_by=request.user
+    )
+
+    # Verify upload is ready
+    if upload.processing_status != 'processed':
+        messages.error(request, "Upload is not ready for ingestion. Please map columns first.")
+        return redirect('geolocation:map_location_columns', upload_id=upload_id)
+
+    if not upload.location_name_column:
+        messages.error(request, "Location name column not specified. Please map columns.")
+        return redirect('geolocation:map_location_columns', upload_id=upload_id)
+
+    if request.method == 'POST':
+        try:
+            # Read the file
+            file_ext = upload.file_format
+            if file_ext == 'csv':
+                df = pd.read_csv(upload.file.path)
+            elif file_ext in ['xlsx', 'xls']:
+                df = pd.read_excel(upload.file.path)
+            elif file_ext == 'json':
+                df = pd.read_json(upload.file.path, lines=True)
+            else:
+                raise ValueError(f"Unsupported file format: {file_ext}")
+
+            # Verify columns exist
+            if upload.location_name_column not in df.columns:
+                raise ValueError(f"Column '{upload.location_name_column}' not found in file")
+
+            has_coords = upload.has_coordinates
+            if has_coords:
+                if upload.latitude_column not in df.columns:
+                    raise ValueError(f"Column '{upload.latitude_column}' not found in file")
+                if upload.longitude_column not in df.columns:
+                    raise ValueError(f"Column '{upload.longitude_column}' not found in file")
+
+            # Identify context columns (district, country, etc.) to enhance location names
+            context_keywords = ['district', 'region', 'province', 'city', 'country', 'state', 'county', 'area']
+            context_columns = []
+            for col in df.columns:
+                col_lower = col.lower()
+                if col != upload.location_name_column and any(keyword in col_lower for keyword in context_keywords):
+                    context_columns.append(col)
+
+            logger.info(f"Context columns to append to location names: {context_columns}")
+
+            # Process rows
+            created_count = 0
+            skipped_count = 0
+
+            for idx, row in df.iterrows():
+                location_name = str(row[upload.location_name_column]).strip()
+
+                # Skip empty names
+                if not location_name or location_name == 'nan':
+                    skipped_count += 1
+                    continue
+
+                # Enhance location name with district/country context
+                context_parts = []
+                for col in context_columns:
+                    val = row[col]
+                    if pd.notna(val) and str(val).strip() and str(val).strip().lower() != 'nan':
+                        context_parts.append(str(val).strip())
+
+                # Append context to location name for better geocoding
+                if context_parts:
+                    enhanced_name = f"{location_name}, {', '.join(context_parts)}"
+                    logger.info(f"Enhanced location name: '{location_name}' → '{enhanced_name}'")
+                    location_name = enhanced_name
+
+                # Get coordinates if available
+                latitude = None
+                longitude = None
+
+                if has_coords:
+                    try:
+                        lat_val = row[upload.latitude_column]
+                        lon_val = row[upload.longitude_column]
+
+                        # Convert to float and validate - BOTH must be present and valid
+                        # Check for NaN, None, empty string, or whitespace
+                        lat_valid = pd.notna(lat_val) and str(lat_val).strip() != ''
+                        lon_valid = pd.notna(lon_val) and str(lon_val).strip() != ''
+
+                        if lat_valid and lon_valid:
+                            latitude = float(lat_val)
+                            longitude = float(lon_val)
+
+                            # Validate ranges
+                            if not (-90 <= latitude <= 90):
+                                logger.warning(f"Invalid latitude {latitude} for {location_name}, skipping coordinates")
+                                latitude = None
+                                longitude = None
+                            elif not (-180 <= longitude <= 180):
+                                logger.warning(f"Invalid longitude {longitude} for {location_name}, skipping coordinates")
+                                latitude = None
+                                longitude = None
+                        else:
+                            # If either coordinate is missing, skip both
+                            if lat_valid and not lon_valid:
+                                logger.warning(f"Missing longitude for {location_name}, skipping coordinates")
+                            elif lon_valid and not lat_valid:
+                                logger.warning(f"Missing latitude for {location_name}, skipping coordinates")
+                            latitude = None
+                            longitude = None
+                    except (ValueError, TypeError) as e:
+                        logger.warning(f"Could not parse coordinates for {location_name}: {e}")
+                        latitude = None
+                        longitude = None
+
+                # Check for duplicates (case-insensitive name match)
+                existing = Location.objects.filter(name__iexact=location_name).first()
+
+                if existing:
+                    # Update if we have coordinates and existing doesn't
+                    if latitude and longitude and not (existing.latitude and existing.longitude):
+                        existing.latitude = latitude
+                        existing.longitude = longitude
+                        existing.save()
+                        logger.info(f"Updated coordinates for existing location: {location_name}")
+                    skipped_count += 1
+                else:
+                    # Create new location
+                    Location.objects.create(
+                        name=location_name,
+                        latitude=latitude,
+                        longitude=longitude
+                    )
+                    created_count += 1
+
+            # Update upload status
+            upload.processing_status = 'ingested'
+            upload.locations_created = created_count
+            upload.locations_skipped = skipped_count
+            upload.processed_at = timezone.now()
+            upload.processing_message = f"Created {created_count} locations, skipped {skipped_count} duplicates"
+            upload.save()
+
+            messages.success(
+                request,
+                f"Successfully imported {created_count} locations! "
+                f"({skipped_count} duplicates skipped)"
+            )
+
+            # Redirect to geocoding dashboard
+            return redirect('geolocation:validation_dashboard')
+
+        except Exception as e:
+            upload.processing_status = 'error'
+            upload.processing_message = f"Ingestion failed: {str(e)}"
+            upload.save()
+            logger.error(f"Failed to ingest location CSV: {e}", exc_info=True)
+            messages.error(request, f"Failed to import locations: {e}")
+            return redirect('geolocation:ingest_location_csv', upload_id=upload_id)
+
+    # GET request - show preview
+    return render(request, 'geolocation/ingest_location_csv.html', {
+        'upload': upload,
+    })
+
+
+@login_required
+def delete_location_csv_upload(request, upload_id):
+    """
+    Delete a location CSV upload record.
+    """
+    from .models import LocationCSVUpload
+    from django.contrib import messages
+
+    upload = get_object_or_404(
+        LocationCSVUpload,
+        id=upload_id,
+        uploaded_by=request.user
+    )
+
+    if request.method == 'POST':
+        filename = upload.original_filename
+        upload.delete()
+        messages.success(request, f"Deleted upload: {filename}")
+        return redirect('geolocation:upload_location_csv')
+
+    # GET request - show confirmation
+    return render(request, 'geolocation/delete_csv_upload_confirm.html', {
+        'upload': upload,
+    })

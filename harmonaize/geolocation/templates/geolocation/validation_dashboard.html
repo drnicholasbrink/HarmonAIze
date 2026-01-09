@@ -525,6 +525,26 @@
     <!-- Action Cards -->
     <div class="action-section">
       <div class="action-card">
+        <div class="action-header" style="background: linear-gradient(135deg, #FF9500 0%, #FFCC00 100%);">
+          <h3>{% include 'components/svg_icon.html' with icon='upload' size='24' class='inline-icon' %} Step 0: Upload Locations</h3>
+          <p>Import location names from CSV/Excel files</p>
+        </div>
+        <div class="action-content">
+          <ul class="feature-list">
+            <li>• Upload CSV, Excel, or JSON files</li>
+            <li>• Smart column detection</li>
+            <li>• Auto-map location names</li>
+            <li>• Optional coordinate import</li>
+          </ul>
+
+          <a href="{% url 'geolocation:upload_location_csv' %}" class="btn btn-primary">
+            {% include 'components/svg_icon.html' with icon='upload' size='16' class='inline-icon' %}
+            Upload Location CSV
+          </a>
+        </div>
+      </div>
+
+      <div class="action-card">
         <div class="action-header" style="background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);">
           <h3>{% include 'components/svg_icon.html' with icon='map-pin' size='24' class='inline-icon' %} Step 1: Find Coordinates</h3>
           <p>Search multiple databases for precise location data</p>
@@ -1030,11 +1050,10 @@
           if (data.status === 'completed' || data.status === 'failed') {
             resetGeocodingUI(btn);
             if (data.status === 'completed') {
-              showMessage('Batch geocoding completed successfully! Refreshing results in 5 seconds...', 'success');
-              setTimeout(() => {
-                refreshStats();
-                refreshLocationStatus();
-              }, 5000);
+              // Refresh immediately, then show success message
+              refreshStats();
+              refreshLocationStatus();
+              showMessage('Batch geocoding completed successfully!', 'success');
             } else {
               showMessage('Batch geocoding failed: ' + (data.error || 'Unknown error'), 'error');
             }
@@ -1105,11 +1124,10 @@
             }
 
             if (data.status === 'completed') {
-              showMessage('Batch validation completed successfully! Refreshing results in 5 seconds...', 'success');
-              setTimeout(() => {
-                refreshStats();
-                refreshLocationStatus();
-              }, 5000);
+              // Refresh immediately, then show success message
+              refreshStats();
+              refreshLocationStatus();
+              showMessage('Batch validation completed successfully!', 'success');
             } else {
               showMessage('Batch validation failed: ' + (data.error || 'Unknown error'), 'error');
             }

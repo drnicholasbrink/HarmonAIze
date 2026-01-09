@@ -17,6 +17,11 @@ urlpatterns = [
     path('validated-map/download-csv/', views.download_validated_locations_csv, name='download_validated_locations_csv'),
     path('validated-map/download-shapefile/', views.download_validated_locations_shapefile, name='download_validated_locations_shapefile'),
 
+    # Location CSV Upload workflow
+    path('upload-csv/', views.upload_location_csv, name='upload_location_csv'),
+    path('upload-csv/<int:upload_id>/map/', views.map_location_columns, name='map_location_columns'),
+    path('upload-csv/<int:upload_id>/ingest/', views.ingest_location_csv, name='ingest_location_csv'),
+    path('upload-csv/<int:upload_id>/delete/', views.delete_location_csv_upload, name='delete_location_csv_upload'),
 
     path('api/validation/', views.validation_api, name='validation_api'),
     path('api/geocoding/', views.geocoding_api, name='geocoding_api'),

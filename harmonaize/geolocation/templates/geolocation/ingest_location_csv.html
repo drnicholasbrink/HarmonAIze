@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Import Locations - HarmonAIze{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <div class="row">
+    <div class="col-lg-8 mx-auto">
+
+      <!-- Page Header -->
+      <div class="d-flex align-items-center mb-4">
+        <h2 class="mb-0">✅ Ready to Import</h2>
+      </div>
+
+      <!-- Summary Card -->
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h5 class="card-title">Import Summary</h5>
+
+          <table class="table table-borderless">
+            <tr>
+              <td><strong>File:</strong></td>
+              <td>{{ upload.original_filename }}</td>
+            </tr>
+            <tr>
+              <td><strong>Total Rows:</strong></td>
+              <td>{{ upload.total_rows }}</td>
+            </tr>
+            <tr>
+              <td><strong>Location Name Column:</strong></td>
+              <td><code>{{ upload.location_name_column }}</code></td>
+            </tr>
+            {% if upload.latitude_column %}
+            <tr>
+              <td><strong>Latitude Column:</strong></td>
+              <td><code>{{ upload.latitude_column }}</code></td>
+            </tr>
+            {% endif %}
+            {% if upload.longitude_column %}
+            <tr>
+              <td><strong>Longitude Column:</strong></td>
+              <td><code>{{ upload.longitude_column }}</code></td>
+            </tr>
+            {% endif %}
+          </table>
+
+          {% if upload.has_coordinates %}
+            <div class="alert alert-success">
+              <i class="fas fa-check-circle"></i> <strong>Great!</strong> Your file includes coordinates.
+              Locations will be created with latitude and longitude, ready for analysis.
+            </div>
+          {% else %}
+            <div class="alert alert-info">
+              <i class="fas fa-info-circle"></i> <strong>Note:</strong> Your file doesn't include coordinates.
+              After import, you can geocode these locations to get their coordinates.
+            </div>
+          {% endif %}
+
+        </div>
+      </div>
+
+      <!-- What Will Happen -->
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h5 class="card-title">What Will Happen</h5>
+
+          <ul class="list-group list-group-flush">
+            <li class="list-group-item">
+              <i class="fas fa-check text-success"></i>
+              Create new Location objects from unique location names
+            </li>
+            <li class="list-group-item">
+              <i class="fas fa-check text-success"></i>
+              Skip duplicate locations (case-insensitive name matching)
+            </li>
+            {% if upload.has_coordinates %}
+            <li class="list-group-item">
+              <i class="fas fa-check text-success"></i>
+              Set coordinates from latitude/longitude columns
+            </li>
+            <li class="list-group-item">
+              <i class="fas fa-check text-success"></i>
+              Update existing locations if they lack coordinates
+            </li>
+            {% endif %}
+            <li class="list-group-item">
+              <i class="fas fa-arrow-right text-primary"></i>
+              Redirect to Geolocation Dashboard when complete
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Action Form -->
+      <form method="post">
+        {% csrf_token %}
+
+        <div class="alert alert-warning">
+          <i class="fas fa-exclamation-triangle"></i>
+          <strong>Ready to proceed?</strong>
+          This will create {{ upload.total_rows }} location(s) in your database.
+        </div>
+
+        <div class="d-flex justify-content-between">
+          <a href="{% url 'geolocation:map_location_columns' upload.id %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Back to Mapping
+          </a>
+          <button type="submit" class="btn btn-success btn-lg">
+            <i class="fas fa-upload"></i> Import Locations
+          </button>
+        </div>
+      </form>
+
+    </div>
+  </div>
+</div>
+{% endblock %}
