@@ -142,4 +142,4 @@ __azurite_db*__.json
 .python_packages
 
 #VS Code
-.vscode/
+.vscode/harmonaize/credentials/gee-service-account.json
