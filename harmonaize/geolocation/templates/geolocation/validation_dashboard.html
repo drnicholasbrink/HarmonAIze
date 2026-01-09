@@ -767,7 +767,7 @@
         refreshButton.disabled = true;
       }
 
-      fetch('{% url "geolocation:location_status_api" %}', {
+      return fetch('{% url "geolocation:location_status_api" %}', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -835,7 +835,7 @@
     }
 
     function refreshStats() {
-      fetch('{% url "geolocation:geocoding_api" %}', {
+      return fetch('{% url "geolocation:geocoding_api" %}', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({action: 'get_geocoding_stats'})
@@ -1050,10 +1050,16 @@
           if (data.status === 'completed' || data.status === 'failed') {
             resetGeocodingUI(btn);
             if (data.status === 'completed') {
-              // Refresh immediately, then show success message
-              refreshStats();
-              refreshLocationStatus();
-              showMessage('Batch geocoding completed successfully!', 'success');
+              // Wait for refresh to complete, then show success message
+              Promise.all([
+                refreshStats(),
+                refreshLocationStatus()
+              ]).then(() => {
+                showMessage('Batch geocoding completed! Location status updated.', 'success');
+              }).catch(err => {
+                console.error('Error refreshing data:', err);
+                showMessage('Batch geocoding completed, but refresh failed. Please reload the page.', 'warning');
+              });
             } else {
               showMessage('Batch geocoding failed: ' + (data.error || 'Unknown error'), 'error');
             }
@@ -1124,10 +1130,16 @@
             }
 
             if (data.status === 'completed') {
-              // Refresh immediately, then show success message
-              refreshStats();
-              refreshLocationStatus();
-              showMessage('Batch validation completed successfully!', 'success');
+              // Wait for refresh to complete, then show success message
+              Promise.all([
+                refreshStats(),
+                refreshLocationStatus()
+              ]).then(() => {
+                showMessage('Batch validation completed! Location status updated.', 'success');
+              }).catch(err => {
+                console.error('Error refreshing data:', err);
+                showMessage('Batch validation completed, but refresh failed. Please reload the page.', 'warning');
+              });
             } else {
               showMessage('Batch validation failed: ' + (data.error || 'Unknown error'), 'error');
             }
