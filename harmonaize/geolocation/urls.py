@@ -15,6 +15,7 @@ urlpatterns = [
 
     path('validated-map/', views.validated_locations_map, name='validated_locations_map'),
     path('validated-map/download-csv/', views.download_validated_locations_csv, name='download_validated_locations_csv'),
+    path('validated-map/download-shapefile/', views.download_validated_locations_shapefile, name='download_validated_locations_shapefile'),
 
 
     path('api/validation/', views.validation_api, name='validation_api'),

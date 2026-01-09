@@ -1740,6 +1740,90 @@ def download_validated_locations_csv(request):
 
     return response
 
+
+@login_required
+def download_validated_locations_shapefile(request):
+    """
+    Download validated locations as a shapefile (ZIP archive).
+
+    Returns a ZIP file containing:
+    - .shp (geometry)
+    - .shx (index)
+    - .dbf (attributes)
+    - .prj (projection - WGS84)
+    - .cpg (character encoding)
+    """
+    import geopandas as gpd
+    from shapely.geometry import Point
+    import tempfile
+    import zipfile
+    import os
+    from io import BytesIO
+    from django.http import HttpResponse, JsonResponse
+    from datetime import datetime
+
+    # Get all validated locations (same query as CSV export)
+    validated_locations = Location.objects.filter(
+        latitude__isnull=False,
+        longitude__isnull=False
+    ).order_by('name')
+
+    # Check if there are locations to export
+    if not validated_locations.exists():
+        return JsonResponse({
+            'error': 'No validated locations found to export.'
+        }, status=404)
+
+    # Create timestamp for filename
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    shapefile_basename = f'validated_locations_{timestamp}'
+
+    # Prepare data for GeoDataFrame
+    data = []
+    geometries = []
+
+    for location in validated_locations:
+        # Create Point geometry (longitude, latitude order for shapely)
+        geometries.append(Point(location.longitude, location.latitude))
+
+        # Prepare attributes
+        data.append({
+            'loc_id': location.id,
+            'name': location.name[:254] if location.name else '',  # Shapefile limit
+            'latitude': location.latitude,
+            'longitude': location.longitude,
+            'created_at': location.created_at.date() if location.created_at else None,
+            'updated_at': location.updated_at.date() if location.updated_at else None
+        })
+
+    # Create GeoDataFrame
+    gdf = gpd.GeoDataFrame(data, geometry=geometries, crs='EPSG:4326')
+
+    # Use temporary directory for shapefile creation
+    with tempfile.TemporaryDirectory() as temp_dir:
+        shapefile_path = os.path.join(temp_dir, shapefile_basename + '.shp')
+
+        # Write shapefile (geopandas automatically creates .shp, .shx, .dbf, .prj, .cpg)
+        gdf.to_file(shapefile_path, driver='ESRI Shapefile', encoding='utf-8')
+
+        # Create ZIP file in memory
+        zip_buffer = BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            # Add all shapefile components to ZIP
+            for extension in ['.shp', '.shx', '.dbf', '.prj', '.cpg']:
+                file_path = os.path.join(temp_dir, shapefile_basename + extension)
+                if os.path.exists(file_path):
+                    arcname = shapefile_basename + extension
+                    zip_file.write(file_path, arcname=arcname)
+
+        # Prepare response
+        zip_buffer.seek(0)
+        response = HttpResponse(zip_buffer.getvalue(), content_type='application/zip')
+        response['Content-Disposition'] = f'attachment; filename="{shapefile_basename}.zip"'
+
+        return response
+
+
 # MODERN CELERY-BASED BATCH PROCESSING VIEWS
 @login_required
 @csrf_exempt

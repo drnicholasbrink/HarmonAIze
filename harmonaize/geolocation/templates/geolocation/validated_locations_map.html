@@ -238,6 +238,15 @@
       color: white;
     }
 
+    .btn-shapefile {
+      background: linear-gradient(135deg, #16a085 0%, #1abc9c 100%);
+      color: white;
+    }
+
+    .btn-shapefile:hover {
+      background: linear-gradient(135deg, #138d75 0%, #17a589 100%);
+    }
+
     .map-legend {
       position: absolute;
       bottom: 1rem;
@@ -575,6 +584,10 @@
         <a href="{% url 'geolocation:download_validated_locations_csv' %}" class="download-btn btn-csv" style="text-decoration: none;">
           <span>📊</span>
           <span>Download CSV</span>
+        </a>
+        <a href="{% url 'geolocation:download_validated_locations_shapefile' %}" class="download-btn btn-shapefile" style="text-decoration: none;">
+          <span>🗺️</span>
+          <span>Download Shapefile</span>
         </a>
 
         <!-- Download Progress -->

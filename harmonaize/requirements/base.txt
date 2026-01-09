@@ -34,6 +34,7 @@ pygraphviz==1.7  # https://pygraphviz.github.io/
 # Data processing and ML
 pandas==2.2.3  # https://github.com/pandas-dev/pandas
 openpyxl==3.1.5  # https://openpyxl.readthedocs.io/
+geopandas==1.0.1  # https://github.com/geopandas/geopandas - Shapefile and geospatial data export
 pgvector==0.4.1  # https://github.com/pgvector/pgvector-python
 numpy==2.3.4  # https://numpy.org/
 scikit-learn==1.7.2  # https://scikit-learn.org/
