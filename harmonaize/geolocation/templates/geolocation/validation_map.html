@@ -974,17 +974,24 @@
 
         <!-- Manual Entry Form -->
         <div id="manualEntry" class="form-section">
-          <h4>Manual Coordinate Entry</h4>
+          <h4>📍 Set Coordinates Manually</h4>
+          <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 1rem;">
+            💡 <strong>Tip:</strong> Click anywhere on the map to place coordinates, or enter them manually below.
+          </p>
           <div class="form-group">
-            <input type="number" id="manualLat" placeholder="Latitude (e.g., -26.2041)"
-                   step="any" class="form-control">
+            <label for="manualLat" style="font-size: 0.9rem; font-weight: 500;">Latitude:</label>
+            <input type="number" id="manualLat" placeholder="e.g., -17.8252"
+                   step="any" min="-90" max="90" class="form-control">
+            <small style="color: var(--text-secondary);">Range: -90 to 90</small>
           </div>
           <div class="form-group">
-            <input type="number" id="manualLng" placeholder="Longitude (e.g., 28.0473)"
-                   step="any" class="form-control">
+            <label for="manualLng" style="font-size: 0.9rem; font-weight: 500;">Longitude:</label>
+            <input type="number" id="manualLng" placeholder="e.g., 31.0335"
+                   step="any" min="-180" max="180" class="form-control">
+            <small style="color: var(--text-secondary);">Range: -180 to 180</small>
           </div>
           <button onclick="saveManualCoordinates()" class="btn btn-success">
-            Save Coordinates
+            💾 Save Coordinates
           </button>
         </div>
 
@@ -1083,6 +1090,7 @@
     const locationsData = {{ locations_data|safe }};
     let currentLocationData = {% if current_location_json %}{{ current_location_json|safe }}{% else %}null{% endif %};
     let markers = [];
+    let manualMarker = null;  // For manually placed coordinates
     let currentMapStyle = 'satellite';
 
     // Map styles
@@ -1090,6 +1098,57 @@
       'satellite': 'mapbox://styles/mapbox/satellite-streets-v12',
       'streets': 'mapbox://styles/mapbox/streets-v11'
     };
+
+    // Enable map clicking to set manual coordinates
+    map.on('click', function(e) {
+      const manualForm = document.getElementById('manualEntry');
+
+      // Only respond to clicks if manual entry form is active
+      if (!manualForm || !manualForm.classList.contains('active')) {
+        return;
+      }
+
+      const lat = e.lngLat.lat;
+      const lng = e.lngLat.lng;
+
+      // Update input fields
+      document.getElementById('manualLat').value = lat.toFixed(5);
+      document.getElementById('manualLng').value = lng.toFixed(5);
+
+      // Remove existing manual marker if any
+      if (manualMarker) {
+        manualMarker.remove();
+      }
+
+      // Create custom marker element
+      const el = document.createElement('div');
+      el.className = 'manual-marker';
+      el.style.width = '30px';
+      el.style.height = '30px';
+      el.style.borderRadius = '50% 50% 50% 0';
+      el.style.background = '#FF6B6B';
+      el.style.border = '3px solid white';
+      el.style.transform = 'rotate(-45deg)';
+      el.style.cursor = 'pointer';
+      el.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
+
+      // Add new manual marker
+      manualMarker = new mapboxgl.Marker(el, {
+        draggable: true
+      })
+        .setLngLat([lng, lat])
+        .addTo(map);
+
+      // Update coordinates when marker is dragged
+      manualMarker.on('dragend', function() {
+        const lngLat = manualMarker.getLngLat();
+        document.getElementById('manualLat').value = lngLat.lat.toFixed(5);
+        document.getElementById('manualLng').value = lngLat.lng.toFixed(5);
+      });
+
+      // Show success message
+      showMessage('📍 Coordinates set! Drag the marker to adjust or click Save.', 'success');
+    });
 
     // Map layer switching
     function changeMapLayer(layerType) {
@@ -1292,8 +1351,23 @@
       const form = document.getElementById('manualEntry');
       const rejectForm = document.getElementById('rejectForm');
 
+      const isOpening = !form.classList.contains('active');
+
       form.classList.toggle('active');
       rejectForm.classList.remove('active');
+
+      if (isOpening) {
+        // Clear previous values when opening
+        document.getElementById('manualLat').value = '';
+        document.getElementById('manualLng').value = '';
+        showMessage('💡 Click anywhere on the map to set coordinates', 'info');
+      } else {
+        // Remove manual marker when closing
+        if (manualMarker) {
+          manualMarker.remove();
+          manualMarker = null;
+        }
+      }
     }
 
     function saveManualCoordinates() {
@@ -1420,6 +1494,11 @@
       } else if (e.key === 'Escape') {
         document.getElementById('manualEntry').classList.remove('active');
         document.getElementById('rejectForm').classList.remove('active');
+        // Remove manual marker when closing with Escape
+        if (manualMarker) {
+          manualMarker.remove();
+          manualMarker = null;
+        }
       }
     });
 

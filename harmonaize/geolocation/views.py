@@ -1959,6 +1959,74 @@ def batch_progress(request, task_id):
         }, status=500)
 
 
+@login_required
+@csrf_exempt
+def manual_coordinate_update(request):
+    """
+    Manually set coordinates for a location.
+    Allows users to click on map or enter coordinates directly.
+    """
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            location_id = data.get('location_id')
+            latitude = data.get('latitude')
+            longitude = data.get('longitude')
+
+            # Validate inputs
+            if not location_id:
+                return JsonResponse({'success': False, 'error': 'Location ID is required'}, status=400)
+
+            if latitude is None or longitude is None:
+                return JsonResponse({'success': False, 'error': 'Latitude and longitude are required'}, status=400)
+
+            # Validate coordinate ranges
+            try:
+                lat = float(latitude)
+                lon = float(longitude)
+
+                if not (-90 <= lat <= 90):
+                    return JsonResponse({'success': False, 'error': 'Latitude must be between -90 and 90'}, status=400)
+
+                if not (-180 <= lon <= 180):
+                    return JsonResponse({'success': False, 'error': 'Longitude must be between -180 and 180'}, status=400)
+
+            except (ValueError, TypeError):
+                return JsonResponse({'success': False, 'error': 'Invalid coordinate format'}, status=400)
+
+            # Get location
+            location = Location.objects.filter(id=location_id).first()
+            if not location:
+                return JsonResponse({'success': False, 'error': 'Location not found'}, status=404)
+
+            # Update coordinates
+            location.latitude = lat
+            location.longitude = lon
+            location.save()
+
+            logger.info(f"Manually set coordinates for '{location.name}' to ({lat}, {lon}) by user {request.user.username}")
+
+            return JsonResponse({
+                'success': True,
+                'message': f'Coordinates updated for {location.name}',
+                'location': {
+                    'id': location.id,
+                    'name': location.name,
+                    'latitude': location.latitude,
+                    'longitude': location.longitude
+                }
+            })
+
+        except Exception as e:
+            logger.error(f"Failed to update coordinates: {e}", exc_info=True)
+            return JsonResponse({
+                'success': False,
+                'error': str(e)
+            }, status=500)
+
+    return JsonResponse({'error': 'POST required'}, status=405)
+
+
 # ============================================================================
 # LOCATION CSV UPLOAD VIEWS
 # ============================================================================

@@ -29,6 +29,7 @@ urlpatterns = [
     path('api/statistics/', views.validation_statistics, name='validation_statistics'),
     path('api/location-status/', views.location_status_api, name='location_status_api'),
     path('api/validation-queue/', views.validation_queue_api, name='validation_queue_api'),
+    path('api/manual-coordinate-update/', views.manual_coordinate_update, name='manual_coordinate_update'),
     
 
     path('batch/geocoding/start/', views.start_batch_geocoding, name='start_batch_geocoding'),
