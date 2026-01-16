@@ -95,11 +95,21 @@ def climate_configuration_view(request, study_id):
         )
         return redirect('core:study_detail', pk=study.pk)
     
+    obs_date_bounds = Observation.objects.filter(
+        attribute__studies=study,
+        location__in=study_locations
+    ).aggregate(min_date=Min('time__timestamp'), max_date=Max('time__timestamp'))
+
+    observation_min_date = obs_date_bounds['min_date'].date() if obs_date_bounds['min_date'] else None
+    observation_max_date = obs_date_bounds['max_date'].date() if obs_date_bounds['max_date'] else None
+
     if request.method == 'POST':
         form = ClimateDataConfigurationForm(
             request.POST,
             study=study,
-            user=request.user
+            user=request.user,
+            observation_min_date=observation_min_date,
+            observation_max_date=observation_max_date,
         )
         if form.is_valid():
             climate_request = form.save()
@@ -123,13 +133,20 @@ def climate_configuration_view(request, study_id):
 
             return redirect('climate:request_detail', pk=climate_request.pk)
     else:
-        form = ClimateDataConfigurationForm(study=study, user=request.user)
+        form = ClimateDataConfigurationForm(
+            study=study,
+            user=request.user,
+            observation_min_date=observation_min_date,
+            observation_max_date=observation_max_date,
+        )
     
     context = {
         'study': study,
         'form': form,
         'location_count': study_locations.count(),
         'available_sources': ClimateDataSource.objects.filter(is_active=True),
+        'observation_min_date': observation_min_date,
+        'observation_max_date': observation_max_date,
         'variable_categories': ClimateVariable.objects.values('category').annotate(
             count=Count('id')
         ).order_by('category'),
