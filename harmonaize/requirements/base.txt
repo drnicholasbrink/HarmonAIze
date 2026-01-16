@@ -23,6 +23,7 @@ django-extensions==3.2.3  # https://github.com/django-extensions/django-extensio
 # Django REST Framework
 djangorestframework==3.15.2  # https://github.com/encode/django-rest-framework
 django-cors-headers==4.7.0  # https://github.com/adamchainz/django-cors-headers
+django-htmx==1.27.0  # https://github.com/adamchainz/django-htmx
 # DRF-spectacular for api documentation
 drf-spectacular==0.28.0  # https://github.com/tfranzel/drf-spectacular
 # ACE for code editor

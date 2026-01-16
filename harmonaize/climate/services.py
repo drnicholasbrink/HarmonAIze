@@ -2,11 +2,10 @@
 Climate data services for fetching and processing climate data from various sources.
 """
 import logging
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime, timedelta
-import numpy as np
+from django.db import transaction
 from django.utils import timezone
-from django.db import transaction, models
 from core.models import Location, TimeDimension, Attribute, Observation
 from .models import (
     ClimateDataSource,
@@ -59,60 +58,62 @@ class EarthEngineDataService(BaseClimateDataService):
     """
     Google Earth Engine data service for satellite-based climate data.
 
-    Supports both mock and real GEE API calls. When USE_MOCK_DATA=False and credentials
-    are configured, it will make real API calls to Google Earth Engine.
-
-    Setup for real data:
-    1. Install: pip install earthengine-api
-    2. Set up service account credentials (JSON key file)
-    3. Configure GOOGLE_APPLICATION_CREDENTIALS environment variable
-    4. Set USE_MOCK_DATA=False in settings
+    Requires valid credentials and the `earthengine-api` package. Initialization errors
+    are surfaced so misconfiguration is visible during development and deployment.
     """
 
-    def __init__(self, data_source: ClimateDataSource, use_mock: bool = True):
+    def __init__(self, data_source: ClimateDataSource):
         super().__init__(data_source)
-        self.use_mock = use_mock
         self.ee = None
+        self._initialize_earth_engine()
 
-        if not use_mock:
-            try:
-                import ee
-                import os
-                from google.oauth2 import service_account
+    def _initialize_earth_engine(self) -> None:
+        """Initialize the Earth Engine client with service account or user auth."""
+        try:
+            import os
+            import json
+            import ee
+            from google.oauth2 import service_account
 
-                self.ee = ee
-
-                # Initialize Earth Engine with service account credentials
-                credentials_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
-
-                if credentials_path and os.path.exists(credentials_path):
-                    # Use service account credentials
-                    self.logger.info(f"Initializing Earth Engine with service account: {credentials_path}")
+            credentials_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+#not sure if this is correct pathing for docker deployment
+            if credentials_path:
+                resolved_path = os.path.abspath(credentials_path)
+                if os.path.exists(resolved_path):
+                    self.logger.info(
+                        "Initializing Google Earth Engine with service account credentials"
+                    )
                     credentials = service_account.Credentials.from_service_account_file(
-                        credentials_path,
+                        resolved_path,
                         scopes=['https://www.googleapis.com/auth/earthengine']
                     )
-                    # Get project ID from credentials file
-                    import json
-                    with open(credentials_path) as f:
+                    with open(resolved_path) as f:
                         creds_data = json.load(f)
-                        project_id = creds_data.get('project_id', 'joburg-hvi')
+                        project_id = creds_data.get('project_id')
 
                     ee.Initialize(credentials=credentials, project=project_id)
-                    self.logger.info(f"✓ Google Earth Engine initialized successfully with project: {project_id}")
+                    self.logger.info(
+                        f"Google Earth Engine initialized successfully with project: {project_id}"
+                    )
                 else:
-                    # Try default authentication (falls back to user auth)
-                    self.logger.warning("No service account credentials found, trying default auth")
+                    self.logger.warning(
+                        "GOOGLE_APPLICATION_CREDENTIALS is set but file was not found at %s; attempting interactive auth",
+                        resolved_path,
+                    )
+                    ee.Authenticate()  # may prompt if running interactively
                     ee.Initialize()
-                    self.logger.info("Google Earth Engine initialized with default credentials")
+            else:
+                self.logger.info("Initializing Google Earth Engine with default credentials")
+                ee.Initialize()
 
-            except ImportError:
-                self.logger.warning("earthengine-api not installed, using mock data")
-                self.use_mock = True
-            except Exception as e:
-                self.logger.error(f"Failed to initialize Earth Engine: {e}")
-                self.logger.info("Falling back to mock data mode")
-                self.use_mock = True
+            self.ee = ee
+
+        except ImportError as exc:
+            raise RuntimeError(
+                "earthengine-api not installed; install it and configure credentials to fetch climate data"
+            ) from exc
+        except Exception as exc:
+            raise RuntimeError(f"Failed to initialize Earth Engine: {exc}") from exc
     
     def fetch_data(
         self,
@@ -122,10 +123,7 @@ class EarthEngineDataService(BaseClimateDataService):
         end_date: datetime,
         **kwargs
     ) -> List[Dict[str, Any]]:
-        """
-        Fetch data from Google Earth Engine.
-        Uses mock data if use_mock=True, otherwise makes real GEE API calls.
-        """
+        """Fetch data from Google Earth Engine."""
         if not self.validate_location(location):
             raise ValueError(f"Invalid location coordinates: {location}")
 
@@ -141,13 +139,9 @@ class EarthEngineDataService(BaseClimateDataService):
         except ClimateVariableMapping.DoesNotExist:
             raise ValueError(f"Variable {variable} not available in {self.data_source}")
 
-        # Choose real or mock implementation
-        if self.use_mock:
-            return self._fetch_mock_data(variable, location, start_date, end_date, mapping)
-        else:
-            return self._fetch_real_gee_data(variable, location, start_date, end_date, mapping)
+        return self._fetch_gee_data(variable, location, start_date, end_date, mapping)
 
-    def _fetch_real_gee_data(
+    def _fetch_gee_data(
         self,
         variable: ClimateVariable,
         location: Location,
@@ -156,7 +150,7 @@ class EarthEngineDataService(BaseClimateDataService):
         mapping: ClimateVariableMapping
     ) -> List[Dict[str, Any]]:
         """
-        Fetch real data from Google Earth Engine API.
+        Fetch data from Google Earth Engine API.
 
         Example for ERA5 temperature:
         - Dataset: ECMWF/ERA5/DAILY
@@ -170,10 +164,14 @@ class EarthEngineDataService(BaseClimateDataService):
             # Define point geometry
             point = self.ee.Geometry.Point([location.longitude, location.latitude])
 
-            # Load image collection
+            # Load image collection; GEE filterDate end is exclusive, so add one day
+            end_exclusive = end_date + timedelta(days=1)
             collection = (
                 self.ee.ImageCollection(mapping.source_dataset)
-                .filterDate(start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))
+                .filterDate(
+                    start_date.strftime('%Y-%m-%d'),
+                    end_exclusive.strftime('%Y-%m-%d'),
+                )
                 .filterBounds(point)
             )
 
@@ -229,112 +227,32 @@ class EarthEngineDataService(BaseClimateDataService):
             self.logger.error(f"Error fetching GEE data: {e}")
             raise
 
-    def _fetch_mock_data(
-        self,
-        variable: ClimateVariable,
-        location: Location,
-        start_date: datetime,
-        end_date: datetime,
-        mapping: ClimateVariableMapping
-    ) -> List[Dict[str, Any]]:
-        """
-        Generate mock data for testing without GEE credentials.
-        """
-        data = []
-        current_date = start_date
-        while current_date <= end_date:
-            # Simulate fetching data from Earth Engine
-            value = self._simulate_climate_value(variable, location, current_date)
-
-            # Apply scaling and offset from mapping
-            value = value * mapping.scale_factor + mapping.offset
-
-            data.append({
-                'date': current_date.date(),
-                'value': value,
-                'quality_flag': 'mock',
-                'source': 'Mock (GEE structure)',
-            })
-
-            current_date += timedelta(days=1)
-
-        return data
-    
-    def _simulate_climate_value(
-        self,
-        variable: ClimateVariable,
-        location: Location,
-        date: datetime
-    ) -> float:
-        """
-        Simulate climate values for MVP demonstration.
-        In production, this would be replaced with actual Earth Engine data retrieval.
-        """
-        # Simple simulation based on variable type and location
-        base_value = 0
-        
-        if variable.category == 'temperature':
-            # Temperature varies by latitude and season
-            base_value = 20 - abs(location.latitude) / 3
-            seasonal_variation = 10 * np.sin((date.timetuple().tm_yday / 365) * 2 * np.pi)
-            base_value += seasonal_variation
-        elif variable.category == 'precipitation':
-            # Precipitation with seasonal pattern
-            base_value = 50 + 30 * np.sin((date.timetuple().tm_yday / 365) * 2 * np.pi + np.pi/2)
-            base_value = max(0, base_value + np.random.normal(0, 10))
-        elif variable.category == 'vegetation':
-            # NDVI values between 0 and 1
-            base_value = 0.5 + 0.3 * np.sin((date.timetuple().tm_yday / 365) * 2 * np.pi)
-            base_value = max(0, min(1, base_value))
-        else:
-            # Generic climate variable
-            base_value = np.random.uniform(
-                variable.min_value or 0,
-                variable.max_value or 100
-            )
-        
-        return base_value
-
-
 class CopernicusDataService(BaseClimateDataService):
     """
     Copernicus Climate Data Store (CDS) service for ERA5 reanalysis data.
 
-    Supports both mock and real CDS API calls. When USE_MOCK_DATA=False and API key
-    is configured, it will make real API calls to Copernicus CDS.
-
-    Setup for real data:
-    1. Install: pip install cdsapi
-    2. Register at: https://cds.climate.copernicus.eu/
-    3. Get API key from: https://cds.climate.copernicus.eu/api-how-to
-    4. Create ~/.cdsapirc with:
-       url: https://cds.climate.copernicus.eu/api/v2
-       key: {UID}:{API-KEY}
-    5. Set USE_MOCK_DATA=False in settings
-
-    CDS provides access to:
-    - ERA5 reanalysis (hourly and monthly)
-    - ERA5-Land (higher resolution land data)
-    - Satellite observations
-    - Climate projections
+    Requires a configured CDS API client. Initialization errors are raised so missing
+    dependencies or credentials are visible immediately.
     """
 
-    def __init__(self, data_source: ClimateDataSource, use_mock: bool = True):
+    def __init__(self, data_source: ClimateDataSource):
         super().__init__(data_source)
-        self.use_mock = use_mock
         self.cds_client = None
+        self._initialize_cds_client()
 
-        if not use_mock:
-            try:
-                import cdsapi
-                self.cds_client = cdsapi.Client()
-                self.logger.info("Copernicus CDS client initialized successfully")
-            except ImportError:
-                self.logger.warning("cdsapi not installed, using mock data")
-                self.use_mock = True
-            except Exception as e:
-                self.logger.error(f"Failed to initialize CDS client: {e}")
-                self.use_mock = True
+    def _initialize_cds_client(self) -> None:
+        """Initialize the Copernicus CDS API client."""
+        try:
+            import cdsapi
+
+            self.cds_client = cdsapi.Client()
+            self.logger.info("Copernicus CDS client initialized successfully")
+        except ImportError as exc:
+            raise RuntimeError(
+                "cdsapi not installed; install it and configure credentials to fetch CDS data"
+            ) from exc
+        except Exception as exc:
+            raise RuntimeError(f"Failed to initialize CDS client: {exc}") from exc
 
     def fetch_data(
         self,
@@ -344,10 +262,7 @@ class CopernicusDataService(BaseClimateDataService):
         end_date: datetime,
         **kwargs
     ) -> List[Dict[str, Any]]:
-        """
-        Fetch data from Copernicus Climate Data Store.
-        Uses mock data if use_mock=True, otherwise makes real CDS API calls.
-        """
+        """Fetch data from Copernicus Climate Data Store."""
         if not self.validate_location(location):
             raise ValueError(f"Invalid location coordinates: {location}")
 
@@ -363,13 +278,9 @@ class CopernicusDataService(BaseClimateDataService):
         except ClimateVariableMapping.DoesNotExist:
             raise ValueError(f"Variable {variable} not available in {self.data_source}")
 
-        # Choose real or mock implementation
-        if self.use_mock:
-            return self._fetch_mock_data(variable, location, start_date, end_date, mapping)
-        else:
-            return self._fetch_real_cds_data(variable, location, start_date, end_date, mapping)
+        return self._fetch_cds_data(variable, location, start_date, end_date, mapping)
 
-    def _fetch_real_cds_data(
+    def _fetch_cds_data(
         self,
         variable: ClimateVariable,
         location: Location,
@@ -378,7 +289,7 @@ class CopernicusDataService(BaseClimateDataService):
         mapping: ClimateVariableMapping
     ) -> List[Dict[str, Any]]:
         """
-        Fetch real data from Copernicus CDS API.
+        Fetch data from Copernicus CDS API.
 
         Example request for ERA5 2m temperature:
         - Dataset: reanalysis-era5-single-levels
@@ -477,76 +388,6 @@ class CopernicusDataService(BaseClimateDataService):
             self.logger.error(f"Error fetching CDS data: {e}")
             raise
 
-    def _fetch_mock_data(
-        self,
-        variable: ClimateVariable,
-        location: Location,
-        start_date: datetime,
-        end_date: datetime,
-        mapping: ClimateVariableMapping
-    ) -> List[Dict[str, Any]]:
-        """
-        Generate mock data for testing without CDS credentials.
-        """
-        data = []
-        current_date = start_date
-        while current_date <= end_date:
-            # Simulate realistic climate values
-            value = self._simulate_climate_value(variable, location, current_date)
-
-            # Apply scaling and offset from mapping
-            value = value * mapping.scale_factor + mapping.offset
-
-            data.append({
-                'date': current_date.date(),
-                'value': value,
-                'quality_flag': 'mock',
-                'source': 'Mock (CDS structure)',
-            })
-
-            current_date += timedelta(days=1)
-
-        return data
-
-    def _simulate_climate_value(
-        self,
-        variable: ClimateVariable,
-        location: Location,
-        date: datetime
-    ) -> float:
-        """
-        Simulate realistic climate values based on location and season.
-        Uses similar logic to EarthEngineDataService for consistency.
-        """
-        base_value = 0
-
-        if variable.category == 'temperature':
-            # Temperature varies by latitude and season
-            base_value = 20 - abs(location.latitude) / 3
-            seasonal_variation = 10 * np.sin((date.timetuple().tm_yday / 365) * 2 * np.pi)
-            base_value += seasonal_variation
-        elif variable.category == 'precipitation':
-            # Precipitation with seasonal pattern
-            base_value = 50 + 30 * np.sin((date.timetuple().tm_yday / 365) * 2 * np.pi + np.pi/2)
-            base_value = max(0, base_value + np.random.normal(0, 10))
-        elif variable.category == 'humidity':
-            # Relative humidity between 30-90%
-            base_value = 60 + 20 * np.sin((date.timetuple().tm_yday / 365) * 2 * np.pi)
-            base_value = max(30, min(90, base_value + np.random.normal(0, 5)))
-        elif variable.category == 'wind':
-            # Wind speed 0-20 m/s with seasonal variation
-            base_value = 5 + 3 * np.sin((date.timetuple().tm_yday / 365) * 2 * np.pi)
-            base_value = max(0, base_value + np.random.normal(0, 2))
-        else:
-            # Generic climate variable
-            base_value = np.random.uniform(
-                variable.min_value or 0,
-                variable.max_value or 100
-            )
-
-        return base_value
-
-
 class ClimateDataProcessor:
     """
     Processes and harmonises climate data for integration with health data.
@@ -617,21 +458,16 @@ class ClimateDataProcessor:
         - 'modis': Currently via GEE
         - 'worldclim': Could be added later
         """
-        from django.conf import settings
-
-        # Check if we should use mock data (default: True for safety)
-        use_mock = getattr(settings, 'CLIMATE_USE_MOCK_DATA', True)
-
         source_type = self.request.data_source.source_type
 
         if source_type == 'gee':
-            return EarthEngineDataService(self.request.data_source, use_mock=use_mock)
+            return EarthEngineDataService(self.request.data_source)
         elif source_type in ['era5', 'worldclim']:
             # ERA5 and WorldClim available via Copernicus CDS
-            return CopernicusDataService(self.request.data_source, use_mock=use_mock)
+            return CopernicusDataService(self.request.data_source)
         elif source_type in ['chirps', 'modis']:
             # CHIRPS and MODIS available via Google Earth Engine
-            return EarthEngineDataService(self.request.data_source, use_mock=use_mock)
+            return EarthEngineDataService(self.request.data_source)
         else:
             raise NotImplementedError(
                 f"Service for {source_type} not implemented. "

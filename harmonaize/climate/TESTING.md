@@ -29,7 +29,7 @@ The test suite covers:
 2. **Services** (`ClimateServicesTestCase`)
    - EarthEngineDataService validation
    - Date range validation
-   - Mock data fetching
+    - Data fetching workflow
    - SpatioTemporalMatcher location matching
    - ClimateDataProcessor workflow
 
@@ -160,41 +160,11 @@ ClimateVariableMapping.objects.create(
 )
 ```
 
-## Mock vs Real Data
+## API Access in Tests
 
-### Mock Mode (Default)
-
-By default, tests use **mock data** to avoid requiring GEE credentials:
-
-```python
-# In tests, mock mode is automatic
-service = EarthEngineDataService(source, use_mock=True)
-```
-
-Benefits:
-- ✅ No API credentials required
-- ✅ Fast test execution
-- ✅ Deterministic results
-- ✅ No API quotas consumed
-
-### Real API Testing
-
-To test with real Google Earth Engine API:
-
-1. Set up GEE credentials (see `GEE_SETUP.md`)
-
-2. Set environment variable:
-```bash
-export CLIMATE_USE_MOCK_DATA=False
-export GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json
-```
-
-3. Run tests:
-```bash
-python manage.py test climate --tag=integration
-```
-
-**Note:** Real API tests are slower and consume API quotas.
+Unit tests rely on deterministic in-memory services to avoid external API calls.
+Integration or end-to-end tests require valid Google Earth Engine credentials via
+`GOOGLE_APPLICATION_CREDENTIALS` (see `GEE_SETUP.md`).
 
 ## Test Database
 
@@ -367,7 +337,7 @@ class MyNewTestCase(TestCase):
 2. **One assertion per test**: Keep tests focused
 3. **Descriptive names**: `test_process_request_creates_observations`
 4. **Independent tests**: Each test should work in isolation
-5. **Mock external APIs**: Don't hit real APIs in unit tests
+5. **Stub external APIs**: Avoid real API calls in unit tests
 6. **Test edge cases**: Empty data, null values, invalid inputs
 
 ### Testing API Endpoints
