@@ -4,9 +4,8 @@ This document explains how to configure Google Earth Engine (GEE) API credential
 
 ## Overview
 
-The climate module supports two modes:
-- **Mock Mode** (default): Uses simulated data for testing
-- **Production Mode**: Makes real API calls to Google Earth Engine
+The climate module always uses live Google Earth Engine (GEE) data. Configure valid
+credentials to enable API access in every environment.
 
 ## Prerequisites
 
@@ -59,7 +58,6 @@ Add to your `.envs/.local/.django` or `.envs/.production/.django`:
 ```bash
 # Google Earth Engine Configuration
 GOOGLE_APPLICATION_CREDENTIALS=/path/to/gee-credentials.json
-CLIMATE_USE_MOCK_DATA=False
 ```
 
 #### Option B: Using Docker Secrets (Most Secure)
@@ -74,7 +72,6 @@ chmod 600 secrets/gee-credentials.json
 2. Add to `.envs/.local/.django`:
 ```bash
 GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/gee-credentials
-CLIMATE_USE_MOCK_DATA=False
 ```
 
 3. Update `docker-compose.local.yml`:
@@ -103,9 +100,8 @@ GEE_CREDENTIALS_PATH = Path(BASE_DIR) / 'secrets' / 'gee-credentials.json'
 
 if GEE_CREDENTIALS_PATH.exists():
     os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = str(GEE_CREDENTIALS_PATH)
-    CLIMATE_USE_MOCK_DATA = False
 else:
-    CLIMATE_USE_MOCK_DATA = True
+  raise FileNotFoundError("GEE credentials not found; provide a valid credentials file")
 ```
 
 ### 6. Update .gitignore
@@ -149,7 +145,7 @@ from climate.models import ClimateDataSource
 
 # Create a test data source
 source = ClimateDataSource.objects.first()  # or create one
-service = EarthEngineDataService(source, use_mock=False)
+service = EarthEngineDataService(source)
 
 # This should initialize without errors
 print("✓ Google Earth Engine initialized successfully")
@@ -159,44 +155,21 @@ print("✓ Google Earth Engine initialized successfully")
 
 ### Django Settings
 
-Add to `config/settings/base.py`:
-
-```python
-# Climate Module Settings
-CLIMATE_USE_MOCK_DATA = env.bool('CLIMATE_USE_MOCK_DATA', default=True)
-```
-
-Add to `config/settings/production.py`:
-
-```python
-# Use real GEE data in production
-CLIMATE_USE_MOCK_DATA = env.bool('CLIMATE_USE_MOCK_DATA', default=False)
-```
+Ensure `GOOGLE_APPLICATION_CREDENTIALS` is available in your environment so
+`EarthEngineDataService` can initialize. No fallback mode is available.
 
 ## Available GEE Datasets
 
 The climate module currently supports these datasets:
 
 ### ERA5 (via GEE)
-- **Dataset**: `ECMWF/ERA5/DAILY` or `ECMWF/ERA5_LAND/DAILY_AGGR`
-- **Variables**:
   - Temperature: `mean_2m_air_temperature`
   - Precipitation: `total_precipitation`
   - Humidity, pressure, wind, etc.
-- **Resolution**: ~27km (ERA5), ~11km (ERA5-Land)
-- **Temporal**: Daily, 1940-present
 
 ### CHIRPS (Precipitation)
-- **Dataset**: `UCSB-CHG/CHIRPS/DAILY`
-- **Variables**: `precipitation`
-- **Resolution**: ~5.5km
-- **Temporal**: Daily, 1981-present
 
 ### MODIS (Vegetation/Land Surface)
-- **Dataset**: `MODIS/006/MOD11A1` (temperature), `MODIS/006/MOD13A2` (NDVI)
-- **Variables**: Land surface temperature, NDVI, EVI
-- **Resolution**: 1km (temperature), 1km (vegetation)
-- **Temporal**: Daily/16-day, 2000-present
 
 ## Troubleshooting
 
@@ -233,18 +206,8 @@ Ensure your credentials JSON contains `project_id`:
 }
 ```
 
-### Issue: Mock data still being used
-
-**Solution:**
-1. Check `CLIMATE_USE_MOCK_DATA` is set to `False`
-2. Restart Django/Celery containers
-3. Check logs for Earth Engine initialization messages
-
 ## Cost Considerations
 
-- Google Earth Engine is **free for research and educational use**
-- Commercial use requires **Earth Engine Commercial license**
-- There are quota limits:
   - Compute units per day
   - Storage limits
   - Concurrent requests
@@ -286,10 +249,5 @@ CLIMATE_USE_COPERNICUS_CDS = True
 ## Support
 
 For GEE-specific issues:
-- [Earth Engine Forum](https://groups.google.com/g/google-earth-engine-developers)
-- [Earth Engine Documentation](https://developers.google.com/earth-engine/)
 
 For HarmonAIze climate module issues:
-- Check module logs: `docker logs harmonaize_local_django`
-- Review Celery logs: `docker logs harmonaize_local_celeryworker`
-- See climate module tests: `python manage.py test climate`
