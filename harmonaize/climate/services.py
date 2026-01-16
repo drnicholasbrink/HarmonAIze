@@ -432,7 +432,7 @@ class ClimateDataProcessor:
             return {
                 'status': 'success',
                 'total_observations': total_observations,
-                'duration': self.request.duration,
+                'duration_seconds': self.request.duration.total_seconds() if self.request.duration else None,
             }
             
         except Exception as e:

@@ -26,15 +26,30 @@ class ClimateDataConfigurationForm(forms.ModelForm):
     )
     
     start_date = forms.DateField(
-        widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
-        help_text="Start date for climate data retrieval",
-        required=True,
+        widget=forms.HiddenInput(),
+        required=False,
     )
     
     end_date = forms.DateField(
-        widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
-        help_text="End date for climate data retrieval",
+        widget=forms.HiddenInput(),
+        required=False,
+    )
+
+    lag_value = forms.IntegerField(
+        min_value=1,
+        initial=30,
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': 1}),
+        help_text="How far back to fetch climate data",
         required=True,
+        label="Lag value",
+    )
+
+    lag_unit = forms.ChoiceField(
+        choices=[('days', 'Days'), ('weeks', 'Weeks'), ('months', 'Months')],
+        initial='days',
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        required=True,
+        label="Lag unit",
     )
     
     temporal_aggregation = forms.ChoiceField(
@@ -65,30 +80,43 @@ class ClimateDataConfigurationForm(forms.ModelForm):
             'spatial_buffer_km',
         ]
     
-    def __init__(self, *args, study=None, user=None, **kwargs):
+    def __init__(self, *args, study=None, user=None, observation_min_date=None, observation_max_date=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.study = study
         self.user = user
+        self.observation_min_date = observation_min_date
+        self.observation_max_date = observation_max_date
         
         # Group variables by category for better display
         if 'variables' in self.fields:
             self.fields['variables'].queryset = ClimateVariable.objects.all().order_by('category', 'display_name')
         
-        # Set date limits based on study period if available
-        if study:
-            if study.study_period_start:
-                self.fields['start_date'].initial = study.study_period_start
-                self.fields['start_date'].widget.attrs['min'] = study.study_period_start.isoformat()
-            if study.study_period_end:
-                self.fields['end_date'].initial = study.study_period_end
-                self.fields['end_date'].widget.attrs['max'] = study.study_period_end.isoformat()
+        # Set initial start/end based on observations and lag
+        lag_value = self.fields['lag_value'].initial or 30
+        lag_unit = self.fields['lag_unit'].initial or 'days'
+        if observation_max_date:
+            start_date = self._compute_start_date(observation_max_date, lag_value, lag_unit)
+            self.fields['start_date'].initial = start_date
+            self.fields['end_date'].initial = observation_max_date
     
     def clean(self):
         cleaned_data = super().clean()
         start_date = cleaned_data.get('start_date')
         end_date = cleaned_data.get('end_date')
+        lag_value = cleaned_data.get('lag_value')
+        lag_unit = cleaned_data.get('lag_unit')
         data_source = cleaned_data.get('data_source')
         variables = cleaned_data.get('variables')
+
+        if self.observation_max_date is None:
+            raise ValidationError("No observation dates available for this study; cannot compute date range")
+
+        if lag_value and lag_unit:
+            computed_start = self._compute_start_date(self.observation_max_date, lag_value, lag_unit)
+            cleaned_data['start_date'] = computed_start
+            cleaned_data['end_date'] = self.observation_max_date
+            start_date = computed_start
+            end_date = self.observation_max_date
         
         # Validate date range
         if start_date and end_date:
@@ -118,6 +146,18 @@ class ClimateDataConfigurationForm(forms.ModelForm):
                     )
         
         return cleaned_data
+
+    def _compute_start_date(self, end_date: date, lag_value: int, lag_unit: str) -> date:
+        if lag_unit == 'days':
+            delta = timedelta(days=lag_value)
+        elif lag_unit == 'weeks':
+            delta = timedelta(weeks=lag_value)
+        elif lag_unit == 'months':
+            # Approximate months as 30 days for simplicity
+            delta = timedelta(days=lag_value * 30)
+        else:
+            delta = timedelta(days=lag_value)
+        return end_date - delta
     
     def save(self, commit=True):
         instance = super().save(commit=False)
