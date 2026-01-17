@@ -71,15 +71,25 @@
                     <h5 class="mb-0">Temporal Settings</h5>
                   </div>
                   <div class="card-body">
+                    <div class="mb-3">
+                      <div class="alert alert-light mb-2">
+                        <div><strong>Observation window:</strong> {{ observation_min_date|default:"-" }} to {{ observation_max_date|default:"-" }}</div>
+                        <div id="requested-range"><strong>Requested range:</strong> {{ form.start_date.value|default:form.start_date.initial }} to {{ form.end_date.value|default:form.end_date.initial }}</div>
+                      </div>
+                    </div>
                     <div class="row">
                       <div class="col-md-6">
-                        {{ form.start_date|as_crispy_field }}
+                        {{ form.lag_value|as_crispy_field }}
                       </div>
                       <div class="col-md-6">
-                        {{ form.end_date|as_crispy_field }}
+                        {{ form.lag_unit|as_crispy_field }}
                       </div>
                     </div>
                     {{ form.temporal_aggregation|as_crispy_field }}
+
+                    {# Hidden start/end fields to submit computed values #}
+                    {{ form.start_date }}
+                    {{ form.end_date }}
                   </div>
                 </div>
               </div>
@@ -207,6 +217,45 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     }
   });
+
+  // Update requested date range preview when lag changes
+  const lagValueInput = document.getElementById('id_lag_value');
+  const lagUnitSelect = document.getElementById('id_lag_unit');
+  const requestedRange = document.getElementById('requested-range');
+  const hiddenStart = document.getElementById('id_start_date');
+  const hiddenEnd = document.getElementById('id_end_date');
+  const observationMax = '{{ observation_max_date|default:"" }}';
+
+  function recomputeRange() {
+    if (!observationMax || !lagValueInput || !lagUnitSelect) {
+      return;
+    }
+    const endDate = new Date(observationMax);
+    const lagVal = parseInt(lagValueInput.value, 10) || 0;
+    const unit = lagUnitSelect.value;
+    const startDate = new Date(endDate.getTime());
+
+    if (unit === 'weeks') {
+      startDate.setDate(startDate.getDate() - lagVal * 7);
+    } else if (unit === 'months') {
+      startDate.setDate(startDate.getDate() - lagVal * 30);
+    } else {
+      startDate.setDate(startDate.getDate() - lagVal);
+    }
+
+    const startIso = startDate.toISOString().slice(0, 10);
+    const endIso = endDate.toISOString().slice(0, 10);
+
+    if (hiddenStart) hiddenStart.value = startIso;
+    if (hiddenEnd) hiddenEnd.value = endIso;
+    if (requestedRange) requestedRange.innerHTML = `<strong>Requested range:</strong> ${startIso} to ${endIso}`;
+  }
+
+  if (lagValueInput && lagUnitSelect && observationMax) {
+    recomputeRange();
+    lagValueInput.addEventListener('input', recomputeRange);
+    lagUnitSelect.addEventListener('change', recomputeRange);
+  }
 });
 </script>
 {% endblock %}
