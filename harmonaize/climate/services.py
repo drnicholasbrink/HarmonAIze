@@ -3,6 +3,7 @@ Climate data services for fetching and processing climate data from various sour
 """
 import logging
 from typing import Dict, List, Optional, Any, Tuple
+import numpy as np
 from datetime import datetime, timedelta
 from django.db import transaction
 from django.utils import timezone
