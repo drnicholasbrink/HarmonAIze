@@ -85,6 +85,11 @@ urlpatterns = [
         name="export_raw_data",
     ),
     path(
+        "exports/combined/",
+        views.combined_export,
+        name="combined_export",
+    ),
+    path(
         "raw-data/<int:file_id>/reupload/",
         views.reupload_raw_data,
         name="reupload_raw_data",
@@ -156,6 +161,11 @@ urlpatterns = [
         "api/study/<int:study_id>/variables/",
         views.study_variables_api,
         name="study_variables_api",
+    ),
+    path(
+        "api/combined-export/attributes/",
+        views.combined_export_attributes,
+        name="combined_export_attributes",
     ),
     path(
         "api/mapping/<int:schema_id>/similarity-suggestions/",

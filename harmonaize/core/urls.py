@@ -16,6 +16,7 @@ urlpatterns = [
     path('upload/', views.upload_study, name='upload'),
     path('studies/', views.StudyListView.as_view(), name='study_list'),
     path('studies/<int:pk>/', views.StudyDetailView.as_view(), name='study_detail'),
+    path('studies/<int:pk>/toggle-climate/', views.toggle_climate_linkage, name='study_toggle_climate'),
     path('studies/<int:study_id>/delete/', views.delete_study, name='delete_study'),
     
     # Target codebook workflow

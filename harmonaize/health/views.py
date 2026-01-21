@@ -2,11 +2,13 @@ import csv
 import io
 import json
 import logging
-from datetime import datetime
+import hashlib
+from datetime import datetime, timedelta
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import (
     FileResponse,
     Http404,
+    HttpResponse,
     HttpResponseBadRequest,
     HttpResponseForbidden,
     JsonResponse,
@@ -16,16 +18,19 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
 from django.utils.text import slugify
+from django.db import models
 from django.forms import formset_factory
 from django.views.decorators.http import require_http_methods, require_POST
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.contrib.postgres.aggregates import ArrayAgg
 
 from core.models import Study, Attribute, Observation
+from climate.models import ClimateDataRequest
 from .models import MappingSchema, MappingRule, RawDataFile, RawDataColumn
 from core.forms import VariableConfirmationFormSetFactory
 from .forms import (
     ExportDataForm,
+    CombinedExportForm,
     MappingRuleForm,
     MappingSchemaForm,
     RawDataUploadForm,
@@ -39,6 +44,43 @@ from .tasks import ingest_raw_data_file
 from .eda_service import generate_eda_summary
 
 logger = logging.getLogger(__name__)
+
+
+LAG_UNIT_TO_DAYS = {
+    "days": 1,
+    "weeks": 7,
+    "months": 30,
+    "years": 365,
+}
+
+LAG_UNIT_SHORT = {
+    "days": "d",
+    "weeks": "w",
+    "months": "m",
+    "years": "y",
+}
+
+
+def _get_climate_lag_unit_for_study(study) -> str:
+    """Return the lag unit from the most recent climate request for this study (default: days)."""
+
+    if not study:
+        return "days"
+
+    request_qs = ClimateDataRequest.objects.filter(study=study)
+    # Prefer completed requests, then fall back to the newest request
+    request = (
+        request_qs.filter(status="completed")
+        .order_by("-completed_at", "-requested_at")
+        .first()
+        or request_qs.order_by("-requested_at").first()
+    )
+
+    if not request:
+        return "days"
+
+    config = request.configuration or {}
+    return config.get("lag_unit") or "days"
 
 
 def _user_can_export_raw_data(user, raw_data_file: RawDataFile) -> bool:
@@ -99,6 +141,17 @@ def _serialize_observation_value(observation: Observation) -> str:
     return str(value)
 
 
+def _hash_patient_identifier(identifier: str) -> str:
+    if not identifier:
+        return ""
+    return hashlib.sha256(identifier.encode("utf-8")).hexdigest()[:12]
+
+
+def _hash_location_identifier(identifier: str) -> str:
+    # Reuse same hashing approach for locations
+    return _hash_patient_identifier(identifier)
+
+
 def _serialize_time_dimension(time_dimension) -> str:
     if not time_dimension:
         return ""
@@ -114,6 +167,162 @@ def _serialize_time_dimension(time_dimension) -> str:
     if end:
         return end.isoformat()
     return ""
+
+
+def _combined_long_stream(queryset, exported_at: str, deidentify: bool = False):
+    """Stream long-format CSV rows for the combined export."""
+    header = [
+        "patient_id",
+        "location_id",
+        "location_name",
+        "datetime",
+        "attribute_variable_name",
+        "attribute_display_name",
+        "category",
+        "source_type",
+        "value",
+        "observation_id",
+        "exported_at",
+    ]
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(header)
+    buffer.seek(0)
+    yield buffer.read()
+    buffer.truncate(0)
+    buffer.seek(0)
+
+    for obs in queryset.iterator(chunk_size=1000):
+        patient_identifier = ""
+        if obs.patient_id:
+            patient_identifier = getattr(obs.patient, "unique_id", None) or str(obs.patient_id)
+            patient_identifier = ""
+            if obs.patient_id:
+                patient_identifier = getattr(obs.patient, "unique_id", None) or str(obs.patient_id)
+            if deidentify:
+                patient_identifier = _hash_patient_identifier(patient_identifier)
+
+            loc_identifier = ""
+            if obs.location_id and not deidentify:
+                loc_identifier = str(obs.location_id)
+
+            loc_name = ""
+            if obs.location_id:
+                loc_name = getattr(obs.location, "name", "") or ""
+            if deidentify and loc_name:
+                loc_name = _hash_location_identifier(loc_name)
+
+        writer.writerow(
+            [
+                patient_identifier,
+                loc_identifier,
+                loc_name,
+                _serialize_time_dimension(obs.time),
+                obs.attribute.variable_name,
+                obs.attribute.display_name or "",
+                obs.attribute.category,
+                getattr(obs.attribute, "source_type", ""),
+                _serialize_observation_value(obs),
+                obs.id,
+                exported_at,
+            ]
+        )
+
+        buffer.seek(0)
+        yield buffer.read()
+        buffer.truncate(0)
+        buffer.seek(0)
+
+
+def _outcome_wide_stream(
+    outcome_qs,
+    climate_cache,
+    climate_columns,
+    location_cache,
+    location_columns,
+    climate_lag_unit: str,
+    exported_at: str,
+    deidentify: bool = False,
+):
+    """Stream wide-format rows keyed by outcome observations with location and climate context."""
+
+    header = [
+        "patient_id",
+        "outcome_attribute",
+        "outcome_value",
+        "outcome_datetime",
+        "outcome_location_name",
+    ] + [col[1] for col in location_columns] + ["climate_lag_unit"] + [col[3] for col in climate_columns] + ["exported_at"]
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(header)
+    buffer.seek(0)
+    yield buffer.read()
+    buffer.truncate(0)
+    buffer.seek(0)
+
+    for obs in outcome_qs.iterator(chunk_size=500):
+        patient_identifier = ""
+        if obs.patient_id:
+            patient_identifier = getattr(obs.patient, "unique_id", None) or str(obs.patient_id)
+        if deidentify:
+            patient_identifier = _hash_patient_identifier(patient_identifier)
+
+        loc_id = obs.location_id or ""
+        loc_name = ""
+        if obs.location_id:
+            loc_name = getattr(obs.location, "name", "") or ""
+        if deidentify and loc_name:
+            loc_name = _hash_location_identifier(loc_name)
+
+        dt_str = _serialize_time_dimension(obs.time)
+        dt = None
+        if obs.time:
+            if getattr(obs.time, "timestamp", None):
+                dt = obs.time.timestamp.date()
+            elif getattr(obs.time, "start_date", None):
+                dt = obs.time.start_date.date()
+            elif getattr(obs.time, "end_date", None):
+                dt = obs.time.end_date.date()
+
+        row = [
+            patient_identifier,
+            obs.attribute.variable_name,
+            _serialize_observation_value(obs),
+            dt_str,
+            loc_name,
+        ]
+
+        # Location-level attributes (geolocation category)
+        if loc_id:
+            for attr_id, _col_name in location_columns:
+                lval = location_cache.get((loc_id, attr_id))
+                row.append(lval if lval is not None else "")
+        else:
+            row.extend(["" for _ in location_columns])
+
+        # Indicate the lag unit used for this export
+        row.append(climate_lag_unit)
+
+        # Append climate lag values in the order of climate_columns
+        if dt is not None and loc_id:
+            for col in climate_columns:
+                attr_id, lag_value, lag_days, _col_name = col
+                value = climate_cache.get((loc_id, dt - timedelta(days=lag_days), attr_id))
+                row.append(value if value is not None else "")
+        else:
+            row.extend(["" for _ in climate_columns])
+
+        row.append(exported_at)
+
+        buffer.seek(0)
+        writer.writerow(row)
+        buffer.seek(0)
+        yield buffer.read()
+        buffer.truncate(0)
+        buffer.seek(0)
 
 
 def _harmonised_csv_stream(queryset, schema, raw_data_file, exported_at: str, user_id: int):
@@ -529,6 +738,7 @@ def select_variables(request, study_id):  # noqa: C901 (complexity accepted temp
                         attribute, _created = Attribute.objects.get_or_create(
                             variable_name=var_data["variable_name"],
                             source_type="source",  # ensure classification
+                            study=study,
                             defaults={
                                 "display_name": var_data.get(
                                     "display_name", var_data["variable_name"],
@@ -830,6 +1040,7 @@ def harmonization_dashboard(request, schema_id):
                 "related_relation_type": schema.universal_relation_type or "",
                 "patient_id_attribute": schema.universal_patient_id,
                 "datetime_attribute": schema.universal_datetime,
+                "location_attribute": schema.universal_location,
             },
         )
         
@@ -839,6 +1050,8 @@ def harmonization_dashboard(request, schema_id):
                 mapping_rule.role = "patient_id"
             elif schema.universal_datetime == attr:
                 mapping_rule.role = "datetime"
+            elif schema.universal_location == attr:
+                mapping_rule.role = "location"
             mapping_rule.save()
         
         # Pre-populate form fields with universal settings if they're not already set
@@ -849,6 +1062,8 @@ def harmonization_dashboard(request, schema_id):
                 mapping_rule.datetime_attribute = schema.universal_datetime
             if not mapping_rule.related_relation_type and schema.universal_relation_type:
                 mapping_rule.related_relation_type = schema.universal_relation_type
+            if not mapping_rule.location_attribute and schema.universal_location:
+                mapping_rule.location_attribute = schema.universal_location
             # Save only if we made changes and the rule already exists
             if not created:
                 mapping_rule.save()
@@ -936,6 +1151,7 @@ def upload_raw_data(request, study_id=None):
         if not has_variables:
             form.fields['patient_id_column'].required = False
             form.fields['date_column'].required = False
+            form.fields['location_column'].required = False
         
         if form.is_valid():
             raw_data_file = form.save(commit=False)
@@ -950,6 +1166,7 @@ def upload_raw_data(request, study_id=None):
             # Persist selected column names onto the model
             raw_data_file.patient_id_column = form.cleaned_data.get("patient_id_column") or ""
             raw_data_file.date_column = form.cleaned_data.get("date_column") or ""
+            raw_data_file.location_column = form.cleaned_data.get("location_column") or ""
 
             # Compute checksum for duplicate detection
             import hashlib
@@ -1478,6 +1695,242 @@ def export_raw_data(request, file_id):
 
 
 @login_required
+@require_http_methods(["GET", "POST"])
+def combined_export(request):
+    """Export transformed data (health, geolocation, climate) with study/variable selection."""
+
+    initial = {}
+    if request.method == "GET":
+        # Preselect target study when coming from a study or climate request context
+        target_hint = request.GET.get("target_study") or request.GET.get("study")
+        if target_hint:
+            initial["target_study"] = target_hint
+
+    form = CombinedExportForm(request.POST or None, user=request.user, initial=initial)
+
+    can_normal_export = RawDataFile.objects.filter(uploaded_by=request.user).exists()
+
+    def _resolve_target(form_obj):
+        target_val = None
+        if form_obj.is_bound:
+            target_val = form_obj.data.get("target_study")
+        else:
+            target_val = form_obj.initial.get("target_study")
+        if not target_val:
+            return None
+        try:
+            return form_obj.fields["target_study"].queryset.get(pk=target_val)
+        except Exception:
+            return None
+
+    lag_unit = _get_climate_lag_unit_for_study(_resolve_target(form))
+    lag_unit_label = lag_unit.capitalize()
+    if "max_lag_days" in form.fields:
+        form.fields["max_lag_days"].label = f"Max lag ({lag_unit_label})"
+
+    selected_ids = []
+    if form.is_bound:
+        selected_ids = request.POST.getlist("attributes")
+    else:
+        initial_attrs = form.initial.get("attributes") or []
+        selected_ids = [str(a.pk) if hasattr(a, "pk") else str(a) for a in initial_attrs]
+
+    use_all_attributes = not bool(selected_ids)
+
+    if request.method == "POST" and form.is_valid():
+        export_mode = request.POST.get("export_mode", "normal")
+        deidentify = export_mode == "deid"
+
+        if export_mode == "normal" and not can_normal_export:
+            messages.error(request, "Normal export is only available to users who uploaded source data. Use de-identified export instead.")
+            return render(
+                request,
+                "health/export_combined.html",
+                {
+                    "form": form,
+                    "lag_unit": lag_unit,
+                    "lag_unit_label": lag_unit_label,
+                    "can_normal_export": can_normal_export,
+                    "selected_ids": selected_ids,
+                    "use_all_attributes": use_all_attributes,
+                },
+            )
+
+        target_study = form.cleaned_data["target_study"]
+        lag_unit = _get_climate_lag_unit_for_study(target_study)
+        lag_unit_label = lag_unit.capitalize()
+        source_studies = form.cleaned_data.get("source_studies")
+        categories = form.cleaned_data.get("categories") or []
+        selected_attributes = form.cleaned_data.get("attributes")
+        export_format = form.cleaned_data.get("export_format")
+        max_lag_value = form.cleaned_data.get("max_lag_days") or 0
+
+        if selected_attributes:
+            attrs_qs = Attribute.objects.filter(
+                pk__in=[a.pk for a in selected_attributes],
+                studies=target_study,
+                source_type="target",
+            )
+        else:
+            category_filter = Q()
+            if "health" in categories:
+                category_filter |= Q(studies=target_study, category="health")
+            non_health_categories = [c for c in categories if c != "health"]
+            if non_health_categories:
+                category_filter |= Q(category__in=non_health_categories)
+            attrs_qs = Attribute.objects.filter(
+                category_filter,
+                studies=target_study,
+                source_type="target",
+            )
+
+        if source_studies:
+            mapped_target_ids = MappingRule.objects.filter(
+                schema__target_study=target_study,
+                schema__source_study__in=source_studies,
+                role="value",
+                target_attribute__isnull=False,
+            ).values_list("target_attribute_id", flat=True)
+
+            attrs_qs = attrs_qs.filter(
+                Q(category__in=["geolocation", "climate"]) | Q(pk__in=mapped_target_ids)
+            )
+
+        attributes = list(
+            attrs_qs.distinct().order_by("category", "display_name", "variable_name")
+        )
+
+        if deidentify:
+            # Exclude geolocation attributes from de-identified exports
+            attributes = [a for a in attributes if a.category != "geolocation"]
+
+        if not attributes:
+            messages.error(
+                request,
+                "No transformed observations available for the selected target study and filters.",
+            )
+            return redirect("health:combined_export")
+
+        # Identify outcome (health) value attributes from mapping rules for this target
+        value_attr_ids = MappingRule.objects.filter(
+            schema__target_study=target_study,
+            role="value",
+            target_attribute__isnull=False,
+        ).values_list("target_attribute_id", flat=True)
+        outcome_attrs = [a for a in attributes if a.id in value_attr_ids and a.category == "health"]
+        climate_attrs = [a for a in attributes if a.category == "climate"]
+        location_attrs = [a for a in attributes if a.category == "geolocation"]
+
+        if not outcome_attrs:
+            messages.error(request, "No outcome (health value) attributes found for this target study.")
+            return redirect("health:combined_export")
+
+        export_ts = timezone.now()
+        exported_at_str = export_ts.isoformat()
+
+        if export_format == "long":
+            observations = (
+                Observation.objects.filter(attribute__in=attributes)
+                .select_related("patient", "location", "attribute", "time")
+                .order_by(
+                    "patient_id",
+                    "location_id",
+                    "time__timestamp",
+                    "time__start_date",
+                    "time__end_date",
+                    "attribute_id",
+                )
+            )
+            stream = _combined_long_stream(observations, exported_at_str, deidentify=deidentify)
+            filename_suffix = "long_export"
+        else:
+            unit_multiplier = LAG_UNIT_TO_DAYS.get(lag_unit, 1)
+            unit_short = LAG_UNIT_SHORT.get(lag_unit, "d")
+
+            # Build climate cache keyed by (location_id, date, attribute_id)
+            climate_obs = Observation.objects.filter(attribute__in=climate_attrs).select_related("location", "time", "attribute")
+            climate_cache = {}
+            for cobs in climate_obs.iterator(chunk_size=1000):
+                if not (cobs.location_id and cobs.time):
+                    continue
+
+                cdate = None
+                if getattr(cobs.time, "timestamp", None):
+                    cdate = cobs.time.timestamp.date()
+                elif getattr(cobs.time, "start_date", None):
+                    cdate = cobs.time.start_date.date()
+                elif getattr(cobs.time, "end_date", None):
+                    cdate = cobs.time.end_date.date()
+
+                if cdate is None:
+                    continue
+
+                climate_cache[(cobs.location_id, cdate, cobs.attribute_id)] = _serialize_observation_value(cobs)
+
+            # Build geolocation cache keyed by (location_id, attribute_id)
+            location_cache = {}
+            if location_attrs and not deidentify:
+                location_obs = Observation.objects.filter(attribute__in=location_attrs).select_related("location", "attribute")
+                for lobs in location_obs.iterator(chunk_size=1000):
+                    if not lobs.location_id:
+                        continue
+                    location_cache[(lobs.location_id, lobs.attribute_id)] = _serialize_observation_value(lobs)
+
+            # Prepare outcome queryset
+            outcome_qs = (
+                Observation.objects.filter(attribute__in=outcome_attrs)
+                .select_related("patient", "location", "attribute", "time")
+                .order_by("patient_id", "location_id", "time__timestamp", "id")
+            )
+
+            # Build climate columns list preserving attribute order and lag
+            climate_columns = []  # list of tuples (attr_id, lag_value, lag_days, col_name)
+            for attr in climate_attrs:
+                for lag in range(0, max_lag_value + 1):
+                    lag_days = lag * unit_multiplier
+                    col_name = f"{attr.variable_name}_{unit_short}-{lag}"
+                    climate_columns.append((attr.id, lag, lag_days, col_name))
+
+            location_columns = []  # list of tuples (attr_id, col_name)
+            if not deidentify:
+                for attr in location_attrs:
+                    location_columns.append((attr.id, attr.variable_name))
+
+            # User warning: if requested lag exceeds retrieved data, values will be blank
+            stream = _outcome_wide_stream(
+                outcome_qs,
+                climate_cache,
+                climate_columns,
+                location_cache,
+                location_columns,
+                lag_unit,
+                exported_at_str,
+                deidentify=deidentify,
+            )
+            filename_suffix = f"wide_lag{max_lag_value}{unit_short}"
+
+        timestamp_component = export_ts.strftime("%Y%m%d_%H%M%S")
+        filename = f"{slugify(target_study.name)}_{filename_suffix}_{timestamp_component}.csv"
+
+        response = StreamingHttpResponse(stream, content_type="text/csv")
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
+    return render(
+        request,
+        "health/export_combined.html",
+        {
+            "form": form,
+            "lag_unit": lag_unit,
+            "lag_unit_label": lag_unit_label,
+            "can_normal_export": can_normal_export,
+            "selected_ids": selected_ids,
+            "use_all_attributes": use_all_attributes,
+        },
+    )
+
+
+@login_required
 def rerun_eda(request, file_id):
     """Clear and regenerate EDA caches for the specified raw data file.
 
@@ -1690,6 +2143,39 @@ def map_raw_data_columns(request, file_id):
     }
     
     return render(request, 'health/map_raw_data_columns.html', context)
+
+
+@login_required
+def combined_export_attributes(request):
+    """Return variable card markup for attribute selection (HTMX)."""
+    target_id = request.GET.get("target_study")
+    if not target_id:
+        return HttpResponseBadRequest("Missing target_study")
+
+    try:
+        target = Study.objects.filter(created_by=request.user, study_purpose="target").get(pk=target_id)
+    except Study.DoesNotExist:
+        return HttpResponseForbidden("Not allowed")
+
+    categories = request.GET.getlist("categories")
+    attrs_qs = Attribute.objects.filter(studies=target, source_type="target")
+    if categories:
+        attrs_qs = attrs_qs.filter(category__in=categories)
+    attrs = attrs_qs.order_by("category", "display_name", "variable_name")
+
+    selected_ids = request.GET.getlist("attributes")
+    use_all_flag = request.GET.get("use_all_attributes", "on") != "off"
+
+    return render(
+        request,
+        "health/partials/attribute_cards.html",
+        {
+            "attributes": attrs,
+            "field_name": "attributes",
+            "selected_ids": selected_ids,
+            "use_all": use_all_flag,
+        },
+    )
 
 
 @login_required
@@ -2174,8 +2660,10 @@ def _calculate_deletion_impact(raw_data_file):
         )
         observations_count = study_observations.count()
         
-        # Count patients in the study
-        study_patients = Patient.objects.filter(study=study)
+        # Count patients linked via observations for this study's attributes
+        study_patients = Patient.objects.filter(
+            observations__attribute__study=study
+        ).distinct()
         patients_count = study_patients.count()
     
     return {

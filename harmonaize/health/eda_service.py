@@ -1310,7 +1310,7 @@ def generate_eda_summary_from_observations(raw_data_file, study, is_transformed=
         # Get the patients from the SOURCE study (linked to this raw data file)
         source_study = raw_data_file.study
         source_patients = Observation.objects.filter(
-            attribute__studies=source_study
+            attribute__study=source_study
         ).values_list("patient_id", flat=True).distinct()
 
         patient_count = len(list(source_patients))
@@ -1323,7 +1323,7 @@ def generate_eda_summary_from_observations(raw_data_file, study, is_transformed=
 
         # Now get transformed observations for target study, but ONLY for those patients
         query_filters = {
-            "attribute__studies": study,  # target study
+            "attribute__study": study,  # target study
             "patient_id__in": source_patients,  # same patients as source
         }
 

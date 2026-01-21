@@ -1,0 +1,65 @@
+{% comment %}
+Attribute card grid for combined export variable selection.
+Expects:
+- attributes: iterable of Attribute objects
+- field_name: form field name for the attribute checkboxes
+- selected_ids: list of selected attribute ids as strings
+- use_all: boolean indicating whether to disable explicit selection
+{% endcomment %}
+
+{% if not attributes %}
+  <div class="alert alert-light border text-muted mb-0">
+    Select a target study to load available variables.
+  </div>
+{% else %}
+  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div class="form-check mb-0">
+      <input type="hidden" name="use_all_attributes" value="off">
+      <input class="form-check-input" type="checkbox" id="attributes-all-toggle" name="use_all_attributes" value="on" {% if use_all %}checked{% endif %}>
+      <label class="form-check-label" for="attributes-all-toggle">Use all variables</label>
+      <div class="form-text">Turn off to pick individual variables below.</div>
+    </div>
+    <div class="text-muted small ms-auto">
+      Selected: <strong id="selected-count">{{ selected_ids|length }}</strong>
+    </div>
+  </div>
+
+  <div class="variables-grid">
+    {% for attr in attributes %}
+      <div class="variable-item" data-type="{{ attr.variable_type|default:'unknown'|lower }}" data-category="{{ attr.category|default:'unknown'|lower }}">
+        <div class="variable-header">
+          <div class="checkbox-container">
+            <input type="checkbox" class="variable-checkbox" name="{{ field_name }}" value="{{ attr.pk }}" {% if attr.pk|stringformat:'s' in selected_ids %}checked{% endif %} {% if use_all %}disabled{% endif %}>
+          </div>
+          <div class="variable-name">
+            <strong>{{ attr.display_name|default:attr.variable_name }}</strong>
+            {% if attr.display_name and attr.display_name != attr.variable_name %}
+              <br><small class="text-muted">{{ attr.variable_name }}</small>
+            {% endif %}
+          </div>
+          <div class="variable-actions">
+            <div class="variable-type">{{ attr.variable_type|default:"Unknown" }}</div>
+          </div>
+        </div>
+
+        <div class="variable-details">
+          <div class="variable-description">
+            {{ attr.description|default:"No description available" }}
+          </div>
+          <div class="variable-meta">
+            {% if attr.unit %}
+              <span class="variable-unit"><strong>Unit:</strong> {{ attr.unit }}</span>
+            {% endif %}
+            {% if attr.ontology_code %}
+              <span class="variable-ontology"><strong>Code:</strong> {{ attr.ontology_code }}</span>
+            {% endif %}
+            {% if attr.category %}
+              <span class="variable-category"><strong>Category:</strong> {{ attr.category }}</span>
+            {% endif %}
+            <span class="variable-type-detail"><strong>Type:</strong> {{ attr.variable_type|default:"Unknown" }}</span>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}

@@ -4,6 +4,7 @@
 
 {% block css %}
   {{ block.super }}
+  <meta name="csrf-token" content="{{ csrf_token }}" />
   <style>
     :root {
       --primary-color: #007AFF;
@@ -473,6 +474,9 @@
       <a href="{% url 'climate:data_export' climate_request.id %}" class="btn-climate btn-climate-success">
         Download Climate Data (CSV)
       </a>
+      <a href="{% url 'health:combined_export' %}?target_study={{ climate_request.study.id }}" class="btn-climate btn-climate-secondary">
+        Open Combined Export
+      </a>
     </div>
   </div>
   {% endif %}
@@ -490,17 +494,36 @@
         <button class="btn-climate btn-climate-success" id="process-request">
           Process Climate Request
         </button>
+        <button class="btn-climate btn-climate-warning" id="process-request-reset" title="Delete existing climate observations for this window and re-run">
+          Start From Scratch
+        </button>
         {% elif climate_request.status == 'processing' %}
         <button class="btn-climate btn-climate-warning" id="refresh-status">
           Refresh Status
+        </button>
+        <button class="btn-climate btn-climate-secondary" id="cancel-request">
+          Stop Processing
         </button>
         {% elif climate_request.status == 'completed' %}
         <a href="{% url 'climate:configure' climate_request.study.id %}" class="btn-climate">
           Create New Request
         </a>
+        <button class="btn-climate btn-climate-success" id="process-request-reset" data-force="true" title="Re-run and replace existing climate observations">
+          Re-run (Start From Scratch)
+        </button>
+        {% elif climate_request.status == 'cancelled' %}
+        <button class="btn-climate btn-climate-success" id="process-request" data-force="true">
+          Restart Processing
+        </button>
+        <button class="btn-climate btn-climate-warning" id="process-request-reset" data-force="true" title="Re-run and replace existing climate observations">
+          Restart From Scratch
+        </button>
         {% elif climate_request.status == 'failed' %}
         <button class="btn-climate btn-climate-warning" id="retry-processing">
           Retry Processing
+        </button>
+        <button class="btn-climate btn-climate-success" id="process-request-reset" data-force="true" title="Re-run and replace existing climate observations">
+          Retry From Scratch
         </button>
         {% endif %}
       </div>
@@ -509,15 +532,20 @@
 </div>
 
 <script>
-// Helper function to get CSRF token from cookie
-function getCookie(name) {
+// Helper: get CSRF token from meta tag, fallback to cookie
+function getCsrfToken() {
+  const meta = document.querySelector('meta[name="csrf-token"]');
+  if (meta && meta.content) {
+    return meta.content;
+  }
+
   let cookieValue = null;
   if (document.cookie && document.cookie !== '') {
     const cookies = document.cookie.split(';');
     for (let i = 0; i < cookies.length; i++) {
       const cookie = cookies[i].trim();
-      if (cookie.substring(0, name.length + 1) === (name + '=')) {
-        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+      if (cookie.substring(0, 10) === ('csrftoken=')) {
+        cookieValue = decodeURIComponent(cookie.substring(10));
         break;
       }
     }
@@ -530,16 +558,31 @@ document.addEventListener('DOMContentLoaded', function() {
   const processBtn = document.getElementById('process-request');
   if (processBtn) {
     processBtn.addEventListener('click', function() {
+      const original = processBtn.textContent;
       processBtn.textContent = 'Processing...';
       processBtn.disabled = true;
 
-      const csrftoken = getCookie('csrftoken');
+      const csrftoken = getCsrfToken();
+      if (!csrftoken || csrftoken.length < 32) {
+        alert('Missing or invalid CSRF token. Please refresh the page and try again.');
+        processBtn.textContent = 'Process Climate Request';
+        processBtn.disabled = false;
+        return;
+      }
+
+      const payload = {
+        force_restart: processBtn.dataset.force === 'true'
+      };
 
       fetch(`{% url 'climate:process_request_api' climate_request.id %}`, {
         method: 'POST',
         headers: {
           'X-CSRFToken': csrftoken,
+          'Content-Type': 'application/json'
         }
+        ,
+        credentials: 'same-origin',
+        body: JSON.stringify(payload)
       })
       .then(response => response.json())
       .then(data => {
@@ -548,15 +591,62 @@ document.addEventListener('DOMContentLoaded', function() {
           location.reload();
         } else {
           alert('Error: ' + (data.error || data.message));
-          processBtn.textContent = 'Process Climate Request';
+          processBtn.textContent = original;
           processBtn.disabled = false;
         }
       })
       .catch(error => {
         console.error('Error:', error);
         alert('An error occurred while processing the request');
-        processBtn.textContent = 'Process Climate Request';
+        processBtn.textContent = original;
         processBtn.disabled = false;
+      });
+    });
+  }
+
+  // Start-from-scratch / restart with reset_existing
+  const resetBtn = document.getElementById('process-request-reset');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', function() {
+      const original = resetBtn.textContent;
+      resetBtn.textContent = 'Starting...';
+      resetBtn.disabled = true;
+
+      const csrftoken = getCsrfToken();
+      if (!csrftoken || csrftoken.length < 32) {
+        alert('Missing or invalid CSRF token. Please refresh the page and try again.');
+        resetBtn.textContent = original;
+        resetBtn.disabled = false;
+        return;
+      }
+
+      const payload = {
+        reset_existing: true,
+        force_restart: resetBtn.dataset.force === 'true'
+      };
+
+      fetch(`{% url 'climate:process_request_api' climate_request.id %}`, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': csrftoken,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify(payload)
+      })
+      .then(async response => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          const message = data.error || data.message || 'An error occurred while restarting the request';
+          throw new Error(message);
+        }
+        location.reload();
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        alert(`Start-from-scratch failed: ${error.message || error}`);
+        resetBtn.textContent = original;
+        resetBtn.disabled = false;
       });
     });
   }
@@ -568,23 +658,76 @@ document.addEventListener('DOMContentLoaded', function() {
       retryBtn.textContent = 'Retrying...';
       retryBtn.disabled = true;
 
-      const csrftoken = getCookie('csrftoken');
+      const csrftoken = getCsrfToken();
+      if (!csrftoken || csrftoken.length < 32) {
+        alert('Missing or invalid CSRF token. Please refresh the page and try again.');
+        retryBtn.textContent = 'Retry Processing';
+        retryBtn.disabled = false;
+        return;
+      }
 
       fetch(`{% url 'climate:process_request_api' climate_request.id %}`, {
         method: 'POST',
         headers: {
           'X-CSRFToken': csrftoken,
         }
+        ,
+        credentials: 'same-origin',
       })
-      .then(response => response.json())
-      .then(data => {
+      .then(async response => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          const message = data.error || data.message || 'An error occurred while retrying the request';
+          throw new Error(message);
+        }
+        // Successful start or completion; reload to show updated status
         location.reload();
       })
       .catch(error => {
         console.error('Error:', error);
-        alert('An error occurred while retrying the request');
+        alert(`Retry failed: ${error.message || error}`);
         retryBtn.textContent = 'Retry Processing';
         retryBtn.disabled = false;
+      });
+    });
+  }
+
+  // Cancel/stop processing
+  const cancelBtn = document.getElementById('cancel-request');
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', function() {
+      const original = cancelBtn.textContent;
+      cancelBtn.textContent = 'Stopping...';
+      cancelBtn.disabled = true;
+
+      const csrftoken = getCsrfToken();
+      if (!csrftoken || csrftoken.length < 32) {
+        alert('Missing or invalid CSRF token. Please refresh the page and try again.');
+        cancelBtn.textContent = original;
+        cancelBtn.disabled = false;
+        return;
+      }
+
+      fetch(`{% url 'climate:cancel_request_api' climate_request.id %}`, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': csrftoken,
+        },
+        credentials: 'same-origin',
+      })
+      .then(async response => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          const message = data.error || data.message || 'An error occurred while stopping the request';
+          throw new Error(message);
+        }
+        location.reload();
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        alert(`Stop failed: ${error.message || error}`);
+        cancelBtn.textContent = original;
+        cancelBtn.disabled = false;
       });
     });
   }

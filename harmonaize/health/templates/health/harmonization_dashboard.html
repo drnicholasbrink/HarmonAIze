@@ -2724,11 +2724,14 @@ function validateAllMappings() {
     // This could check for required fields, validate transforms, etc. TO DO
     const incompleteVariables = document.querySelectorAll('.variable-card.incomplete').length;
     
-    if (incompleteVariables > 0) {
-        alert(`There are ${incompleteVariables} variables that still need mapping before validation.`);
-    } else {
-        alert('All variables are mapped! You can now proceed to approval.');
-    }
+  if (incompleteVariables > 0) {
+    alert(`There are ${incompleteVariables} variables that still need mapping before validation.`);
+  } else {
+    alert('All variables are mapped! You can now proceed to approval.');
+  }
+
+  // Always refresh so the approval button reflects current state
+  window.location.reload();
 }
 
 function showErrorNotification(message) {

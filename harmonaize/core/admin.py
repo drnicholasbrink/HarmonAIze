@@ -61,9 +61,9 @@ class TimeDimensionAdmin(admin.ModelAdmin):
 
 @admin.register(Attribute)
 class AttributeAdmin(admin.ModelAdmin):
-    list_display = ['variable_name', 'display_name', 'variable_type', 'category', 'embeddings_status_display', 'created_at']
-    list_filter = ['variable_type', 'category', 'source_type']
-    search_fields = ['variable_name', 'display_name', 'description']
+    list_display = ['variable_name', 'display_name', 'variable_type', 'category', 'study', 'embeddings_status_display', 'created_at']
+    list_filter = ['variable_type', 'category', 'source_type', 'study']
+    search_fields = ['variable_name', 'display_name', 'description', 'study__name']
     readonly_fields = ['created_at', 'updated_at', 'embeddings_status', 'has_name_embedding', 'has_description_embedding']
     actions = ['generate_embeddings']
     
@@ -72,7 +72,7 @@ class AttributeAdmin(admin.ModelAdmin):
             'fields': ('variable_name', 'display_name', 'description', 'unit', 'ontology_code')
         }),
         ('Classification', {
-            'fields': ('variable_type', 'category', 'source_type')
+            'fields': ('variable_type', 'category', 'source_type', 'study')
         }),
         ('Embeddings', {
             'fields': ('embeddings_status', 'has_name_embedding', 'has_description_embedding'),

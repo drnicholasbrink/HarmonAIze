@@ -196,6 +196,24 @@ class StudyDetailView(LoginRequiredMixin, DetailView):
 
 
 @login_required
+def toggle_climate_linkage(request, pk):
+    """Allow study owners to toggle the climate linkage flag from the study detail page."""
+    study = get_object_or_404(Study, pk=pk, created_by=request.user)
+    if request.method != "POST":
+        return redirect("core:study_detail", pk=study.pk)
+
+    new_value = bool(request.POST.get("needs_climate_linkage"))
+    study.needs_climate_linkage = new_value
+    study.save(update_fields=["needs_climate_linkage", "updated_at"] if hasattr(study, "updated_at") else ["needs_climate_linkage"])
+
+    messages.success(
+        request,
+        "Climate linkage {} for this study.".format("enabled" if new_value else "disabled"),
+    )
+    return redirect("core:study_detail", pk=study.pk)
+
+
+@login_required
 def study_dashboard(request):
     """
     Main dashboard showing user's studies and quick actions.
@@ -462,6 +480,7 @@ def target_select_variables(request, study_id):
                         attribute, created = Attribute.objects.get_or_create(
                             variable_name=var_data['variable_name'],
                             source_type='target',  # Explicitly set source_type for target variables
+                            study=study,
                             defaults={
                                 'display_name': var_data.get('display_name', var_data['variable_name']),
                                 'description': var_data.get('description', ''),

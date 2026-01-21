@@ -689,6 +689,29 @@
           <div class="action-title">View Data Files</div>
           <div class="action-description">Manage your uploaded raw data files</div>
         </a>
+
+        <a href="{% url 'climate:dashboard' %}" class="action-btn">
+          <span class="action-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 16a9 9 0 0 1 18 0"></path>
+              <path d="M5 16a7 7 0 0 1 14 0"></path>
+              <path d="M9 16a3 3 0 0 1 6 0"></path>
+            </svg>
+          </span>
+          <div class="action-title">Climate Module</div>
+          <div class="action-description">Request and review climate data</div>
+        </a>
+
+        <a href="{% url 'geolocation:dashboard_root' %}" class="action-btn">
+          <span class="action-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 21s6-4.35 6-10a6 6 0 0 0-12 0c0 5.65 6 10 6 10z"></path>
+              <circle cx="12" cy="11" r="2"></circle>
+            </svg>
+          </span>
+          <div class="action-title">Geolocation Module</div>
+          <div class="action-description">Validate and manage locations</div>
+        </a>
         
         <a href="#" class="action-btn" onclick="showUpcomingFeature('Documentation'); return false;">
           <span class="action-icon">
@@ -769,7 +792,6 @@
           </li>
         {% endfor %}
       </ul>
-      
       {% if total_projects > 3 %}
         <div style="text-align: center; margin-top: 1.5rem;">
           <a href="{% url 'core:project_list' %}" class="btn btn-outline">

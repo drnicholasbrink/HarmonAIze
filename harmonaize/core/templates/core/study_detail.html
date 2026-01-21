@@ -777,6 +777,15 @@
           <div class="empty-state">No specific characteristics selected</div>
         {% endif %}
       </div>
+      <form method="post" action="{% url 'core:study_toggle_climate' pk=study.id %}" style="margin-top: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+        {% csrf_token %}
+        <input type="hidden" name="needs_climate_linkage" value="">
+        <div class="form-check" style="margin: 0;">
+          <input class="form-check-input" type="checkbox" id="toggle-climate-linkage" name="needs_climate_linkage" value="on" {% if study.needs_climate_linkage %}checked{% endif %}>
+          <label class="form-check-label" for="toggle-climate-linkage">Mark this study as needing climate linkage</label>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm" style="margin-left: auto;">Update</button>
+      </form>
     </div>
 
     <!-- Legal & Ethical Information -->
@@ -1369,6 +1378,12 @@
       <a href="{% url 'core:study_list' %}" class="btn btn-secondary">
         ← Back to Studies
       </a>
+
+      {% if study.study_purpose == 'target' %}
+      <a href="{% url 'health:combined_export' %}?target_study={{ study.id }}" class="btn btn-primary">
+        {% include 'components/svg_icon.html' with icon='download' size='16' class='inline-icon' %} Combined Export
+      </a>
+      {% endif %}
       
       <!-- Delete Study Button -->
       <button class="btn btn-danger" onclick="showDeleteModal()" style="margin-left: auto;">

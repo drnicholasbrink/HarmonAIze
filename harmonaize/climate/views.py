@@ -57,7 +57,7 @@ def climate_dashboard_view(request):
     }
     
     context = {
-        'studies_needing_climate': studies_needing_climate[:5],
+        'studies_needing_climate': studies_needing_climate,
         'recent_requests': recent_requests,
         'stats': stats,
         'available_sources': ClimateDataSource.objects.filter(is_active=True)[:3],
@@ -84,7 +84,7 @@ def climate_configuration_view(request, study_id):
     
     # Check for existing locations
     study_locations = Location.objects.filter(
-        observations__attribute__studies=study
+        observations__attribute__study=study
     ).distinct()
     
     if not study_locations.exists():
@@ -96,7 +96,7 @@ def climate_configuration_view(request, study_id):
         return redirect('core:study_detail', pk=study.pk)
     
     obs_date_bounds = Observation.objects.filter(
-        attribute__studies=study,
+        attribute__study=study,
         location__in=study_locations
     ).aggregate(min_date=Min('time__timestamp'), max_date=Max('time__timestamp'))
 
@@ -116,8 +116,19 @@ def climate_configuration_view(request, study_id):
 
             # Trigger processing (async if Celery available, sync otherwise)
             try:
-                from .tasks import process_climate_data_request
-                task = process_climate_data_request.delay(climate_request.pk)
+                from .tasks import process_climate_data_request, calculate_time_limits_for_request
+
+                time_limits = calculate_time_limits_for_request(climate_request.pk)
+                # Persist chosen limits for traceability
+                climate_request.configuration = climate_request.configuration or {}
+                climate_request.configuration["task_time_limits"] = time_limits
+                climate_request.configuration.pop("effective_time_limits", None)
+                climate_request.save(update_fields=["configuration"])
+
+                task = process_climate_data_request.apply_async(
+                    args=[climate_request.pk],
+                    **time_limits,
+                )
                 messages.success(
                     request,
                     f"Climate data request created successfully. "
@@ -155,6 +166,33 @@ def climate_configuration_view(request, study_id):
     return render(request, 'climate/configure.html', context)
 
 
+@login_required
+def delete_climate_data_view(request, study_id):
+    """Delete all climate observations (and related cache) for a study."""
+    if request.method != 'POST':
+        return redirect('climate:configure', study_id=study_id)
+
+    study = get_object_or_404(Study, pk=study_id, created_by=request.user)
+
+    climate_attributes = Attribute.objects.filter(category='climate', study=study)
+    study_locations = Location.objects.filter(observations__attribute__study=study).distinct()
+
+    deleted_obs, _ = Observation.objects.filter(
+        attribute__in=climate_attributes,
+        location__in=study_locations,
+    ).delete()
+
+    # Clear caches for any of the study locations
+    ClimateDataCache.objects.filter(location__in=study_locations).delete()
+
+    messages.success(
+        request,
+        f"Deleted {deleted_obs} climate observations for this study."
+    )
+
+    return redirect('climate:configure', study_id=study_id)
+
+
 class ClimateRequestListView(LoginRequiredMixin, ListView):
     """List view for climate data requests."""
     model = ClimateDataRequest
@@ -185,18 +223,16 @@ class ClimateRequestDetailView(LoginRequiredMixin, DetailView):
         # Get observations created by this request
         climate_attributes = Attribute.objects.filter(
             category='climate',
-            variable_name__in=[f"climate_{v.name}" for v in self.object.variables.all()]
+            variable_name__in=[f"climate_{v.name}" for v in self.object.variables.all()],
+            studies=self.object.study,
         )
-        
+
+        # Count all climate observations for the study's locations and variables.
+        # We intentionally avoid filtering by the original request window because
+        # per-location windows can extend beyond it when lags are applied.
         context['observation_count'] = Observation.objects.filter(
             attribute__in=climate_attributes,
             location__in=self.object.locations.all(),
-            time__timestamp__gte=timezone.make_aware(
-                datetime.combine(self.object.start_date, datetime.min.time())
-            ),
-            time__timestamp__lte=timezone.make_aware(
-                datetime.combine(self.object.end_date, datetime.min.time())
-            )
         ).count()
         
         return context
@@ -214,21 +250,28 @@ def climate_data_export_view(request, request_id):
         status='completed'
     )
     
-    # Get climate observations
+    # Get climate observations scoped to this request (variables + locations)
     climate_attributes = Attribute.objects.filter(
         category='climate',
-        variable_name__in=[f"climate_{v.name}" for v in climate_request.variables.all()]
+        variable_name__in=[f"climate_{v.name}" for v in climate_request.variables.all()],
+        studies=climate_request.study,
     )
-    
+
+    # Align export window with the fetch window: request.start_date minus lag to request.end_date
+    cfg = climate_request.configuration or {}
+    lag_value = cfg.get('lag_value') or 0
+    lag_unit = cfg.get('lag_unit') or 'days'
+    unit_days = {'days': 1, 'weeks': 7, 'months': 30, 'years': 365}.get(lag_unit, 1)
+    lag_span_days = max(int(lag_value) * unit_days, 0)
+
+    export_start = climate_request.start_date - timezone.timedelta(days=lag_span_days)
+    export_end = climate_request.end_date
+
     observations = Observation.objects.filter(
         attribute__in=climate_attributes,
         location__in=climate_request.locations.all(),
-        time__timestamp__gte=timezone.make_aware(
-            datetime.combine(climate_request.start_date, datetime.min.time())
-        ),
-        time__timestamp__lte=timezone.make_aware(
-            datetime.combine(climate_request.end_date, datetime.min.time())
-        )
+        time__timestamp__date__gte=export_start,
+        time__timestamp__date__lte=export_end,
     ).select_related('location', 'attribute', 'time').order_by('time__timestamp', 'location')
     
     # Create CSV response
@@ -387,18 +430,64 @@ def process_climate_request_api(request, request_id):
             study__created_by=request.user
         )
 
-        # Check if already processing or completed
-        if climate_request.status in ['processing', 'completed']:
+        payload = {}
+        if request.body:
+            try:
+                payload = json.loads(request.body.decode('utf-8'))
+            except Exception:
+                payload = {}
+
+        reset_existing = payload.get('reset_existing') or request.POST.get('reset_existing') in ['true', 'True', '1']
+        force_restart = payload.get('force_restart') or request.POST.get('force_restart') in ['true', 'True', '1']
+        if reset_existing:
+            climate_request.reset_existing = True
+        else:
+            # If caller explicitly passed false, keep existing value otherwise leave as-is
+            if payload.get('reset_existing') is False or request.POST.get('reset_existing') == 'false':
+                climate_request.reset_existing = False
+        climate_request.save(update_fields=['reset_existing'])
+
+        # Check if already processing
+        if climate_request.status == 'processing':
             return JsonResponse({
                 'status': climate_request.status,
-                'message': f'Request is already {climate_request.status}',
+                'message': f'Request is already processing',
                 'request_id': request_id
             })
 
+        if climate_request.status == 'completed' and not force_restart:
+            return JsonResponse({
+                'status': climate_request.status,
+                'message': 'Request already completed; pass force_restart to re-run',
+                'request_id': request_id,
+            })
+
+        # Reset state so a failed/stale request can be retried cleanly
+        climate_request.status = 'pending'
+        climate_request.error_message = ''
+        climate_request.processed_locations = 0
+        climate_request.total_observations = 0
+        climate_request.started_at = None
+        climate_request.completed_at = None
+        climate_request.save(update_fields=[
+            'status', 'error_message', 'processed_locations',
+            'total_observations', 'started_at', 'completed_at'
+        ])
+
         # Try to use Celery for async processing, fall back to synchronous if not available
         try:
-            from .tasks import process_climate_data_request
-            task = process_climate_data_request.delay(request_id)
+            from .tasks import process_climate_data_request, calculate_time_limits_for_request
+
+            time_limits = calculate_time_limits_for_request(request_id)
+            climate_request.configuration = climate_request.configuration or {}
+            climate_request.configuration["task_time_limits"] = time_limits
+            climate_request.configuration.pop("effective_time_limits", None)
+            climate_request.save(update_fields=["configuration"])
+
+            task = process_climate_data_request.apply_async(
+                args=[request_id],
+                **time_limits,
+            )
 
             return JsonResponse({
                 'status': 'started',
@@ -497,6 +586,54 @@ def climate_request_status_api(request, request_id):
             'error_message': climate_request.error_message,
             'started_at': climate_request.started_at.isoformat() if climate_request.started_at else None,
             'completed_at': climate_request.completed_at.isoformat() if climate_request.completed_at else None,
+        })
+
+    except ClimateDataRequest.DoesNotExist:
+        return JsonResponse({'error': 'Climate request not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+def cancel_climate_request_api(request, request_id):
+    """
+    API endpoint to cancel an in-flight climate data request.
+    Attempts to revoke Celery task if available and marks the request as cancelled.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST request required'}, status=405)
+
+    try:
+        climate_request = ClimateDataRequest.objects.get(
+            pk=request_id,
+            study__created_by=request.user
+        )
+
+        if climate_request.status not in ['processing', 'pending']:
+            return JsonResponse({
+                'status': climate_request.status,
+                'message': 'Request is not running',
+                'request_id': request_id,
+            })
+
+        # Attempt to revoke Celery task if we have the ID
+        task_id = (climate_request.configuration or {}).get('celery_task_id')
+        if task_id:
+            try:
+                from celery import current_app
+                current_app.control.revoke(task_id, terminate=True)
+            except Exception:
+                pass
+
+        climate_request.status = 'cancelled'
+        climate_request.error_message = 'Cancelled by user'
+        climate_request.completed_at = timezone.now()
+        climate_request.save(update_fields=['status', 'error_message', 'completed_at'])
+
+        return JsonResponse({
+            'status': 'cancelled',
+            'message': 'Climate request cancelled',
+            'request_id': request_id,
         })
 
     except ClimateDataRequest.DoesNotExist:

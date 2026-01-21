@@ -168,6 +168,14 @@ class Attribute(models.Model):
         ],
         default='source',
     )
+    study = models.ForeignKey(
+        'Study', 
+        on_delete=models.CASCADE, 
+        related_name='attributes',
+        null=True, 
+        blank=True,
+        help_text="Study that defined this attribute"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -265,8 +273,8 @@ class Attribute(models.Model):
             return "Pending"
             
     class Meta:
-        # Ensure unique variable names within each source type
-        unique_together = ('variable_name', 'source_type')
+        # Ensure unique variable names within each source type per study
+        unique_together = ('variable_name', 'source_type', 'study')
 
 class Observation(models.Model):
     """

@@ -44,6 +44,7 @@ class MappingSchemaForm(forms.ModelForm):
             "target_study",
             "universal_patient_id",
             "universal_datetime",
+            "universal_location",
             "universal_relation_type",
             "comments",
         ]
@@ -71,8 +72,10 @@ class MappingSchemaForm(forms.ModelForm):
         source_attrs = source_study.variables.all().order_by("variable_name")
         self.fields["universal_patient_id"].queryset = source_attrs
         self.fields["universal_datetime"].queryset = source_attrs
+        self.fields["universal_location"].queryset = source_attrs
         self.fields["universal_patient_id"].required = False
         self.fields["universal_datetime"].required = False
+        self.fields["universal_location"].required = False
         # Patient / datetime assignment handled per-rule
 
 
@@ -101,6 +104,7 @@ class MappingRuleForm(forms.ModelForm):
             "patient_id_attribute",
             "datetime_attribute",
             "related_relation_type",
+            "location_attribute",
             "target_attribute",
             "transform_code",
             "comments",
@@ -172,6 +176,15 @@ class MappingRuleForm(forms.ModelForm):
             "Override universal datetime setting for this specific mapping"
         )
 
+        self.fields["location_attribute"].queryset = src_qs
+        self.fields["location_attribute"].required = False
+        self.fields["location_attribute"].empty_label = (
+            "Use universal setting (recommended)"
+        )
+        self.fields["location_attribute"].help_text = (
+            "Override universal location setting for this specific mapping"
+        )
+
         # Relation type for related patient mappings
         self.fields["related_relation_type"].required = False
         self.fields["related_relation_type"].empty_label = (
@@ -207,6 +220,14 @@ class MappingRuleForm(forms.ModelForm):
                     schema.universal_relation_type
                 )
 
+            if (
+                schema.universal_location
+                and not getattr(self.instance, "location_attribute_id", None)
+            ):
+                self.fields["location_attribute"].initial = (
+                    schema.universal_location
+                )
+
         # Help text for better UX
         self.fields["not_mappable"].help_text = (
             "Check if this variable cannot be mapped to any target variable"
@@ -218,6 +239,7 @@ class MappingRuleForm(forms.ModelForm):
             "Value: Standard mapping to target variable | "
             "Patient ID: Use as patient identifier | "
             "Date/Time: Use as timestamp | "
+            "Location: Use as location name | "
             "Related Patient ID: For family/related person data"
         )
         self.fields["target_attribute"].help_text = (
@@ -260,6 +282,11 @@ class RawDataUploadForm(forms.ModelForm):
         widget=forms.Select(attrs={'class': 'form-control'}),
         help_text="Select the variable from your codebook that contains dates or timestamps"
     )
+    location_column = forms.ChoiceField(
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        help_text="Select the variable from your codebook that contains location names"
+    )
     
     class Meta:
         model = RawDataFile
@@ -285,13 +312,15 @@ class RawDataUploadForm(forms.ModelForm):
             study_purpose='source'
         ).order_by('name')
         
-        # Set up patient ID and date column choices based on selected study
+        # Set up patient ID, date, and location column choices based on selected study
         self.fields['patient_id_column'].choices = [('', 'Select participant ID variable...')]
         self.fields['date_column'].choices = [('', 'Select date/time variable...')]
+        self.fields['location_column'].choices = [('', 'Select location variable (optional)...')]
         
         # Update field labels
         self.fields['patient_id_column'].label = "Participant ID Variable"
         self.fields['date_column'].label = "Date/Time Variable"
+        self.fields['location_column'].label = "Location Variable"
         
         # If study is already selected (e.g., from initial data or GET parameter)
         if 'study' in self.data:
@@ -311,6 +340,40 @@ class RawDataUploadForm(forms.ModelForm):
                 self.initial['patient_id_column'] = self.instance.patient_id_column
             if self.instance.date_column:
                 self.initial['date_column'] = self.instance.date_column
+            if self.instance.location_column:
+                self.initial['location_column'] = self.instance.location_column
+        elif self.initial.get('study'):
+            # If an initial study is provided (e.g., preselected in the view) and no form data posted yet
+            try:
+                study = Study.objects.get(pk=self.initial['study'])
+                self._update_column_choices(study)
+                self._prefill_location_column(study)
+            except (ValueError, TypeError, Study.DoesNotExist):
+                pass
+
+    def _prefill_location_column(self, study):
+        """Best-effort prefill for location when there is a clear single candidate.
+
+        This is intentionally conservative: we only auto-select when exactly one
+        study variable looks like a location name field. Users can change it anytime.
+        """
+        if self.initial.get('location_column'):
+            return
+
+        candidates = study.variables.filter(variable_type__in=['string', 'categorical'])
+        preferred_names = {
+            'location', 'site', 'facility', 'clinic', 'hospital', 'center',
+            'centre', 'city', 'country', 'region', 'state', 'province'
+        }
+
+        matching = [
+            var.variable_name
+            for var in candidates
+            if var.variable_name and var.variable_name.strip().lower() in preferred_names
+        ]
+
+        if len(matching) == 1:
+            self.initial['location_column'] = matching[0]
     
     def _update_column_choices(self, study):
         """Update the column choice fields based on the selected study."""
@@ -335,6 +398,17 @@ class RawDataUploadForm(forms.ModelForm):
             for var in date_variables
         ])
         self.fields['date_column'].choices = date_choices
+
+        # Locations can generally be string/categorical
+        location_variables = study.variables.filter(
+            variable_type__in=['string', 'categorical']
+        )
+        location_choices = [('', 'Select location variable (optional)...')]
+        location_choices.extend([
+            (var.variable_name, f"{var.display_name or var.variable_name} ({var.variable_name})")
+            for var in location_variables
+        ])
+        self.fields['location_column'].choices = location_choices
     
     def clean_file(self):
         file = self.cleaned_data.get('file')
@@ -360,6 +434,7 @@ class RawDataUploadForm(forms.ModelForm):
         file = cleaned_data.get('file')
         patient_id_column = cleaned_data.get('patient_id_column')
         date_column = cleaned_data.get('date_column')
+        location_column = cleaned_data.get('location_column')
         
         if study and file:
             # Validate that the selected columns are actually part of the study
@@ -373,6 +448,11 @@ class RawDataUploadForm(forms.ModelForm):
             if date_column and date_column not in study_variable_names:
                 raise ValidationError({
                     'date_column': 'Selected date variable is not part of this study\'s codebook.'
+                })
+
+            if location_column and location_column not in study_variable_names:
+                raise ValidationError({
+                    'location_column': 'Selected location variable is not part of this study\'s codebook.'
                 })
             
             # Validate file content against codebook
@@ -399,6 +479,7 @@ class RawDataUploadForm(forms.ModelForm):
         # Set patient_id_column and date_column from the form data
         instance.patient_id_column = self.cleaned_data.get('patient_id_column', '')
         instance.date_column = self.cleaned_data.get('date_column', '')
+        instance.location_column = self.cleaned_data.get('location_column', '')
         
         if commit:
             instance.save()
@@ -461,4 +542,137 @@ class ExportDataForm(forms.Form):
                 "export_type",
                 "Harmonised export is not available for this file yet.",
             )
+        return cleaned
+
+
+class CombinedExportForm(forms.Form):
+    """Select studies, variables, and format for combined (harmonised) export."""
+
+    CATEGORY_CHOICES = (
+        ("health", "Health"),
+        ("geolocation", "Geolocation"),
+        ("climate", "Climate"),
+    )
+
+    FORMAT_CHOICES = (
+        ("long", "Long format"),
+        ("wide", "Wide format"),
+    )
+
+    max_lag_days = forms.IntegerField(
+        required=False,
+        min_value=0,
+        initial=0,
+        label="Max lag",
+        help_text=(
+            "Maximum lag to include for climate variables (inclusive of 0). "
+            "Units follow the climate request (days/weeks/months/years); re-request climate data with a larger lag if you need more history."
+        ),
+    )
+
+    target_study = forms.ModelChoiceField(
+        queryset=Study.objects.none(),
+        required=True,
+        label="Target study",
+        help_text="Transformed (harmonised) study to export from.",
+    )
+
+    source_studies = forms.ModelMultipleChoiceField(
+        queryset=Study.objects.none(),
+        required=False,
+        label="Source studies",
+        help_text=(
+            "Filter to observations produced from these source studies. "
+            "Only source studies mapped into the selected target appear here."
+        ),
+    )
+
+    categories = forms.MultipleChoiceField(
+        choices=CATEGORY_CHOICES,
+        required=True,
+        initial=[c for c, _ in CATEGORY_CHOICES],
+        widget=forms.CheckboxSelectMultiple,
+        label="Variable categories",
+    )
+
+    attributes = forms.ModelMultipleChoiceField(
+        queryset=Attribute.objects.none(),
+        required=False,
+        label="Specific variables (optional)",
+        help_text="Leave empty to include all variables in the selected categories.",
+        widget=forms.SelectMultiple(attrs={"size": 12}),
+    )
+
+    export_format = forms.ChoiceField(
+        choices=FORMAT_CHOICES,
+        initial="long",
+        required=True,
+        label="Export format",
+        widget=forms.RadioSelect,
+    )
+
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop("user", None)
+        super().__init__(*args, **kwargs)
+
+        base_target_qs = Study.objects.filter(study_purpose="target")
+        if user and user.is_authenticated:
+            base_target_qs = base_target_qs.filter(created_by=user)
+        self.fields["target_study"].queryset = base_target_qs.order_by("name")
+
+        target_study = self.initial.get("target_study") or self.data.get("target_study")
+        if target_study:
+            try:
+                target_obj = base_target_qs.get(pk=target_study)
+            except Exception:
+                target_obj = None
+        else:
+            target_obj = None
+
+        source_qs = Study.objects.filter(study_purpose="source")
+        if user and user.is_authenticated:
+            source_qs = source_qs.filter(created_by=user)
+        if target_obj:
+            source_qs = source_qs.filter(source_mappings__target_study=target_obj).distinct()
+        self.fields["source_studies"].queryset = source_qs.order_by("name")
+
+        if target_obj:
+            self.fields["attributes"].queryset = (
+                Attribute.objects.filter(studies=target_obj)
+                .order_by("category", "display_name", "variable_name")
+            )
+        else:
+            self.fields["attributes"].queryset = Attribute.objects.none()
+
+    def clean_categories(self):
+        categories = self.cleaned_data.get("categories") or []
+        if not categories:
+            raise forms.ValidationError("Select at least one category to export.")
+        return categories
+
+    def clean(self):
+        cleaned = super().clean()
+        target = cleaned.get("target_study")
+        source_studies = cleaned.get("source_studies")
+        attrs = cleaned.get("attributes")
+
+        if attrs and target:
+            # Ensure selected attributes belong to the target study
+            invalid = attrs.exclude(studies=target)
+            if invalid.exists():
+                raise forms.ValidationError(
+                    "All selected variables must belong to the target study."
+                )
+
+        # Ensure selected source studies are actually mapped to the target
+        if source_studies and target:
+            allowed = Study.objects.filter(
+                pk__in=source_studies.values_list("pk", flat=True),
+                source_mappings__target_study=target,
+            )
+            if allowed.count() != source_studies.count():
+                raise forms.ValidationError(
+                    "All chosen source studies must be mapped into the target study."
+                )
+
         return cleaned
