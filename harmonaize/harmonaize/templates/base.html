@@ -114,7 +114,8 @@
       </div>
     </nav>
   </div>
-  <div class="container">
+  <div class="{% block container_class %}container-fluid{% endblock container_class %}">
+    {# Override container_class with 'container' for fixed width or empty string for custom layout #}
     {% if messages %}
       <div id="notification-container" class="notification-container">
         {% for message in messages %}
