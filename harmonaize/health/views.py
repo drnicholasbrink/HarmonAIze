@@ -265,10 +265,10 @@ def _outcome_wide_stream(
 
     header = [
         "patient_id",
-        "outcome_attribute",
-        "outcome_value",
-        "outcome_datetime",
-        "outcome_location_name",
+        "attribute_name",
+        "attribute_value",
+        "attribute_datetime",
+        "attribute_location_name",
     ] + [col[1] for col in location_columns] + ["climate_lag_unit"] + [col[3] for col in climate_columns] + ["exported_at"]
 
     buffer = io.StringIO()
@@ -1890,7 +1890,7 @@ def combined_export(request):
         location_attrs = [a for a in attributes if a.category == "geolocation"]
 
         if not outcome_attrs:
-            messages.error(request, "No outcome (health value) attributes found for this target study.")
+            messages.error(request, "No health attributes found for this target study.")
             return redirect("health:combined_export")
 
         export_ts = timezone.now()
@@ -2232,7 +2232,10 @@ def combined_export_attributes(request):
     attrs = attrs_qs.order_by("category", "display_name", "variable_name")
 
     selected_ids = request.GET.getlist("attributes")
-    use_all_flag = request.GET.get("use_all_attributes", "on") != "off"
+    if selected_ids:
+        use_all_flag = False
+    else:
+        use_all_flag = request.GET.get("use_all_attributes", "on") != "off"
 
     return render(
         request,
