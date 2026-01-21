@@ -1,7 +1,16 @@
 from django import forms
 from django.core.exceptions import ValidationError
-from .models import Study, Attribute, Project
+from .models import Study, Attribute, Project, ProjectMembership, ProjectInvitation
 
+class ProjectInvitationForm(forms.Form):
+    email = forms.EmailField(
+        label="Email Address",
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter email address'})
+    )
+    role = forms.ChoiceField(
+        choices=ProjectMembership.ROLE_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
 
 class StudyCreationForm(forms.ModelForm):
     """
@@ -130,7 +139,7 @@ class StudyCreationForm(forms.ModelForm):
         
         # Filter projects by user
         if self.user:
-            self.fields['project'].queryset = Project.objects.filter(created_by=self.user)
+            self.fields['project'].queryset = Project.objects.filter(members=self.user)
         
         # Make data use permissions field render properly
         if 'data_use_permissions' in self.initial and self.initial['data_use_permissions']:

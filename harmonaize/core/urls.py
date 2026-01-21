@@ -12,6 +12,12 @@ urlpatterns = [
     path('projects/create/', views.create_project, name='create_project'),
     path('projects/<int:pk>/', views.ProjectDetailView.as_view(), name='project_detail'),
     
+    # Project Membership
+    path('projects/<int:pk>/members/', views.project_members, name='project_members'),
+    path('projects/<int:pk>/invite/', views.invite_member, name='invite_member'),
+    path('projects/<int:project_id>/members/<int:member_id>/remove/', views.remove_member, name='remove_member'),
+    path('invite/accept/<str:key>/', views.accept_invite, name='accept_invite'),
+    
     # Study workflow - simple upload and view
     path('upload/', views.upload_study, name='upload'),
     path('studies/', views.StudyListView.as_view(), name='study_list'),

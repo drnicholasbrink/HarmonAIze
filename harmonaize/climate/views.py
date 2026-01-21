@@ -32,14 +32,14 @@ def climate_dashboard_view(request):
     """
     # Get user's studies that need climate linkage
     studies_needing_climate = Study.objects.filter(
-        created_by=request.user,
+        project__members=request.user,
         needs_climate_linkage=True
-    )
+    ).distinct()
     
     # Get recent climate requests
     recent_requests = ClimateDataRequest.objects.filter(
-        study__created_by=request.user
-    ).select_related('study', 'data_source').order_by('-requested_at')[:5]
+        study__project__members=request.user
+    ).distinct().select_related('study', 'data_source').order_by('-requested_at')[:5]
     
     # Get climate statistics
     stats = {
@@ -47,13 +47,13 @@ def climate_dashboard_view(request):
         'total_variables': ClimateVariable.objects.count(),
         'studies_with_climate': studies_needing_climate.count(),
         'pending_requests': ClimateDataRequest.objects.filter(
-            study__created_by=request.user,
+            study__project__members=request.user,
             status='pending'
-        ).count(),
+        ).distinct().count(),
         'completed_requests': ClimateDataRequest.objects.filter(
-            study__created_by=request.user,
+            study__project__members=request.user,
             status='completed'
-        ).count(),
+        ).distinct().count(),
     }
     
     context = {
@@ -71,7 +71,7 @@ def climate_configuration_view(request, study_id):
     """
     Configure climate data retrieval for a study.
     """
-    study = get_object_or_404(Study, pk=study_id, created_by=request.user)
+    study = get_object_or_404(Study, pk=study_id, project__members=request.user)
     
     # Check if study has climate linkage enabled
     if not study.needs_climate_linkage:
@@ -172,7 +172,7 @@ def delete_climate_data_view(request, study_id):
     if request.method != 'POST':
         return redirect('climate:configure', study_id=study_id)
 
-    study = get_object_or_404(Study, pk=study_id, created_by=request.user)
+    study = get_object_or_404(Study, pk=study_id, project__members=request.user)
 
     climate_attributes = Attribute.objects.filter(category='climate', study=study)
     study_locations = Location.objects.filter(observations__attribute__study=study).distinct()
@@ -202,8 +202,8 @@ class ClimateRequestListView(LoginRequiredMixin, ListView):
     
     def get_queryset(self):
         return ClimateDataRequest.objects.filter(
-            study__created_by=self.request.user
-        ).select_related('study', 'data_source').prefetch_related('variables')
+            study__project__members=self.request.user
+        ).distinct().select_related('study', 'data_source').prefetch_related('variables')
 
 
 class ClimateRequestDetailView(LoginRequiredMixin, DetailView):
@@ -214,8 +214,8 @@ class ClimateRequestDetailView(LoginRequiredMixin, DetailView):
     
     def get_queryset(self):
         return ClimateDataRequest.objects.filter(
-            study__created_by=self.request.user
-        ).select_related('study', 'data_source').prefetch_related('variables', 'locations')
+            study__project__members=self.request.user
+        ).distinct().select_related('study', 'data_source').prefetch_related('variables', 'locations')
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -246,7 +246,7 @@ def climate_data_export_view(request, request_id):
     climate_request = get_object_or_404(
         ClimateDataRequest,
         pk=request_id,
-        study__created_by=request.user,
+        study__project__members=request.user,
         status='completed'
     )
     
@@ -393,10 +393,10 @@ def request_status_partial(request, request_id):
     HTMX partial: Return climate request status for polling.
     """
     try:
-        climate_request = ClimateDataRequest.objects.get(
+        climate_request = ClimateDataRequest.objects.filter(
             pk=request_id,
-            study__created_by=request.user
-        )
+            study__project__members=request.user
+        ).distinct().get()
 
         # Calculate progress percentage
         if climate_request.total_locations > 0:
@@ -425,10 +425,10 @@ def process_climate_request_api(request, request_id):
         return JsonResponse({'error': 'POST request required'}, status=405)
 
     try:
-        climate_request = ClimateDataRequest.objects.get(
+        climate_request = ClimateDataRequest.objects.filter(
             pk=request_id,
-            study__created_by=request.user
-        )
+            study__project__members=request.user
+        ).distinct().get()
 
         payload = {}
         if request.body:
@@ -571,10 +571,10 @@ def climate_request_status_api(request, request_id):
     Returns JSON with request status and progress.
     """
     try:
-        climate_request = ClimateDataRequest.objects.get(
+        climate_request = ClimateDataRequest.objects.filter(
             pk=request_id,
-            study__created_by=request.user
-        )
+            study__project__members=request.user
+        ).distinct().get()
 
         return JsonResponse({
             'request_id': request_id,
@@ -604,10 +604,10 @@ def cancel_climate_request_api(request, request_id):
         return JsonResponse({'error': 'POST request required'}, status=405)
 
     try:
-        climate_request = ClimateDataRequest.objects.get(
+        climate_request = ClimateDataRequest.objects.filter(
             pk=request_id,
-            study__created_by=request.user
-        )
+            study__project__members=request.user
+        ).distinct().get()
 
         if climate_request.status not in ['processing', 'pending']:
             return JsonResponse({

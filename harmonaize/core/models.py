@@ -25,6 +25,12 @@ class Project(models.Model):
         on_delete=models.CASCADE,
         related_name="projects",
     )
+    members = models.ManyToManyField(
+        User,
+        through='ProjectMembership',
+        related_name='joined_projects',
+        help_text="Users who are members of this project"
+    )
 
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
@@ -68,6 +74,38 @@ class Project(models.Model):
         total_studies = self.study_count
         if total_studies == 0:
             return 0
+
+
+class ProjectMembership(models.Model):
+    ROLE_CHOICES = (
+        ('owner', 'Owner'),
+        ('manager', 'Manager'),
+        ('member', 'Member'),
+    )
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='project_memberships')
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='memberships')
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='member')
+    joined_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'project')
+    
+    def __str__(self):
+        return f"{self.user.email} - {self.project.name} ({self.role})"
+
+
+class ProjectInvitation(models.Model):
+    email = models.EmailField()
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='invitations')
+    role = models.CharField(max_length=20, choices=ProjectMembership.ROLE_CHOICES, default='member')
+    invited_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='sent_invitations')
+    key = models.CharField(max_length=64, unique=True)
+    sent_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=20, choices=[('pending', 'Pending'), ('accepted', 'Accepted'), ('expired', 'Expired')], default='pending')
+
+    def __str__(self):
+        return f"Invite for {self.email} to {self.project.name}"
+
 
         completed_studies = self.studies.filter(
             status__in=["harmonised", "completed"],

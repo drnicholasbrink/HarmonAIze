@@ -59,7 +59,7 @@ class MappingSchemaForm(forms.ModelForm):
             self.instance.source_study = source_study
         target_qs = Study.objects.filter(study_purpose="target")
         if user is not None:
-            target_qs = target_qs.filter(created_by=user)
+            target_qs = target_qs.filter(project__members=user).distinct()
         if source_study.project_id:
             target_qs = target_qs.filter(project_id=source_study.project_id)
         self.fields["target_study"].queryset = target_qs.order_by("name")
@@ -308,9 +308,10 @@ class RawDataUploadForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         
         # Only show source studies (ones that can have raw data)
-        self.fields['study'].queryset = Study.objects.filter(
-            study_purpose='source'
-        ).order_by('name')
+        qs = Study.objects.filter(study_purpose='source')
+        if user:
+             qs = qs.filter(project__members=user).distinct()
+        self.fields['study'].queryset = qs.order_by('name')
         
         # Set up patient ID, date, and location column choices based on selected study
         self.fields['patient_id_column'].choices = [('', 'Select participant ID variable...')]
@@ -617,13 +618,16 @@ class CombinedExportForm(forms.Form):
 
         base_target_qs = Study.objects.filter(study_purpose="target")
         if user and user.is_authenticated:
-            base_target_qs = base_target_qs.filter(created_by=user)
+             if user.is_staff or user.is_superuser:
+                 pass
+             else:
+                 base_target_qs = base_target_qs.filter(project__members=user).distinct()
         self.fields["target_study"].queryset = base_target_qs.order_by("name")
 
         target_study = self.initial.get("target_study") or self.data.get("target_study")
         if target_study:
             try:
-                target_obj = base_target_qs.get(pk=target_study)
+                target_obj = base_target_qs.filter(pk=target_study).first()
             except Exception:
                 target_obj = None
         else:
@@ -631,7 +635,10 @@ class CombinedExportForm(forms.Form):
 
         source_qs = Study.objects.filter(study_purpose="source")
         if user and user.is_authenticated:
-            source_qs = source_qs.filter(created_by=user)
+             if user.is_staff or user.is_superuser:
+                 pass
+             else:
+                source_qs = source_qs.filter(project__members=user).distinct()
         if target_obj:
             source_qs = source_qs.filter(source_mappings__target_study=target_obj).distinct()
         self.fields["source_studies"].queryset = source_qs.order_by("name")

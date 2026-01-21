@@ -10,10 +10,12 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.offline import plot
-from .models import Study, Project
-from .forms import StudyCreationForm, ProjectCreationForm
+from .models import Study, Project, ProjectMembership, ProjectInvitation
+from .forms import StudyCreationForm, ProjectCreationForm, ProjectInvitationForm
 from health.models import RawDataFile
 from core.tsne_service import tsne_service
+from django.contrib.auth import get_user_model
+from django.utils.crypto import get_random_string
 
 
 @login_required
@@ -26,7 +28,7 @@ def upload_study(request):
     existing_study = None
     
     if study_id:
-        existing_study = get_object_or_404(Study, id=study_id, created_by=request.user)
+        existing_study = get_object_or_404(Study, id=study_id, project__members=request.user)
     
     if request.method == 'POST':
         if existing_study:
@@ -104,7 +106,8 @@ class StudyListView(LoginRequiredMixin, ListView):
     paginate_by = 10
     
     def get_queryset(self):
-        queryset = Study.objects.filter(created_by=self.request.user)
+        # Filter studies where the user is a member of the project
+        queryset = Study.objects.filter(project__members=self.request.user).distinct()
         
         # Filter by study purpose if specified in query params
         study_purpose = self.request.GET.get('purpose')
@@ -120,7 +123,7 @@ class StudyListView(LoginRequiredMixin, ListView):
         current_purpose = self.request.GET.get('purpose')
         
         # Separate source and target studies for counts and navigation
-        all_studies = Study.objects.filter(created_by=self.request.user)
+        all_studies = Study.objects.filter(project__members=self.request.user).distinct()
         source_studies = all_studies.filter(study_purpose='source')
         target_studies = all_studies.filter(study_purpose='target')
         
@@ -148,7 +151,8 @@ class StudyDetailView(LoginRequiredMixin, DetailView):
     context_object_name = 'study'
     
     def get_queryset(self):
-        return Study.objects.filter(created_by=self.request.user)
+        # Allow access if user is a member of the project
+        return Study.objects.filter(project__members=self.request.user).distinct()
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -198,7 +202,7 @@ class StudyDetailView(LoginRequiredMixin, DetailView):
 @login_required
 def toggle_climate_linkage(request, pk):
     """Allow study owners to toggle the climate linkage flag from the study detail page."""
-    study = get_object_or_404(Study, pk=pk, created_by=request.user)
+    study = get_object_or_404(Study, pk=pk, project__members=request.user)
     if request.method != "POST":
         return redirect("core:study_detail", pk=study.pk)
 
@@ -218,7 +222,7 @@ def study_dashboard(request):
     """
     Main dashboard showing user's studies and quick actions.
     """
-    all_studies = Study.objects.filter(created_by=request.user)
+    all_studies = Study.objects.filter(project__members=request.user).distinct()
     source_studies = all_studies.filter(study_purpose='source')
     target_studies = all_studies.filter(study_purpose='target')
     
@@ -226,7 +230,7 @@ def study_dashboard(request):
     recent_target_studies = target_studies.order_by('-created_at')[:3]  # Show multiple target databases
     
     # Get project information
-    all_projects = Project.objects.filter(created_by=request.user)
+    all_projects = Project.objects.filter(members=request.user).distinct()
     recent_projects = all_projects.order_by('-created_at')[:3]
     
     # Calculate total variables across all studies
@@ -275,6 +279,13 @@ def create_project(request):
         if form.is_valid():
             project = form.save()
             
+            # Add creator as owner
+            ProjectMembership.objects.create(
+                user=request.user,
+                project=project,
+                role='owner'
+            )
+            
             messages.success(
                 request,
                 f'Project "{project.name}" created successfully! '
@@ -304,7 +315,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
     context_object_name = 'project'
     
     def get_queryset(self):
-        return Project.objects.filter(created_by=self.request.user)
+        return Project.objects.filter(members=self.request.user).distinct()
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -343,14 +354,14 @@ class ProjectListView(LoginRequiredMixin, ListView):
     paginate_by = 10
     
     def get_queryset(self):
-        return Project.objects.filter(created_by=self.request.user).order_by('-created_at')
+        return Project.objects.filter(members=self.request.user).order_by('-created_at').distinct()
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         
         # Calculate aggregate statistics
         total_projects = self.get_queryset().count()
-        total_studies = Study.objects.filter(created_by=self.request.user).count()
+        total_studies = Study.objects.filter(project__members=self.request.user).distinct().count()
         
         context.update({
             'total_projects': total_projects,
@@ -409,7 +420,7 @@ def target_map_codebook(request, study_id):
     Map target database codebook columns to attribute schema.
     Uses unified codebook processing utility.
     """
-    study = get_object_or_404(Study, id=study_id, created_by=request.user, study_purpose='target')
+    study = get_object_or_404(Study, id=study_id, project__members=request.user, study_purpose='target')
     
     from core.utils import process_codebook_mapping
     result = process_codebook_mapping(request, study, codebook_type='target')
@@ -433,7 +444,7 @@ def target_extract_variables(request, study_id):
     Extract target database variables from codebook using the column mapping.
     Uses unified codebook processing utility.
     """
-    study = get_object_or_404(Study, id=study_id, created_by=request.user, study_purpose='target')
+    study = get_object_or_404(Study, id=study_id, project__members=request.user, study_purpose='target')
     
     from core.utils import process_codebook_extraction
     return process_codebook_extraction(request, study, codebook_type='target')
@@ -444,7 +455,7 @@ def target_select_variables(request, study_id):
     """
     Let user select which extracted target database variables to include in the study.
     """
-    study = get_object_or_404(Study, id=study_id, created_by=request.user, study_purpose='target')
+    study = get_object_or_404(Study, id=study_id, project__members=request.user, study_purpose='target')
     
     # Get variables data from session
     variables_data = request.session.get(f'target_variables_data_{study.id}')
@@ -571,7 +582,7 @@ def target_reset_variables(request, study_id):
     """
     Reset all target database variables for a study and clear related session data.
     """
-    study = get_object_or_404(Study, id=study_id, created_by=request.user, study_purpose='target')
+    study = get_object_or_404(Study, id=study_id, project__members=request.user, study_purpose='target')
     
     if request.method == 'POST':
         # Clear all target variables associated with the study
@@ -602,7 +613,7 @@ def delete_study(request, study_id):
     """
     Delete a study and clean up all associated data, including uploaded files.
     """
-    study = get_object_or_404(Study, id=study_id, created_by=request.user)
+    study = get_object_or_404(Study, id=study_id, project__members=request.user)
     
     if request.method == 'POST':
         study_name = study.name
@@ -665,7 +676,7 @@ def generate_study_embeddings(request, study_id):
     """
     Generate embeddings for all attributes in a study.
     """
-    study = get_object_or_404(Study, id=study_id, created_by=request.user)
+    study = get_object_or_404(Study, id=study_id, project__members=request.user)
     
     if request.method == 'POST':
         from core.tasks import generate_embeddings_for_study
@@ -692,7 +703,7 @@ def embedding_progress(request, study_id):
     API endpoint to check embedding generation progress for a study.
     Returns JSON with current progress.
     """
-    study = get_object_or_404(Study, id=study_id, created_by=request.user)
+    study = get_object_or_404(Study, id=study_id, project__members=request.user)
 
     total_variables = study.variables.count()
     variables_with_embeddings = study.variables.filter(
@@ -727,7 +738,7 @@ def generate_attribute_embedding(request, attribute_id):
     attribute = get_object_or_404(Attribute, id=attribute_id)
     
     # Check if user has access to this attribute (via their studies)
-    user_studies = Study.objects.filter(created_by=request.user)
+    user_studies = Study.objects.filter(project__members=request.user).distinct()
     if not user_studies.filter(variables=attribute).exists():
         messages.error(request, "You don't have permission to generate embeddings for this attribute.")
         return redirect('core:study_list')
@@ -765,7 +776,7 @@ def generate_project_tsne(request, project_id):
     """
     from core.tasks import generate_tsne_projections_for_project
     
-    project = get_object_or_404(Project, id=project_id, created_by=request.user)
+    project = get_object_or_404(Project, id=project_id, members=request.user)
     
     # Get embedding type from POST data
     embedding_type = request.POST.get('embedding_type', 'both')
@@ -794,7 +805,7 @@ def tsne_progress(request, project_id):
     from core.tasks import check_tsne_projection_progress
     
     # Validate user has access to this project
-    project = get_object_or_404(Project, id=project_id, created_by=request.user)
+    project = get_object_or_404(Project, id=project_id, members=request.user)
     
     # Get progress information using the validated project_id
     result = check_tsne_projection_progress(project.id)
@@ -819,7 +830,7 @@ def tsne_visualization(request, project_id):
     """
     Display the t-SNE visualization page with server-side Plotly generation.
     """
-    project = get_object_or_404(Project, id=project_id, created_by=request.user)
+    project = get_object_or_404(Project, id=project_id, members=request.user)
     
     # Get embedding type from query parameters
     embedding_type = request.GET.get("type", "name")
@@ -953,7 +964,7 @@ def tsne_data_api(request, project_id):
     Note: This is kept for backward compatibility but the main visualization
     now uses server-side Plotly generation.
     """
-    project = get_object_or_404(Project, id=project_id, created_by=request.user)
+    project = get_object_or_404(Project, id=project_id, members=request.user)
     
     # Get embedding type from query parameters
     embedding_type = request.GET.get("type", "name")
@@ -982,3 +993,160 @@ def tsne_data_api(request, project_id):
         "embedding_type": embedding_type,
         "project_name": project.name,
     })
+
+
+# Project Membership Views
+
+@login_required
+def project_members(request, pk):
+    """
+    List members of a project and handle invitations.
+    """
+    project = get_object_or_404(Project, pk=pk, members=request.user)
+    
+    # Check permission to view members (generally all members can see who else is a member)
+    # But only owner/manager can invite
+    
+    current_membership = get_object_or_404(ProjectMembership, project=project, user=request.user)
+    can_manage = current_membership.role in ['owner', 'manager']
+    
+    members = ProjectMembership.objects.filter(project=project).select_related('user')
+    invitations = ProjectInvitation.objects.filter(project=project, status='pending') if can_manage else []
+    
+    form = ProjectInvitationForm()
+    
+    context = {
+        'project': project,
+        'members': members,
+        'invitations': invitations,
+        'form': form,
+        'can_manage': can_manage,
+        'page_title': f'Members - {project.name}'
+    }
+    return render(request, 'core/project_members.html', context)
+
+@login_required
+def invite_member(request, pk):
+    """
+    Process member invitation.
+    """
+    project = get_object_or_404(Project, pk=pk, members=request.user)
+    
+    # Check permissions
+    if not ProjectMembership.objects.filter(
+        project=project, 
+        user=request.user, 
+        role__in=['owner', 'manager']
+    ).exists():
+        messages.error(request, "You do not have permission to invite members.")
+        return redirect('core:project_members', pk=pk)
+
+    if request.method == 'POST':
+        form = ProjectInvitationForm(request.POST)
+        if form.is_valid():
+            email = form.cleaned_data['email']
+            role = form.cleaned_data['role']
+            
+            # Check if user is already a member
+            User = get_user_model()
+            try:
+                user = User.objects.get(email=email)
+                if ProjectMembership.objects.filter(project=project, user=user).exists():
+                    messages.warning(request, f"User {email} is already a member of this project.")
+                    return redirect('core:project_members', pk=pk)
+            except User.DoesNotExist:
+                # User doesn't exist yet, that's fine
+                pass
+            
+            # Check for pending invitation
+            if ProjectInvitation.objects.filter(project=project, email=email, status='pending').exists():
+                messages.warning(request, f"An invitation is already pending for {email}.")
+                return redirect('core:project_members', pk=pk)
+
+            # Create invitation
+            key = get_random_string(64)
+            invitation = ProjectInvitation.objects.create(
+                email=email,
+                project=project,
+                role=role,
+                invited_by=request.user,
+                key=key
+            )
+            
+            # Generate invite URL
+            invite_url = request.build_absolute_uri(reverse('core:accept_invite', kwargs={'key': key}))
+            
+            # In a real app, send email here. For now, display message.
+            messages.success(
+                request, 
+                f"Invitation created for {email}. Share this link: {invite_url}"
+            )
+            
+            return redirect('core:project_members', pk=pk)
+    
+    return redirect('core:project_members', pk=pk)
+
+def accept_invite(request, key):
+    """
+    Handle invitation acceptance.
+    """
+    invitation = get_object_or_404(ProjectInvitation, key=key, status='pending')
+    
+    if request.user.is_authenticated:
+        if request.user.email.lower() != invitation.email.lower():
+             messages.error(
+                 request, 
+                 f"This invitation is for {invitation.email}, but you are logged in as {request.user.email}."
+             )
+             return redirect('core:project_list')
+
+        # Add to project
+        ProjectMembership.objects.create(
+            user=request.user,
+            project=invitation.project,
+            role=invitation.role
+        )
+        invitation.status = 'accepted'
+        invitation.save()
+        
+        messages.success(request, f"Welcome to {invitation.project.name}!")
+        return redirect('core:project_detail', pk=invitation.project.pk)
+    else:
+        # Store key in session and redirect to login
+        # You might need a custom login view or middleware to handle this redirect after login
+        # For now, we'll prompt them to login
+        login_url = reverse('account_login')
+        messages.info(request, f"Please log in as {invitation.email} to accept the invitation.")
+        
+        return redirect(f"{login_url}?next={request.path}")
+
+@login_required
+def remove_member(request, project_id, member_id):
+    """
+    Remove a member from the project.
+    """
+    project = get_object_or_404(Project, pk=project_id, members=request.user)
+    
+    # Check permissions (must be owner or manager)
+    current_membership = get_object_or_404(ProjectMembership, project=project, user=request.user)
+    if current_membership.role not in ['owner', 'manager']:
+        messages.error(request, "You do not have permission to remove members.")
+        return redirect('core:project_members', pk=project_id)
+        
+    member_to_remove = get_object_or_404(ProjectMembership, id=member_id, project=project)
+    
+    # Prevent removing oneself if owner (unless another owner exists - simplified logic here)
+    if member_to_remove.user == request.user:
+        messages.error(request, "You cannot remove yourself. Please leave the project instead.")
+        return redirect('core:project_members', pk=project_id)
+        
+    # Prevent manager removing owner
+    if member_to_remove.role == 'owner' and current_membership.role == 'manager':
+        messages.error(request, "Managers cannot remove owners.")
+        return redirect('core:project_members', pk=project_id)
+
+    user_name = member_to_remove.user.email
+    member_to_remove.delete()
+    messages.success(request, f"{user_name} removed from project.")
+    
+    return redirect('core:project_members', pk=project_id)

@@ -24,7 +24,7 @@ from django.views.decorators.http import require_http_methods, require_POST
 from django.db.models import Count, Q
 from django.contrib.postgres.aggregates import ArrayAgg
 
-from core.models import Study, Attribute, Observation
+from core.models import Study, Attribute, Observation, ProjectMembership
 from climate.models import ClimateDataRequest
 from .models import MappingSchema, MappingRule, RawDataFile, RawDataColumn
 from core.forms import VariableConfirmationFormSetFactory
@@ -88,18 +88,34 @@ def _user_can_export_raw_data(user, raw_data_file: RawDataFile) -> bool:
         return False
     if raw_data_file.uploaded_by_id == user.id:
         return True
-    if raw_data_file.study_id and raw_data_file.study.created_by_id == user.id:
-        return True
-    if (
-        raw_data_file.study_id
-        and raw_data_file.study.project_id
-        and raw_data_file.study.project.created_by_id == user.id
-    ):
-        return True
+    
+    # Check if user is owner or manager in the project
+    if raw_data_file.study:
+        membership = ProjectMembership.objects.filter(
+            project=raw_data_file.study.project,
+            user=user
+        ).first()
+        if membership and membership.role in ['owner', 'manager']:
+            return True
+
     if user.is_staff or user.is_superuser:
         return True
     else:
         return False
+
+
+def _check_study_management_permission(user, study: Study) -> bool:
+    """Check if user is owner or manager of the study's project."""
+    if not getattr(user, "is_authenticated", False):
+        return False
+    if user.is_staff or user.is_superuser:
+        return True
+    
+    membership = ProjectMembership.objects.filter(
+        project=study.project,
+        user=user
+    ).first()
+    return membership and membership.role in ['owner', 'manager']
 
 
 def _serialize_observation_value(observation: Observation) -> str:
@@ -398,8 +414,11 @@ def map_codebook(request, study_id):
     This is the first step in the harmonisation process.
     Uses unified codebook processing utility.
     """
-    study = get_object_or_404(Study, id=study_id, created_by=request.user, study_purpose='source')
+    study = get_object_or_404(Study, id=study_id, study_purpose='source')
     
+    if not _check_study_management_permission(request.user, study):
+        return HttpResponseForbidden("You do not have permission to manage this study.")
+
     from core.utils import process_codebook_mapping
     result = process_codebook_mapping(request, study, codebook_type='source')
     
@@ -423,8 +442,11 @@ def extract_variables(request, study_id):
     Uses unified codebook processing utility.
     Placeholder for LLM integration to enhance variable metadata.
     """
-    study = get_object_or_404(Study, id=study_id, created_by=request.user, study_purpose='source')
+    study = get_object_or_404(Study, id=study_id, study_purpose='source')
     
+    if not _check_study_management_permission(request.user, study):
+        return HttpResponseForbidden("You do not have permission to manage this study.")
+
     from core.utils import process_codebook_extraction
     result = process_codebook_extraction(request, study, codebook_type='source')
     
@@ -458,8 +480,11 @@ def start_harmonisation(request, study_id):
     from .utils import MessageManager
     
     source_study = get_object_or_404(
-        Study, id=study_id, created_by=request.user, study_purpose="source",
+        Study, id=study_id, study_purpose="source",
     )
+
+    if not _check_study_management_permission(request.user, source_study):
+        return HttpResponseForbidden("You do not have permission to manage this study.")
     
     # Check if a mapping schema already exists
     existing_schema = MappingSchema.objects.filter(source_study=source_study).first()
@@ -496,7 +521,11 @@ def start_eda_generation(request, file_id):
     """Start EDA generation if caches are absent. POST only for safety."""
     if request.method != 'POST':
         return HttpResponseBadRequest('POST required')
-    raw_data_file = get_object_or_404(RawDataFile, id=file_id, uploaded_by=request.user)
+    
+    raw_data_file = get_object_or_404(RawDataFile, id=file_id)
+    if not _user_can_export_raw_data(request.user, raw_data_file):
+        return HttpResponseForbidden()
+
     clear = request.POST.get('clear') == '1'
     if clear:
         raw_data_file.eda_cache_source = None
@@ -519,7 +548,10 @@ def start_eda_generation(request, file_id):
 @login_required
 def eda_status(request, file_id):
     """Return JSON status for EDA cache availability so the frontend can poll."""
-    raw_data_file = get_object_or_404(RawDataFile, id=file_id, uploaded_by=request.user)
+    raw_data_file = get_object_or_404(RawDataFile, id=file_id)
+    if not _user_can_export_raw_data(request.user, raw_data_file):
+        return HttpResponseForbidden()
+
     data = {
         'source_available': bool(raw_data_file.eda_cache_source),
         'source_generated_at': raw_data_file.eda_cache_source_generated_at.isoformat() if raw_data_file.eda_cache_source_generated_at else None,
@@ -542,6 +574,9 @@ def approve_mapping(request, schema_id):
     - Optionally kicks off background transformation if raw data files exist and no transformations currently running.
     """
     schema = get_object_or_404(MappingSchema, id=schema_id)
+    
+    if not _check_study_management_permission(request.user, schema.source_study):
+        return HttpResponseForbidden("You do not have permission to approve this mapping.")
 
     if schema.status == 'approved':
         messages.info(request, 'Mapping schema already approved.')
@@ -583,7 +618,11 @@ def approve_mapping(request, schema_id):
 @login_required
 def finalize_harmonisation(request, schema_id):
     """Mark the study as harmonised after approval."""
-    schema = get_object_or_404(MappingSchema, id=schema_id, created_by=request.user)
+    schema = get_object_or_404(MappingSchema, id=schema_id)
+    
+    if not _check_study_management_permission(request.user, schema.source_study):
+        return HttpResponseForbidden("You do not have permission to finalize this study.")
+        
     if schema.status != "approved":
         messages.error(request, "You must approve the mapping before finalising.")
         return redirect("health:harmonization_dashboard", schema_id=schema.id)
@@ -600,7 +639,11 @@ def rerun_harmonisation_transformations(request, schema_id):
     """Re-queue harmonised observation generation for an approved mapping schema."""
     from .utils import MessageManager
     
-    schema = get_object_or_404(MappingSchema, id=schema_id, created_by=request.user)
+    schema = get_object_or_404(MappingSchema, id=schema_id)
+    
+    if not _check_study_management_permission(request.user, schema.source_study):
+        from django.http import HttpResponseForbidden
+        return HttpResponseForbidden("You do not have permission to manage this study.")
 
     if schema.status != "approved":
         MessageManager.error(
@@ -696,8 +739,11 @@ def select_variables(request, study_id):  # noqa: C901 (complexity accepted temp
     Let user select which extracted variables to include in the study.
     """
     study = get_object_or_404(
-        Study, id=study_id, created_by=request.user, study_purpose="source",
+        Study, id=study_id, study_purpose="source",
     )
+    
+    if not _check_study_management_permission(request.user, study):
+        return HttpResponseForbidden("You do not have permission to manage this study.")
     
     # Get variables data from session
     variables_data = request.session.get(f"variables_data_{study.id}")
@@ -859,7 +905,7 @@ def reset_variables(request, study_id):
     study = get_object_or_404(
         Study,
         id=study_id,
-        created_by=request.user,
+        project__members=request.user,
         study_purpose="source",
     )
     
@@ -1137,7 +1183,7 @@ def upload_raw_data(request, study_id=None):
     if study_id:
         study = get_object_or_404(Study, id=study_id, study_purpose='source')
         # Check if user has permission to upload data for this study
-        if study.created_by != request.user:
+        if not study.project.members.filter(id=request.user.id).exists():
             messages.error(request, "You don't have permission to upload data for this study.")
             return redirect('core:study_detail', pk=study.pk)
     
@@ -1451,9 +1497,19 @@ def raw_data_list(request):
     Optionally filter by study if study parameter is provided.
     """
     # Get all raw data files for studies the user has access to
-    raw_data_files = RawDataFile.objects.filter(
-        uploaded_by=request.user
-    ).select_related('study', 'uploaded_by').order_by('-uploaded_at')
+    # Users can see files they uploaded, or all files if they are project owner/manager
+    qs = RawDataFile.objects.filter(
+        Q(uploaded_by=request.user) |
+        Q(
+            study__project__memberships__user=request.user,
+            study__project__memberships__role__in=['owner', 'manager']
+        )
+    ).distinct()
+    
+    if request.user.is_staff or request.user.is_superuser:
+        qs = RawDataFile.objects.all()
+
+    raw_data_files = qs.select_related('study', 'uploaded_by').order_by('-uploaded_at')
     
     # Filter by study if provided
     study_filter = request.GET.get('study')
@@ -1463,7 +1519,7 @@ def raw_data_list(request):
             filtered_study = get_object_or_404(
                 Study, 
                 id=study_filter, 
-                created_by=request.user
+                project__members=request.user
             )
             raw_data_files = raw_data_files.filter(study=filtered_study)
         except (ValueError, Http404):
@@ -1505,9 +1561,11 @@ def raw_data_detail(request, file_id):
     """
     raw_data_file = get_object_or_404(
         RawDataFile, 
-        id=file_id, 
-        uploaded_by=request.user
+        id=file_id 
     )
+
+    if not _user_can_export_raw_data(request.user, raw_data_file):
+        return HttpResponseForbidden("You do not have permission to view this file.")
     
     # Get view mode from query parameter (source, transformed, or both)
     view_mode = request.GET.get('view_mode', 'source')
@@ -1708,8 +1766,6 @@ def combined_export(request):
 
     form = CombinedExportForm(request.POST or None, user=request.user, initial=initial)
 
-    can_normal_export = RawDataFile.objects.filter(uploaded_by=request.user).exists()
-
     def _resolve_target(form_obj):
         target_val = None
         if form_obj.is_bound:
@@ -1723,7 +1779,19 @@ def combined_export(request):
         except Exception:
             return None
 
-    lag_unit = _get_climate_lag_unit_for_study(_resolve_target(form))
+    target_study = _resolve_target(form)
+    lag_unit = _get_climate_lag_unit_for_study(target_study)
+    
+    # Determine if user can perform normal (identifiable) export
+    can_normal_export = False
+    if target_study:
+        is_manager = _check_study_management_permission(request.user, target_study)
+        # Allow export if user uploaded any raw data file in this project
+        is_uploader = RawDataFile.objects.filter(study__project=target_study.project, uploaded_by=request.user).exists()
+        can_normal_export = is_manager or is_uploader
+    elif request.user.is_staff or request.user.is_superuser:
+        can_normal_export = True
+
     lag_unit_label = lag_unit.capitalize()
     if "max_lag_days" in form.fields:
         form.fields["max_lag_days"].label = f"Max lag ({lag_unit_label})"
@@ -2153,7 +2221,7 @@ def combined_export_attributes(request):
         return HttpResponseBadRequest("Missing target_study")
 
     try:
-        target = Study.objects.filter(created_by=request.user, study_purpose="target").get(pk=target_id)
+        target = Study.objects.filter(project__members=request.user, study_purpose="target").distinct().get(pk=target_id)
     except Study.DoesNotExist:
         return HttpResponseForbidden("Not allowed")
 
@@ -2190,7 +2258,7 @@ def study_variables_api(request, study_id):
         study = get_object_or_404(Study, id=study_id, study_purpose='source')
         
         # Check permission
-        if study.created_by != request.user:
+        if not study.project.members.filter(id=request.user.id).exists():
             return JsonResponse({'error': 'Permission denied'}, status=403)
         
         # Get participant ID variables (string/categorical types)
@@ -2228,7 +2296,7 @@ def similarity_suggestions_api(request, schema_id):
         schema = get_object_or_404(MappingSchema, id=schema_id)
         
         # Check permission - user must have access to the source study
-        if schema.source_study.created_by != request.user:
+        if not schema.source_study.project.members.filter(id=request.user.id).exists():
             return JsonResponse({'error': 'Permission denied'}, status=403)
         
         # Get similarity suggestions
@@ -2286,7 +2354,7 @@ def target_attribute_details_api(request, attribute_id):
         attribute = get_object_or_404(Attribute, id=attribute_id)
         
         # Check permission - user must have access to at least one study that uses this attribute
-        user_studies = Study.objects.filter(created_by=request.user)
+        user_studies = Study.objects.filter(project__members=request.user).distinct()
         accessible_studies = attribute.studies.filter(id__in=user_studies.values_list('id', flat=True))
         
         if not accessible_studies.exists():
@@ -2349,7 +2417,7 @@ def transformation_suggestion_api(request):
             return JsonResponse({"error": "One or both attributes not found"}, status=404)
         
         # Check user has access to both attributes via studies
-        user_studies = Study.objects.filter(created_by=request.user)
+        user_studies = Study.objects.filter(project__members=request.user).distinct()
         
         source_accessible = source_attribute.studies.filter(
             id__in=user_studies.values_list('id', flat=True)
@@ -2737,7 +2805,7 @@ def delete_duplicates(request, file_id):
     raw_data_file = get_object_or_404(RawDataFile, id=file_id)
     
     # Check permissions
-    if raw_data_file.study.created_by != request.user:
+    if not raw_data_file.study.project.members.filter(id=request.user.id).exists():
         messages.error(request, "You don't have permission to modify this data.")
         return redirect('health:raw_data_list')
     
@@ -2807,7 +2875,7 @@ def start_duplicate_detection(request, file_id):
     raw_data_file = get_object_or_404(
         RawDataFile.objects.select_related('study'),
         id=file_id,
-        study__project__created_by=request.user,
+        study__project__members=request.user,
     )
     
     # Import the task
