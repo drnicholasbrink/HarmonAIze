@@ -1,5 +1,5 @@
 """
-LLM-powered enhancements for geocoding using Google Gemini.
+LLM-powered enhancements for geocoding using Anthropic Claude.
 
 This module provides optional AI-powered improvements to location parsing
 and facility matching. All functions gracefully degrade if LLM is unavailable.
@@ -7,7 +7,6 @@ and facility matching. All functions gracefully degrade if LLM is unavailable.
 Key Features:
 - Intelligent location parsing (extract country, city, facility from unstructured text)
 - Semantic facility name matching
-
 - Graceful fallback to traditional methods if LLM unavailable
 """
 
@@ -20,23 +19,24 @@ from django.core.cache import cache
 
 logger = logging.getLogger(__name__)
 
-# Check if Gemini is available
-GEMINI_AVAILABLE = False
+# Check if Claude is available
+CLAUDE_AVAILABLE = False
+claude_client = None
 try:
-    import google.generativeai as genai
+    import anthropic
 
-    # Configure Gemini with API key from settings
-    if hasattr(settings, 'GEMINI_API_KEY') and settings.GEMINI_API_KEY:
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        GEMINI_AVAILABLE = True
-        logger.debug("✓ Gemini LLM initialized successfully for geocoding enhancements")
+    # Configure Claude with API key from settings
+    if hasattr(settings, 'ANTHROPIC_API_KEY') and settings.ANTHROPIC_API_KEY:
+        claude_client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+        CLAUDE_AVAILABLE = True
+        logger.debug("Claude LLM initialized successfully for geocoding enhancements")
     else:
-        logger.warning("Gemini API key not configured - LLM enhancements disabled")
+        logger.warning("Anthropic API key not configured - LLM enhancements disabled")
 
 except ImportError:
-    logger.warning("google-generativeai not installed - LLM enhancements disabled")
+    logger.warning("anthropic not installed - LLM enhancements disabled")
 except Exception as e:
-    logger.error(f"Failed to initialize Gemini: {e}")
+    logger.error(f"Failed to initialize Claude: {e}")
 
 
 class GeocodingLLMEnhancer:
@@ -48,49 +48,29 @@ class GeocodingLLMEnhancer:
     """
 
     def __init__(self):
-        """Initialize the LLM enhancer with Gemini models."""
+        """Initialize the LLM enhancer with Claude models."""
         self.enabled = (
-            GEMINI_AVAILABLE and
+            CLAUDE_AVAILABLE and
             getattr(settings, 'GEOLOCATION_USE_LLM', True)
         )
 
-        self.model_flash = None
-        self.model_pro = None
+        self.client = claude_client
+
+        # Model names for different use cases
+        # Haiku: fast, cheap operations (parsing, simple matching)
+        # Sonnet: complex reasoning (conflict resolution)
+        self.model_fast = "claude-3-5-haiku-20241022"
+        self.model_reasoning = "claude-sonnet-4-20250514"
 
         if self.enabled:
-            try:
-                # Flash model for fast, cheap operations (parsing, simple matching)
-                # Using gemini-2.5-flash (fastest, cheapest, and available on free tier)
-                self.model_flash = genai.GenerativeModel(
-                    'gemini-2.5-flash',
-                    generation_config=genai.GenerationConfig(
-                        temperature=0.1,  # Low temperature for structured output
-                        max_output_tokens=1000
-                    )
-                )
-
-                # Pro model for complex reasoning (conflict resolution)
-                # Using gemini-2.5-pro (better reasoning than flash)
-                self.model_pro = genai.GenerativeModel(
-                    'gemini-2.5-pro',
-                    generation_config=genai.GenerationConfig(
-                        temperature=0.2,
-                        max_output_tokens=1000
-                    )
-                )
-
-                logger.debug("✓ Gemini Flash and Pro models initialized")
-
-            except Exception as e:
-                logger.error(f"Failed to initialize Gemini models: {e}")
-                self.enabled = False
+            logger.debug("Claude Haiku and Sonnet models configured")
 
     def is_enabled(self) -> bool:
         """Check if LLM enhancements are enabled and available."""
         return self.enabled
 
     def _strip_markdown_json(self, text: str) -> str:
-        """Strip markdown code blocks from Gemini response if present."""
+        """Strip markdown code blocks from LLM response if present."""
         text = text.strip()
         if text.startswith('```'):
             lines = text.split('\n')
@@ -103,7 +83,7 @@ class GeocodingLLMEnhancer:
 
     def parse_location_structured(self, location_name: str) -> Optional[Dict]:
         """
-        Extract structured data from unstructured location name using Gemini.
+        Extract structured data from unstructured location name using Claude.
 
         This is the primary enhancement - turns messy text into clean components.
 
@@ -171,8 +151,12 @@ Examples:
 "Harare Zimbabwe" → {{"city": "Harare", "country": "Zimbabwe", "country_code": "ZW", "facility_name": null}}
 """
 
-            response = self.model_flash.generate_content(prompt)
-            result = json.loads(self._strip_markdown_json(response.text))
+            response = self.client.messages.create(
+                model=self.model_fast,
+                max_tokens=1000,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            result = json.loads(self._strip_markdown_json(response.content[0].text))
 
             # Validate that we got a dict with expected structure
             if not isinstance(result, dict):
@@ -254,8 +238,12 @@ Return JSON:
 Be strict: Only return is_match=true if you're reasonably confident they're the same place.
 """
 
-            response = self.model_flash.generate_content(prompt)
-            result = json.loads(self._strip_markdown_json(response.text))
+            response = self.client.messages.create(
+                model=self.model_fast,
+                max_tokens=1000,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            result = json.loads(self._strip_markdown_json(response.content[0].text))
 
             # Validate result structure
             if not isinstance(result, dict) or 'is_match' not in result or 'confidence' not in result:
@@ -311,8 +299,8 @@ Be strict: Only return is_match=true if you're reasonably confident they're the 
             best_reasoning = ""
 
             for candidate_name, fuzzy_score in top_candidates:
-                # Skip very low fuzzy scores to save API calls
-                if fuzzy_score < 50:
+                # Skip low fuzzy scores to save API calls and prevent bad matches
+                if fuzzy_score < 65:
                     continue
 
                 llm_result = self.semantic_facility_similarity(query, candidate_name)
@@ -326,7 +314,7 @@ Be strict: Only return is_match=true if you're reasonably confident they're the 
                         best_confidence = combined_confidence
                         best_reasoning = llm_result['reasoning']
 
-            if best_match and best_confidence > 0.6:  # Threshold for accepting match
+            if best_match and best_confidence > 0.75:  # Threshold for accepting match (increased from 0.6)
                 logger.debug(f"✓ LLM best match for '{query}': '{best_match}' (confidence: {best_confidence:.1%})")
                 return (best_match, best_confidence, best_reasoning)
 
@@ -442,8 +430,12 @@ Return JSON:
 }}
 """
 
-            response = self.model_pro.generate_content(prompt)  # Use Pro for complex reasoning
-            llm_decision = json.loads(self._strip_markdown_json(response.text))
+            response = self.client.messages.create(
+                model=self.model_reasoning,  # Use Sonnet for complex reasoning
+                max_tokens=1000,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            llm_decision = json.loads(self._strip_markdown_json(response.content[0].text))
 
             logger.debug(f"✓ LLM Conflict Resolution for '{location_name}':")
             logger.debug(f"  Recommended: {llm_decision['recommended_source']} (confidence: {llm_decision['confidence']:.1%})")
@@ -534,20 +526,12 @@ Examples:
   → match_quality: "none", similarity_score: 0.10
 """
 
-            response = self.model_flash.generate_content(prompt)
-
-            # Strip markdown code blocks if present (Gemini sometimes wraps JSON in ```json ... ```)
-            response_text = response.text.strip()
-            if response_text.startswith('```'):
-                # Remove ```json or ``` from start and ``` from end
-                lines = response_text.split('\n')
-                if lines[0].startswith('```'):
-                    lines = lines[1:]  # Remove first line
-                if lines and lines[-1].strip() == '```':
-                    lines = lines[:-1]  # Remove last line
-                response_text = '\n'.join(lines)
-
-            result = json.loads(response_text)
+            response = self.client.messages.create(
+                model=self.model_fast,
+                max_tokens=1000,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            result = json.loads(self._strip_markdown_json(response.content[0].text))
 
             # Cache for 1 hour
             cache.set(cache_key, result, 3600)
@@ -641,8 +625,12 @@ Examples:
 - Query: "General Hospital" | Addresses vague but plausible → passes: true, severity: "minor"
 """
 
-            response = self.model_flash.generate_content(prompt)
-            result = json.loads(self._strip_markdown_json(response.text))
+            response = self.client.messages.create(
+                model=self.model_fast,
+                max_tokens=1000,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            result = json.loads(self._strip_markdown_json(response.content[0].text))
 
             if not result['passes_sanity_check']:
                 logger.warning(f"⚠ LLM Sanity Check FAILED for '{location_name}':")
@@ -686,9 +674,9 @@ Examples:
                 return f"Low confidence result ({score:.0%}). Manual verification needed."
 
         try:
-            # Check if model is initialized
-            if not self.model_flash:
-                logger.error("LLM model not initialized - cannot generate explanation")
+            # Check if client is initialized
+            if not self.client:
+                logger.error("LLM client not initialized - cannot generate explanation")
                 score = validation_result.confidence_score
                 return f"Confidence: {score:.0%}. {'Safe to approve' if score >= 0.8 else 'Review recommended' if score >= 0.6 else 'Manual verification needed'}."
 
@@ -751,9 +739,13 @@ Return ONLY the explanation text (no JSON, no markdown formatting).
 
             logger.info(f"Generating LLM explanation for '{geocoding_result.location_name}'...")
 
-            # Use Flash model with text response (without JSON mode for text output)
-            response = self.model_flash.generate_content(prompt)
-            explanation = response.text.strip()
+            # Use Haiku model for fast text response
+            response = self.client.messages.create(
+                model=self.model_fast,
+                max_tokens=1000,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            explanation = response.content[0].text.strip()
 
             logger.info(f"✓ Generated validation explanation for '{geocoding_result.location_name}'")
 

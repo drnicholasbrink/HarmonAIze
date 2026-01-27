@@ -432,6 +432,28 @@
       color: white;
     }
 
+    .layer-group {
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .layer-group:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .layer-group-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 0.4rem;
+      padding-left: 0.5rem;
+    }
+
     .map-legend {
       position: absolute;
       bottom: 1rem;
@@ -1026,14 +1048,66 @@
       <div id="map" style="width: 100%; height: 100%;"></div>
 
       <!-- Map Controls -->
-      <div class="map-controls">
-        <h4>Map Layers</h4>
-        <button onclick="changeMapLayer('satellite')" class="layer-button active" id="satellite-btn">
-          Satellite
-        </button>
-        <button onclick="changeMapLayer('streets')" class="layer-button" id="streets-btn">
-          Streets
-        </button>
+      <div class="map-controls" style="max-height: 400px; overflow-y: auto;">
+        <h4>Basemaps</h4>
+
+        <div class="layer-group">
+          <div class="layer-group-label">Mapbox</div>
+          <button onclick="changeMapLayer('mapbox-satellite')" class="layer-button active" id="mapbox-satellite-btn">
+            Satellite
+          </button>
+          <button onclick="changeMapLayer('mapbox-streets')" class="layer-button" id="mapbox-streets-btn">
+            Streets
+          </button>
+          <button onclick="changeMapLayer('mapbox-outdoors')" class="layer-button" id="mapbox-outdoors-btn">
+            Outdoors
+          </button>
+          <button onclick="changeMapLayer('mapbox-light')" class="layer-button" id="mapbox-light-btn">
+            Light
+          </button>
+          <button onclick="changeMapLayer('mapbox-dark')" class="layer-button" id="mapbox-dark-btn">
+            Dark
+          </button>
+        </div>
+
+        <div class="layer-group">
+          <div class="layer-group-label">Google Maps</div>
+          <button onclick="changeMapLayer('google-hybrid')" class="layer-button" id="google-hybrid-btn">
+            Hybrid
+          </button>
+          <button onclick="changeMapLayer('google-satellite')" class="layer-button" id="google-satellite-btn">
+            Satellite
+          </button>
+          <button onclick="changeMapLayer('google-roadmap')" class="layer-button" id="google-roadmap-btn">
+            Roadmap
+          </button>
+          <button onclick="changeMapLayer('google-terrain')" class="layer-button" id="google-terrain-btn">
+            Terrain
+          </button>
+        </div>
+
+        <div class="layer-group">
+          <div class="layer-group-label">Esri / ArcGIS</div>
+          <button onclick="changeMapLayer('esri-imagery')" class="layer-button" id="esri-imagery-btn">
+            World Imagery
+          </button>
+          <button onclick="changeMapLayer('esri-streets')" class="layer-button" id="esri-streets-btn">
+            World Street
+          </button>
+          <button onclick="changeMapLayer('esri-topo')" class="layer-button" id="esri-topo-btn">
+            Topographic
+          </button>
+        </div>
+
+        <div class="layer-group">
+          <div class="layer-group-label">OpenStreetMap</div>
+          <button onclick="changeMapLayer('osm-standard')" class="layer-button" id="osm-standard-btn">
+            Standard
+          </button>
+          <button onclick="changeMapLayer('osm-humanitarian')" class="layer-button" id="osm-humanitarian-btn">
+            Humanitarian
+          </button>
+        </div>
       </div>
 
       <!-- Map Legend -->
@@ -1091,12 +1165,77 @@
     let currentLocationData = {% if current_location_json %}{{ current_location_json|safe }}{% else %}null{% endif %};
     let markers = [];
     let manualMarker = null;  // For manually placed coordinates
-    let currentMapStyle = 'satellite';
+    let currentMapStyle = 'mapbox-satellite';
 
-    // Map styles
-    const mapStyles = {
-      'satellite': 'mapbox://styles/mapbox/satellite-streets-v12',
-      'streets': 'mapbox://styles/mapbox/streets-v11'
+    // Mapbox vector styles
+    const mapboxStyles = {
+      'mapbox-satellite': 'mapbox://styles/mapbox/satellite-streets-v12',
+      'mapbox-streets': 'mapbox://styles/mapbox/streets-v12',
+      'mapbox-outdoors': 'mapbox://styles/mapbox/outdoors-v12',
+      'mapbox-light': 'mapbox://styles/mapbox/light-v11',
+      'mapbox-dark': 'mapbox://styles/mapbox/dark-v11'
+    };
+
+    // Raster tile sources (Google, Esri, OSM)
+    function createRasterStyle(tiles, attribution, tileSize = 256) {
+      return {
+        version: 8,
+        sources: {
+          'raster-tiles': {
+            type: 'raster',
+            tiles: tiles,
+            tileSize: tileSize,
+            attribution: attribution
+          }
+        },
+        layers: [{
+          id: 'raster-layer',
+          type: 'raster',
+          source: 'raster-tiles',
+          minzoom: 0,
+          maxzoom: 22
+        }]
+      };
+    }
+
+    // Raster basemap configurations
+    const rasterStyles = {
+      'google-hybrid': () => createRasterStyle(
+        ['https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}'],
+        '© Google Maps'
+      ),
+      'google-satellite': () => createRasterStyle(
+        ['https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}'],
+        '© Google Maps'
+      ),
+      'google-roadmap': () => createRasterStyle(
+        ['https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}'],
+        '© Google Maps'
+      ),
+      'google-terrain': () => createRasterStyle(
+        ['https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}'],
+        '© Google Maps'
+      ),
+      'esri-imagery': () => createRasterStyle(
+        ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+        '© Esri, Maxar, Earthstar Geographics'
+      ),
+      'esri-streets': () => createRasterStyle(
+        ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}'],
+        '© Esri'
+      ),
+      'esri-topo': () => createRasterStyle(
+        ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}'],
+        '© Esri'
+      ),
+      'osm-standard': () => createRasterStyle(
+        ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+        '© OpenStreetMap contributors'
+      ),
+      'osm-humanitarian': () => createRasterStyle(
+        ['https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png'],
+        '© OpenStreetMap contributors, Humanitarian OpenStreetMap Team'
+      )
     };
 
     // Enable map clicking to set manual coordinates
@@ -1154,17 +1293,61 @@
     function changeMapLayer(layerType) {
       if (layerType === currentMapStyle) return;
 
+      // Update active button
       document.querySelectorAll('.layer-button').forEach(btn => {
         btn.classList.remove('active');
       });
       document.getElementById(`${layerType}-btn`).classList.add('active');
 
-      map.setStyle(mapStyles[layerType]);
+      // Store current center and zoom to restore after style change
+      const currentCenter = map.getCenter();
+      const currentZoom = map.getZoom();
+
+      // Determine if it's a Mapbox vector style or raster tiles
+      let newStyle;
+      if (mapboxStyles[layerType]) {
+        newStyle = mapboxStyles[layerType];
+      } else if (rasterStyles[layerType]) {
+        newStyle = rasterStyles[layerType]();
+      } else {
+        console.error('Unknown layer type:', layerType);
+        return;
+      }
+
+      map.setStyle(newStyle);
       currentMapStyle = layerType;
 
-      map.on('styledata', function() {
+      // Re-add markers after style loads
+      map.once('styledata', function() {
+        // Restore center and zoom
+        map.setCenter(currentCenter);
+        map.setZoom(currentZoom);
+
         setTimeout(() => {
           addMarkersToMap();
+          // Re-add manual marker if it exists
+          if (manualMarker) {
+            const lngLat = manualMarker.getLngLat();
+            manualMarker.remove();
+            const el = document.createElement('div');
+            el.className = 'manual-marker';
+            el.style.width = '30px';
+            el.style.height = '30px';
+            el.style.borderRadius = '50% 50% 50% 0';
+            el.style.background = '#FF6B6B';
+            el.style.border = '3px solid white';
+            el.style.transform = 'rotate(-45deg)';
+            el.style.cursor = 'pointer';
+            el.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
+            manualMarker = new mapboxgl.Marker(el, { draggable: true })
+              .setLngLat(lngLat)
+              .addTo(map);
+            manualMarker.on('dragend', function() {
+              const newLngLat = manualMarker.getLngLat();
+              document.getElementById('manualLat').value = newLngLat.lat.toFixed(5);
+              document.getElementById('manualLng').value = newLngLat.lng.toFixed(5);
+            });
+          }
         }, 100);
       });
     }

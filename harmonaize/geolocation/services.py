@@ -4,15 +4,17 @@ Geocoding service that can be used by both management commands and Celery tasks.
 This centralizes the geocoding logic to avoid duplication.
 
 Enhanced with optional LLM-powered improvements for better location parsing
-and facility matching using Google Gemini.
+and facility matching using Anthropic Claude.
 """
 
 import os
+import time
 import requests
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from django.conf import settings
 from django.db.models import Q
+from django.core.cache import cache
 
 from .models import ValidatedDataset, GeocodingResult, HDXHealthFacility
 from .llm_enhancement import get_llm_enhancer
@@ -34,8 +36,8 @@ class GeocodingService:
     """Service for geocoding locations using multiple APIs with optional LLM enhancements."""
 
     def __init__(self):
-        self.local_nominatim_url = getattr(settings, 'LOCAL_NOMINATIM_URL', 'http://nominatim:8080')
-        self.public_nominatim_url = 'https://nominatim.openstreetmap.org'
+        self.nominatim_url = 'https://nominatim.openstreetmap.org'
+        self.osm_rate_limit_key = 'osm_last_request_time'
 
         self.llm_enhancer = get_llm_enhancer()
         if self.llm_enhancer.is_enabled():
@@ -538,28 +540,68 @@ class GeocodingService:
                 f"Traditional parsing: '{location.name}' → "
                 f"country={country}, iso={iso_code}, city={city}"
             )
-        # Parsing is ONLY for extracting country codes for API parameters
-        query = location.name
+        # Build optimized queries for each API based on parsed components
+        facility_name = parsed_location.get('facility') or location.name
+        city = parsed_location.get('admin_level_2') or ''
 
-        logger.info(f"Querying APIs with: country='{country}', iso='{iso_code}', query='{query}'")
+        # Google/ArcGIS: Work best with structured "facility, city, country" format
+        if facility_name and city and country:
+            query_structured = f"{facility_name}, {city}, {country}"
+        elif facility_name and country:
+            query_structured = f"{facility_name}, {country}"
+        else:
+            query_structured = location.name
+
+        # Nominatim: Works better with just facility + city (country via countrycodes param)
+        if facility_name and city:
+            query_nominatim = f"{facility_name}, {city}"
+        elif facility_name:
+            query_nominatim = facility_name
+        else:
+            query_nominatim = location.name
+
+        logger.info(f"Optimized queries - Structured: '{query_structured}', Nominatim: '{query_nominatim}'")
 
         # PARALLEL GEOCODING: Call all APIs simultaneously using ThreadPoolExecutor
         logger.info(f">>> Calling all geocoding APIs in parallel...")
 
         results = {}
 
-        # Define API call functions
+        # Original query for retry fallback
+        original_query = location.name
+
+        # Define API call functions with optimized queries and retry logic
         def call_hdx():
             return ("hdx", self.geocode_hdx_enhanced(location, country))
 
         def call_arcgis():
-            return ("arcgis", self.geocode_arcgis(query, country, iso_code))
+            # ArcGIS: Try structured query first
+            result = self.geocode_arcgis(query_structured, country, iso_code)
+            if result.get("error") and query_structured != original_query:
+                logger.info(f"ArcGIS: Retrying with original query '{original_query}'")
+                result = self.geocode_arcgis(original_query, country, iso_code)
+            return ("arcgis", result)
 
         def call_google():
-            return ("google", self.geocode_google(query, country, iso_code))
+            # Google: Try structured query first
+            result = self.geocode_google(query_structured, country, iso_code)
+            if result.get("error") and query_structured != original_query:
+                logger.info(f"Google: Retrying with original query '{original_query}'")
+                result = self.geocode_google(original_query, country, iso_code)
+            return ("google", result)
 
         def call_nominatim():
-            return ("nominatim", self.geocode_nominatim_with_fallback(query, country, iso_code))
+            # Nominatim: Try structured search first (facility + city + amenity)
+            facility_type = parsed_location.get('llm_parsed', {}).get('facility_type') if parsed_location.get('llm_enhanced') else None
+            result = self.geocode_nominatim(
+                query_nominatim, country, iso_code,
+                city=city,
+                facility_type=facility_type
+            )
+            if result.get("error") and query_nominatim != original_query:
+                logger.info(f"Nominatim: Retrying with original query '{original_query}'")
+                result = self.geocode_nominatim(original_query, country, iso_code)
+            return ("nominatim", result)
 
         # Execute all API calls in parallel
         with ThreadPoolExecutor(max_workers=4) as executor:
@@ -625,11 +667,9 @@ class GeocodingService:
                 if source == "hdx" and data.get("facility"):
                     geocoding_result.hdx_facility_match = data["facility"]
                 elif source == "nominatim":
-
                     raw_response = data.get("raw_response", [])
                     geocoding_result.nominatim_raw_response = {
-                        'results': raw_response if isinstance(raw_response, list) else [raw_response],
-                        'local_nominatim_used': data.get('local_nominatim_used', False)
+                        'results': raw_response if isinstance(raw_response, list) else [raw_response]
                     }
                 elif source != "hdx":
                     setattr(geocoding_result, f"{source}_raw_response", data.get("raw_response"))
@@ -660,34 +700,28 @@ class GeocodingService:
 
             logger.info(f"HDX: Total facilities in database: {hdx_facilities.count()}")
 
-            if not country:
-                logger.error(f"HDX: No country extracted from '{location.name}' - CANNOT search HDX safely")
-                logger.error(f"HDX: Skipping HDX to prevent matching facilities from wrong countries")
-                return {"error": "Country not detected - HDX search requires country information"}
+            # Country filtering is optional - use if available for better accuracy
+            if country:
+                iso_code = self._get_country_iso(country)
+                logger.info(f"HDX: Filtering by country='{country}', iso='{iso_code}'")
 
-            iso_code = self._get_country_iso(country)
-            logger.info(f"HDX: Filtering by country='{country}', iso='{iso_code}'")
+                # STRICT country filtering - exact match ONLY (no icontains)
+                country_filtered = hdx_facilities.filter(
+                    Q(country__iexact=country) |
+                    Q(country__iexact=iso_code)
+                )
 
-            # STRICT country filtering - exact match ONLY (no icontains)
-            # This prevents matching facilities from wrong countries
-            country_filtered = hdx_facilities.filter(
-                Q(country__iexact=country) |
-                Q(country__iexact=iso_code)
-            )
+                logger.info(f"HDX: Exact country filter matched {country_filtered.count()} facilities")
 
-            # Log how many facilities matched for debugging
-            logger.info(f"HDX: Exact country filter matched {country_filtered.count()} facilities")
-
-            if country_filtered.exists():
-                hdx_facilities = country_filtered
-                logger.info(f"HDX: Filtered to {hdx_facilities.count()} facilities in {country}")
+                if country_filtered.exists():
+                    hdx_facilities = country_filtered
+                    logger.info(f"HDX: Filtered to {hdx_facilities.count()} facilities in {country}")
+                else:
+                    logger.warning(f"HDX: No facilities found for country '{country}' - searching all facilities")
+                    sample_countries = hdx_facilities.values_list('country', flat=True).distinct()[:10]
+                    logger.warning(f"HDX: Sample countries in DB: {list(sample_countries)}")
             else:
-                logger.warning(f"HDX: No facilities found for country '{country}' (ISO: {iso_code})")
-
-                sample_countries = hdx_facilities.values_list('country', flat=True).distinct()[:10]
-                logger.warning(f"HDX: Sample countries in DB: {list(sample_countries)}")
-                logger.warning(f"HDX: Skipping HDX search to avoid wrong country matches")
-                return {"error": f"No HDX facilities found in {country}"}
+                logger.info(f"HDX: No country detected - searching all {hdx_facilities.count()} facilities")
             
 
             _, location_part = self._extract_country_smart(location.name)
@@ -722,7 +756,48 @@ class GeocodingService:
                         "confidence": 1.0
                     }
             
-            # Step 3: Try partial matches (contains)
+            # Step 3: Try LLM-enhanced semantic matching FIRST (prioritized)
+            if self.llm_enhancer.is_enabled():
+                logger.info(f"HDX: Trying LLM-enhanced semantic matching (prioritized)...")
+
+                all_facilities = list(hdx_facilities)
+                facility_names = [f.facility_name for f in all_facilities]
+                llm_match = self.llm_enhancer.find_best_facility_match(
+                    search_name,
+                    facility_names,
+                    max_candidates=10
+                )
+
+                if llm_match:
+                    matched_name, confidence, reasoning = llm_match
+                    matched_facility = hdx_facilities.filter(
+                        facility_name=matched_name
+                    ).first()
+
+                    if matched_facility:
+                        logger.info(f"HDX: LLM SEMANTIC match - '{matched_name}' in {matched_facility.country} (confidence: {confidence:.1%})")
+                        logger.debug(f"  Reasoning: {reasoning}")
+
+                        # CRITICAL: Validate coordinates are actually in the expected country
+                        is_valid, validation_msg = self._validate_coordinates_in_country(
+                            matched_facility.hdx_latitude, matched_facility.hdx_longitude, country
+                        )
+                        logger.info(f"HDX: Coordinate validation: {validation_msg}")
+
+                        if not is_valid:
+                            logger.error(f"HDX: REJECTING LLM match - {validation_msg}")
+                            logger.error(f"HDX: Facility '{matched_facility.facility_name}' claims country='{matched_facility.country}' but coordinates are elsewhere!")
+                            # Continue to next matching strategy instead of returning wrong coordinates
+                        else:
+                            return {
+                                "coordinates": (matched_facility.hdx_latitude, matched_facility.hdx_longitude),
+                                "facility": matched_facility,
+                                "match_type": "llm_semantic",
+                                "confidence": confidence,
+                                "reasoning": reasoning
+                            }
+
+            # Step 4: Try partial matches (contains) - fallback if LLM didn't match
             contains_matches = hdx_facilities.filter(
                 Q(facility_name__icontains=search_name) |
                 Q(facility_name__icontains=search_name.replace(' ', ''))
@@ -749,49 +824,8 @@ class GeocodingService:
                         "match_type": "contains",
                         "confidence": 0.8
                     }
-            
-            # Step 4: Try LLM-enhanced semantic matching (if enabled)
-            if self.llm_enhancer.is_enabled():
-                logger.debug(f"HDX: Trying LLM-enhanced semantic matching...")
 
-                all_facilities = list(hdx_facilities)
-                facility_names = [f.facility_name for f in all_facilities]
-                llm_match = self.llm_enhancer.find_best_facility_match(
-                    search_name,
-                    facility_names,
-                    max_candidates=10
-                )
-
-                if llm_match:
-                    matched_name, confidence, reasoning = llm_match
-                    matched_facility = hdx_facilities.filter(
-                        facility_name=matched_name
-                    ).first()
-
-                    if matched_facility:
-                        logger.debug(f"✓ HDX: LLM SEMANTIC match - '{matched_name}' in {matched_facility.country} (confidence: {confidence:.1%})")
-                        logger.debug(f"  Reasoning: {reasoning}")
-
-                        # CRITICAL: Validate coordinates are actually in the expected country
-                        is_valid, validation_msg = self._validate_coordinates_in_country(
-                            matched_facility.hdx_latitude, matched_facility.hdx_longitude, country
-                        )
-                        logger.info(f"HDX: Coordinate validation: {validation_msg}")
-
-                        if not is_valid:
-                            logger.error(f"HDX: REJECTING LLM match - {validation_msg}")
-                            logger.error(f"HDX: Facility '{matched_facility.facility_name}' claims country='{matched_facility.country}' but coordinates are elsewhere!")
-                            # Continue to next matching strategy instead of returning wrong coordinates
-                        else:
-                            return {
-                                "coordinates": (matched_facility.hdx_latitude, matched_facility.hdx_longitude),
-                                "facility": matched_facility,
-                                "match_type": "llm_semantic",
-                                "confidence": confidence,
-                                "reasoning": reasoning
-                            }
-
-            # Step 5: Fallback to traditional fuzzy matching (if LLM didn't find match)
+            # Step 5: Fallback to traditional fuzzy matching (last resort)
             if FUZZY_AVAILABLE:
                 logger.info(f"HDX: Trying traditional fuzzy matching...")
                 all_facilities = list(hdx_facilities)
@@ -912,7 +946,7 @@ class GeocodingService:
             return {"error": f"Unexpected error: {str(e)}"}
 
     def geocode_google(self, query, country=None, iso_code=None):
-        """Geocode using Google Maps API with region optimization."""
+        """Geocode using Google Maps API with region biasing AND country component filtering."""
         try:
             key = getattr(settings, "GOOGLE_GEOCODING_API_KEY", None) or os.getenv("GOOGLE_GEOCODING_API_KEY")
             if not key:
@@ -920,12 +954,17 @@ class GeocodingService:
 
             url = "https://maps.googleapis.com/maps/api/geocode/json"
             params = {"address": query, "key": key}
-            
 
+            # Get country code
+            country_code = None
             if iso_code:
-                params["region"] = iso_code.lower()
+                country_code = iso_code.lower()
             elif country:
-                params["region"] = self.country_name_to_iso2.get(country, country.lower())
+                country_code = self.country_name_to_iso2.get(country, '').lower()
+
+            if country_code:
+                # region: biases results towards this region (don't use components - too strict)
+                params["region"] = country_code
 
             response = requests.get(url, params=params, timeout=3)
             response.raise_for_status()
@@ -950,99 +989,123 @@ class GeocodingService:
         except Exception as e:
             return {"error": f"Unexpected error: {str(e)}"}
 
-    def geocode_nominatim_with_fallback(self, query, country=None, iso_code=None):
-        """Geocode using Nominatim with local fallback to public API and country optimization."""
+    def _wait_for_osm_rate_limit(self):
+        """
+        Enforce OSM rate limit using cache-based coordination.
+        Uses 2 second minimum gap plus random jitter to prevent stampeding.
+        """
+        import random
+        min_gap = 2.0  # OSM wants 1/sec, we use 2 to be safe with parallel workers
 
-        result = self._geocode_nominatim_local(query, country, iso_code)
-        if result and result.get("coordinates"):
-            result['local_nominatim_used'] = True
-            logger.info(f"NOMINATIM (LOCAL): Success")
-            return result
-        
+        while True:
+            last_request = cache.get(self.osm_rate_limit_key)
+            current_time = time.time()
 
-        logger.info(f"NOMINATIM: Local failed, trying public API...")
-        result = self._geocode_nominatim_public(query, country, iso_code)
-        if result:
-            result['local_nominatim_used'] = False
-        
-        return result
+            if last_request is None:
+                # No recent request, we can proceed
+                cache.set(self.osm_rate_limit_key, current_time, timeout=10)
+                return
 
-    def _geocode_nominatim_local(self, query, country=None, iso_code=None):
-        """Geocode using local Nominatim instance."""
-        try:
-            url = f'{self.local_nominatim_url}/search'
+            time_since_last = current_time - last_request
+            if time_since_last >= min_gap:
+                # Enough time has passed, we can proceed
+                cache.set(self.osm_rate_limit_key, current_time, timeout=10)
+                return
+
+            # Wait for the remaining time plus small random jitter
+            wait_time = min_gap - time_since_last + random.uniform(0.1, 0.5)
+            logger.debug(f"OSM rate limit: waiting {wait_time:.2f}s")
+            time.sleep(wait_time)
+
+    def geocode_nominatim(self, query, country=None, iso_code=None, city=None, facility_type=None):
+        """
+        Geocode using public Nominatim/OSM API with strict rate limiting.
+
+        OSM requires max 1 request per second. Uses Redis lock to ensure
+        global rate limiting across all workers.
+        """
+        def _make_nominatim_request(query_str, country_code=None, retry_count=0):
+            """Make a single Nominatim request with retry on 429."""
+            max_retries = 3
+
+            # Strict rate limiting - wait at least 1.5 seconds between requests
+            self._wait_for_osm_rate_limit()
+
+            url = f'{self.nominatim_url}/search'
             params = {
-                'q': query, 
-                'format': 'json', 
-                'limit': 1, 
+                'format': 'json',
+                'limit': 1,
                 'addressdetails': 1,
-                'dedupe': 1
+                'dedupe': 1,
+                'q': query_str
             }
-            
-            if country:
-                params['countrycodes'] = self.country_name_to_iso2.get(country, country.lower())
-            
+
+            if country_code:
+                params['countrycodes'] = country_code.lower()
+
             headers = {
-                'User-Agent': 'HarmonAIze-Geocoder/1.0 (harmonaize@project.com)'
+                'User-Agent': 'HarmonAIze-Geocoder/1.0 (harmonaize@ceshhar.co.zw)'
             }
-            
 
-            response = requests.get(url, params=params, headers=headers, timeout=5)
+            logger.info(f"NOMINATIM: Querying '{query_str}' (country: {country_code or 'any'})")
+            response = requests.get(url, params=params, headers=headers, timeout=10)
+
+            # Handle rate limiting with exponential backoff
+            if response.status_code == 429:
+                if retry_count < max_retries:
+                    wait_time = (2 ** retry_count) * 2  # 2, 4, 8 seconds
+                    logger.warning(f"NOMINATIM: Rate limited (429), waiting {wait_time}s before retry {retry_count + 1}/{max_retries}")
+                    time.sleep(wait_time)
+                    return _make_nominatim_request(query_str, country_code, retry_count + 1)
+                else:
+                    logger.error(f"NOMINATIM: Rate limited, max retries exceeded for '{query_str}'")
+                    return None
+
             response.raise_for_status()
-            data = response.json()
-            
-            if data and len(data) > 0:
-                result = data[0]
-                return {
-                    "coordinates": (float(result['lat']), float(result['lon'])),
-                    "raw_response": data
-                }
-            return {"error": "No results found", "raw_response": data}
-            
-        except requests.exceptions.ConnectionError:
-            return {"error": "Local Nominatim connection failed (not running or unreachable)"}
-        except requests.exceptions.Timeout:
-            return {"error": "Local Nominatim timeout"}
-        except Exception as e:
-            return {"error": f"Local Nominatim error: {str(e)}"}
+            return response.json()
 
-    def _geocode_nominatim_public(self, query, country=None, iso_code=None):
-        """Geocode using public Nominatim API with country optimization."""
         try:
-            url = f'{self.public_nominatim_url}/search'
-            params = {
-                'q': query, 
-                'format': 'json', 
-                'limit': 1, 
-                'addressdetails': 1,
-                'dedupe': 1
-            }
-            
-
+            # Determine country code
+            country_code = None
             if iso_code:
-                params['countrycodes'] = iso_code.lower()
+                country_code = iso_code.lower()
             elif country:
-                params['countrycodes'] = self.country_name_to_iso2.get(country, country.lower())
-            
-            headers = {
-                'User-Agent': 'HarmonAIze-Geocoder/1.0 (harmonaize@project.com)'
-            }
-            
-            response = requests.get(url, params=params, headers=headers, timeout=3)
-            response.raise_for_status()
-            data = response.json()
+                country_code = self.country_name_to_iso2.get(country, '').lower()
 
+            # Try 1: With country filter (if available)
+            if country_code:
+                data = _make_nominatim_request(query, country_code)
+                if data and len(data) > 0:
+                    result = data[0]
+                    logger.info(f"NOMINATIM (OSM): Success for '{query}' in {country_code}")
+                    return {
+                        "coordinates": (float(result['lat']), float(result['lon'])),
+                        "raw_response": data
+                    }
+                if data is None:
+                    return {"error": "Rate limited by OSM"}
+                logger.info(f"NOMINATIM: No results with country filter, trying without...")
+
+            # Try 2: Without country filter
+            data = _make_nominatim_request(query, None)
             if data and len(data) > 0:
                 result = data[0]
+                logger.info(f"NOMINATIM (OSM): Success for '{query}' (no country filter)")
                 return {
                     "coordinates": (float(result['lat']), float(result['lon'])),
                     "raw_response": data
                 }
+            if data is None:
+                return {"error": "Rate limited by OSM"}
+
             return {"error": "No results found", "raw_response": data}
 
         except requests.exceptions.Timeout:
-            return {"error": "Public Nominatim timeout"}
+            logger.warning(f"NOMINATIM: Timeout for '{query}'")
+            return {"error": "OSM Nominatim timeout"}
         except requests.exceptions.RequestException as e:
+            logger.warning(f"NOMINATIM: Request failed for '{query}': {e}")
             return {"error": f"Request failed: {str(e)}"}
         except Exception as e:
-            return {"error": f"Public Nominatim error: {str(e)}"}
+            logger.error(f"NOMINATIM: Error for '{query}': {e}")
+            return {"error": f"OSM Nominatim error: {str(e)}"}
