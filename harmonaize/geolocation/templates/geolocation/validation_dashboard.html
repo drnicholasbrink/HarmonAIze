@@ -453,35 +453,6 @@
     </div>
   </div>
 
-  <!-- Django Messages/Alerts -->
-  {% if messages %}
-    <div class="error-messages-section">
-      {% for message in messages %}
-        {% if message.tags == 'error' %}
-          <div class="alert alert-error">
-            <span class="error-icon">{% include 'components/svg_icon.html' with icon='alert-circle' size='20' %}</span>
-            <span class="error-text">{{ message }}</span>
-          </div>
-        {% elif message.tags == 'success' %}
-          <div class="alert alert-success">
-            <span class="success-icon">{% include 'components/svg_icon.html' with icon='check' size='20' %}</span>
-            <span class="success-text">{{ message }}</span>
-          </div>
-        {% elif message.tags == 'info' %}
-          <div class="alert alert-info">
-            <span class="info-icon">{% include 'components/svg_icon.html' with icon='info' size='20' %}</span>
-            <span class="info-text">{{ message }}</span>
-          </div>
-        {% elif message.tags == 'warning' %}
-          <div class="alert alert-warning">
-            <span class="warning-icon">{% include 'components/svg_icon.html' with icon='zap' size='20' %}</span>
-            <span class="warning-text">{{ message }}</span>
-          </div>
-        {% endif %}
-      {% endfor %}
-    </div>
-  {% endif %}
-
   <div class="main-content">
     <!-- Statistics Overview -->
     <div class="stats-grid">

@@ -490,11 +490,7 @@ class Study(models.Model):
         null=True, blank=True,
         help_text="Upload study protocol or additional documentation"
     )
-    additional_files = models.FileField(
-        upload_to='studies/additional/',
-        null=True, blank=True,
-        help_text="Upload additional study documentation"
-    )
+    # Note: Additional files are now handled via StudyDocument model (study.documents)
     
     # Study metadata (optional - can be extracted from protocol)
     sample_size = models.PositiveIntegerField(null=True, blank=True, help_text="Approximate sample size (if known)")
@@ -531,13 +527,15 @@ class Study(models.Model):
     class Meta:
         ordering = ['-created_at']
         verbose_name_plural = "Studies"
+        unique_together = ['name', 'project']
     
     def __str__(self):
         return self.name
     
     def save(self, *args, **kwargs):
         # Auto-detect file format from codebook
-        if self.codebook and not self.codebook_format:
+        # Always re-detect format when codebook is present to handle re-uploads
+        if self.codebook:
             file_extension = self.codebook.name.split('.')[-1].lower()
             format_mapping = {
                 'csv': 'csv',
@@ -572,3 +570,61 @@ class Study(models.Model):
         
         permission_map = dict(self.DATA_USE_CHOICES)
         return [permission_map.get(perm, perm) for perm in self.data_use_permissions]
+
+
+class StudyDocument(models.Model):
+    """
+    Represents additional documents attached to a study.
+    Allows multiple files to be uploaded per study.
+    """
+    DOCUMENT_TYPE_CHOICES = [
+        ('additional', 'Additional Document'),
+        ('consent', 'Consent Form'),
+        ('questionnaire', 'Questionnaire'),
+        ('data_dictionary', 'Data Dictionary'),
+        ('ethics', 'Ethics Approval'),
+        ('other', 'Other'),
+    ]
+    
+    study = models.ForeignKey(
+        Study,
+        on_delete=models.CASCADE,
+        related_name='documents'
+    )
+    file = models.FileField(
+        upload_to='studies/documents/',
+        help_text="Upload study documentation"
+    )
+    document_type = models.CharField(
+        max_length=20,
+        choices=DOCUMENT_TYPE_CHOICES,
+        default='additional'
+    )
+    description = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Optional description of the document"
+    )
+    uploaded_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='uploaded_documents'
+    )
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-uploaded_at']
+    
+    def __str__(self):
+        return f"{self.get_document_type_display()} - {self.filename}"
+    
+    @property
+    def filename(self):
+        import os
+        return os.path.basename(self.file.name)
+    
+    @property
+    def file_extension(self):
+        import os
+        return os.path.splitext(self.file.name)[1].lower()

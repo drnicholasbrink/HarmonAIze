@@ -133,6 +133,33 @@
       outline: none;
     }
 
+    .form-group.has-error .form-control,
+    .form-group.has-error .form-select,
+    .form-group.has-error input,
+    .form-group.has-error select,
+    .form-group.has-error textarea {
+      border-color: #dc3545;
+      box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.1);
+    }
+
+    .form-check.has-error .form-check-input {
+      border-color: #dc3545;
+      box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.1);
+    }
+
+    .invalid-feedback,
+    .errorlist {
+      color: #dc3545;
+      font-size: 0.9rem;
+      margin-top: 0.35rem;
+    }
+
+    .errorlist {
+      list-style: none;
+      padding-left: 0;
+      margin-bottom: 0;
+    }
+
     .form-select {
       border: 1px solid var(--border-color);
       border-radius: 8px;
@@ -298,6 +325,14 @@
     <div class="form-card">
       <form method="post" enctype="multipart/form-data">
         {% csrf_token %}
+        {% if form.errors %}
+          <div class="alert alert-danger" role="alert">
+            Please correct the highlighted fields below.
+            {% if form.non_field_errors %}
+              <div class="mt-2">{{ form.non_field_errors }}</div>
+            {% endif %}
+          </div>
+        {% endif %}
         
         <!-- Study Information Section -->
         <div class="form-section">
@@ -306,51 +341,69 @@
             Provide basic information about your research study. This helps us understand the context and requirements for data harmonisation.
           </p>
           
-          <div class="form-group">
+          <div class="form-group{% if form.project.errors %} has-error{% endif %}">
             <label for="{{ form.project.id_for_label }}" class="form-label">Project</label>
             {{ form.project }}
             {% if form.project.help_text %}
               <small class="form-text text-muted">{{ form.project.help_text }}</small>
             {% endif %}
+            {% if form.project.errors %}
+              <div class="invalid-feedback">{{ form.project.errors|striptags }}</div>
+            {% endif %}
           </div>
           
           <div class="row">
             <div class="col-md-8">
-              <div class="form-group">
+              <div class="form-group{% if form.name.errors %} has-error{% endif %}">
                 <label for="{{ form.name.id_for_label }}" class="form-label">Study Name</label>
                 {{ form.name }}
                 {% if form.name.help_text %}
                   <small class="form-text text-muted">{{ form.name.help_text }}</small>
                 {% endif %}
+                {% if form.name.errors %}
+                  <div class="invalid-feedback">{{ form.name.errors|striptags }}</div>
+                {% endif %}
               </div>
             </div>
             <div class="col-md-4">
-              <div class="form-group">
+              <div class="form-group{% if form.study_type.errors %} has-error{% endif %}">
                 <label for="{{ form.study_type.id_for_label }}" class="form-label">Study Type</label>
                 {{ form.study_type }}
+                {% if form.study_type.errors %}
+                  <div class="invalid-feedback">{{ form.study_type.errors|striptags }}</div>
+                {% endif %}
               </div>
             </div>
           </div>
 
-          <div class="form-group">
+          <div class="form-group{% if form.description.errors %} has-error{% endif %}">
             <label for="{{ form.description.id_for_label }}" class="form-label">Description</label>
             {{ form.description }}
             {% if form.description.help_text %}
               <small class="form-text text-muted">{{ form.description.help_text }}</small>
             {% endif %}
+            {% if form.description.errors %}
+              <div class="invalid-feedback">{{ form.description.errors|striptags }}</div>
+            {% endif %}
           </div>
 
           <div class="row">
             <div class="col-md-6">
-              <div class="form-group">
+              <div class="form-group{% if form.principal_investigator.errors %} has-error{% endif %}">
                 <label for="{{ form.principal_investigator.id_for_label }}" class="form-label">Principal Investigator</label>
                 {{ form.principal_investigator }}
+                {% if form.principal_investigator.errors %}
+                  <div class="invalid-feedback">{{ form.principal_investigator.errors|striptags }}</div>
+                {% endif %}
               </div>
             </div>
             <div class="col-md-6">
-              <div class="form-group">
+              <div class="form-group{% if form.sample_size.errors %} has-error{% endif %}">
                 <label for="{{ form.sample_size.id_for_label }}" class="form-label">Sample Size (Optional)</label>
                 {{ form.sample_size }}
+                {% if form.sample_size.errors %}
+                  <div class="invalid-feedback">{{ form.sample_size.errors|striptags }}</div>
+                {% endif %}
               </div>
             </div>
           </div>
@@ -364,38 +417,50 @@
           </p>
           
           <div class="form-group">
-            <div class="form-check">
+            <div class="form-check{% if form.has_ethical_approval.errors %} has-error{% endif %}">
               {{ form.has_ethical_approval }}
               <label for="{{ form.has_ethical_approval.id_for_label }}" class="form-check-label">
                 This study has ethical/IRB approval
               </label>
+              {% if form.has_ethical_approval.errors %}
+                <div class="invalid-feedback">{{ form.has_ethical_approval.errors|striptags }}</div>
+              {% endif %}
             </div>
           </div>
 
           <div class="row">
             <div class="col-md-6">
-              <div class="form-group">
+              <div class="form-group{% if form.ethics_approval_number.errors %} has-error{% endif %}">
                 <label for="{{ form.ethics_approval_number.id_for_label }}" class="form-label">Ethics Approval Number (Optional)</label>
                 {{ form.ethics_approval_number }}
+                {% if form.ethics_approval_number.errors %}
+                  <div class="invalid-feedback">{{ form.ethics_approval_number.errors|striptags }}</div>
+                {% endif %}
               </div>
             </div>
             <div class="col-md-6">
-              <div class="form-group">
+              <div class="form-group{% if form.geographic_scope.errors %} has-error{% endif %}">
                 <label for="{{ form.geographic_scope.id_for_label }}" class="form-label">Geographic Scope (Optional)</label>
                 {{ form.geographic_scope }}
                 {% if form.geographic_scope.help_text %}
                   <small class="form-text text-muted">{{ form.geographic_scope.help_text }}</small>
                 {% endif %}
+                {% if form.geographic_scope.errors %}
+                  <div class="invalid-feedback">{{ form.geographic_scope.errors|striptags }}</div>
+                {% endif %}
               </div>
             </div>
           </div>
 
-          <div class="form-group">
+          <div class="form-group{% if form.data_use_permissions.errors %} has-error{% endif %}">
             <label for="{{ form.data_use_permissions.id_for_label }}" class="form-label">Data Use Permissions</label>
             <p class="section-description">Select all applicable data use permissions based on your study's ethical approval:</p>
             <div class="checkbox-grid">
               {{ form.data_use_permissions }}
             </div>
+            {% if form.data_use_permissions.errors %}
+              <div class="invalid-feedback">{{ form.data_use_permissions.errors|striptags }}</div>
+            {% endif %}
           </div>
         </div>
 
@@ -407,32 +472,44 @@
           </p>
           
           <div class="checkbox-grid">
-            <div class="form-check">
+            <div class="form-check{% if form.has_dates.errors %} has-error{% endif %}">
               {{ form.has_dates }}
               <label for="{{ form.has_dates.id_for_label }}" class="form-check-label">
                 Study includes date/time variables
               </label>
+              {% if form.has_dates.errors %}
+                <div class="invalid-feedback">{{ form.has_dates.errors|striptags }}</div>
+              {% endif %}
             </div>
             
-            <div class="form-check">
+            <div class="form-check{% if form.has_locations.errors %} has-error{% endif %}">
               {{ form.has_locations }}
               <label for="{{ form.has_locations.id_for_label }}" class="form-check-label">
                 Study includes location data
               </label>
+              {% if form.has_locations.errors %}
+                <div class="invalid-feedback">{{ form.has_locations.errors|striptags }}</div>
+              {% endif %}
             </div>
             
-            <div class="form-check">
+            <div class="form-check{% if form.needs_geolocation.errors %} has-error{% endif %}">
               {{ form.needs_geolocation }}
               <label for="{{ form.needs_geolocation.id_for_label }}" class="form-check-label">
                 Need to geolocate addresses/facilities
               </label>
+              {% if form.needs_geolocation.errors %}
+                <div class="invalid-feedback">{{ form.needs_geolocation.errors|striptags }}</div>
+              {% endif %}
             </div>
             
-            <div class="form-check">
+            <div class="form-check{% if form.needs_climate_linkage.errors %} has-error{% endif %}">
               {{ form.needs_climate_linkage }}
               <label for="{{ form.needs_climate_linkage.id_for_label }}" class="form-check-label">
                 Want to link climate data
               </label>
+              {% if form.needs_climate_linkage.errors %}
+                <div class="invalid-feedback">{{ form.needs_climate_linkage.errors|striptags }}</div>
+              {% endif %}
             </div>
           </div>
         </div>
@@ -444,7 +521,7 @@
             Upload your source codebook and any additional documentation that will help with data harmonisation.
           </p>
           
-          <div class="form-group">
+          <div class="form-group{% if form.codebook.errors %} has-error{% endif %}">
             <label for="{{ form.codebook.id_for_label }}" class="form-label">Source Codebook</label>
             <div class="file-upload-area">
               <div class="file-upload-icon">
@@ -465,24 +542,33 @@
             {% if form.codebook.help_text %}
               <small class="form-text text-muted">{{ form.codebook.help_text }}</small>
             {% endif %}
+            {% if form.codebook.errors %}
+              <div class="invalid-feedback">{{ form.codebook.errors|striptags }}</div>
+            {% endif %}
           </div>
 
           <div class="row">
             <div class="col-md-6">
-              <div class="form-group">
+              <div class="form-group{% if form.protocol_file.errors %} has-error{% endif %}">
                 <label for="{{ form.protocol_file.id_for_label }}" class="form-label">Protocol File (Optional)</label>
                 {{ form.protocol_file }}
                 {% if form.protocol_file.help_text %}
                   <small class="form-text text-muted">{{ form.protocol_file.help_text }}</small>
                 {% endif %}
+                {% if form.protocol_file.errors %}
+                  <div class="invalid-feedback">{{ form.protocol_file.errors|striptags }}</div>
+                {% endif %}
               </div>
             </div>
             <div class="col-md-6">
-              <div class="form-group">
+              <div class="form-group{% if form.additional_files.errors %} has-error{% endif %}">
                 <label for="{{ form.additional_files.id_for_label }}" class="form-label">Additional Files (Optional)</label>
                 {{ form.additional_files }}
                 {% if form.additional_files.help_text %}
                   <small class="form-text text-muted">{{ form.additional_files.help_text }}</small>
+                {% endif %}
+                {% if form.additional_files.errors %}
+                  <div class="invalid-feedback">{{ form.additional_files.errors|striptags }}</div>
                 {% endif %}
               </div>
             </div>

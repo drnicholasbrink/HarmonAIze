@@ -492,6 +492,17 @@ def start_harmonisation(request, study_id):
         MessageManager.info(request, "Using existing harmonization schema.")
         return redirect("health:harmonization_dashboard", schema_id=existing_schema.id)
     
+    # Check if any target studies exist for this user in the same project
+    target_studies = Study.objects.filter(
+        study_purpose="target",
+        project__members=request.user
+    ).distinct()
+    
+    if source_study.project_id:
+        target_studies = target_studies.filter(project_id=source_study.project_id)
+    
+    has_target_studies = target_studies.exists()
+    
     if request.method == "POST":
         form = MappingSchemaForm(
             request.POST, source_study=source_study, user=request.user,
@@ -514,7 +525,11 @@ def start_harmonisation(request, study_id):
     return render(
         request,
         "health/start_harmonisation.html",
-        {"form": form, "study": source_study},
+        {
+            "form": form, 
+            "study": source_study,
+            "has_target_studies": has_target_studies,
+        },
     )
 @login_required
 def start_eda_generation(request, file_id):
@@ -737,6 +752,7 @@ def _apply_universal_mappings(schema):
 def select_variables(request, study_id):  # noqa: C901 (complexity accepted temporarily)
     """
     Let user select which extracted variables to include in the study.
+    If variables already exist, redirect to study detail page.
     """
     study = get_object_or_404(
         Study, id=study_id, study_purpose="source",
@@ -747,6 +763,11 @@ def select_variables(request, study_id):  # noqa: C901 (complexity accepted temp
     
     # Get variables data from session
     variables_data = request.session.get(f"variables_data_{study.id}")
+    
+    # If no session data but study already has variables, redirect to study detail
+    if not variables_data and study.variables.exists():
+        return redirect("core:study_detail", pk=study.pk)
+    
     if not variables_data:
         messages.error(
             request,
@@ -822,6 +843,53 @@ def select_variables(request, study_id):  # noqa: C901 (complexity accepted temp
                 study.variables.set(created_attributes)
                 study.status = "variables_extracted"
                 study.save(update_fields=["status"])
+                
+                # Check if we need to generate a codebook from raw data extraction
+                extract_from_raw = request.session.pop(f"extract_from_raw_{study.id}", False)
+                if extract_from_raw and created_attributes:
+                    # Generate a codebook CSV from the selected variables
+                    try:
+                        import csv
+                        import io
+                        from django.core.files.base import ContentFile
+                        
+                        # Create CSV content
+                        output = io.StringIO()
+                        writer = csv.writer(output)
+                        writer.writerow(['variable_name', 'display_name', 'description', 'variable_type', 'unit', 'ontology_code', 'category'])
+                        
+                        for attr in created_attributes:
+                            writer.writerow([
+                                attr.variable_name,
+                                attr.display_name,
+                                attr.description,
+                                attr.variable_type,
+                                attr.unit,
+                                attr.ontology_code,
+                                attr.category,
+                            ])
+                        
+                        csv_content = output.getvalue()
+                        output.close()
+                        
+                        # Save as the study's codebook
+                        codebook_filename = f"codebook_{study.name.lower().replace(' ', '_')}_generated.csv"
+                        study.codebook.save(codebook_filename, ContentFile(csv_content.encode('utf-8')), save=False)
+                        study.codebook_format = 'csv'
+                        study.status = 'variables_extracted'
+                        study.save()
+                        
+                        messages.info(
+                            request,
+                            f"A codebook has been generated from the selected variables and is available for download."
+                        )
+                    except Exception as e:
+                        # Non-fatal: continue even if codebook generation fails
+                        messages.warning(
+                            request,
+                            f"Variables saved, but codebook generation failed: {str(e)}"
+                        )
+                
                 # Clear session data
                 request.session.pop(f"variables_data_{study.id}", None)
                 request.session.pop(f"column_mapping_{study.id}", None)
@@ -1190,6 +1258,24 @@ def upload_raw_data(request, study_id=None):
     # Check if study has variables
     has_variables = study.variables.exists() if study else False
     
+    # Check if codebook exists but variables not extracted
+    has_codebook_unextracted = False
+    if study and study.codebook and not has_variables:
+        has_codebook_unextracted = True
+    
+    # Check if user explicitly chose to extract from raw data (override codebook)
+    extract_from_raw = request.POST.get('extract_from_raw') == 'true' or request.GET.get('extract_from_raw') == 'true'
+    
+    # If codebook exists but not extracted, and user hasn't explicitly chosen raw data extraction
+    if has_codebook_unextracted and not extract_from_raw and request.method == 'GET':
+        # Show suggestion to extract from codebook first
+        context = {
+            'study': study,
+            'has_codebook_unextracted': True,
+            'page_title': f'Upload Raw Data for {study.name}',
+        }
+        return render(request, 'health/upload_raw_data_codebook_warning.html', context)
+    
     if request.method == 'POST':
         form = RawDataUploadForm(request.POST, request.FILES, user=request.user)
         
@@ -1282,6 +1368,18 @@ def upload_raw_data(request, study_id=None):
                     columns = list(df.columns)
                     
                     if columns:
+                        # If user is extracting from raw data despite having a codebook, delete the codebook
+                        if extract_from_raw and raw_data_file.study.codebook:
+                            # Delete the existing codebook file
+                            raw_data_file.study.codebook.delete(save=False)
+                            raw_data_file.study.codebook = None
+                            raw_data_file.study.codebook_format = ''
+                            raw_data_file.study.save()
+                            messages.info(
+                                request,
+                                "Previous codebook has been removed. A new codebook will be generated from the extracted variables."
+                            )
+                        
                         # Create variables data structure for select_variables view
                         variables_data = []
                         for col_name in columns:
@@ -1302,11 +1400,13 @@ def upload_raw_data(request, study_id=None):
                         
                         # Store variables data in session
                         request.session[f"variables_data_{raw_data_file.study.id}"] = variables_data
+                        # Mark that we're extracting from raw data (for codebook generation later)
+                        request.session[f"extract_from_raw_{raw_data_file.study.id}"] = True
                         
                         messages.info(
                             request,
-                            f"No variables found for this study. Extracted {len(columns)} columns from your data file. "
-                            f"Please review and select which variables to include.",
+                            f"Extracted {len(columns)} columns from your data file. "
+                            f"Please review and select which variables to include. A codebook will be generated from your selection.",
                         )
                         
                         # Redirect to select_variables to let user review
@@ -2293,9 +2393,17 @@ def similarity_suggestions_api(request, schema_id):
     Returns JSON with similarity suggestions for all source attributes.
     """
     from django.http import JsonResponse
+    from django.conf import settings
     from core.similarity_service import similarity_service
     
     try:
+        # Check if OpenAI API key is configured
+        if not settings.OPENAI_API_KEY:
+            return JsonResponse({
+                'error': 'OpenAI API key is not configured. Please set the OPENAI_API_KEY environment variable to enable AI-powered similarity suggestions.',
+                'api_key_missing': True
+            }, status=503)
+        
         schema = get_object_or_404(MappingSchema, id=schema_id)
         
         # Check permission - user must have access to the source study

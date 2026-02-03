@@ -42,7 +42,6 @@ class StudyCreationForm(forms.ModelForm):
             'needs_climate_linkage',
             'codebook',
             'protocol_file',
-            'additional_files',
             'sample_size',
             'study_period_start',
             'study_period_end',
@@ -97,9 +96,6 @@ class StudyCreationForm(forms.ModelForm):
                 'class': 'form-control',
                 'accept': '.pdf,.doc,.docx,.txt,.md'
             }),
-            'additional_files': forms.FileInput(attrs={
-                'class': 'form-control'
-            }),
             # Boolean fields with custom styling
             'has_ethical_approval': forms.CheckboxInput(attrs={
                 'class': 'form-check-input'
@@ -130,7 +126,6 @@ class StudyCreationForm(forms.ModelForm):
             'needs_climate_linkage': 'Do you want to link your health data with climate variables?',
             'codebook': 'Upload your codebook in any supported format (CSV, Excel, SPSS, Stata, JSON, DB, etc.)',
             'protocol_file': 'Upload your study protocol or documentation (optional)',
-            'additional_files': 'Upload any additional study files (optional)',
         }
 
     def __init__(self, *args, **kwargs):

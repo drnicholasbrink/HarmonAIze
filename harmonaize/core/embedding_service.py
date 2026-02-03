@@ -5,24 +5,72 @@ import logging
 import numpy as np
 import tiktoken
 from typing import List, Optional, Tuple
-from openai import OpenAI
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
+
+
+class EmbeddingServiceError(Exception):
+    """Exception raised when embedding service encounters an error."""
+    pass
+
+
+class EmbeddingQuotaError(EmbeddingServiceError):
+    """Exception raised when OpenAI API quota is exceeded."""
+    pass
+
 
 class EmbeddingService:
     """Service for generating and managing embeddings using OpenAI's API."""
     
     def __init__(self):
-        """Initialize the embedding service with OpenAI client."""
+        """Initialize the embedding service with lazy OpenAI client initialization."""
+        self._client = None
+        self._encoding = None
+        self._initialized = False
+    
+    def _ensure_initialized(self):
+        """Ensure the service is properly initialized with API key."""
+        if self._initialized:
+            return
+            
         if not settings.OPENAI_API_KEY:
-            raise ValueError("OPENAI_API_KEY must be set in settings")
+            raise EmbeddingServiceError(
+                "OpenAI API key is not configured. Please set the OPENAI_API_KEY "
+                "environment variable to enable AI-powered embedding generation."
+            )
         
-        self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
-        self.model = settings.OPENAI_EMBEDDING_MODEL
-        self.max_tokens = settings.EMBEDDING_CHUNK_TOKENS
-        self.chunk_overlap = settings.EMBEDDING_CHUNK_OVERLAP
-        self.encoding = self._get_encoding()
+        from openai import OpenAI
+        self._client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        self._encoding = self._get_encoding()
+        self._initialized = True
+    
+    @property
+    def client(self):
+        """Get the OpenAI client, initializing if needed."""
+        self._ensure_initialized()
+        return self._client
+    
+    @property
+    def encoding(self):
+        """Get the tokenizer encoding, initializing if needed."""
+        self._ensure_initialized()
+        return self._encoding
+    
+    @property
+    def model(self):
+        """Get the embedding model name from settings."""
+        return settings.OPENAI_EMBEDDING_MODEL
+    
+    @property
+    def max_tokens(self):
+        """Get the max tokens from settings."""
+        return settings.EMBEDDING_CHUNK_TOKENS
+    
+    @property
+    def chunk_overlap(self):
+        """Get the chunk overlap from settings."""
+        return settings.EMBEDDING_CHUNK_OVERLAP
     
     def _get_encoding(self) -> tiktoken.Encoding:
         """Get the appropriate tokenizer encoding for the model."""
@@ -138,6 +186,20 @@ class EmbeddingService:
                 return self._normalize_vector(embedding)
                 
         except Exception as e:
+            error_str = str(e).lower()
+            # Check for quota/rate limit errors
+            if 'insufficient_quota' in error_str or 'exceeded your current quota' in error_str:
+                logger.error(f"OpenAI API quota exceeded: {e}")
+                raise EmbeddingQuotaError(
+                    "OpenAI API quota exceeded. Please check your plan and billing details at "
+                    "https://platform.openai.com/account/billing"
+                )
+            elif '429' in error_str or 'rate limit' in error_str:
+                logger.error(f"OpenAI API rate limit: {e}")
+                raise EmbeddingQuotaError(
+                    "OpenAI API rate limit reached. Please wait a moment and try again, "
+                    "or check your account quota."
+                )
             logger.error(f"Error generating embedding: {e}")
             return None
     

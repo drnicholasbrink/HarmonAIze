@@ -57,7 +57,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Increase the maximum number of POST parameters to handle large variable selection forms
 # Default is 1000, but we may have many variables with multiple fields each
 # https://docs.djangoproject.com/en/dev/ref/settings/#data-upload-max-number-fields
-DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 50000
 
 # URLS
 # ------------------------------------------------------------------------------

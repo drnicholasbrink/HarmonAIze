@@ -244,20 +244,66 @@ def analyze_raw_data_columns(file_path: str) -> Dict[str, Any]:
 
 def suggest_column_mappings(raw_columns: List[str], study_variables: List[str]) -> List[dict]:
     """
-    Suggest mappings between raw data columns and study variables using simple matching.
+    Suggest mappings between raw data columns and study variables using enhanced matching.
+    
+    This function is used for two purposes:
+    1. Mapping codebook columns to schema fields (variable_name, display_name, etc.)
+    2. Mapping raw data columns to study variables
     
     Args:
-        raw_columns: List of column names from raw data file
-        study_variables: List of variable names from study codebook
+        raw_columns: List of column names from raw data file or codebook
+        study_variables: List of variable names or expected field names
         
     Returns:
         List[dict]: List of suggestions with column_name, suggested_variable, confidence, reason
     """
     suggestions = []
     
-    # Simple string matching algorithm
+    # Define common synonyms for schema field mapping
+    # This helps when mapping codebook columns to expected attribute fields
+    field_synonyms = {
+        'variable_name': [
+            'variable', 'var', 'var_name', 'varname', 'variable_name', 'variablename',
+            'name', 'field', 'field_name', 'fieldname', 'column', 'column_name', 
+            'colname', 'col_name', 'attribute', 'attr', 'code', 'var_id', 'varid',
+            'item', 'item_name', 'indicator', 'metric', 'measure', 'variable_id'
+        ],
+        'display_name': [
+            'display_name', 'displayname', 'display', 'label', 'variable_label',
+            'var_label', 'varlabel', 'title', 'caption', 'heading', 'header',
+            'short_name', 'shortname', 'friendly_name', 'human_name', 'readable_name',
+            'pretty_name', 'ui_name', 'ui_label', 'full_name', 'display_label'
+        ],
+        'description': [
+            'description', 'desc', 'descr', 'describe', 'definition', 'detail',
+            'details', 'explanation', 'info', 'information', 'notes', 'comment',
+            'comments', 'remark', 'remarks', 'long_description', 'full_description',
+            'variable_description', 'var_desc', 'help', 'help_text', 'tooltip'
+        ],
+        'variable_type': [
+            'type', 'data_type', 'datatype', 'dtype', 'variable_type', 'vartype',
+            'var_type', 'format', 'field_type', 'fieldtype', 'col_type', 'coltype',
+            'class', 'data_class', 'storage_type', 'measure_type', 'value_type'
+        ],
+        'unit': [
+            'unit', 'units', 'uom', 'measurement_unit', 'measure_unit', 'unit_of_measure',
+            'measurement', 'scale', 'unit_type', 'unit_name', 'unit_label'
+        ],
+        'ontology_code': [
+            'ontology', 'ontology_code', 'ontology_id', 'code', 'standard_code',
+            'snomed', 'snomed_code', 'snomed_ct', 'loinc', 'loinc_code', 'icd',
+            'icd_code', 'icd10', 'icd_10', 'mesh', 'mesh_code', 'umls', 'umls_code',
+            'concept_id', 'concept_code', 'terminology_code', 'standard_id'
+        ],
+        'category': [
+            'category', 'cat', 'group', 'grouping', 'section', 'domain', 'area',
+            'topic', 'theme', 'class', 'classification', 'module', 'block',
+            'variable_category', 'var_category', 'data_category', 'type_category'
+        ]
+    }
+    
     for raw_col in raw_columns:
-        raw_col_lower = raw_col.lower().strip()
+        raw_col_lower = raw_col.lower().strip().replace(' ', '_').replace('-', '_')
         best_match = None
         best_confidence = 0.0
         best_reason = ""
@@ -267,29 +313,70 @@ def suggest_column_mappings(raw_columns: List[str], study_variables: List[str]) 
             confidence = 0.0
             reason = ""
             
-            # Exact match (highest confidence)
-            if raw_col_lower == study_var_lower:
-                confidence = 1.0
-                reason = "Exact name match"
-            # One contains the other (high confidence)
-            elif raw_col_lower in study_var_lower:
-                confidence = 0.8
-                reason = f"Column name '{raw_col}' found in variable '{study_var}'"
-            elif study_var_lower in raw_col_lower:
-                confidence = 0.8
-                reason = f"Variable name '{study_var}' found in column '{raw_col}'"
-            # Similar words/patterns (medium confidence)
-            else:
-                # Check for common word patterns
-                raw_words = set(raw_col_lower.replace('_', ' ').replace('-', ' ').split())
-                var_words = set(study_var_lower.replace('_', ' ').replace('-', ' ').split())
-                
-                # Calculate word overlap
-                common_words = raw_words.intersection(var_words)
-                if common_words and len(common_words) >= 1:
-                    overlap_ratio = len(common_words) / max(len(raw_words), len(var_words))
-                    confidence = 0.3 + (overlap_ratio * 0.4)  # 0.3-0.7 range
-                    reason = f"Common words: {', '.join(common_words)}"
+            # Check for field synonym matches (highest priority for schema mapping)
+            synonyms = field_synonyms.get(study_var_lower, [])
+            if synonyms:
+                # Check exact synonym match (highest confidence)
+                if raw_col_lower in synonyms:
+                    confidence = 0.95
+                    reason = f"Exact match: '{raw_col}' is a known synonym for '{study_var}'"
+                else:
+                    # For substring matches, prioritize longer/more specific synonyms
+                    # Sort synonyms by length descending to check more specific ones first
+                    sorted_synonyms = sorted(synonyms, key=len, reverse=True)
+                    
+                    for syn in sorted_synonyms:
+                        # Only match if the synonym is meaningful (at least 4 chars)
+                        # and forms a significant part of the column name
+                        if len(syn) >= 4 and syn in raw_col_lower:
+                            # Calculate how much of the column name the synonym covers
+                            coverage = len(syn) / len(raw_col_lower)
+                            # Higher confidence for higher coverage
+                            confidence = 0.75 + (coverage * 0.15)  # Range: 0.75-0.90
+                            reason = f"Contains synonym '{syn}' for '{study_var}'"
+                            break
+                    
+                    # If no long synonym match, try shorter ones but with lower confidence
+                    if confidence == 0.0:
+                        for syn in sorted_synonyms:
+                            if len(syn) >= 3 and syn in raw_col_lower:
+                                confidence = 0.65
+                                reason = f"Contains short synonym '{syn}' for '{study_var}'"
+                                break
+                    
+                    # Check if column name is contained in any synonym (reverse match)
+                    if confidence == 0.0 and len(raw_col_lower) >= 3:
+                        for syn in synonyms:
+                            if raw_col_lower in syn:
+                                confidence = 0.70
+                                reason = f"Column '{raw_col}' matches part of synonym pattern"
+                                break
+            
+            # If no synonym match, try standard matching
+            if confidence == 0.0:
+                # Exact match (highest confidence)
+                if raw_col_lower == study_var_lower:
+                    confidence = 1.0
+                    reason = "Exact name match"
+                # One contains the other (high confidence)
+                elif raw_col_lower in study_var_lower:
+                    confidence = 0.8
+                    reason = f"Column name '{raw_col}' found in variable '{study_var}'"
+                elif study_var_lower in raw_col_lower:
+                    confidence = 0.8
+                    reason = f"Variable name '{study_var}' found in column '{raw_col}'"
+                # Similar words/patterns (medium confidence)
+                else:
+                    # Check for common word patterns
+                    raw_words = set(raw_col_lower.replace('_', ' ').replace('-', ' ').split())
+                    var_words = set(study_var_lower.replace('_', ' ').replace('-', ' ').split())
+                    
+                    # Calculate word overlap
+                    common_words = raw_words.intersection(var_words)
+                    if common_words and len(common_words) >= 1:
+                        overlap_ratio = len(common_words) / max(len(raw_words), len(var_words))
+                        confidence = 0.3 + (overlap_ratio * 0.4)  # 0.3-0.7 range
+                        reason = f"Common words: {', '.join(common_words)}"
             
             # Keep track of best match for this column
             if confidence > best_confidence:

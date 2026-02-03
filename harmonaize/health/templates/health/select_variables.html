@@ -342,21 +342,6 @@
     </div>
 
 
-      <!-- Error Messages Display -->
-      {% if messages %}
-        <div class="error-messages-section" style="margin-bottom: 2rem;">
-          {% for message in messages %}
-            {% if message.tags == 'error' %}
-              <div class="alert alert-danger">{{ message }}</div>
-            {% elif message.tags == 'success' %}
-              <div class="alert alert-success">{{ message }}</div>
-            {% elif message.tags == 'info' %}
-              <div class="alert alert-info">{{ message }}</div>
-            {% endif %}
-          {% endfor %}
-        </div>
-      {% endif %}
-
       <!-- Formset Errors Display -->
       {% if formset.non_form_errors %}
         <div class="alert alert-danger" style="margin-bottom: 2rem;">

@@ -6,11 +6,12 @@ from django.views.generic import ListView, DetailView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
+from django.conf import settings
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.offline import plot
-from .models import Study, Project, ProjectMembership, ProjectInvitation
+from .models import Study, Project, ProjectMembership, ProjectInvitation, Attribute
 from .forms import StudyCreationForm, ProjectCreationForm, ProjectInvitationForm
 from health.models import RawDataFile
 from core.tsne_service import tsne_service
@@ -50,11 +51,15 @@ def upload_study(request):
                 
                 messages.success(
                     request,
-                    f'Codebook updated successfully! Previous {variables_count} variables were reset. '
-                    f'You can now restart the harmonisation workflow.'
+                    f'Codebook uploaded successfully! Previous {variables_count} variables were reset. '
+                    f'Now let\'s extract variables from the codebook.'
                 )
                 
-                return redirect('core:study_detail', pk=study.pk)
+                # Redirect to extraction page based on study purpose
+                if study.study_purpose == 'target':
+                    return redirect('core:target_map_codebook', study_id=study.pk)
+                else:
+                    return redirect('health:map_codebook', study_id=study.pk)
             else:
                 messages.error(request, 'Please correct the errors below.')
         else:
@@ -68,17 +73,22 @@ def upload_study(request):
                     study.save(update_fields=['status'])
                     messages.success(
                         request, 
-                        f'Study "{study.name}" created successfully with codebook file! '
-                        f'Next, you can process the codebook to extract variables.'
+                        f'Study "{study.name}" created successfully with codebook! '
+                        f'Let\'s extract the variables from your codebook.'
                     )
+                    
+                    # Redirect to extraction page based on study purpose
+                    if study.study_purpose == 'target':
+                        return redirect('core:target_map_codebook', study_id=study.pk)
+                    else:
+                        return redirect('health:map_codebook', study_id=study.pk)
                 else:
                     messages.success(
                         request, 
                         f'Study "{study.name}" created successfully! '
                         f'You can upload a codebook file later from the study page.'
                     )
-                
-                return redirect('core:study_detail', pk=study.pk)
+                    return redirect('core:study_detail', pk=study.pk)
             else:
                 messages.error(request, 'Please correct the errors below.')
     else:
@@ -187,6 +197,12 @@ class StudyDetailView(LoginRequiredMixin, DetailView):
                     'percentage': (variable_types[var_type] / total_vars) * 100,
                 }
         
+        # For target studies, check if any source studies have been harmonised to it
+        has_harmonised_sources = False
+        if study.study_purpose == 'target':
+            # target_mappings is the related_name for MappingSchema.target_study
+            has_harmonised_sources = study.target_mappings.exists()
+        
         context.update({
             'variable_types': variable_types,
             'variables_with_units': variables_with_units,
@@ -194,6 +210,7 @@ class StudyDetailView(LoginRequiredMixin, DetailView):
             'total_variables': total_vars,
             'variables_with_embeddings': variables_with_embeddings,
             'embedding_progress': round(embedding_progress, 1),
+            'has_harmonised_sources': has_harmonised_sources,
         })
         
         return context
@@ -215,6 +232,321 @@ def toggle_climate_linkage(request, pk):
         "Climate linkage {} for this study.".format("enabled" if new_value else "disabled"),
     )
     return redirect("core:study_detail", pk=study.pk)
+
+
+@login_required
+@require_http_methods(["POST"])
+def update_study_field(request, pk):
+    """
+    API endpoint to update individual study fields via AJAX.
+    Accepts JSON data with field name and value, or file uploads for file fields.
+    """
+    import json
+    
+    study = get_object_or_404(Study, pk=pk, project__members=request.user)
+    
+    # Handle file uploads (multipart form data)
+    if request.content_type and 'multipart/form-data' in request.content_type:
+        field_name = request.POST.get('field')
+        allowed_file_fields = ['protocol_file', 'additional_files']
+        
+        if field_name not in allowed_file_fields:
+            messages.error(request, f'Field {field_name} is not a valid file field.')
+            return redirect('core:study_detail', pk=pk)
+        
+        if field_name in request.FILES:
+            uploaded_file = request.FILES[field_name]
+            setattr(study, field_name, uploaded_file)
+            study.save()
+            messages.success(request, f'File uploaded successfully.')
+        else:
+            messages.error(request, 'No file was uploaded.')
+        
+        return redirect('core:study_detail', pk=pk)
+    
+    # Handle JSON data for regular field updates
+    try:
+        data = json.loads(request.body)
+        field_name = data.get('field')
+        field_value = data.get('value')
+        
+        # Define allowed fields for security
+        allowed_fields = [
+            'name', 'description', 'principal_investigator', 'study_type',
+            'has_ethical_approval', 'ethics_approval_number', 'has_dates',
+            'has_locations', 'needs_geolocation', 'needs_climate_linkage',
+            'sample_size', 'study_period_start', 'study_period_end',
+            'geographic_scope', 'data_use_permissions'
+        ]
+        
+        if field_name not in allowed_fields:
+            return JsonResponse({'success': False, 'error': f'Field {field_name} is not editable'}, status=400)
+        
+        # Handle special field types
+        if field_name in ['has_ethical_approval', 'has_dates', 'has_locations', 'needs_geolocation', 'needs_climate_linkage']:
+            field_value = field_value in [True, 'true', 'True', '1', 1, 'on']
+        elif field_name == 'sample_size':
+            field_value = int(field_value) if field_value else None
+        elif field_name in ['study_period_start', 'study_period_end']:
+            from datetime import datetime
+            if field_value:
+                field_value = datetime.strptime(field_value, '%Y-%m-%d').date()
+            else:
+                field_value = None
+        elif field_name == 'data_use_permissions':
+            # Ensure it's a list
+            if isinstance(field_value, str):
+                field_value = [field_value] if field_value else []
+        
+        # Update the field
+        setattr(study, field_name, field_value)
+        study.save()
+        
+        # Get display value for response
+        display_value = field_value
+        if field_name == 'study_type':
+            display_value = study.get_study_type_display()
+        elif field_name in ['has_ethical_approval', 'has_dates', 'has_locations', 'needs_geolocation', 'needs_climate_linkage']:
+            display_value = 'Yes' if field_value else 'No'
+        
+        return JsonResponse({
+            'success': True,
+            'field': field_name,
+            'value': field_value,
+            'display_value': display_value
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+def download_codebook(request, pk):
+    """
+    Download the codebook file for a study with proper filename and content-disposition.
+    Forces the browser to download the file rather than display it.
+    """
+    from django.http import FileResponse, Http404
+    import os
+    import mimetypes
+    
+    study = get_object_or_404(Study, pk=pk, project__members=request.user)
+    
+    if not study.codebook:
+        raise Http404("No codebook file found for this study.")
+    
+    # Get the file
+    codebook_file = study.codebook
+    
+    # Determine the filename - use study name + format extension
+    original_extension = os.path.splitext(codebook_file.name)[1]
+    if not original_extension:
+        # Try to get extension from codebook_format
+        format_to_ext = {
+            'csv': '.csv',
+            'xlsx': '.xlsx',
+            'xls': '.xls',
+            'json': '.json',
+            'spss': '.sav',
+            'stata': '.dta',
+            'sqlite': '.db',
+            'xml': '.xml',
+            'text': '.txt',
+        }
+        original_extension = format_to_ext.get(study.codebook_format, '.dat')
+    
+    # Create a clean filename from study name
+    clean_name = "".join(c for c in study.name if c.isalnum() or c in (' ', '-', '_')).strip()
+    clean_name = clean_name.replace(' ', '_')
+    download_filename = f"{clean_name}_codebook{original_extension}"
+    
+    # Determine content type
+    content_type, _ = mimetypes.guess_type(download_filename)
+    if not content_type:
+        content_type = 'application/octet-stream'
+    
+    # Create the response
+    response = FileResponse(
+        codebook_file.open('rb'),
+        content_type=content_type,
+        as_attachment=True,
+        filename=download_filename
+    )
+    
+    return response
+
+
+@login_required
+@require_http_methods(["POST"])
+def delete_study_file(request, pk, file_type):
+    """
+    Delete a specific file from a study (codebook or protocol).
+    """
+    from .models import StudyDocument
+    
+    study = get_object_or_404(Study, pk=pk, project__members=request.user)
+    
+    if file_type == 'codebook':
+        if study.codebook:
+            study.codebook.delete(save=False)
+            study.codebook = None
+            study.codebook_format = ''
+            study.status = 'created'  # Reset status since codebook is gone
+            study.save()
+            messages.success(request, 'Codebook deleted successfully.')
+        else:
+            messages.warning(request, 'No codebook to delete.')
+    elif file_type == 'protocol':
+        if study.protocol_file:
+            study.protocol_file.delete(save=False)
+            study.protocol_file = None
+            study.save()
+            messages.success(request, 'Protocol file deleted successfully.')
+        else:
+            messages.warning(request, 'No protocol file to delete.')
+    else:
+        messages.error(request, 'Invalid file type.')
+    
+    return redirect('core:study_detail', pk=pk)
+
+
+@login_required
+@require_http_methods(["POST"])
+def add_study_document(request, pk):
+    """
+    Add an additional document to a study.
+    """
+    from .models import StudyDocument
+    
+    study = get_object_or_404(Study, pk=pk, project__members=request.user)
+    
+    if 'file' in request.FILES:
+        doc = StudyDocument.objects.create(
+            study=study,
+            file=request.FILES['file'],
+            document_type=request.POST.get('document_type', 'additional'),
+            description=request.POST.get('description', ''),
+            uploaded_by=request.user
+        )
+        messages.success(request, f'Document "{doc.filename}" uploaded successfully.')
+    else:
+        messages.error(request, 'No file was uploaded.')
+    
+    return redirect('core:study_detail', pk=pk)
+
+
+@login_required
+@require_http_methods(["POST"])
+def delete_study_document(request, pk, doc_id):
+    """
+    Delete an additional document from a study.
+    """
+    from .models import StudyDocument
+    
+    doc = get_object_or_404(StudyDocument, pk=doc_id, study__pk=pk, study__project__members=request.user)
+    filename = doc.filename
+    
+    doc.file.delete(save=False)
+    doc.delete()
+    
+    messages.success(request, f'Document "{filename}" deleted successfully.')
+    return redirect('core:study_detail', pk=pk)
+
+
+@login_required
+def download_study_document(request, pk, doc_id):
+    """
+    Download an additional document from a study.
+    """
+    from django.http import FileResponse, Http404
+    from .models import StudyDocument
+    import mimetypes
+    
+    doc = get_object_or_404(StudyDocument, pk=doc_id, study__pk=pk, study__project__members=request.user)
+    
+    content_type, _ = mimetypes.guess_type(doc.filename)
+    if not content_type:
+        content_type = 'application/octet-stream'
+    
+    response = FileResponse(
+        doc.file.open('rb'),
+        content_type=content_type,
+        as_attachment=True,
+        filename=doc.filename
+    )
+    
+    return response
+
+
+@login_required
+@require_http_methods(["POST"])
+def update_attribute(request, attribute_id):
+    """
+    API endpoint to update an attribute/variable via AJAX.
+    Accepts JSON data with field values.
+    """
+    import json
+    
+    attribute = get_object_or_404(Attribute, pk=attribute_id)
+    
+    # Check user has access to the study
+    if attribute.study and not attribute.study.project.members.filter(pk=request.user.pk).exists():
+        return JsonResponse({'success': False, 'error': 'Permission denied'}, status=403)
+    
+    try:
+        data = json.loads(request.body)
+        
+        # Define allowed fields for security
+        allowed_fields = [
+            'display_name', 'description', 'unit', 'ontology_code', 'variable_type', 'category'
+        ]
+        
+        updated_fields = []
+        for field_name, field_value in data.items():
+            if field_name in allowed_fields:
+                # Validate variable_type choices
+                if field_name == 'variable_type':
+                    valid_types = ['float', 'int', 'string', 'categorical', 'boolean', 'datetime']
+                    if field_value not in valid_types:
+                        return JsonResponse({'success': False, 'error': f'Invalid variable type: {field_value}'}, status=400)
+                
+                # Validate category choices
+                if field_name == 'category':
+                    valid_categories = ['health', 'climate', 'geolocation']
+                    if field_value not in valid_categories:
+                        return JsonResponse({'success': False, 'error': f'Invalid category: {field_value}'}, status=400)
+                
+                setattr(attribute, field_name, field_value)
+                updated_fields.append(field_name)
+        
+        if updated_fields:
+            attribute.save()
+            # Clear embeddings if name or description changed (they need to be regenerated)
+            if 'description' in updated_fields:
+                attribute.description_embedding = None
+                attribute.save(update_fields=['description_embedding'])
+        
+        return JsonResponse({
+            'success': True,
+            'updated_fields': updated_fields,
+            'attribute': {
+                'id': attribute.id,
+                'variable_name': attribute.variable_name,
+                'display_name': attribute.display_name,
+                'description': attribute.description,
+                'unit': attribute.unit,
+                'ontology_code': attribute.ontology_code,
+                'variable_type': attribute.variable_type,
+                'category': attribute.category,
+            }
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
 @login_required
@@ -377,6 +709,12 @@ def create_target_study(request):
     Create a new target database for defining harmonisation targets.
     Multiple target databases are allowed per user.
     """
+    # Get project from query parameter if provided (e.g., from harmonisation flow)
+    project_id = request.GET.get('project')
+    initial_data = {}
+    if project_id:
+        initial_data['project'] = project_id
+    
     if request.method == 'POST':
         form = StudyCreationForm(request.POST, request.FILES, user=request.user)
         if form.is_valid():
@@ -403,7 +741,7 @@ def create_target_study(request):
         else:
             messages.error(request, 'Please correct the errors below.')
     else:
-        form = StudyCreationForm(user=request.user)
+        form = StudyCreationForm(user=request.user, initial=initial_data)
     
     context = {
         'form': form,
@@ -679,6 +1017,15 @@ def generate_study_embeddings(request, study_id):
     study = get_object_or_404(Study, id=study_id, project__members=request.user)
     
     if request.method == 'POST':
+        # Check if OpenAI API key is configured before queuing tasks
+        if not settings.OPENAI_API_KEY:
+            messages.error(
+                request,
+                "OpenAI API key is not configured. Please set the OPENAI_API_KEY environment variable "
+                "to enable AI-powered embedding generation. See the documentation for setup instructions."
+            )
+            return redirect('core:study_detail', pk=study_id)
+        
         from core.tasks import generate_embeddings_for_study
         
         # Queue the embedding generation task
@@ -744,6 +1091,19 @@ def generate_attribute_embedding(request, attribute_id):
         return redirect('core:study_list')
     
     if request.method == 'POST':
+        # Check if OpenAI API key is configured before queuing tasks
+        if not settings.OPENAI_API_KEY:
+            messages.error(
+                request,
+                "OpenAI API key is not configured. Please set the OPENAI_API_KEY environment variable "
+                "to enable AI-powered embedding generation."
+            )
+            # Find a study that contains this attribute to redirect to
+            study = user_studies.filter(variables=attribute).first()
+            if study:
+                return redirect('core:study_detail', pk=study.pk)
+            return redirect('core:study_list')
+        
         from core.tasks import generate_attribute_embeddings
         
         # Queue the embedding generation task
