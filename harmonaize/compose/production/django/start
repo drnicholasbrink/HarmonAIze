@@ -6,5 +6,12 @@ set -o nounset
 
 
 python /app/manage.py collectstatic --noinput
+python /app/manage.py migrate --noinput
+
+# Auto-load geolocation reference data in background (don't block server startup)
+(python /app/manage.py load_hdx_data || true) &
+(python /app/manage.py load_validation_data || true) &
+# Process admin boundaries GeoJSON (only runs if not already processed)
+(python /app/manage.py process_admin_boundaries --simplify || true) &
 
 exec /usr/local/bin/gunicorn config.asgi --bind 0.0.0.0:5000 --chdir=/app -k uvicorn_worker.UvicornWorker

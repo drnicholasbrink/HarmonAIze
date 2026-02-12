@@ -321,6 +321,97 @@
       border: 1px solid var(--border-color);
     }
 
+    /* Boundary popup styling */
+    .boundary-popup .mapboxgl-popup-content {
+      padding: 0;
+      border-radius: 8px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+      border: none;
+      overflow: hidden;
+    }
+
+    .boundary-popup .mapboxgl-popup-tip {
+      border-top-color: white;
+    }
+
+    /* Boundary toggle controls */
+    .layer-group {
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .layer-group:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .layer-group-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 0.4rem;
+      padding-left: 0.5rem;
+    }
+
+    .overlay-toggle {
+      display: flex;
+      align-items: center;
+      padding: 0.5rem;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: background 0.2s ease;
+      margin-bottom: 0.25rem;
+    }
+
+    .overlay-toggle:hover {
+      background: #f8f9fa;
+    }
+
+    .overlay-toggle input[type="checkbox"] {
+      display: none;
+    }
+
+    .toggle-slider {
+      width: 36px;
+      height: 20px;
+      background: #ccc;
+      border-radius: 10px;
+      position: relative;
+      transition: background 0.3s ease;
+      flex-shrink: 0;
+    }
+
+    .toggle-slider::after {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      background: white;
+      border-radius: 50%;
+      top: 2px;
+      left: 2px;
+      transition: transform 0.3s ease;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+
+    .overlay-toggle input:checked + .toggle-slider {
+      background: var(--accent-color);
+    }
+
+    .overlay-toggle input:checked + .toggle-slider::after {
+      transform: translateX(16px);
+    }
+
+    .toggle-label {
+      margin-left: 0.75rem;
+      font-size: 0.85rem;
+      color: var(--text-primary);
+    }
+
     .validated-marker {
       border-radius: 50%;
       border: 3px solid white;
@@ -561,18 +652,58 @@
 
       <!-- Map Controls -->
       <div class="map-controls">
-        <h4>Map Layers</h4>
-        <button onclick="changeMapLayer('satellite')" class="layer-button active" id="satellite-btn">
-          Satellite
-        </button>
-        <button onclick="changeMapLayer('streets')" class="layer-button" id="streets-btn">
-          Streets
-        </button>
+        <div class="layer-group">
+          <div class="layer-group-label">Base Map</div>
+          <button onclick="changeMapLayer('satellite')" class="layer-button active" id="satellite-btn">
+            Satellite
+          </button>
+          <button onclick="changeMapLayer('streets')" class="layer-button" id="streets-btn">
+            Streets
+          </button>
+        </div>
+
+        <div class="layer-group">
+          <div class="layer-group-label">Admin Boundaries</div>
+          <label class="overlay-toggle">
+            <input type="checkbox" id="toggle-countries" onchange="toggleBoundaryLayer('countries', this.checked)">
+            <span class="toggle-slider"></span>
+            <span class="toggle-label">Countries</span>
+          </label>
+          <label class="overlay-toggle">
+            <input type="checkbox" id="toggle-provinces" onchange="toggleBoundaryLayer('provinces', this.checked)">
+            <span class="toggle-slider"></span>
+            <span class="toggle-label">Provinces/States</span>
+          </label>
+          <label class="overlay-toggle">
+            <input type="checkbox" id="toggle-districts" onchange="toggleBoundaryLayer('districts', this.checked)">
+            <span class="toggle-slider"></span>
+            <span class="toggle-label">Districts</span>
+          </label>
+          <div id="boundary-loading" style="display: none; padding: 0.5rem; font-size: 0.75rem; color: var(--text-secondary);">
+            <div class="loading-spinner" style="width: 12px; height: 12px; display: inline-block; margin-right: 0.5rem;"></div>
+            Loading boundaries...
+          </div>
+        </div>
       </div>
 
       <!-- Download Panel -->
       <div class="download-panel">
         <h4>📥 Download Map</h4>
+
+        {% if source_files %}
+        <div style="margin-bottom: 0.75rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border-color);">
+          <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.25rem;">Source File:</label>
+          <select id="sourceFileSelect" style="width: 100%; padding: 0.5rem; border-radius: 6px; border: 1px solid var(--border-color); font-size: 0.8rem; background: white;">
+            {% for sf in source_files %}
+            <option value="{{ sf.prefix }}">{{ sf.filename }}</option>
+            {% endfor %}
+            {% if source_files|length > 1 %}
+            <option value="{{ default_prefix }}">All Sources Combined</option>
+            {% endif %}
+          </select>
+        </div>
+        {% endif %}
+
         <button onclick="downloadMap('pdf')" class="download-btn btn-pdf">
           <span>📄</span>
           <span>Download PDF</span>
@@ -581,11 +712,11 @@
           <span>🖼️</span>
           <span>Download PNG</span>
         </button>
-        <a href="{% url 'geolocation:download_validated_locations_csv' %}" class="download-btn btn-csv" style="text-decoration: none;">
+        <a href="{% url 'geolocation:download_validated_locations_csv' %}" class="download-btn btn-csv" style="text-decoration: none;" id="csvDownloadLink">
           <span>📊</span>
           <span>Download CSV</span>
         </a>
-        <a href="{% url 'geolocation:download_validated_locations_shapefile' %}" class="download-btn btn-shapefile" style="text-decoration: none;">
+        <a href="{% url 'geolocation:download_validated_locations_shapefile' %}" class="download-btn btn-shapefile" style="text-decoration: none;" id="shapefileDownloadLink">
           <span>🗺️</span>
           <span>Download Shapefile</span>
         </a>
@@ -610,6 +741,23 @@
         </div>
         <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color); font-size: 0.8rem; color: var(--text-secondary);">
           Total: {{ total_locations }} validated locations
+        </div>
+
+        <!-- Admin Boundaries Legend -->
+        <div id="boundary-legend" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color); display: none;">
+          <h4 style="margin-bottom: 0.5rem; font-size: 0.85rem; font-weight: 600;">Admin Boundaries</h4>
+          <div class="legend-item" id="legend-countries" style="display: none;">
+            <div style="width: 20px; height: 3px; background: #4B0082; margin-right: 0.5rem;"></div>
+            <span>Country borders</span>
+          </div>
+          <div class="legend-item" id="legend-provinces" style="display: none;">
+            <div style="width: 20px; height: 3px; background: #008080; margin-right: 0.5rem; border-style: dashed;"></div>
+            <span>Province/State borders</span>
+          </div>
+          <div class="legend-item" id="legend-districts" style="display: none;">
+            <div style="width: 20px; height: 3px; background: #A0522D; margin-right: 0.5rem; border-style: dotted;"></div>
+            <span>District borders</span>
+          </div>
         </div>
       </div>
 
@@ -650,9 +798,46 @@
     });
 
     const locationsData = {{ locations_data|safe }};
+    const sourceFiles = {{ source_files_json|safe }};
+    const defaultPrefix = '{{ default_prefix|escapejs }}';
     let markers = [];
     let currentMapStyle = 'satellite';
     let locationColors = {};
+
+    // Get selected source file prefix for export filenames
+    function getExportPrefix() {
+      const select = document.getElementById('sourceFileSelect');
+      if (select && select.value) {
+        return select.value;
+      }
+      return defaultPrefix || 'validated_locations';
+    }
+
+    // Update CSV and Shapefile download links with prefix
+    function updateDownloadLinks() {
+      const prefix = getExportPrefix();
+      const csvLink = document.getElementById('csvDownloadLink');
+      const shapefileLink = document.getElementById('shapefileDownloadLink');
+
+      if (csvLink) {
+        const baseUrl = '{% url "geolocation:download_validated_locations_csv" %}';
+        csvLink.href = `${baseUrl}?prefix=${encodeURIComponent(prefix)}`;
+      }
+      if (shapefileLink) {
+        const baseUrl = '{% url "geolocation:download_validated_locations_shapefile" %}';
+        shapefileLink.href = `${baseUrl}?prefix=${encodeURIComponent(prefix)}`;
+      }
+    }
+
+    // Update links when source file selection changes
+    document.addEventListener('DOMContentLoaded', function() {
+      const select = document.getElementById('sourceFileSelect');
+      if (select) {
+        select.addEventListener('change', updateDownloadLinks);
+        // Initial update
+        updateDownloadLinks();
+      }
+    });
 
     // Enhanced color palette for better distinction
     const colorPalette = [
@@ -670,6 +855,59 @@
       'streets': 'mapbox://styles/mapbox/streets-v11',
       'terrain': 'mapbox://styles/mapbox/outdoors-v11'
     };
+
+    // Admin boundary layer configurations - cartographic standard colors
+    const boundaryLayers = {
+      countries: {
+        url: '{% url "geolocation:admin_boundaries_api" layer_type="countries" %}',
+        loaded: false,
+        visible: false,
+        data: null,
+        fillColor: 'rgba(75, 0, 130, 0.08)',
+        lineColor: '#4B0082',
+        lineWidth: 2.5,
+        lineDashArray: null,
+        nameField: 'NAME_0',
+        labelMinZoom: 3,
+        labelSize: 14
+      },
+      provinces: {
+        url: '{% url "geolocation:admin_boundaries_api" layer_type="provinces" %}',
+        loaded: false,
+        visible: false,
+        data: null,
+        fillColor: 'rgba(0, 128, 128, 0.06)',
+        lineColor: '#008080',
+        lineWidth: 1.8,
+        lineDashArray: [4, 2],
+        nameField: 'name',
+        labelMinZoom: 5,
+        labelSize: 12
+      },
+      districts: {
+        url: '{% url "geolocation:admin_boundaries_api" layer_type="districts" %}',
+        loaded: false,
+        visible: false,
+        data: null,
+        fillColor: 'rgba(160, 82, 45, 0.05)',
+        lineColor: '#A0522D',
+        lineWidth: 1.2,
+        lineDashArray: [2, 2],
+        nameField: 'name',
+        labelMinZoom: 7,
+        labelSize: 10
+      }
+    };
+
+    // Boundary popup for hover
+    const boundaryPopup = new mapboxgl.Popup({
+      closeButton: false,
+      closeOnClick: false,
+      className: 'boundary-popup'
+    });
+
+    let hoveredBoundaryId = null;
+    let hoveredLayerType = null;
 
     // Generate unique colors for each location
     function assignLocationColors() {
@@ -709,7 +947,237 @@
       map.on('styledata', function() {
         setTimeout(() => {
           addMarkersToMap();
+          reAddBoundaryLayers();
         }, 100);
+      });
+    }
+
+    // Toggle boundary layer visibility
+    function toggleBoundaryLayer(layerType, show) {
+      const config = boundaryLayers[layerType];
+      if (!config) return;
+
+      config.visible = show;
+
+      if (show && !config.loaded) {
+        loadBoundaryLayer(layerType);
+      } else if (config.loaded) {
+        const visibility = show ? 'visible' : 'none';
+        if (map.getLayer(`${layerType}-fill`)) {
+          map.setLayoutProperty(`${layerType}-fill`, 'visibility', visibility);
+        }
+        if (map.getLayer(`${layerType}-line`)) {
+          map.setLayoutProperty(`${layerType}-line`, 'visibility', visibility);
+        }
+        if (map.getLayer(`${layerType}-label`)) {
+          map.setLayoutProperty(`${layerType}-label`, 'visibility', visibility);
+        }
+        updateBoundaryLegend();
+      }
+    }
+
+    // Load and add boundary GeoJSON layer
+    function loadBoundaryLayer(layerType) {
+      const config = boundaryLayers[layerType];
+      const loadingEl = document.getElementById('boundary-loading');
+
+      if (loadingEl) loadingEl.style.display = 'block';
+
+      fetch(config.url)
+        .then(response => {
+          if (!response.ok) {
+            return response.json().then(err => {
+              throw new Error(err.error || `HTTP ${response.status}`);
+            });
+          }
+          return response.json();
+        })
+        .then(geojson => {
+          if (loadingEl) loadingEl.style.display = 'none';
+
+          if (geojson.error) {
+            throw new Error(geojson.error);
+          }
+
+          const featureCount = geojson.features ? geojson.features.length : 0;
+          if (featureCount === 0) {
+            showMessage(`No ${layerType} boundaries found`, 'info');
+            document.getElementById(`toggle-${layerType}`).checked = false;
+            return;
+          }
+
+          // Store data for export
+          config.data = geojson;
+
+          // Add source
+          if (!map.getSource(`${layerType}-source`)) {
+            map.addSource(`${layerType}-source`, {
+              type: 'geojson',
+              data: geojson,
+              generateId: true
+            });
+          } else {
+            map.getSource(`${layerType}-source`).setData(geojson);
+          }
+
+          // Add fill layer
+          if (!map.getLayer(`${layerType}-fill`)) {
+            map.addLayer({
+              id: `${layerType}-fill`,
+              type: 'fill',
+              source: `${layerType}-source`,
+              paint: {
+                'fill-color': config.fillColor,
+                'fill-opacity': [
+                  'case',
+                  ['boolean', ['feature-state', 'hover'], false],
+                  0.4, 0.3
+                ]
+              }
+            }, 'raster-layer');
+          }
+
+          // Add line layer
+          if (!map.getLayer(`${layerType}-line`)) {
+            const linePaint = {
+              'line-color': config.lineColor,
+              'line-width': config.lineWidth,
+              'line-opacity': 0.85
+            };
+            if (config.lineDashArray) {
+              linePaint['line-dasharray'] = config.lineDashArray;
+            }
+
+            map.addLayer({
+              id: `${layerType}-line`,
+              type: 'line',
+              source: `${layerType}-source`,
+              paint: linePaint
+            });
+          }
+
+          // Add labels
+          if (!map.getLayer(`${layerType}-label`)) {
+            map.addLayer({
+              id: `${layerType}-label`,
+              type: 'symbol',
+              source: `${layerType}-source`,
+              minzoom: config.labelMinZoom || 5,
+              layout: {
+                'text-field': ['coalesce', ['get', config.nameField], ['get', 'name_en'], ''],
+                'text-size': config.labelSize,
+                'text-anchor': 'center',
+                'text-allow-overlap': false,
+                'text-optional': true,
+                'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold']
+              },
+              paint: {
+                'text-color': config.lineColor,
+                'text-halo-color': 'rgba(255, 255, 255, 0.9)',
+                'text-halo-width': 2
+              }
+            });
+          }
+
+          setupBoundaryHover(layerType, config);
+          config.loaded = true;
+          updateBoundaryLegend();
+          showMessage(`${layerType.charAt(0).toUpperCase() + layerType.slice(1)} loaded (${featureCount} areas)`, 'success');
+        })
+        .catch(error => {
+          if (loadingEl) loadingEl.style.display = 'none';
+          console.error(`Error loading ${layerType}:`, error);
+          showMessage(`Failed to load ${layerType}: ${error.message}`, 'error');
+          document.getElementById(`toggle-${layerType}`).checked = false;
+          config.visible = false;
+        });
+    }
+
+    // Re-add boundary layers after style change
+    function reAddBoundaryLayers() {
+      Object.keys(boundaryLayers).forEach(layerType => {
+        const config = boundaryLayers[layerType];
+        if (config.loaded && config.visible) {
+          config.loaded = false;
+          loadBoundaryLayer(layerType);
+        }
+      });
+      setTimeout(updateBoundaryLegend, 500);
+    }
+
+    // Update boundary legend
+    function updateBoundaryLegend() {
+      const legendContainer = document.getElementById('boundary-legend');
+      let anyVisible = false;
+
+      Object.keys(boundaryLayers).forEach(layerType => {
+        const config = boundaryLayers[layerType];
+        const legendItem = document.getElementById(`legend-${layerType}`);
+        if (legendItem) {
+          legendItem.style.display = config.visible && config.loaded ? 'flex' : 'none';
+          if (config.visible && config.loaded) anyVisible = true;
+        }
+      });
+
+      if (legendContainer) {
+        legendContainer.style.display = anyVisible ? 'block' : 'none';
+      }
+    }
+
+    // Setup hover interaction for boundaries
+    function setupBoundaryHover(layerType, config) {
+      const fillLayerId = `${layerType}-fill`;
+
+      map.on('mouseenter', fillLayerId, (e) => {
+        map.getCanvas().style.cursor = 'pointer';
+
+        if (e.features.length > 0) {
+          const feature = e.features[0];
+          const props = feature.properties;
+          const name = props[config.nameField] || props.name_en || props.name || 'Unnamed';
+          const adminLevel = props.admin_level || '';
+
+          let levelName = layerType.charAt(0).toUpperCase() + layerType.slice(1, -1);
+          if (layerType === 'countries') levelName = 'Country';
+          else if (layerType === 'provinces') levelName = 'Province/State';
+          else if (layerType === 'districts') levelName = 'District';
+
+          boundaryPopup
+            .setLngLat(e.lngLat)
+            .setHTML(`
+              <div style="padding: 8px; min-width: 150px;">
+                <div style="font-weight: 700; font-size: 14px; color: ${config.lineColor}; margin-bottom: 4px;">${name}</div>
+                <div style="font-size: 11px; color: #666;">
+                  <span style="background: ${config.lineColor}15; color: ${config.lineColor}; padding: 2px 6px; border-radius: 4px; font-weight: 600;">${levelName}</span>
+                  ${adminLevel ? `<span style="margin-left: 6px; color: #999;">Level ${adminLevel}</span>` : ''}
+                </div>
+              </div>
+            `)
+            .addTo(map);
+
+          if (hoveredBoundaryId !== null && hoveredLayerType) {
+            map.setFeatureState({ source: `${hoveredLayerType}-source`, id: hoveredBoundaryId }, { hover: false });
+          }
+          hoveredBoundaryId = feature.id;
+          hoveredLayerType = layerType;
+          if (feature.id !== undefined) {
+            map.setFeatureState({ source: `${layerType}-source`, id: feature.id }, { hover: true });
+          }
+        }
+      });
+
+      map.on('mousemove', fillLayerId, (e) => {
+        if (e.features.length > 0) boundaryPopup.setLngLat(e.lngLat);
+      });
+
+      map.on('mouseleave', fillLayerId, () => {
+        map.getCanvas().style.cursor = '';
+        boundaryPopup.remove();
+        if (hoveredBoundaryId !== null && hoveredLayerType) {
+          map.setFeatureState({ source: `${hoveredLayerType}-source`, id: hoveredBoundaryId }, { hover: false });
+        }
+        hoveredBoundaryId = null;
+        hoveredLayerType = null;
       });
     }
 
@@ -912,6 +1380,11 @@
         }
       });
 
+      // Draw admin boundaries first (below markers)
+      const pdfOffsetX = mapArea.x;
+      const pdfOffsetY = mapArea.y;
+      drawBoundariesOnCanvas(ctx, mapArea, tilesNeeded, pdfOffsetX, pdfOffsetY);
+
       // Plot locations
       locationsData.forEach((location) => {
         const tileCoords = getTileCoords(location.lat, location.lng, tilesNeeded.zoom);
@@ -944,8 +1417,11 @@
       });
 
       // Legend
-      const legendY = 620;
-      addLegendToPDF(ctx, 50, legendY, canvas.width - 100, 120);
+      let legendY = 580;
+      // Add boundary legend first
+      legendY = addBoundaryLegendToExport(ctx, 50, legendY, canvas.width - 100);
+      // Add location legend
+      addLegendToPDF(ctx, 50, legendY + 20, canvas.width - 100, 120);
 
       // Metadata
       ctx.fillStyle = '#6b7280';
@@ -958,7 +1434,8 @@
       const pdf = new jsPDF('l', 'mm', 'a4');
       const imgData = canvas.toDataURL('image/png');
       pdf.addImage(imgData, 'PNG', 10, 10, 277, 190);
-      pdf.save(`validated-locations-map-${new Date().toISOString().split('T')[0]}.pdf`);
+      const prefix = getExportPrefix();
+      pdf.save(`${prefix}_map_${new Date().toISOString().split('T')[0]}.pdf`);
 
       document.getElementById('downloadProgress').classList.remove('show');
       showMessage('Enhanced PDF downloaded!', 'success');
@@ -1082,6 +1559,9 @@
         }
       });
 
+      // Draw admin boundaries first (below markers)
+      drawBoundariesOnCanvas(ctx, mapArea, tilesNeeded, offsetX, offsetY);
+
       // Plot locations
       locationsData.forEach((location) => {
         const tileCoords = getTileCoords(location.lat, location.lng, tilesNeeded.zoom);
@@ -1103,12 +1583,16 @@
       });
 
       // Legend
-      const legendY = mapArea.y + mapArea.height + 50;
-      addLegendToCanvas(ctx, 50, legendY, canvas.width - 100, 120);
+      let legendY = mapArea.y + mapArea.height + 30;
+      // Add boundary legend first
+      legendY = addBoundaryLegendToExport(ctx, 50, legendY, canvas.width - 100);
+      // Add location legend
+      addLegendToCanvas(ctx, 50, legendY + 20, canvas.width - 100, 120);
 
       // Download
       const link = document.createElement('a');
-      link.download = `validated-locations-map-${new Date().toISOString().split('T')[0]}.png`;
+      const prefix = getExportPrefix();
+      link.download = `${prefix}_map_${new Date().toISOString().split('T')[0]}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
 
@@ -1197,6 +1681,162 @@
       const pixelY = ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n - y) * 256;
 
       return { x, y, pixelX, pixelY };
+    }
+
+    // Draw boundaries on export canvas
+    function drawBoundariesOnCanvas(ctx, mapArea, tilesNeeded, offsetX, offsetY) {
+      Object.keys(boundaryLayers).forEach(layerType => {
+        const config = boundaryLayers[layerType];
+        if (!config.visible || !config.loaded || !config.data) return;
+
+        const geojson = config.data;
+        if (!geojson.features) return;
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(mapArea.x, mapArea.y, mapArea.width, mapArea.height);
+        ctx.clip();
+
+        geojson.features.forEach(feature => {
+          if (!feature.geometry) return;
+
+          ctx.strokeStyle = config.lineColor;
+          ctx.lineWidth = config.lineWidth;
+          ctx.fillStyle = config.fillColor;
+
+          if (config.lineDashArray) {
+            ctx.setLineDash(config.lineDashArray.map(v => v * 2));
+          } else {
+            ctx.setLineDash([]);
+          }
+
+          drawGeometry(ctx, feature.geometry, tilesNeeded, offsetX, offsetY, mapArea);
+        });
+
+        ctx.restore();
+      });
+    }
+
+    // Draw GeoJSON geometry on canvas
+    function drawGeometry(ctx, geometry, tilesNeeded, offsetX, offsetY, mapArea) {
+      const type = geometry.type;
+      const coords = geometry.coordinates;
+
+      if (type === 'Polygon') {
+        drawPolygon(ctx, coords, tilesNeeded, offsetX, offsetY, mapArea);
+      } else if (type === 'MultiPolygon') {
+        coords.forEach(polygon => {
+          drawPolygon(ctx, polygon, tilesNeeded, offsetX, offsetY, mapArea);
+        });
+      }
+    }
+
+    // Draw a single polygon
+    function drawPolygon(ctx, rings, tilesNeeded, offsetX, offsetY, mapArea) {
+      rings.forEach((ring, ringIndex) => {
+        ctx.beginPath();
+        let firstPoint = true;
+
+        ring.forEach(coord => {
+          const tileCoords = getTileCoords(coord[1], coord[0], tilesNeeded.zoom);
+          const pixelX = offsetX + (tileCoords.x - tilesNeeded.minTileX) * 256 + tileCoords.pixelX;
+          const pixelY = offsetY + (tileCoords.y - tilesNeeded.minTileY) * 256 + tileCoords.pixelY;
+
+          if (firstPoint) {
+            ctx.moveTo(pixelX, pixelY);
+            firstPoint = false;
+          } else {
+            ctx.lineTo(pixelX, pixelY);
+          }
+        });
+
+        ctx.closePath();
+
+        // Fill only the outer ring
+        if (ringIndex === 0) {
+          ctx.fill();
+        }
+        ctx.stroke();
+      });
+    }
+
+    // Draw simplified geometry for fallback mode (no tiles)
+    function drawSimplifiedGeometry(ctx, geometry, bounds, plotArea) {
+      const type = geometry.type;
+      const coords = geometry.coordinates;
+
+      const toPixel = (lng, lat) => ({
+        x: plotArea.x + ((lng - bounds.west) / (bounds.east - bounds.west)) * plotArea.width,
+        y: plotArea.y + ((bounds.north - lat) / (bounds.north - bounds.south)) * plotArea.height
+      });
+
+      const drawRing = (ring) => {
+        ctx.beginPath();
+        let first = true;
+        ring.forEach(coord => {
+          const p = toPixel(coord[0], coord[1]);
+          if (first) {
+            ctx.moveTo(p.x, p.y);
+            first = false;
+          } else {
+            ctx.lineTo(p.x, p.y);
+          }
+        });
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      };
+
+      if (type === 'Polygon') {
+        coords.forEach(ring => drawRing(ring));
+      } else if (type === 'MultiPolygon') {
+        coords.forEach(polygon => polygon.forEach(ring => drawRing(ring)));
+      }
+    }
+
+    // Add boundary legend to exports
+    function addBoundaryLegendToExport(ctx, x, y, width) {
+      let hasVisibleBoundaries = false;
+      Object.keys(boundaryLayers).forEach(layerType => {
+        const config = boundaryLayers[layerType];
+        if (config.visible && config.loaded) hasVisibleBoundaries = true;
+      });
+
+      if (!hasVisibleBoundaries) return y;
+
+      ctx.fillStyle = '#374151';
+      ctx.font = 'bold 14px Arial';
+      ctx.textAlign = 'left';
+      ctx.fillText('Admin Boundaries:', x, y);
+      y += 20;
+
+      Object.keys(boundaryLayers).forEach(layerType => {
+        const config = boundaryLayers[layerType];
+        if (!config.visible || !config.loaded) return;
+
+        // Draw line sample
+        ctx.strokeStyle = config.lineColor;
+        ctx.lineWidth = 3;
+        if (config.lineDashArray) {
+          ctx.setLineDash(config.lineDashArray.map(v => v * 2));
+        } else {
+          ctx.setLineDash([]);
+        }
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + 20, y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Label
+        ctx.fillStyle = '#374151';
+        ctx.font = '12px Arial';
+        let label = layerType.charAt(0).toUpperCase() + layerType.slice(1);
+        ctx.fillText(label, x + 28, y + 4);
+        y += 18;
+      });
+
+      return y;
     }
 
     function addLegendToPDF(ctx, x, y, width, height) {
@@ -1322,7 +1962,8 @@
       pdf.setTextColor(100, 100, 100);
       pdf.text(`Generated: ${new Date().toLocaleDateString()} | Source: HarmonAIze Platform`, 20, 190);
 
-      pdf.save(`validated-locations-map-${new Date().toISOString().split('T')[0]}.pdf`);
+      const prefix = getExportPrefix();
+      pdf.save(`${prefix}_map_${new Date().toISOString().split('T')[0]}.pdf`);
 
       document.getElementById('downloadProgress').classList.remove('show');
       showMessage('Fallback PDF downloaded!', 'success');
@@ -1360,6 +2001,34 @@
       ctx.lineWidth = 2;
       ctx.strokeRect(plotArea.x, plotArea.y, plotArea.width, plotArea.height);
 
+      // Draw simplified boundaries in fallback mode
+      Object.keys(boundaryLayers).forEach(layerType => {
+        const config = boundaryLayers[layerType];
+        if (!config.visible || !config.loaded || !config.data) return;
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(plotArea.x, plotArea.y, plotArea.width, plotArea.height);
+        ctx.clip();
+
+        ctx.strokeStyle = config.lineColor;
+        ctx.lineWidth = config.lineWidth;
+        ctx.fillStyle = config.fillColor;
+
+        if (config.lineDashArray) {
+          ctx.setLineDash(config.lineDashArray.map(v => v * 2));
+        } else {
+          ctx.setLineDash([]);
+        }
+
+        config.data.features.forEach(feature => {
+          if (!feature.geometry) return;
+          drawSimplifiedGeometry(ctx, feature.geometry, bounds, plotArea);
+        });
+
+        ctx.restore();
+      });
+
       locationsData.forEach((location) => {
         const x = plotArea.x + ((location.lng - bounds.west) / (bounds.east - bounds.west)) * plotArea.width;
         const y = plotArea.y + ((bounds.north - location.lat) / (bounds.north - bounds.south)) * plotArea.height;
@@ -1374,11 +2043,13 @@
         ctx.stroke();
       });
 
-      const legendY = plotArea.y + plotArea.height + 50;
-      addLegendToCanvas(ctx, 50, legendY, canvas.width - 100, 120);
+      let legendY = plotArea.y + plotArea.height + 30;
+      legendY = addBoundaryLegendToExport(ctx, 50, legendY, canvas.width - 100);
+      addLegendToCanvas(ctx, 50, legendY + 20, canvas.width - 100, 120);
 
       const link = document.createElement('a');
-      link.download = `validated-locations-map-${new Date().toISOString().split('T')[0]}.png`;
+      const prefix = getExportPrefix();
+      link.download = `${prefix}_map_${new Date().toISOString().split('T')[0]}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
 

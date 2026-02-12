@@ -39,6 +39,7 @@ pgvector==0.4.1  # https://github.com/pgvector/pgvector-python
 numpy==2.3.4  # https://numpy.org/
 scikit-learn==1.7.2  # https://scikit-learn.org/
 scipy==1.16.3  # https://scipy.org/
+ijson==3.2.3  # https://github.com/ICRAR/ijson - Streaming JSON parser for large files
 
 # Visualization
 plotly==6.3.1  # https://plotly.com/python/

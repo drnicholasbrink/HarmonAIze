@@ -10,5 +10,7 @@ python manage.py migrate
 # Auto-load geolocation reference data in background (don't block server startup)
 (python manage.py load_hdx_data || true) &
 (python manage.py load_validation_data || true) &
+# Process admin boundaries GeoJSON (only runs if not already processed)
+(python manage.py process_admin_boundaries --simplify || true) &
 
 exec uvicorn config.asgi:application --host 0.0.0.0 --reload --reload-include '*.html'

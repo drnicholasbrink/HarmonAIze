@@ -1669,12 +1669,12 @@ def validation_statistics(request):
 @login_required
 def validated_locations_map(request):
     """Show map of all validated locations with proper data structure."""
+    from .models import LocationCSVUpload
 
     validated_locations = Location.objects.filter(
         latitude__isnull=False,
         longitude__isnull=False
     ).order_by('name')
-
 
     # Prepare location data for map display
     locations_data = []
@@ -1687,10 +1687,47 @@ def validated_locations_map(request):
             'status': 'validated'
         })
 
+    # Get source file information from CSV uploads
+    # Query ingested uploads to get source filenames
+    source_files = []
+    csv_uploads = LocationCSVUpload.objects.filter(
+        processing_status='ingested'
+    ).order_by('-uploaded_at')
+
+    for upload in csv_uploads:
+        # Extract filename without extension for cleaner prefix
+        filename = upload.original_filename
+        if '.' in filename:
+            filename_prefix = filename.rsplit('.', 1)[0]
+        else:
+            filename_prefix = filename
+        source_files.append({
+            'id': upload.id,
+            'filename': upload.original_filename,
+            'prefix': filename_prefix,
+            'uploaded_at': upload.uploaded_at.isoformat() if upload.uploaded_at else '',
+            'locations_created': upload.locations_created or 0
+        })
+
+    # Create a combined prefix from all source files (for default export name)
+    if source_files:
+        # Use the most recent file's prefix, or combine if multiple
+        if len(source_files) == 1:
+            default_prefix = source_files[0]['prefix']
+        else:
+            # Combine first parts of filenames (limit to 3)
+            prefixes = [sf['prefix'][:20] for sf in source_files[:3]]
+            default_prefix = '_'.join(prefixes)
+    else:
+        default_prefix = 'validated_locations'
+
     context = {
         'locations_data': json.dumps(locations_data),
         'mapbox_token': getattr(settings, 'MAPBOX_ACCESS_TOKEN', ''),
-        'total_locations': len(locations_data)
+        'total_locations': len(locations_data),
+        'source_files': source_files,
+        'source_files_json': json.dumps(source_files),
+        'default_prefix': default_prefix,
     }
 
     return render(request, 'geolocation/validated_locations_map.html', context)
@@ -1700,6 +1737,7 @@ def validated_locations_map(request):
 def download_validated_locations_csv(request):
     """Download validated locations as CSV file."""
     import csv
+    import re
     from django.http import HttpResponse
     from datetime import datetime
 
@@ -1709,10 +1747,15 @@ def download_validated_locations_csv(request):
         longitude__isnull=False
     ).order_by('name')
 
+    # Get source file prefix from query parameter
+    prefix = request.GET.get('prefix', 'validated_locations')
+    # Sanitize prefix for filename safety
+    prefix = re.sub(r'[^\w\-_]', '_', prefix)[:50]
+
     # Create the HttpResponse object with CSV header
     response = HttpResponse(content_type='text/csv')
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    response['Content-Disposition'] = f'attachment; filename="validated_locations_{timestamp}.csv"'
+    response['Content-Disposition'] = f'attachment; filename="{prefix}_{timestamp}.csv"'
 
     # Create CSV writer
     writer = csv.writer(response)
@@ -1758,6 +1801,7 @@ def download_validated_locations_shapefile(request):
     import tempfile
     import zipfile
     import os
+    import re
     from io import BytesIO
     from django.http import HttpResponse, JsonResponse
     from datetime import datetime
@@ -1774,9 +1818,14 @@ def download_validated_locations_shapefile(request):
             'error': 'No validated locations found to export.'
         }, status=404)
 
+    # Get source file prefix from query parameter
+    prefix = request.GET.get('prefix', 'validated_locations')
+    # Sanitize prefix for filename safety
+    prefix = re.sub(r'[^\w\-_]', '_', prefix)[:50]
+
     # Create timestamp for filename
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    shapefile_basename = f'validated_locations_{timestamp}'
+    shapefile_basename = f'{prefix}_{timestamp}'
 
     # Prepare data for GeoDataFrame
     data = []
@@ -2402,3 +2451,221 @@ def delete_location_csv_upload(request, upload_id):
     return render(request, 'geolocation/delete_csv_upload_confirm.html', {
         'upload': upload,
     })
+
+
+@login_required
+def admin_boundaries_api(request, layer_type):
+    """
+    Serve admin boundary GeoJSON files for map overlays.
+
+    Supports multiple admin levels with filtering:
+    - countries: Country boundaries (Africa_Boundaries.geojson)
+    - provinces: Province/state boundaries (admin_level 2-4)
+    - districts: District boundaries (admin_level 5-8)
+
+    Query parameters:
+    - country: Filter by country name (optional)
+    - bbox: Bounding box filter as minLng,minLat,maxLng,maxLat (optional)
+
+    Args:
+        request: Django HTTP request
+        layer_type: Type of boundary layer ('countries', 'provinces', 'districts')
+
+    Returns:
+        JsonResponse: GeoJSON data or error message
+    """
+    import os
+
+    # Configuration for each layer type
+    layer_config = {
+        'countries': {
+            'file': 'Africa_Boundaries.geojson',
+            'preprocessed_file': None,
+            'admin_levels': None,
+            'cache_timeout': 3600,
+            'max_file_size_mb': 100,
+        },
+        'provinces': {
+            'file': 'africa_admin_boundaries.geojson',
+            'preprocessed_file': 'admin_boundaries/provinces.geojson',
+            'admin_levels': ['2', '3', '4'],
+            'cache_timeout': 1800,
+            'max_file_size_mb': 50,
+        },
+        'districts': {
+            'file': 'africa_admin_boundaries.geojson',
+            'preprocessed_file': 'admin_boundaries/districts.geojson',
+            'admin_levels': ['5', '6', '7', '8'],
+            'cache_timeout': 1800,
+            'max_file_size_mb': 100,
+        },
+    }
+
+    if layer_type not in layer_config:
+        return JsonResponse({
+            'error': f'Unknown layer type: {layer_type}',
+            'available_layers': list(layer_config.keys())
+        }, status=400)
+
+    config = layer_config[layer_type]
+    data_dir = os.path.join(os.path.dirname(__file__), 'data_geocoding')
+
+    # Parse query parameters
+    country_filter = request.GET.get('country')
+    bbox_param = request.GET.get('bbox')
+    bbox = None
+    if bbox_param:
+        try:
+            parts = [float(x) for x in bbox_param.split(',')]
+            if len(parts) == 4:
+                bbox = {
+                    'minLng': parts[0],
+                    'minLat': parts[1],
+                    'maxLng': parts[2],
+                    'maxLat': parts[3]
+                }
+        except ValueError:
+            pass
+
+    # Build cache key
+    cache_key = f"admin_boundaries_{layer_type}"
+    if country_filter:
+        cache_key += f"_{country_filter}"
+    if bbox:
+        cache_key += f"_bbox_{bbox_param}"
+
+    # Try cache first
+    cached_data = cache.get(cache_key)
+    if cached_data:
+        return JsonResponse(cached_data, safe=False)
+
+    # Try preprocessed file first (faster, smaller)
+    geojson_path = None
+    if config['preprocessed_file']:
+        preprocessed_path = os.path.join(data_dir, config['preprocessed_file'])
+        if os.path.exists(preprocessed_path):
+            geojson_path = preprocessed_path
+            logger.info(f"Using preprocessed file for {layer_type}")
+
+    # Fall back to main file
+    if not geojson_path:
+        geojson_path = os.path.join(data_dir, config['file'])
+
+    if not os.path.exists(geojson_path):
+        return JsonResponse({
+            'error': f'{layer_type} boundary file not found',
+            'help': 'Run: python manage.py process_admin_boundaries'
+        }, status=404)
+
+    # Check file size before loading
+    file_size_mb = os.path.getsize(geojson_path) / (1024 * 1024)
+    if file_size_mb > config['max_file_size_mb']:
+        return JsonResponse({
+            'error': f'{layer_type} boundary file too large ({file_size_mb:.0f}MB)',
+            'help': 'Run: python manage.py process_admin_boundaries to create optimized files',
+            'max_size_mb': config['max_file_size_mb']
+        }, status=413)
+
+    try:
+        with open(geojson_path, 'r', encoding='utf-8') as f:
+            geojson_data = json.load(f)
+
+        # Filter features if using admin_levels and not using preprocessed file
+        if config['admin_levels'] and not config['preprocessed_file']:
+            filtered_features = []
+            for feature in geojson_data.get('features', []):
+                props = feature.get('properties', {})
+                admin_level = str(props.get('admin_level', ''))
+
+                if admin_level not in config['admin_levels']:
+                    continue
+
+                if country_filter:
+                    feature_country = props.get('name', '') or props.get('name_en', '')
+                    if country_filter.lower() not in feature_country.lower():
+                        continue
+
+                if bbox and not _feature_intersects_bbox(feature, bbox):
+                    continue
+
+                filtered_features.append(feature)
+
+            geojson_data = {
+                'type': 'FeatureCollection',
+                'features': filtered_features
+            }
+
+            logger.info(f"Filtered {layer_type}: {len(filtered_features)} features")
+
+        # Apply bbox filter if using preprocessed file
+        elif bbox:
+            filtered_features = [
+                f for f in geojson_data.get('features', [])
+                if _feature_intersects_bbox(f, bbox)
+            ]
+            geojson_data = {
+                'type': 'FeatureCollection',
+                'features': filtered_features
+            }
+
+        # Apply country filter if using preprocessed file
+        elif country_filter:
+            filtered_features = []
+            for feature in geojson_data.get('features', []):
+                props = feature.get('properties', {})
+                feature_name = props.get('name', '') or props.get('name_en', '')
+                if country_filter.lower() in feature_name.lower():
+                    filtered_features.append(feature)
+            geojson_data = {
+                'type': 'FeatureCollection',
+                'features': filtered_features
+            }
+
+        # Cache the result
+        cache.set(cache_key, geojson_data, config['cache_timeout'])
+
+        return JsonResponse(geojson_data, safe=False)
+
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid GeoJSON in {geojson_path}: {e}")
+        return JsonResponse({
+            'error': 'Invalid GeoJSON format',
+            'details': str(e)
+        }, status=500)
+    except MemoryError:
+        logger.error(f"Memory error loading {geojson_path}")
+        return JsonResponse({
+            'error': 'File too large to process',
+            'help': 'Run: python manage.py process_admin_boundaries'
+        }, status=413)
+    except Exception as e:
+        logger.error(f"Error reading boundary file {geojson_path}: {e}")
+        return JsonResponse({
+            'error': 'Failed to read boundary file',
+            'details': str(e)
+        }, status=500)
+
+
+def _feature_intersects_bbox(feature, bbox):
+    """
+    Check if a GeoJSON feature intersects with a bounding box.
+    Uses a simplified check based on the feature's coordinates.
+    """
+    geometry = feature.get('geometry', {})
+    coords = geometry.get('coordinates', [])
+
+    if not coords:
+        return False
+
+    def check_coords(c):
+        """Recursively check if any coordinate falls within bbox."""
+        if isinstance(c[0], (int, float)):
+            # This is a coordinate pair [lng, lat]
+            lng, lat = c[0], c[1]
+            return (bbox['minLng'] <= lng <= bbox['maxLng'] and
+                    bbox['minLat'] <= lat <= bbox['maxLat'])
+        else:
+            # This is an array of coordinates, check any
+            return any(check_coords(inner) for inner in c)
+
+    return check_coords(coords)

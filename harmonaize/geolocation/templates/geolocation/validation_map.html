@@ -444,6 +444,92 @@
       padding-bottom: 0;
     }
 
+    /* Toggle switch styles for overlay layers */
+    .overlay-toggle {
+      display: flex;
+      align-items: center;
+      padding: 0.5rem;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: background 0.2s ease;
+      margin-bottom: 0.25rem;
+    }
+
+    .overlay-toggle:hover {
+      background: #f8f9fa;
+    }
+
+    .overlay-toggle input[type="checkbox"] {
+      display: none;
+    }
+
+    .toggle-slider {
+      width: 36px;
+      height: 20px;
+      background: #ccc;
+      border-radius: 10px;
+      position: relative;
+      transition: background 0.3s ease;
+      flex-shrink: 0;
+    }
+
+    .toggle-slider::after {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      background: white;
+      border-radius: 50%;
+      top: 2px;
+      left: 2px;
+      transition: transform 0.3s ease;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+
+    .overlay-toggle input:checked + .toggle-slider {
+      background: var(--primary-color);
+    }
+
+    .overlay-toggle input:checked + .toggle-slider::after {
+      transform: translateX(16px);
+    }
+
+    .overlay-toggle input:disabled + .toggle-slider {
+      background: #e9ecef;
+      cursor: not-allowed;
+    }
+
+    .toggle-label {
+      margin-left: 0.75rem;
+      font-size: 0.85rem;
+      color: var(--text-primary);
+    }
+
+    .toggle-label small {
+      color: var(--text-secondary);
+      font-style: italic;
+    }
+
+    /* Country mismatch warning badge */
+    .country-mismatch-badge {
+      background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+      animation: pulse-warning 2s infinite;
+    }
+
+    @keyframes pulse-warning {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.4); }
+      50% { box-shadow: 0 0 0 8px rgba(220, 53, 69, 0); }
+    }
+
     .layer-group-label {
       font-size: 0.7rem;
       font-weight: 600;
@@ -607,6 +693,19 @@
       border-radius: var(--border-radius);
       box-shadow: var(--shadow);
       border: 1px solid var(--border-color);
+    }
+
+    /* Boundary popup styling */
+    .boundary-popup .mapboxgl-popup-content {
+      padding: 0;
+      border-radius: 8px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+      border: none;
+      overflow: hidden;
+    }
+
+    .boundary-popup .mapboxgl-popup-tip {
+      border-top-color: white;
     }
 
     .source-marker-map {
@@ -1108,6 +1207,29 @@
             Humanitarian
           </button>
         </div>
+
+        <div class="layer-group">
+          <div class="layer-group-label">Admin Boundaries (Overlays)</div>
+          <label class="overlay-toggle">
+            <input type="checkbox" id="toggle-countries" onchange="toggleBoundaryLayer('countries', this.checked)">
+            <span class="toggle-slider"></span>
+            <span class="toggle-label">Countries</span>
+          </label>
+          <label class="overlay-toggle">
+            <input type="checkbox" id="toggle-provinces" onchange="toggleBoundaryLayer('provinces', this.checked)">
+            <span class="toggle-slider"></span>
+            <span class="toggle-label">Provinces/States</span>
+          </label>
+          <label class="overlay-toggle">
+            <input type="checkbox" id="toggle-districts" onchange="toggleBoundaryLayer('districts', this.checked)">
+            <span class="toggle-slider"></span>
+            <span class="toggle-label">Districts</span>
+          </label>
+          <div id="boundary-loading" style="display: none; padding: 0.5rem; font-size: 0.75rem; color: var(--text-secondary);">
+            <span class="loading-spinner" style="width: 12px; height: 12px; display: inline-block; margin-right: 0.5rem;"></span>
+            Loading boundaries...
+          </div>
+        </div>
       </div>
 
       <!-- Map Legend -->
@@ -1133,6 +1255,21 @@
           <div class="legend-item">
             <div class="legend-color" style="background-color: var(--accent-color); border-color: var(--accent-color); border-width: 3px;"></div>
             <span style="font-weight: 600;">Best Source</span>
+          </div>
+        </div>
+        <div id="boundary-legend" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color); display: none;">
+          <h4 style="margin-bottom: 0.5rem; font-size: 0.85rem; font-weight: 600;">Admin Boundaries</h4>
+          <div class="legend-item" id="legend-countries" style="display: none;">
+            <div style="width: 20px; height: 3px; background: #4B0082; margin-right: 0.5rem;"></div>
+            <span>Country borders</span>
+          </div>
+          <div class="legend-item" id="legend-provinces" style="display: none;">
+            <div style="width: 20px; height: 3px; background: #008080; margin-right: 0.5rem; border-style: dashed;"></div>
+            <span>Province/State borders</span>
+          </div>
+          <div class="legend-item" id="legend-districts" style="display: none;">
+            <div style="width: 20px; height: 3px; background: #A0522D; margin-right: 0.5rem; border-style: dotted;"></div>
+            <span>District borders</span>
           </div>
         </div>
       </div>
@@ -1317,13 +1454,15 @@
       map.setStyle(newStyle);
       currentMapStyle = layerType;
 
-      // Re-add markers after style loads
+      // Re-add markers and boundary layers after style loads
       map.once('styledata', function() {
         // Restore center and zoom
         map.setCenter(currentCenter);
         map.setZoom(currentZoom);
 
         setTimeout(() => {
+          // Re-add boundary layers first (so they appear below markers)
+          reAddBoundaryLayers();
           addMarkersToMap();
           // Re-add manual marker if it exists
           if (manualMarker) {
@@ -1453,6 +1592,431 @@
         duration: 1500,
         essential: true
       });
+    }
+
+    // Admin boundary layer configurations - using cartographic standard colors
+    // Countries: Dark indigo (national boundaries traditionally darker)
+    // Provinces: Teal/dark cyan (state/region level)
+    // Districts: Sienna/brown (local administrative level)
+    const boundaryLayers = {
+      countries: {
+        url: '{% url "geolocation:admin_boundaries_api" layer_type="countries" %}',
+        loaded: false,
+        visible: false,
+        fillColor: 'rgba(75, 0, 130, 0.08)',      // Indigo fill
+        lineColor: '#4B0082',                      // Indigo - traditional for national borders
+        lineWidth: 2.5,
+        lineDashArray: null,                       // Solid line for countries
+        nameField: 'NAME_0',
+        labelMinZoom: 3,
+        labelSize: 14
+      },
+      provinces: {
+        url: '{% url "geolocation:admin_boundaries_api" layer_type="provinces" %}',
+        loaded: false,
+        visible: false,
+        fillColor: 'rgba(0, 128, 128, 0.06)',     // Teal fill
+        lineColor: '#008080',                      // Teal - for state/province level
+        lineWidth: 1.8,
+        lineDashArray: [4, 2],                     // Dashed line for provinces
+        nameField: 'name',
+        labelMinZoom: 5,
+        labelSize: 12
+      },
+      districts: {
+        url: '{% url "geolocation:admin_boundaries_api" layer_type="districts" %}',
+        loaded: false,
+        visible: false,
+        fillColor: 'rgba(160, 82, 45, 0.05)',     // Sienna fill
+        lineColor: '#A0522D',                      // Sienna - for district/local level
+        lineWidth: 1.2,
+        lineDashArray: [2, 2],                     // Dotted line for districts
+        nameField: 'name',
+        labelMinZoom: 7,
+        labelSize: 10
+      }
+    };
+
+    // Expected country for validation (can be set from backend)
+    const expectedCountry = {% if current_location.expected_country %}'{{ current_location.expected_country }}'{% else %}null{% endif %};
+
+    // Toggle boundary layer visibility
+    function toggleBoundaryLayer(layerType, show) {
+      const config = boundaryLayers[layerType];
+      if (!config) {
+        showMessage(`Unknown layer type: ${layerType}`, 'error');
+        return;
+      }
+
+      config.visible = show;
+
+      if (show && !config.loaded) {
+        // First time loading - fetch and add the layer
+        loadBoundaryLayer(layerType);
+      } else if (config.loaded) {
+        // Layer already loaded, just toggle visibility
+        const visibility = show ? 'visible' : 'none';
+        if (map.getLayer(`${layerType}-fill`)) {
+          map.setLayoutProperty(`${layerType}-fill`, 'visibility', visibility);
+        }
+        if (map.getLayer(`${layerType}-line`)) {
+          map.setLayoutProperty(`${layerType}-line`, 'visibility', visibility);
+        }
+        if (map.getLayer(`${layerType}-label`)) {
+          map.setLayoutProperty(`${layerType}-label`, 'visibility', visibility);
+        }
+        // Update legend
+        updateBoundaryLegend();
+      }
+    }
+
+    // Load and add boundary GeoJSON layer
+    function loadBoundaryLayer(layerType) {
+      const config = boundaryLayers[layerType];
+      const loadingEl = document.getElementById('boundary-loading');
+
+      // Show loading indicator
+      if (loadingEl) loadingEl.style.display = 'block';
+
+      fetch(config.url)
+        .then(response => {
+          if (!response.ok) {
+            return response.json().then(err => {
+              throw new Error(err.error || `HTTP ${response.status}`);
+            });
+          }
+          return response.json();
+        })
+        .then(geojson => {
+          // Hide loading indicator
+          if (loadingEl) loadingEl.style.display = 'none';
+
+          // Check if response is an error object
+          if (geojson.error) {
+            throw new Error(geojson.error);
+          }
+
+          // Check if we have any features
+          const featureCount = geojson.features ? geojson.features.length : 0;
+          if (featureCount === 0) {
+            showMessage(`No ${layerType} boundaries found for this area`, 'info');
+            document.getElementById(`toggle-${layerType}`).checked = false;
+            return;
+          }
+
+          // Add source with generateId for hover state support
+          if (!map.getSource(`${layerType}-source`)) {
+            map.addSource(`${layerType}-source`, {
+              type: 'geojson',
+              data: geojson,
+              generateId: true  // Auto-generate IDs for feature state support
+            });
+          } else {
+            // Update existing source
+            map.getSource(`${layerType}-source`).setData(geojson);
+          }
+
+          // Add fill layer (subtle, semi-transparent)
+          if (!map.getLayer(`${layerType}-fill`)) {
+            map.addLayer({
+              id: `${layerType}-fill`,
+              type: 'fill',
+              source: `${layerType}-source`,
+              paint: {
+                'fill-color': config.fillColor,
+                'fill-opacity': [
+                  'case',
+                  ['boolean', ['feature-state', 'hover'], false],
+                  0.4,  // Highlight on hover
+                  0.3
+                ]
+              }
+            }, 'raster-layer'); // Insert below markers but above basemap
+          }
+
+          // Add line layer (borders) with optional dash pattern
+          if (!map.getLayer(`${layerType}-line`)) {
+            const linePaint = {
+              'line-color': config.lineColor,
+              'line-width': [
+                'interpolate', ['linear'], ['zoom'],
+                3, config.lineWidth * 0.5,
+                8, config.lineWidth,
+                12, config.lineWidth * 1.5
+              ],
+              'line-opacity': 0.85
+            };
+
+            const lineLayout = {};
+            if (config.lineDashArray) {
+              linePaint['line-dasharray'] = config.lineDashArray;
+            }
+
+            map.addLayer({
+              id: `${layerType}-line`,
+              type: 'line',
+              source: `${layerType}-source`,
+              layout: lineLayout,
+              paint: linePaint
+            });
+          }
+
+          // Add boundary name labels using the configured name field
+          if (!map.getLayer(`${layerType}-label`)) {
+            map.addLayer({
+              id: `${layerType}-label`,
+              type: 'symbol',
+              source: `${layerType}-source`,
+              minzoom: config.labelMinZoom || 5,
+              layout: {
+                'text-field': ['coalesce', ['get', config.nameField], ['get', 'name_en'], ''],
+                'text-size': [
+                  'interpolate', ['linear'], ['zoom'],
+                  config.labelMinZoom, config.labelSize * 0.8,
+                  config.labelMinZoom + 4, config.labelSize,
+                  config.labelMinZoom + 8, config.labelSize * 1.2
+                ],
+                'text-anchor': 'center',
+                'text-allow-overlap': false,
+                'text-optional': true,
+                'text-max-width': 8,
+                'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold']
+              },
+              paint: {
+                'text-color': config.lineColor,
+                'text-halo-color': 'rgba(255, 255, 255, 0.9)',
+                'text-halo-width': 2,
+                'text-halo-blur': 0.5
+              }
+            });
+          }
+
+          // Add hover interaction for boundary info
+          setupBoundaryHover(layerType, config);
+
+          config.loaded = true;
+
+          // Update legend visibility
+          updateBoundaryLegend();
+
+          // Check for country mismatch if we have an expected country
+          if (layerType === 'countries' && expectedCountry && currentLocationData) {
+            checkCountryMismatch(geojson);
+          }
+
+          showMessage(`${layerType.charAt(0).toUpperCase() + layerType.slice(1)} boundaries loaded (${featureCount} areas)`, 'success');
+        })
+        .catch(error => {
+          // Hide loading indicator
+          if (loadingEl) loadingEl.style.display = 'none';
+
+          console.error(`Error loading ${layerType} boundaries:`, error);
+
+          // Provide helpful error message
+          let errorMsg = `Failed to load ${layerType} boundaries`;
+          if (error.message.includes('too large')) {
+            errorMsg = `${layerType} file is too large. Run: python manage.py process_admin_boundaries`;
+          } else if (error.message.includes('not found')) {
+            errorMsg = `${layerType} boundaries not available. Process the admin boundaries file first.`;
+          }
+
+          showMessage(errorMsg, 'error');
+          document.getElementById(`toggle-${layerType}`).checked = false;
+          config.visible = false;
+        });
+    }
+
+    // Update boundary legend based on visible layers
+    function updateBoundaryLegend() {
+      const legendContainer = document.getElementById('boundary-legend');
+      let anyVisible = false;
+
+      Object.keys(boundaryLayers).forEach(layerType => {
+        const config = boundaryLayers[layerType];
+        const legendItem = document.getElementById(`legend-${layerType}`);
+        if (legendItem) {
+          legendItem.style.display = config.visible && config.loaded ? 'flex' : 'none';
+          if (config.visible && config.loaded) anyVisible = true;
+        }
+      });
+
+      if (legendContainer) {
+        legendContainer.style.display = anyVisible ? 'block' : 'none';
+      }
+    }
+
+    // Popup for boundary hover info
+    const boundaryPopup = new mapboxgl.Popup({
+      closeButton: false,
+      closeOnClick: false,
+      className: 'boundary-popup'
+    });
+
+    // Track hovered feature for highlight effect
+    let hoveredBoundaryId = null;
+    let hoveredLayerType = null;
+
+    // Setup hover interaction for boundary layers
+    function setupBoundaryHover(layerType, config) {
+      const fillLayerId = `${layerType}-fill`;
+
+      // Mouse enter - show popup and highlight
+      map.on('mouseenter', fillLayerId, (e) => {
+        map.getCanvas().style.cursor = 'pointer';
+
+        if (e.features.length > 0) {
+          const feature = e.features[0];
+          const props = feature.properties;
+
+          // Get the best available name
+          const name = props[config.nameField] || props.name_en || props.name || 'Unnamed';
+          const adminLevel = props.admin_level || '';
+
+          // Determine the level type name
+          let levelName = layerType.charAt(0).toUpperCase() + layerType.slice(1, -1);
+          if (layerType === 'countries') levelName = 'Country';
+          else if (layerType === 'provinces') levelName = 'Province/State';
+          else if (layerType === 'districts') levelName = 'District';
+
+          // Build popup content
+          let popupContent = `
+            <div style="padding: 8px; min-width: 150px;">
+              <div style="font-weight: 700; font-size: 14px; color: ${config.lineColor}; margin-bottom: 4px;">
+                ${name}
+              </div>
+              <div style="font-size: 11px; color: #666;">
+                <span style="background: ${config.lineColor}15; color: ${config.lineColor}; padding: 2px 6px; border-radius: 4px; font-weight: 600;">
+                  ${levelName}
+                </span>
+                ${adminLevel ? `<span style="margin-left: 6px; color: #999;">Level ${adminLevel}</span>` : ''}
+              </div>
+            </div>
+          `;
+
+          boundaryPopup
+            .setLngLat(e.lngLat)
+            .setHTML(popupContent)
+            .addTo(map);
+
+          // Set hover state for highlight effect
+          if (hoveredBoundaryId !== null && hoveredLayerType) {
+            map.setFeatureState(
+              { source: `${hoveredLayerType}-source`, id: hoveredBoundaryId },
+              { hover: false }
+            );
+          }
+          hoveredBoundaryId = feature.id;
+          hoveredLayerType = layerType;
+          if (feature.id !== undefined) {
+            map.setFeatureState(
+              { source: `${layerType}-source`, id: feature.id },
+              { hover: true }
+            );
+          }
+        }
+      });
+
+      // Mouse move - update popup position
+      map.on('mousemove', fillLayerId, (e) => {
+        if (e.features.length > 0) {
+          boundaryPopup.setLngLat(e.lngLat);
+        }
+      });
+
+      // Mouse leave - hide popup and remove highlight
+      map.on('mouseleave', fillLayerId, () => {
+        map.getCanvas().style.cursor = '';
+        boundaryPopup.remove();
+
+        if (hoveredBoundaryId !== null && hoveredLayerType) {
+          map.setFeatureState(
+            { source: `${hoveredLayerType}-source`, id: hoveredBoundaryId },
+            { hover: false }
+          );
+        }
+        hoveredBoundaryId = null;
+        hoveredLayerType = null;
+      });
+    }
+
+    // Check if coordinates fall outside expected country
+    function checkCountryMismatch(geojson) {
+      if (!expectedCountry || !currentLocationData || !currentLocationData.coordinates) return;
+
+      // For each coordinate, check if it falls within the expected country
+      // This is a simplified client-side check using bounding boxes
+      // For precise polygon checks, use the backend with Shapely
+
+      const expectedFeature = geojson.features.find(f =>
+        f.properties.NAME_0 === expectedCountry ||
+        f.properties.ISO === expectedCountry
+      );
+
+      if (!expectedFeature) return;
+
+      // Get bounding box of expected country
+      const bbox = getBoundingBox(expectedFeature.geometry);
+
+      currentLocationData.coordinates.forEach(coord => {
+        const inBounds = coord.lng >= bbox.minLng && coord.lng <= bbox.maxLng &&
+                        coord.lat >= bbox.minLat && coord.lat <= bbox.maxLat;
+
+        if (!inBounds) {
+          // Flag this coordinate as potentially outside the country
+          showCountryMismatchWarning(coord.source, expectedCountry);
+        }
+      });
+    }
+
+    // Get bounding box from geometry
+    function getBoundingBox(geometry) {
+      let minLng = Infinity, maxLng = -Infinity;
+      let minLat = Infinity, maxLat = -Infinity;
+
+      function processCoords(coords) {
+        if (typeof coords[0] === 'number') {
+          minLng = Math.min(minLng, coords[0]);
+          maxLng = Math.max(maxLng, coords[0]);
+          minLat = Math.min(minLat, coords[1]);
+          maxLat = Math.max(maxLat, coords[1]);
+        } else {
+          coords.forEach(processCoords);
+        }
+      }
+
+      processCoords(geometry.coordinates);
+      return { minLng, maxLng, minLat, maxLat };
+    }
+
+    // Show warning for country mismatch
+    function showCountryMismatchWarning(source, expectedCountry) {
+      const warningHtml = `
+        <div class="country-mismatch-badge">
+          <span>⚠️</span>
+          <span>${source} coordinates may be outside ${expectedCountry}</span>
+        </div>
+      `;
+
+      // Find the source card and add warning
+      const sourceCards = document.querySelectorAll('.source-card');
+      sourceCards.forEach(card => {
+        if (card.textContent.includes(source) && !card.querySelector('.country-mismatch-badge')) {
+          card.insertAdjacentHTML('beforeend', warningHtml);
+        }
+      });
+    }
+
+    // Re-add boundary layers after basemap change
+    function reAddBoundaryLayers() {
+      Object.keys(boundaryLayers).forEach(layerType => {
+        const config = boundaryLayers[layerType];
+        if (config.loaded && config.visible) {
+          config.loaded = false; // Force reload
+          loadBoundaryLayer(layerType);
+        }
+      });
+      // Update legend after re-adding layers
+      setTimeout(updateBoundaryLegend, 500);
     }
 
     // Initialize map
