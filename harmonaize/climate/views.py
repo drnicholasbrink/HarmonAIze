@@ -23,6 +23,8 @@ from .forms import (
     ClimateVariableSelectionForm,
 )
 from .services import ClimateDataProcessor, SpatioTemporalMatcher
+from health.eda_service import generate_eda_summary_from_observation_queryset
+from health.models import RawDataFile
 
 
 @login_required
@@ -216,6 +218,31 @@ class ClimateRequestDetailView(LoginRequiredMixin, DetailView):
         return ClimateDataRequest.objects.filter(
             study__project__members=self.request.user
         ).distinct().select_related('study', 'data_source').prefetch_related('variables', 'locations')
+
+    def _user_can_bypass_climate_eda_privacy(self, climate_request: ClimateDataRequest) -> bool:
+        """Whether current user can view full-detail climate EDA."""
+        if self.request.user.is_superuser or self.request.user.is_staff:
+            return True
+
+        if climate_request.study.created_by_id == self.request.user.id:
+            return True
+
+        return RawDataFile.objects.filter(
+            study=climate_request.study,
+            uploaded_by=self.request.user,
+        ).exists()
+
+    def _build_climate_eda_cache_key(self, climate_request: ClimateDataRequest, observation_count: int) -> dict:
+        """Stable cache key for climate EDA payload validity."""
+        return {
+            'eda_logic_version': 3,
+            'request_id': climate_request.id,
+            'status': climate_request.status,
+            'completed_at': climate_request.completed_at.isoformat() if climate_request.completed_at else None,
+            'observation_count': observation_count,
+            'variables': sorted(list(climate_request.variables.values_list('name', flat=True))),
+            'locations_count': climate_request.locations.count(),
+        }
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -234,8 +261,164 @@ class ClimateRequestDetailView(LoginRequiredMixin, DetailView):
             attribute__in=climate_attributes,
             location__in=self.object.locations.all(),
         ).count()
+
+        # Build EDA summary for this request's climate variables/locations.
+        # EDA is generated on-demand (manual trigger) only after completion.
+        cfg = self.object.configuration or {}
+
+        can_bypass_climate_privacy_thresholds = self._user_can_bypass_climate_eda_privacy(self.object)
+        eda_generation_allowed = (
+            self.object.status == 'completed'
+            and context['observation_count'] > 0
+        )
+
+        cache_key = self._build_climate_eda_cache_key(self.object, context['observation_count'])
+        cached_eda = cfg.get('climate_eda_cache')
+        cached_key = cfg.get('climate_eda_cache_key')
+        cached_bypass = cfg.get('climate_eda_cache_bypass', False)
+
+        should_use_cache = (
+            isinstance(cached_eda, dict)
+            and cached_key == cache_key
+            and bool(cached_bypass) == bool(can_bypass_climate_privacy_thresholds)
+        )
+
+        if should_use_cache:
+            climate_eda_summary = cached_eda
+        elif not eda_generation_allowed:
+            if self.object.status != 'completed':
+                climate_eda_summary = {
+                    'available': False,
+                    'reason': 'EDA can be generated once the climate request is completed.',
+                }
+            else:
+                climate_eda_summary = {
+                    'available': False,
+                    'reason': 'No climate observations are available for EDA generation.',
+                }
+        else:
+            climate_eda_summary = {
+                'available': False,
+                'reason': 'Click "Generate EDA" to build climate summary statistics and charts.',
+            }
+
+        climate_correlation_rows = []
+        if isinstance(climate_eda_summary, dict):
+            corr = climate_eda_summary.get('correlation')
+            if isinstance(corr, dict) and corr.get('labels') and corr.get('matrix'):
+                climate_correlation_rows = list(zip(corr['labels'], corr['matrix']))
+
+        context['climate_eda_summary'] = climate_eda_summary
+        context['climate_eda_summary_json'] = climate_eda_summary
+        context['climate_eda_correlation_rows'] = climate_correlation_rows
+        context['can_bypass_climate_privacy_thresholds'] = can_bypass_climate_privacy_thresholds
+        context['climate_eda_generated_at'] = cfg.get('climate_eda_cache_generated_at')
+        context['climate_eda_can_generate'] = eda_generation_allowed
+        context['climate_eda_has_cache'] = bool(
+            cfg.get('climate_eda_cache_generated_at')
+            and isinstance(cfg.get('climate_eda_cache'), dict)
+        )
+        context['climate_eda_numeric_count'] = len(climate_eda_summary.get('numeric_columns', [])) if isinstance(climate_eda_summary, dict) else 0
+        context['climate_eda_categorical_count'] = len(climate_eda_summary.get('categorical_columns', [])) if isinstance(climate_eda_summary, dict) else 0
+        context['climate_eda_text_count'] = len(climate_eda_summary.get('string_columns', [])) if isinstance(climate_eda_summary, dict) else 0
+        context['climate_eda_reason'] = climate_eda_summary.get('reason', '') if isinstance(climate_eda_summary, dict) else ''
         
         return context
+
+
+@login_required
+def regenerate_climate_eda_api(request, request_id):
+    """Generate or regenerate climate EDA cache for a completed request only."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+    climate_request = get_object_or_404(
+        ClimateDataRequest,
+        pk=request_id,
+        study__project__members=request.user,
+    )
+
+    if climate_request.status != 'completed':
+        return JsonResponse(
+            {'error': 'EDA can only be generated after the climate request is completed.'},
+            status=400,
+        )
+
+    climate_attributes = Attribute.objects.filter(
+        category='climate',
+        variable_name__in=[f"climate_{v.name}" for v in climate_request.variables.all()],
+        studies=climate_request.study,
+    )
+
+    observation_qs = Observation.objects.filter(
+        attribute__in=climate_attributes,
+        location__in=climate_request.locations.all(),
+    ).select_related('attribute', 'patient').only(
+        'id',
+        'patient_id',
+        'time_id',
+        'location_id',
+        'float_value',
+        'int_value',
+        'text_value',
+        'boolean_value',
+        'datetime_value',
+        'attribute__id',
+        'attribute__variable_name',
+        'attribute__variable_type',
+        'patient__id',
+        'patient__unique_id',
+    )
+
+    observation_count = observation_qs.count()
+    if observation_count == 0:
+        return JsonResponse(
+            {'error': 'No climate observations are available for EDA generation.'},
+            status=400,
+        )
+
+    # Authorization policy mirrors detail view logic
+    can_bypass = (
+        request.user.is_superuser
+        or request.user.is_staff
+        or climate_request.study.created_by_id == request.user.id
+        or RawDataFile.objects.filter(study=climate_request.study, uploaded_by=request.user).exists()
+    )
+
+    eda_summary = generate_eda_summary_from_observation_queryset(
+        observation_qs,
+        sanitize_pii=False,
+        bypass_privacy_thresholds=can_bypass,
+    )
+
+    cache_key = {
+        'eda_logic_version': 3,
+        'request_id': climate_request.id,
+        'status': climate_request.status,
+        'completed_at': climate_request.completed_at.isoformat() if climate_request.completed_at else None,
+        'observation_count': observation_count,
+        'variables': sorted(list(climate_request.variables.values_list('name', flat=True))),
+        'locations_count': climate_request.locations.count(),
+    }
+
+    cfg = climate_request.configuration or {}
+    cfg['climate_eda_cache'] = eda_summary
+    cfg['climate_eda_cache_key'] = cache_key
+    cfg['climate_eda_cache_bypass'] = can_bypass
+    cfg['climate_eda_cache_generated_at'] = timezone.now().isoformat()
+    climate_request.configuration = cfg
+    climate_request.save(update_fields=['configuration'])
+
+    return JsonResponse(
+        {
+            'status': 'ok',
+            'available': bool(eda_summary.get('available')),
+            'numeric_columns': len(eda_summary.get('numeric_columns', [])),
+            'categorical_columns': len(eda_summary.get('categorical_columns', [])),
+            'text_columns': len(eda_summary.get('string_columns', [])),
+            'reason': eda_summary.get('reason', ''),
+        }
+    )
 
 
 @login_required

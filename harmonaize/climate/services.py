@@ -464,9 +464,14 @@ class ClimateDataProcessor:
                 self.request.save()
             
             if total_observations == 0:
+                failure_message = self._build_no_observations_failure_message()
+                error_report = self._build_error_report()
+
                 self.request.status = 'failed'
                 self.request.error_message = (
-                    'Failed to retrieve report: no climate data returned from the API.'
+                    f"{failure_message}\n\nError report:\n{error_report}"
+                    if error_report
+                    else failure_message
                 )
                 self.request.completed_at = timezone.now()
                 self.request.save(update_fields=['status', 'error_message', 'completed_at'])
@@ -577,7 +582,15 @@ class ClimateDataProcessor:
 
         target_dates = self._compute_location_dates(location)
         if not target_dates:
-            self.logger.info("No observation dates found for location %s; skipping", location)
+            self.logger.info("No target dates found for location %s; skipping", location)
+            self._record_retrieval_error(
+                location=location,
+                variable=None,
+                dates=None,
+                reason=(
+                    "No target dates for location within request window and lag configuration"
+                ),
+            )
             # Count this location as fully processed (all vars, all days skipped)
             self._increment_processed_units(variables_count * date_span)
             return 0
@@ -638,14 +651,7 @@ class ClimateDataProcessor:
                         batch_end=batch_end,
                     )
 
-                    if fetch_error:
-                        self._record_retrieval_error(
-                            location=location,
-                            variable=variable,
-                            dates=sorted(missing_after_cache),
-                            reason=f"Fetch failed: {fetch_error}",
-                        )
-                    else:
+                    if not fetch_error:
                         self._cache_data(variable, location, fetched_data)
                         for item in fetched_data:
                             if item.get("date") in target_set:
@@ -656,7 +662,7 @@ class ClimateDataProcessor:
                 missing_after_retry = target_set - set(combined_by_date.keys())
                 if missing_after_retry:
                     reason = (
-                        f"Missing data after retry" if not fetch_error else f"Missing data; {fetch_error}"
+                        "Missing data after retry" if not fetch_error else f"Fetch failed: {fetch_error}"
                     )
                     self._record_retrieval_error(
                         location=location,
@@ -824,25 +830,48 @@ class ClimateDataProcessor:
     def _record_retrieval_error(
         self,
         location: Location,
-        variable: ClimateVariable,
-        dates: List[datetime.date],
+        variable: Optional[ClimateVariable],
+        dates: Optional[List[datetime.date]],
         reason: str,
     ) -> None:
         """Track retrieval errors for reporting."""
-        if not dates:
-            return
-
         entry = {
             "location_id": location.id,
             "location_name": getattr(location, "name", str(location)),
             "latitude": location.latitude,
             "longitude": location.longitude,
-            "variable": variable.name,
-            "dates": [d.isoformat() for d in dates],
+            "variable": variable.name if variable else None,
+            "dates": [d.isoformat() for d in (dates or [])],
             "reason": reason,
         }
         self._retrieval_errors.append(entry)
 
+    def _build_no_observations_failure_message(self) -> str:
+        """Build an accurate top-level message when no observations were created."""
+        if not self._retrieval_errors:
+            return 'Failed to retrieve data: no climate data returned from the API.'
+
+        reasons = [entry.get("reason", "") for entry in self._retrieval_errors]
+
+        if reasons and all(reason.startswith("No target dates for location") for reason in reasons):
+            return (
+                "Failed to retrieve data: no eligible location/time points were found "
+                "for this request window and lag configuration."
+            )
+
+        if any(reason.startswith("Fetch failed:") for reason in reasons):
+            return (
+                "Failed to retrieve data: climate API fetch errors occurred for one or more "
+                "location/time points."
+            )
+
+        if any("Missing data after retry" in reason for reason in reasons):
+            return (
+                "Failed to retrieve data: climate API returned no values for one or more "
+                "location/time points, even after retry."
+            )
+
+        return 'Failed to retrieve data: no climate observations were created.'
     def _build_error_report(self) -> Optional[str]:
         """Create a compact error report for missing or failed retrievals."""
         if not self._retrieval_errors:

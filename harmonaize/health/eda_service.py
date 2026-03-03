@@ -125,13 +125,17 @@ def _safe_numeric(series: pd.Series) -> pd.Series:
     return numeric.dropna()
 
 
-def _histogram_for(series: pd.Series) -> Optional[Dict[str, Any]]:
+def _histogram_for(
+    series: pd.Series,
+    min_rows: int = PRIVACY_MIN_ROWS,
+    min_group_count: int = PRIVACY_MIN_GROUP_COUNT,
+) -> Optional[Dict[str, Any]]:
     values = series.dropna().tolist()
-    if len(values) < PRIVACY_MIN_ROWS:
+    if len(values) < min_rows:
         return None
     bins = min(MAX_HISTOGRAM_BINS, max(5, int(np.sqrt(len(values)))))
     counts, bin_edges = np.histogram(values, bins=bins)
-    if any(c < PRIVACY_MIN_GROUP_COUNT for c in counts):
+    if any(c < min_group_count for c in counts):
         return None
     return {
         "bins": [round(float(edge), 4) for edge in bin_edges.tolist()],
@@ -139,18 +143,22 @@ def _histogram_for(series: pd.Series) -> Optional[Dict[str, Any]]:
     }
 
 
-def _categorical_summary(series: pd.Series) -> List[Dict[str, Any]]:
+def _categorical_summary(
+    series: pd.Series,
+    min_rows: int = PRIVACY_MIN_ROWS,
+    min_group_count: int = PRIVACY_MIN_GROUP_COUNT,
+) -> List[Dict[str, Any]]:
     """Generate privacy-aware categorical summary with top values."""
     counts = series.dropna().value_counts()
     results: List[Dict[str, Any]] = []
     total = int(counts.sum())
     
-    if total < PRIVACY_MIN_ROWS:
+    if total < min_rows:
         return results
     
     # Get top N values that meet privacy threshold
     for value, count in counts.head(MAX_CATEGORICAL_VALUES).items():
-        if count < PRIVACY_MIN_GROUP_COUNT:
+        if count < min_group_count:
             continue
         results.append(
             {
@@ -167,7 +175,10 @@ def _categorical_summary(series: pd.Series) -> List[Dict[str, Any]]:
     return results
 
 
-def _tokenise_text(series: pd.Series) -> List[Dict[str, Any]]:
+def _tokenise_text(
+    series: pd.Series,
+    min_group_count: int = PRIVACY_MIN_GROUP_COUNT,
+) -> List[Dict[str, Any]]:
     values = series.dropna().astype(str).tolist()
     logger.debug("_tokenise_text: processing %d values", len(values))
     if not values:
@@ -183,9 +194,9 @@ def _tokenise_text(series: pd.Series) -> List[Dict[str, Any]]:
             tokens[lowered] += 1
     logger.debug("_tokenise_text: found %d raw tokens", len(tokens))
     filtered: Dict[str, int] = {
-        token: count for token, count in tokens.items() if count >= PRIVACY_MIN_GROUP_COUNT
+        token: count for token, count in tokens.items() if count >= min_group_count
     }
-    logger.debug("_tokenise_text: %d tokens after privacy filter (min count=%d)", len(filtered), PRIVACY_MIN_GROUP_COUNT)
+    logger.debug("_tokenise_text: %d tokens after privacy filter (min count=%d)", len(filtered), min_group_count)
     if not filtered:
         logger.debug("_tokenise_text: no tokens survived privacy filtering")
         return []
@@ -800,12 +811,15 @@ def _generate_numeric_histogram_image(bins: List[float], counts: List[int], colu
         return None
 
 
-def _correlation_matrix(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
+def _correlation_matrix(
+    df: pd.DataFrame,
+    min_rows: int = PRIVACY_MIN_ROWS,
+) -> Optional[Dict[str, Any]]:
     numeric_df = df.select_dtypes(include=["number"]).dropna(axis=1, how="all")
     if numeric_df.shape[1] < 2:
         return None
     numeric_df = numeric_df.iloc[:, :MAX_CORRELATION_COLUMNS]
-    if len(numeric_df) < PRIVACY_MIN_ROWS:
+    if len(numeric_df) < min_rows:
         return None
     corr = numeric_df.corr().round(3)
     labels = corr.columns.tolist()
@@ -932,7 +946,10 @@ def _observations_to_dataframe(observations):
             logger.warning("No valid records created from observations")
             return pd.DataFrame()
         
-        df = pd.DataFrame.from_dict(records, orient='index')
+        # NOTE:
+        # Using DataFrame.from_dict(..., orient='index') with tuple keys can
+        # produce all-NaN rows in pandas. Build from record values instead.
+        df = pd.DataFrame(list(records.values()))
         
         # Reset index to make row numbers clean
         df = df.reset_index(drop=True)
@@ -952,6 +969,8 @@ def _generate_eda_from_dataframe(
     total_rows: int | None = None,
     total_columns: int | None = None,
     sanitize_pii: bool = True,
+    privacy_min_rows: int = PRIVACY_MIN_ROWS,
+    privacy_min_group_count: int = PRIVACY_MIN_GROUP_COUNT,
 ) -> dict[str, Any]:
     """
     Generate privacy-aware EDA statistics from a pandas DataFrame.
@@ -1014,15 +1033,15 @@ def _generate_eda_from_dataframe(
         "column_count": total_columns,
         "sampled_rows": int(len(df)),
         "missing_values": int(df.isna().sum().sum()),
-        "privacy_threshold": PRIVACY_MIN_ROWS,
+        "privacy_threshold": privacy_min_rows,
         "included_columns": len(df.columns),
         "excluded_columns": len(sanitised_columns),
     }
 
-    if len(df) < PRIVACY_MIN_ROWS:
+    if len(df) < privacy_min_rows:
         response["reason"] = (
             "Only aggregated statistics are available because the sample contains fewer than "
-            f"{PRIVACY_MIN_ROWS} rows."
+            f"{privacy_min_rows} rows."
         )
         response["available"] = True
         return response
@@ -1032,7 +1051,7 @@ def _generate_eda_from_dataframe(
     for col in numeric_cols:
         original_series = df[col]
         series = _safe_numeric(original_series)
-        if len(series) < PRIVACY_MIN_ROWS:
+        if len(series) < privacy_min_rows:
             continue
 
         q1 = series.quantile(0.25)
@@ -1042,7 +1061,11 @@ def _generate_eda_from_dataframe(
         p90 = series.quantile(0.90)
         
         # Generate histogram data
-        histogram_data = _histogram_for(series)
+        histogram_data = _histogram_for(
+            series,
+            min_rows=privacy_min_rows,
+            min_group_count=privacy_min_group_count,
+        )
         
         # Build stats dict for dashboard
         stats_dict = {
@@ -1097,7 +1120,11 @@ def _generate_eda_from_dataframe(
             high_card_text_cols.append(col)
             continue
 
-        top_values = _categorical_summary(series)
+        top_values = _categorical_summary(
+            series,
+            min_rows=privacy_min_rows,
+            min_group_count=privacy_min_group_count,
+        )
         if not top_values:
             continue
         total = int(series.dropna().shape[0])
@@ -1135,7 +1162,7 @@ def _generate_eda_from_dataframe(
         logger.debug("wordcloud library not available; skipping image generation")
 
     for col in high_card_text_cols:
-        tokens = _tokenise_text(df[col])
+        tokens = _tokenise_text(df[col], min_group_count=privacy_min_group_count)
         if not tokens:
             logger.debug(
                 "No tokens produced for high-cardinality column %s (possibly all filtered or below privacy threshold)",
@@ -1162,7 +1189,7 @@ def _generate_eda_from_dataframe(
     response["summary"]["categorical_columns"] = len(response["categorical_columns"])
     response["summary"]["text_columns"] = len(response["string_columns"])
 
-    response["correlation"] = _correlation_matrix(df)
+    response["correlation"] = _correlation_matrix(df, min_rows=privacy_min_rows)
     response["available"] = True
     return response
 
@@ -1434,4 +1461,44 @@ def generate_eda_summary_from_observations(raw_data_file, study, is_transformed=
         logger.info("Cached transformed EDA for file %s", raw_data_file.id)
     
     return eda_result
+
+
+def generate_eda_summary_from_observation_queryset(
+    observations,
+    sanitize_pii: bool = False,
+    bypass_privacy_thresholds: bool = False,
+) -> dict[str, Any]:
+    """Generate EDA summary from an Observation queryset.
+
+    This exposes the same shared EDA pipeline used elsewhere so other modules
+    (for example climate request summaries) can reuse identical Plotly-enabled
+    dashboards and statistics.
+    """
+    response: dict[str, Any] = {
+        "available": False,
+        "reason": "",
+        "summary": {},
+        "numeric_columns": [],
+        "categorical_columns": [],
+        "string_columns": [],
+        "correlation": None,
+    }
+
+    if observations is None or not observations.exists():
+        response["reason"] = "No observations available for EDA."
+        return response
+
+    df = _observations_to_dataframe(observations)
+    if df.empty:
+        response["reason"] = "Could not construct data table from observations."
+        return response
+
+    return _generate_eda_from_dataframe(
+        df,
+        total_rows=len(df),
+        total_columns=len(df.columns),
+        sanitize_pii=sanitize_pii,
+        privacy_min_rows=1 if bypass_privacy_thresholds else PRIVACY_MIN_ROWS,
+        privacy_min_group_count=1 if bypass_privacy_thresholds else PRIVACY_MIN_GROUP_COUNT,
+    )
 
