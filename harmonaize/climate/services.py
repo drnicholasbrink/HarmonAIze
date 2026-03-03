@@ -2,6 +2,7 @@
 Climate data services for fetching and processing climate data from various sources.
 """
 import logging
+import json
 from typing import Dict, List, Optional, Any, Tuple
 import numpy as np
 from datetime import datetime, timedelta
@@ -407,6 +408,7 @@ class ClimateDataProcessor:
         # Limit per-call date span to avoid huge API payloads
         self.max_days_per_batch = 10
         self.max_batch_span_days = 14
+        self._retrieval_errors: List[Dict[str, Any]] = []
     
     def process_request(self) -> Dict[str, Any]:
         """
@@ -461,15 +463,36 @@ class ClimateDataProcessor:
                 # (handled inside _process_location now, but safety sync here could be good)
                 self.request.save()
             
+            if total_observations == 0:
+                self.request.status = 'failed'
+                self.request.error_message = (
+                    'Failed to retrieve report: no climate data returned from the API.'
+                )
+                self.request.completed_at = timezone.now()
+                self.request.save(update_fields=['status', 'error_message', 'completed_at'])
+
+                return {
+                    'status': 'failed',
+                    'error': self.request.error_message,
+                    'total_observations': total_observations,
+                }
+
             # Mark as completed
             self.request.status = 'completed'
             self.request.completed_at = timezone.now()
-            self.request.save()
-            
+
+            error_report = self._build_error_report()
+            if error_report:
+                self.request.error_message = error_report
+                self.request.save(update_fields=['status', 'completed_at', 'error_message'])
+            else:
+                self.request.save(update_fields=['status', 'completed_at'])
+
             return {
                 'status': 'success',
                 'total_observations': total_observations,
                 'duration_seconds': self.request.duration.total_seconds() if self.request.duration else None,
+                'errors': self._retrieval_errors if self._retrieval_errors else None,
             }
             
         except Exception as e:
@@ -595,20 +618,52 @@ class ClimateDataProcessor:
                 # Check cache for batch window
                 cached_data = self._get_cached_data(variable, location, batch_start, batch_end)
 
+                target_set = set(batch)
+                combined_by_date: Dict[datetime.date, Dict[str, Any]] = {}
+
                 if cached_data:
-                    data_to_process = cached_data
-                else:
-                    data_to_process = service.fetch_data(
+                    for item in cached_data:
+                        if item.get("date") in target_set:
+                            combined_by_date[item["date"]] = item
+
+                missing_after_cache = target_set - set(combined_by_date.keys())
+                fetch_error: Optional[str] = None
+
+                if missing_after_cache:
+                    fetched_data, fetch_error = self._attempt_fetch_with_retry(
+                        service=service,
                         variable=variable,
                         location=location,
-                        start_date=datetime.combine(batch_start, datetime.min.time()),
-                        end_date=datetime.combine(batch_end, datetime.min.time()),
+                        batch_start=batch_start,
+                        batch_end=batch_end,
                     )
-                    self._cache_data(variable, location, data_to_process)
 
-                # Filter to exact target dates in this batch (exclude gaps)
-                target_set = set(batch)
-                data_to_process = [item for item in data_to_process if item.get("date") in target_set]
+                    if fetch_error:
+                        self._record_retrieval_error(
+                            location=location,
+                            variable=variable,
+                            dates=sorted(missing_after_cache),
+                            reason=f"Fetch failed: {fetch_error}",
+                        )
+                    else:
+                        self._cache_data(variable, location, fetched_data)
+                        for item in fetched_data:
+                            if item.get("date") in target_set:
+                                combined_by_date[item["date"]] = item
+
+                data_to_process = list(combined_by_date.values())
+
+                missing_after_retry = target_set - set(combined_by_date.keys())
+                if missing_after_retry:
+                    reason = (
+                        f"Missing data after retry" if not fetch_error else f"Missing data; {fetch_error}"
+                    )
+                    self._record_retrieval_error(
+                        location=location,
+                        variable=variable,
+                        dates=sorted(missing_after_retry),
+                        reason=reason,
+                    )
 
                 # Apply temporal aggregation if needed
                 if self.request.temporal_aggregation != 'none':
@@ -655,6 +710,67 @@ class ClimateDataProcessor:
         if current:
             batches.append(current)
         return batches
+
+    def _attempt_fetch_with_retry(
+        self,
+        service: BaseClimateDataService,
+        variable: ClimateVariable,
+        location: Location,
+        batch_start: datetime.date,
+        batch_end: datetime.date,
+    ) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+        """Fetch data with a single retry if the response is empty."""
+        try:
+            data = service.fetch_data(
+                variable=variable,
+                location=location,
+                start_date=datetime.combine(batch_start, datetime.min.time()),
+                end_date=datetime.combine(batch_end, datetime.min.time()),
+            )
+        except Exception as exc:
+            self.logger.error(
+                "Fetch failed for %s (%s) from %s to %s: %s",
+                location,
+                variable.name,
+                batch_start,
+                batch_end,
+                exc,
+            )
+            return [], str(exc)
+
+        if data:
+            return data, None
+
+        self.logger.warning(
+            "Empty response for %s (%s) from %s to %s; retrying once",
+            location,
+            variable.name,
+            batch_start,
+            batch_end,
+        )
+
+        try:
+            retry_data = service.fetch_data(
+                variable=variable,
+                location=location,
+                start_date=datetime.combine(batch_start, datetime.min.time()),
+                end_date=datetime.combine(batch_end, datetime.min.time()),
+            )
+        except Exception as exc:
+            self.logger.error(
+                "Retry fetch failed for %s (%s) from %s to %s: %s",
+                location,
+                variable.name,
+                batch_start,
+                batch_end,
+                exc,
+            )
+            return [], str(exc)
+
+        if retry_data:
+            return retry_data, None
+
+        return [], "Empty response after retry"
 
     def _compute_location_dates(self, location: Location) -> Optional[List[datetime.date]]:
         """Determine exact dates to fetch for a location, respecting lags and gaps.
@@ -704,6 +820,43 @@ class ClimateDataProcessor:
             return None
 
         return sorted(date_set)
+
+    def _record_retrieval_error(
+        self,
+        location: Location,
+        variable: ClimateVariable,
+        dates: List[datetime.date],
+        reason: str,
+    ) -> None:
+        """Track retrieval errors for reporting."""
+        if not dates:
+            return
+
+        entry = {
+            "location_id": location.id,
+            "location_name": getattr(location, "name", str(location)),
+            "latitude": location.latitude,
+            "longitude": location.longitude,
+            "variable": variable.name,
+            "dates": [d.isoformat() for d in dates],
+            "reason": reason,
+        }
+        self._retrieval_errors.append(entry)
+
+    def _build_error_report(self) -> Optional[str]:
+        """Create a compact error report for missing or failed retrievals."""
+        if not self._retrieval_errors:
+            return None
+
+        report = {
+            "summary": {
+                "total_error_groups": len(self._retrieval_errors),
+                "request_id": self.request.id,
+                "data_source": getattr(self.request.data_source, "name", None),
+            },
+            "errors": self._retrieval_errors,
+        }
+        return json.dumps(report, indent=2)
     
     def _get_cached_data(
         self,

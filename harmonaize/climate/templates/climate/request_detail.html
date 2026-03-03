@@ -508,6 +508,9 @@
         <a href="{% url 'climate:configure' climate_request.study.id %}" class="btn-climate">
           Create New Request
         </a>
+        <button class="btn-climate btn-climate-secondary" id="infill-missing" title="Fetch and fill any missing climate values without deleting existing data">
+          In-fill Missing Values
+        </button>
         <button class="btn-climate btn-climate-success" id="process-request-reset" data-force="true" title="Re-run and replace existing climate observations">
           Re-run (Start From Scratch)
         </button>
@@ -688,6 +691,53 @@ document.addEventListener('DOMContentLoaded', function() {
         alert(`Retry failed: ${error.message || error}`);
         retryBtn.textContent = 'Retry Processing';
         retryBtn.disabled = false;
+      });
+    });
+  }
+
+  // In-fill missing values without deleting existing observations
+  const infillBtn = document.getElementById('infill-missing');
+  if (infillBtn) {
+    infillBtn.addEventListener('click', function() {
+      const original = infillBtn.textContent;
+      infillBtn.textContent = 'In-filling...';
+      infillBtn.disabled = true;
+
+      const csrftoken = getCsrfToken();
+      if (!csrftoken || csrftoken.length < 32) {
+        alert('Missing or invalid CSRF token. Please refresh the page and try again.');
+        infillBtn.textContent = original;
+        infillBtn.disabled = false;
+        return;
+      }
+
+      const payload = {
+        reset_existing: false,
+        force_restart: true
+      };
+
+      fetch(`{% url 'climate:process_request_api' climate_request.id %}`, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': csrftoken,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify(payload)
+      })
+      .then(async response => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          const message = data.error || data.message || 'An error occurred while in-filling missing values';
+          throw new Error(message);
+        }
+        location.reload();
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        alert(`In-fill failed: ${error.message || error}`);
+        infillBtn.textContent = original;
+        infillBtn.disabled = false;
       });
     });
   }
