@@ -1,0 +1,147 @@
+<div id="template-manager-panel"
+     hx-get="{% url 'analysis:template_manager_partial' %}?state={{ template_state }}"
+     hx-trigger="analysis-template-saved from:body, analysis-template-deleted from:body"
+     hx-swap="outerHTML">
+  <div class="card-panel template-manager-card mb-0">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
+      <div>
+        <div class="section-kicker">Templates</div>
+        <h2 class="card-title mb-1">Dataset template manager</h2>
+        <p class="text-muted small mb-0">Manage reusable analysis-ready datasets, then open one in the builder to edit or retire it.</p>
+      </div>
+      <button type="button"
+              class="btn btn-primary-gradient btn-sm"
+              hx-get="{% url 'analysis:template_builder_partial' %}"
+              hx-target="#dataset-template-builder"
+              hx-swap="outerHTML">
+        New template
+      </button>
+    </div>
+
+    <div class="manager-indicators">
+      <span class="indicator-pill">Total {{ template_counts.all }}</span>
+      <span class="indicator-pill indicator-pill-success">Active {{ template_counts.active }}</span>
+      <span class="indicator-pill indicator-pill-muted">Inactive {{ template_counts.inactive }}</span>
+    </div>
+
+    <div class="template-tabs" role="tablist" aria-label="Template state filters">
+      <button type="button"
+              class="template-tab {% if template_state == 'all' %}active{% endif %}"
+              hx-get="{% url 'analysis:template_manager_partial' %}?state=all"
+              hx-target="#template-manager-panel"
+              hx-swap="outerHTML">
+        All
+        <span class="template-tab-count">{{ template_counts.all }}</span>
+      </button>
+      <button type="button"
+              class="template-tab {% if template_state == 'active' %}active{% endif %}"
+              hx-get="{% url 'analysis:template_manager_partial' %}?state=active"
+              hx-target="#template-manager-panel"
+              hx-swap="outerHTML">
+        Active
+        <span class="template-tab-count">{{ template_counts.active }}</span>
+      </button>
+      <button type="button"
+              class="template-tab {% if template_state == 'inactive' %}active{% endif %}"
+              hx-get="{% url 'analysis:template_manager_partial' %}?state=inactive"
+              hx-target="#template-manager-panel"
+              hx-swap="outerHTML">
+        Inactive
+        <span class="template-tab-count">{{ template_counts.inactive }}</span>
+      </button>
+    </div>
+
+    <div class="template-list">
+      {% for row in template_rows %}
+        <article class="template-card {% if row.template.id == selected_template_id %}is-selected{% endif %}">
+          <div class="template-card-head">
+            <div>
+              <div class="template-card-title-row">
+                <h3 class="template-card-title mb-0">{{ row.template.name }}</h3>
+                <span class="status-dot {{ row.sync_dot_class }}"></span>
+              </div>
+              <div class="text-muted small mt-1">{{ row.template.project.name }} / {{ row.template.target_study.name }}</div>
+            </div>
+            <div class="d-flex flex-column align-items-end gap-1">
+              <span class="status-badge {{ row.sync_badge_class }}">{{ row.sync_label }}</span>
+              <span class="status-badge {% if row.template.is_active %}status-succeeded{% else %}status-pending{% endif %}">
+                {% if row.template.is_active %}Active{% else %}Inactive{% endif %}
+              </span>
+            </div>
+          </div>
+
+          <div class="template-chip-row">
+            <span class="badge-light">{{ row.template.get_dataset_shape_display }}</span>
+            <span class="badge-light">Lag {{ row.template.max_lag_value }}</span>
+            <span class="badge-light">Primary {{ row.primary_outcome }}</span>
+          </div>
+
+          <dl class="template-meta-grid mb-0">
+            <div>
+              <dt>Sync</dt>
+              <dd>{{ row.sync_label }}</dd>
+            </div>
+            <div>
+              <dt>Confounders</dt>
+              <dd>{{ row.confounder_count }}</dd>
+            </div>
+            <div>
+              <dt>Climate</dt>
+              <dd>{{ row.climate_count }}</dd>
+            </div>
+            <div>
+              <dt>Geo</dt>
+              <dd>{{ row.location_count }}</dd>
+            </div>
+            <div>
+              <dt>Updated</dt>
+              <dd>{{ row.template.updated_at|date:"Y-m-d H:i" }}</dd>
+            </div>
+            <div>
+              <dt>Last synced</dt>
+              <dd>{% if row.last_synced_at %}{{ row.last_synced_at|date:"Y-m-d H:i" }}{% else %}-{% endif %}</dd>
+            </div>
+          </dl>
+
+          <div class="text-muted small">{{ row.sync_detail }}</div>
+          <div class="small text-muted mt-2">DataSHIELD table</div>
+          <div class="template-folder-path"><code>{{ row.table_path }}</code></div>
+          <div class="small text-muted mt-2">Stored parquet object</div>
+          <div class="template-folder-path"><code>{{ row.object_path }}</code></div>
+
+          <div class="template-card-actions">
+            <button type="button"
+                    class="btn btn-sm btn-outline-primary"
+                    hx-get="{% url 'analysis:template_builder_partial' %}?template_id={{ row.template.id }}"
+                    hx-target="#dataset-template-builder"
+                    hx-swap="outerHTML">
+              Edit
+            </button>
+            <form method="post"
+                  hx-post="{% url 'analysis:delete_template' %}"
+                  hx-target="#dataset-template-builder"
+                  hx-swap="outerHTML"
+                  hx-confirm="Delete {{ row.template.name }}? This also removes its synced table from Armadillo when possible."
+                  class="d-inline-flex">
+              {% csrf_token %}
+              <input type="hidden" name="template_id" value="{{ row.template.id }}">
+              <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+            </form>
+          </div>
+        </article>
+      {% empty %}
+        <div class="empty-state-card">
+          <h3 class="h6 mb-2">No templates in this view</h3>
+          <p class="text-muted small mb-3">Create a new dataset template to define an analysis-ready sync path for this project.</p>
+          <button type="button"
+                  class="btn btn-outline-primary btn-sm"
+                  hx-get="{% url 'analysis:template_builder_partial' %}"
+                  hx-target="#dataset-template-builder"
+                  hx-swap="outerHTML">
+            Start a template
+          </button>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>

@@ -49,6 +49,11 @@ DATABASES = {
     'default': env.db('DATABASE_URL', default='postgres://VyEeAsAhLQRemlTBkLvZEOFiVOAtvIHf:DA3372kNwHHhsmhr5cS5ucomOjsY9hs0UiNzxlfOITRM4ZwjW1nTYXSPz1zWousV@localhost:5432/harmonaize')
 }
 DATABASES["default"]["ATOMIC_REQUESTS"] = True
+DATABASES["analysis_export"] = env.db(
+    "ANALYSIS_EXPORT_DATABASE_URL",
+    default="postgres://debug:debug@armadillo_postgres:5432/armadillo_snapshot",
+)
+DATABASES["analysis_export"]["ATOMIC_REQUESTS"] = False
 # https://docs.djangoproject.com/en/stable/ref/settings/#std:setting-DEFAULT_AUTO_FIELD
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -100,6 +105,7 @@ LOCAL_APPS = [
     "health", 
     "climate",
     "geolocation",
+    "analysis",
     # Your stuff: custom apps go here
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps
@@ -398,6 +404,19 @@ EMBEDDING_DIMENSIONS = env.int("EMBEDDING_DIMENSIONS", default=3072)  # text-emb
 GOOGLE_GEOCODING_API_KEY = env("GOOGLE_GEOCODING_API_KEY", default="")
 
 # Mapbox Access Token (required for interactive map visualisations)
+
+# Analysis export configuration
+# ------------------------------------------------------------------------------
+ANALYSIS_DEIDENTIFICATION_SALT = env("ANALYSIS_DEIDENTIFICATION_SALT", default="harmonaize-analysis-salt")
+ANALYSIS_EXPORT_ROOT = env("ANALYSIS_EXPORT_ROOT", default=str(APPS_DIR / "media" / "analysis_exports"))
+ANALYSIS_ARMADILLO_BASE_URL = env("ANALYSIS_ARMADILLO_BASE_URL", default="http://armadillo:8080")
+ANALYSIS_ARMADILLO_USERNAME = env("ANALYSIS_ARMADILLO_USERNAME", default="admin")
+ANALYSIS_ARMADILLO_PASSWORD = env("ANALYSIS_ARMADILLO_PASSWORD", default="admin")
+ANALYSIS_KEYCLOAK_SYNC_ENABLED = env.bool("ANALYSIS_KEYCLOAK_SYNC_ENABLED", default=False)
+ANALYSIS_KEYCLOAK_BASE_URL = env("ANALYSIS_KEYCLOAK_BASE_URL", default="http://keycloak:8080")
+ANALYSIS_KEYCLOAK_REALM = env("ANALYSIS_KEYCLOAK_REALM", default="Armadillo")
+ANALYSIS_KEYCLOAK_ADMIN_USERNAME = env("ANALYSIS_KEYCLOAK_ADMIN_USERNAME", default="admin")
+ANALYSIS_KEYCLOAK_ADMIN_PASSWORD = env("ANALYSIS_KEYCLOAK_ADMIN_PASSWORD", default="admin")
 MAPBOX_ACCESS_TOKEN = env("MAPBOX_ACCESS_TOKEN", default="")
 
 # Local Nominatim URL (optional, falls back to public API if not available)

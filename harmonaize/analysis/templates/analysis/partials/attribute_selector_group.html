@@ -1,0 +1,75 @@
+{% comment %}
+Reusable attribute selector group for analysis dataset template builder.
+Context:
+- title
+- help_text
+- field
+- selected_ids
+- selection_mode
+{% endcomment %}
+<div class="attribute-group mb-4" data-field-name="{{ field.html_name }}">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+    <div>
+      <h3 class="attribute-group-title mb-1">{{ title }}</h3>
+      {% if help_text %}
+        <div class="text-muted small">{{ help_text }}</div>
+      {% endif %}
+    </div>
+    {% if field.field.queryset %}
+      <div class="d-flex gap-2 align-items-center">
+        {% if selection_mode != "single" %}
+          <button type="button" class="btn btn-sm btn-outline-primary js-select-all" data-target-name="{{ field.html_name }}">
+            Select all
+          </button>
+        {% endif %}
+        <button type="button" class="btn btn-sm btn-outline-secondary js-clear-all" data-target-name="{{ field.html_name }}">
+          {% if selection_mode == "single" %}Clear selection{% else %}Clear{% endif %}
+        </button>
+        <span class="text-muted small">Selected: <strong class="js-selected-count">{{ selected_ids|length }}</strong></span>
+      </div>
+    {% endif %}
+  </div>
+
+  {% if field.errors %}
+    <div class="text-danger small mb-2">{{ field.errors|join:", " }}</div>
+  {% endif %}
+
+  {% if field.field.queryset %}
+    <div class="variables-grid">
+      {% for attr in field.field.queryset %}
+        <label class="variable-item {% if attr.pk|stringformat:'s' in selected_ids %}selected{% endif %}" data-field-name="{{ field.html_name }}" data-selection-mode="{{ selection_mode|default:'multiple' }}">
+          <span class="checkbox-container">
+            <input
+              type="{% if selection_mode == 'single' %}radio{% else %}checkbox{% endif %}"
+              class="variable-checkbox"
+              name="{{ field.html_name }}"
+              value="{{ attr.pk }}"
+              {% if attr.pk|stringformat:'s' in selected_ids %}checked{% endif %}
+            >
+          </span>
+          <span class="variable-name">
+            <strong>{{ attr.display_name|default:attr.variable_name }}</strong>
+            {% if attr.display_name and attr.display_name != attr.variable_name %}
+              <br><small class="text-muted">{{ attr.variable_name }}</small>
+            {% endif %}
+          </span>
+          <span class="variable-actions">
+            <span class="variable-type">{{ attr.variable_type|default:"Unknown" }}</span>
+          </span>
+          <span class="variable-details">
+            <span>{{ attr.description|default:"Observed attribute available for export"|truncatewords:24 }}</span>
+            <span class="variable-meta-row">
+              <span class="badge-light">Category {{ attr.category }}</span>
+              {% if attr.unit %}<span class="badge-light">Unit {{ attr.unit }}</span>{% endif %}
+              {% if attr.ontology_code %}<span class="badge-light">Code {{ attr.ontology_code }}</span>{% endif %}
+            </span>
+          </span>
+        </label>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="alert alert-light border text-muted mb-0">
+      No observed attributes are currently available for this section.
+    </div>
+  {% endif %}
+</div>

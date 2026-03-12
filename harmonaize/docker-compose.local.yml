@@ -1,3 +1,6 @@
+include:
+  - vendor/molgenis-service-armadillo/docker/quickstart/docker-compose.yml
+
 volumes:
   harmonaize_local_postgres_data: {}
   harmonaize_local_postgres_data_backups: {}
@@ -19,7 +22,21 @@ services:
     env_file:
       - ./.envs/.local/.django
       - ./.envs/.local/.postgres
+    environment:
+      ANALYSIS_DEIDENTIFICATION_SALT: harmonaize-local-analysis-salt
+      ANALYSIS_EXPORT_ROOT: /app/harmonaize/media/analysis_exports
+      ANALYSIS_ARMADILLO_BASE_URL: http://armadillo:8080
+      ANALYSIS_ARMADILLO_USERNAME: admin
+      ANALYSIS_ARMADILLO_PASSWORD: admin
+      ANALYSIS_KEYCLOAK_SYNC_ENABLED: "true"
+      ANALYSIS_KEYCLOAK_BASE_URL: http://keycloak:8080
+      ANALYSIS_KEYCLOAK_REALM: Armadillo
+      ANALYSIS_KEYCLOAK_ADMIN_USERNAME: admin
+      ANALYSIS_KEYCLOAK_ADMIN_PASSWORD: admin
 
+    networks:
+      - default
+      - armadillo-net
     ports:
       - '8000:8000'
     command: /start

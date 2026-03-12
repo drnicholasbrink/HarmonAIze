@@ -4,6 +4,7 @@ from django.core.exceptions import ValidationError
 from django_ace import AceWidget
 
 from core.models import Attribute, Study
+from . import dataset_exports
 from .models import (
     MappingRule,
     MappingSchema,
@@ -560,6 +561,11 @@ class CombinedExportForm(forms.Form):
         ("wide", "Wide format"),
     )
 
+    FILE_FORMAT_CHOICES = (
+        ("csv", "CSV"),
+        ("parquet", "Parquet"),
+    )
+
     max_lag_days = forms.IntegerField(
         required=False,
         min_value=0,
@@ -600,7 +606,10 @@ class CombinedExportForm(forms.Form):
         queryset=Attribute.objects.none(),
         required=False,
         label="Specific variables (optional)",
-        help_text="Leave empty to include all variables in the selected categories.",
+        help_text=(
+            "Leave empty to include all variables in the selected categories. "
+            "Health exports include eligible observed health variables only; identifier, date/time, and location-style health fields are excluded."
+        ),
         widget=forms.SelectMultiple(attrs={"size": 12}),
     )
 
@@ -609,6 +618,14 @@ class CombinedExportForm(forms.Form):
         initial="long",
         required=True,
         label="Export format",
+        widget=forms.RadioSelect,
+    )
+
+    file_format = forms.ChoiceField(
+        choices=FILE_FORMAT_CHOICES,
+        initial="csv",
+        required=True,
+        label="Download file type",
         widget=forms.RadioSelect,
     )
 
@@ -644,8 +661,13 @@ class CombinedExportForm(forms.Form):
         self.fields["source_studies"].queryset = source_qs.order_by("name")
 
         if target_obj:
+            observed_attributes = dataset_exports.observed_target_attribute_queryset(target_obj)
+            eligible_health = dataset_exports.eligible_health_queryset(observed_attributes)
+            visible_attribute_ids = list(eligible_health.values_list("pk", flat=True)) + list(
+                observed_attributes.exclude(category="health").values_list("pk", flat=True),
+            )
             self.fields["attributes"].queryset = (
-                Attribute.objects.filter(studies=target_obj)
+                observed_attributes.filter(pk__in=visible_attribute_ids)
                 .order_by("category", "display_name", "variable_name")
             )
         else:

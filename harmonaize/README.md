@@ -32,6 +32,62 @@ License: MIT
 
 **Important**: No need to install Python packages locally - everything runs in Docker containers!
 
+## Analysis module (DataSHIELD via Armadillo) - local setup
+
+The analysis module now supports local DataSHIELD-ready export workflows backed by Armadillo.
+
+1. Clone Armadillo into the project vendor directory:
+   ```bash
+   cd harmonaize
+   mkdir -p vendor
+   git clone https://github.com/molgenis/molgenis-service-armadillo.git vendor/molgenis-service-armadillo
+   mkdir -p vendor/molgenis-service-armadillo/logs vendor/molgenis-service-armadillo/data
+   ```
+2. Start the stack (including Armadillo and a dedicated snapshot PostgreSQL instance):
+   ```bash
+   docker-compose -f docker-compose.local.yml up -d
+   ```
+3. Create and apply migrations:
+   ```bash
+   docker-compose -f docker-compose.local.yml run --rm django python manage.py makemigrations analysis
+   docker-compose -f docker-compose.local.yml run --rm django python manage.py migrate
+   ```
+4. Open services:
+   - HarmonAIze: http://localhost:8000
+   - Armadillo: http://localhost:8081
+   - Snapshot PostgreSQL host port: 5433
+
+Port allocations intentionally avoid overlap with the existing local stack (`8000`, `5432`, `8025`, `5555`).
+
+### If Armadillo snapshot tables look empty
+
+Run a manual backfill from HarmonAIze:
+
+```bash
+docker-compose -f docker-compose.local.yml run --rm django python manage.py shell -c "from analysis.services import AnalysisExportService; print(AnalysisExportService().run_incremental_export())"
+```
+
+Then verify row counts in the snapshot database:
+
+```bash
+docker-compose -f docker-compose.local.yml exec -T armadillo_postgres psql -U debug -d armadillo_snapshot -c "SELECT 'harmonised_studies_snapshot' AS table_name, COUNT(*) FROM harmonised_studies_snapshot UNION ALL SELECT 'harmonised_attributes_snapshot', COUNT(*) FROM harmonised_attributes_snapshot UNION ALL SELECT 'harmonised_mapping_schemas_snapshot', COUNT(*) FROM harmonised_mapping_schemas_snapshot UNION ALL SELECT 'harmonised_mapping_rules_snapshot', COUNT(*) FROM harmonised_mapping_rules_snapshot UNION ALL SELECT 'harmonised_source_datasets_snapshot', COUNT(*) FROM harmonised_source_datasets_snapshot;"
+```
+
+### Armadillo compose port overrides
+
+The vendored Armadillo compose files now default to non-overlapping host ports and support overrides via environment variables:
+
+- `ARMADILLO_HOST_PORT` (default: `8001` for quickstart, `8081` for root/ci compose)
+- `ARMADILLO_RSERVER_HOST_PORT` (default: `6312`)
+- `ARMADILLO_KEYCLOAK_HOST_PORT` (default: `8080`)
+- `ARMADILLO_KEYCLOAK_MANAGEMENT_HOST_PORT` (default: `9001`)
+
+Example:
+
+```bash
+ARMADILLO_HOST_PORT=18081 docker-compose -f vendor/molgenis-service-armadillo/docker/quickstart/docker-compose.yml up -d
+```
+
 ## Setup
 
 **This application runs entirely in Docker containers. You don't need to install Python packages locally.**

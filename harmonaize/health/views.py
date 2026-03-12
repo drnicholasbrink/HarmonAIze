@@ -4,6 +4,7 @@ import json
 import logging
 import hashlib
 from datetime import datetime, timedelta
+import pandas as pd
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import (
     FileResponse,
@@ -35,6 +36,7 @@ from .forms import (
     MappingSchemaForm,
     RawDataUploadForm,
 )
+from . import dataset_exports
 from .utils import (
     validate_raw_data_against_codebook,
     analyze_raw_data_columns,
@@ -1931,156 +1933,65 @@ def combined_export(request):
         categories = form.cleaned_data.get("categories") or []
         selected_attributes = form.cleaned_data.get("attributes")
         export_format = form.cleaned_data.get("export_format")
+        file_format = form.cleaned_data.get("file_format")
         max_lag_value = form.cleaned_data.get("max_lag_days") or 0
 
-        if selected_attributes:
-            attrs_qs = Attribute.objects.filter(
-                pk__in=[a.pk for a in selected_attributes],
-                studies=target_study,
-                source_type="target",
-            )
-        else:
-            category_filter = Q()
-            if "health" in categories:
-                category_filter |= Q(studies=target_study, category="health")
-            non_health_categories = [c for c in categories if c != "health"]
-            if non_health_categories:
-                category_filter |= Q(category__in=non_health_categories)
-            attrs_qs = Attribute.objects.filter(
-                category_filter,
-                studies=target_study,
-                source_type="target",
-            )
-
-        if source_studies:
-            mapped_target_ids = MappingRule.objects.filter(
-                schema__target_study=target_study,
-                schema__source_study__in=source_studies,
-                role="value",
-                target_attribute__isnull=False,
-            ).values_list("target_attribute_id", flat=True)
-
-            attrs_qs = attrs_qs.filter(
-                Q(category__in=["geolocation", "climate"]) | Q(pk__in=mapped_target_ids)
-            )
-
-        attributes = list(
-            attrs_qs.distinct().order_by("category", "display_name", "variable_name")
+        selection = dataset_exports.resolve_combined_export_selection(
+            target_study=target_study,
+            categories=categories,
+            selected_attributes=selected_attributes,
+            source_studies=source_studies,
+            deidentify=deidentify,
         )
 
-        if deidentify:
-            # Exclude geolocation attributes from de-identified exports
-            attributes = [a for a in attributes if a.category != "geolocation"]
-
-        if not attributes:
+        if not selection.attributes:
             messages.error(
                 request,
                 "No transformed observations available for the selected target study and filters.",
             )
             return redirect("health:combined_export")
 
-        # Identify outcome (health) value attributes from mapping rules for this target
-        value_attr_ids = MappingRule.objects.filter(
-            schema__target_study=target_study,
-            role="value",
-            target_attribute__isnull=False,
-        ).values_list("target_attribute_id", flat=True)
-        outcome_attrs = [a for a in attributes if a.id in value_attr_ids and a.category == "health"]
-        climate_attrs = [a for a in attributes if a.category == "climate"]
-        location_attrs = [a for a in attributes if a.category == "geolocation"]
-
-        if not outcome_attrs:
+        if not selection.outcome_attributes:
             messages.error(request, "No health attributes found for this target study.")
             return redirect("health:combined_export")
 
         export_ts = timezone.now()
-        exported_at_str = export_ts.isoformat()
+        builder = dataset_exports.TargetStudyDatasetBuilder(
+            target_study=target_study,
+            outcome_attributes=selection.outcome_attributes,
+            confounder_attributes=selection.confounder_attributes,
+            climate_attributes=selection.climate_attributes,
+            location_attributes=selection.location_attributes,
+            dataset_shape=export_format,
+            source_studies=source_studies,
+            max_lag_value=max_lag_value,
+            deidentify=deidentify,
+            exported_at=export_ts,
+        )
+        artifact = builder.build_artifact()
 
-        if export_format == "long":
-            observations = (
-                Observation.objects.filter(attribute__in=attributes)
-                .select_related("patient", "location", "attribute", "time")
-                .order_by(
-                    "patient_id",
-                    "location_id",
-                    "time__timestamp",
-                    "time__start_date",
-                    "time__end_date",
-                    "attribute_id",
-                )
+        if not artifact.rows:
+            messages.error(
+                request,
+                "No analysis-ready rows were generated for the selected target study and filters.",
             )
-            stream = _combined_long_stream(observations, exported_at_str, deidentify=deidentify)
-            filename_suffix = "long_export"
-        else:
-            unit_multiplier = LAG_UNIT_TO_DAYS.get(lag_unit, 1)
-            unit_short = LAG_UNIT_SHORT.get(lag_unit, "d")
-
-            # Build climate cache keyed by (location_id, date, attribute_id)
-            climate_obs = Observation.objects.filter(attribute__in=climate_attrs).select_related("location", "time", "attribute")
-            climate_cache = {}
-            for cobs in climate_obs.iterator(chunk_size=1000):
-                if not (cobs.location_id and cobs.time):
-                    continue
-
-                cdate = None
-                if getattr(cobs.time, "timestamp", None):
-                    cdate = cobs.time.timestamp.date()
-                elif getattr(cobs.time, "start_date", None):
-                    cdate = cobs.time.start_date.date()
-                elif getattr(cobs.time, "end_date", None):
-                    cdate = cobs.time.end_date.date()
-
-                if cdate is None:
-                    continue
-
-                climate_cache[(cobs.location_id, cdate, cobs.attribute_id)] = _serialize_observation_value(cobs)
-
-            # Build geolocation cache keyed by (location_id, attribute_id)
-            location_cache = {}
-            if location_attrs and not deidentify:
-                location_obs = Observation.objects.filter(attribute__in=location_attrs).select_related("location", "attribute")
-                for lobs in location_obs.iterator(chunk_size=1000):
-                    if not lobs.location_id:
-                        continue
-                    location_cache[(lobs.location_id, lobs.attribute_id)] = _serialize_observation_value(lobs)
-
-            # Prepare outcome queryset
-            outcome_qs = (
-                Observation.objects.filter(attribute__in=outcome_attrs)
-                .select_related("patient", "location", "attribute", "time")
-                .order_by("patient_id", "location_id", "time__timestamp", "id")
-            )
-
-            # Build climate columns list preserving attribute order and lag
-            climate_columns = []  # list of tuples (attr_id, lag_value, lag_days, col_name)
-            for attr in climate_attrs:
-                for lag in range(0, max_lag_value + 1):
-                    lag_days = lag * unit_multiplier
-                    col_name = f"{attr.variable_name}_{unit_short}-{lag}"
-                    climate_columns.append((attr.id, lag, lag_days, col_name))
-
-            location_columns = []  # list of tuples (attr_id, col_name)
-            if not deidentify:
-                for attr in location_attrs:
-                    location_columns.append((attr.id, attr.variable_name))
-
-            # User warning: if requested lag exceeds retrieved data, values will be blank
-            stream = _outcome_wide_stream(
-                outcome_qs,
-                climate_cache,
-                climate_columns,
-                location_cache,
-                location_columns,
-                lag_unit,
-                exported_at_str,
-                deidentify=deidentify,
-            )
-            filename_suffix = f"wide_lag{max_lag_value}{unit_short}"
+            return redirect("health:combined_export")
 
         timestamp_component = export_ts.strftime("%Y%m%d_%H%M%S")
-        filename = f"{slugify(target_study.name)}_{filename_suffix}_{timestamp_component}.csv"
+        filename = f"{artifact.naming.structured_slug}_{timestamp_component}.{file_format}"
 
-        response = StreamingHttpResponse(stream, content_type="text/csv")
+        if file_format == "parquet":
+            dataframe = pd.DataFrame(artifact.rows, columns=artifact.columns)
+            parquet_buffer = io.BytesIO()
+            dataframe.to_parquet(parquet_buffer, index=False)
+            response = HttpResponse(
+                parquet_buffer.getvalue(),
+                content_type="application/x-parquet",
+            )
+        else:
+            stream = dataset_exports.build_csv_stream(artifact.columns, artifact.rows)
+            response = StreamingHttpResponse(stream, content_type="text/csv")
+
         response["Content-Disposition"] = f'attachment; filename="{filename}"'
         return response
 
@@ -2326,9 +2237,19 @@ def combined_export_attributes(request):
         return HttpResponseForbidden("Not allowed")
 
     categories = request.GET.getlist("categories")
-    attrs_qs = Attribute.objects.filter(studies=target, source_type="target")
+    attrs_qs = dataset_exports.observed_target_attribute_queryset(target)
     if categories:
-        attrs_qs = attrs_qs.filter(category__in=categories)
+        category_filter = Q()
+        non_health_categories = [value for value in categories if value != "health"]
+        if "health" in categories:
+            category_filter |= Q(
+                pk__in=dataset_exports.eligible_health_queryset(attrs_qs).values("pk"),
+            )
+        if non_health_categories:
+            category_filter |= Q(category__in=non_health_categories)
+        attrs_qs = attrs_qs.filter(category_filter)
+    else:
+        attrs_qs = attrs_qs.none()
     attrs = attrs_qs.order_by("category", "display_name", "variable_name")
 
     selected_ids = request.GET.getlist("attributes")

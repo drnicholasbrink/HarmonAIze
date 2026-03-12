@@ -274,7 +274,7 @@
   <div class="hero-section">
     <div class="container">
       <h1 class="hero-title">Combined Data Export</h1>
-      <p class="hero-subtitle">Download transformed observations with contextual data</p>
+      <p class="hero-subtitle">Download analysis-ready long or wide datasets as CSV or Parquet</p>
     </div>
   </div>
 
@@ -313,7 +313,7 @@
 
               <div class="col-md-4">
                 <div class="form-group">
-                  <label class="form-label">Export Format</label>
+                  <label class="form-label">Dataset Shape</label>
                   {% for radio in form.export_format %}
                     <div class="form-check">
                       {{ radio.tag }}
@@ -327,6 +327,22 @@
 
               <div class="col-md-4">
                 <div class="form-group">
+                  <label class="form-label">Download File Type</label>
+                  {% for radio in form.file_format %}
+                    <div class="form-check">
+                      {{ radio.tag }}
+                      <label class="form-check-label" for="{{ radio.id_for_label }}">
+                        {{ radio.choice_label }}
+                      </label>
+                    </div>
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+
+            <div class="row mt-2">
+              <div class="col-md-4">
+                <div class="form-group">
                   <label class="form-label">Climate Settings</label>
                   {{ form.max_lag_days }}
                   <div class="form-text mt-2">
@@ -335,9 +351,6 @@
                   </div>
                 </div>
               </div>
-            </div>
-
-            <div class="row mt-2">
               <div class="col-md-12">
                 <div class="form-group">
                   <label class="form-label" for="id_source_studies">Source Studies (optional)</label>
@@ -351,6 +364,10 @@
                   <div class="form-text">Filter to observations originating from these mapped source studies.</div>
                 </div>
               </div>
+            </div>
+
+            <div class="alert alert-info mt-3 mb-0" role="alert">
+              Confounders are exported as patient-linked context only and are not linked to time or location.
             </div>
 
             <div class="d-flex gap-2 justify-content-end mt-2">
