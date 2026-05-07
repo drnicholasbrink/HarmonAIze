@@ -168,8 +168,7 @@ def update_data_source_availability() -> Dict[str, Any]:
     try:
         for source in ClimateDataSource.objects.filter(is_active=True):
             try:
-                # In a real implementation, this would ping the API endpoint
-                # For MVP, we'll just update the last_checked timestamp
+                # TODO: ping the API endpoint as a test, currently just returning current time.
                 source.last_checked = timezone.now()
                 source.save(update_fields=['last_checked'])
                 updated_count += 1
