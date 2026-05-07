@@ -151,7 +151,6 @@ def validate_safe_transform_code(code: str):
         ast.comprehension,
     )
     banned_names = {"__import__", "open", "exec", "eval", "compile", "globals", "locals", "input", "help"}
-
     # Safe method names that can be called on objects
     safe_string_methods = {
         "upper", "lower", "title", "capitalize", "strip", "lstrip", "rstrip",
@@ -182,7 +181,6 @@ def validate_safe_transform_code(code: str):
 
         def visit_Call(self, node: ast.Call):
             safe_call_names = {"int", "float", "str", "bool", "round", "abs", "min", "max", "len", "sum", "any", "all", "sorted", "reversed"}
-
             if isinstance(node.func, ast.Name):
                 # Direct function calls like int(), str(), etc.
                 if node.func.id in banned_names or node.func.id not in safe_call_names:
@@ -197,7 +195,6 @@ def validate_safe_transform_code(code: str):
             else:
                 msg = "Complex function calls are not allowed in transform code."
                 raise ValidationError(msg)
-
             self.generic_visit(node)
 
         def visit_Attribute(self, node: ast.Attribute):
@@ -205,7 +202,6 @@ def validate_safe_transform_code(code: str):
             if node.attr.startswith('__') and node.attr.endswith('__'):
                 msg = f"Access to dunder attribute not allowed: {node.attr}"
                 raise ValidationError(msg)
-
             # Allow attribute access for safe method calls and the 'value' variable
             if isinstance(node.value, ast.Name):
                 # Allow access to 'value' variable and its attributes
@@ -219,7 +215,6 @@ def validate_safe_transform_code(code: str):
             if isinstance(node.value, ast.Call):
                 # Allow attribute access on results of function calls
                 return
-
             # Allow the attribute access - method call validation happens in visit_Call
             return
 
@@ -334,7 +329,6 @@ class RawDataFile(models.Model):
         max_length=255,
         help_text="Original filename when uploaded"
     )
-
     # File metadata
     file_format = models.CharField(
         max_length=20,
@@ -360,7 +354,6 @@ class RawDataFile(models.Model):
         blank=True,
         help_text="Number of columns in the file"
     )
-
     # Key column identification for data linkage
     patient_id_column = models.CharField(
         max_length=200,
@@ -399,7 +392,6 @@ class RawDataFile(models.Model):
         blank=True,
         help_text="Status messages or error details"
     )
-
     # Timestamps and user tracking
     uploaded_by = models.ForeignKey(
         User,
@@ -504,7 +496,6 @@ class RawDataFile(models.Model):
         blank=True,
         help_text="When transformed EDA cache was last generated",
     )
-
     class Meta:
         ordering = ['-uploaded_at']
         indexes = [
@@ -596,7 +587,6 @@ class RawDataColumn(models.Model):
     column_index = models.PositiveIntegerField(
         help_text="0-based column index in the file"
     )
-
     # Inferred column metadata
     sample_values = models.JSONField(
         default=list,
@@ -624,7 +614,6 @@ class RawDataColumn(models.Model):
         default=0,
         help_text="Number of unique values in this column"
     )
-
     # Potential mapping hints
     is_potential_patient_id = models.BooleanField(
         default=False,
@@ -634,7 +623,6 @@ class RawDataColumn(models.Model):
         default=False,
         help_text="Could this be a date/time column?"
     )
-
     # Variable mapping
     mapped_variable = models.ForeignKey(
         "core.Attribute",
@@ -652,6 +640,5 @@ class RawDataColumn(models.Model):
         unique_together = ['raw_data_file', 'column_name']
         verbose_name = "Raw Data Column"
         verbose_name_plural = "Raw Data Columns"
-
     def __str__(self):
         return f"{self.column_name} ({self.raw_data_file.original_filename})"

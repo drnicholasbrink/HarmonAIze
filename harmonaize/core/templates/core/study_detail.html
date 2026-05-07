@@ -2029,6 +2029,36 @@
           </button>
         </div>
       </div>
+      
+      <!-- Codebook Management Actions -->
+      {% if study.codebook %}
+        <div class="codebook-management">
+          <div class="codebook-actions">
+            <button class="btn btn-outline" onclick="showReuploadModal()">
+              {% include 'components/svg_icon.html' with icon='upload' size='16' class='inline-icon' %} 
+              {% if study.study_purpose == 'target' %}
+                Re-upload Target Codebook
+              {% else %}
+                Re-upload Source Codebook
+              {% endif %}
+            </button>
+          </div>
+        </div>
+      {% else %}
+        <!-- Upload button for studies without codebook -->
+        <div class="codebook-management">
+          <div class="codebook-actions">
+            <button class="btn btn-primary" onclick="showReuploadModal()">
+              {% include 'components/svg_icon.html' with icon='upload' size='16' class='inline-icon' %} 
+              {% if study.study_purpose == 'target' %}
+                Upload Target Codebook
+              {% else %}
+                Upload Source Codebook
+              {% endif %}
+            </button>
+          </div>
+        </div>
+      {% endif %}
     </div>
 
     <!-- Data Ingestion Section (only for source studies) -->
