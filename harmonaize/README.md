@@ -13,22 +13,23 @@ License: MIT
 
 1. **Install Docker Desktop**: https://www.docker.com/products/docker-desktop/
 2. **Clone and navigate**: Clone this repository and navigate to the `harmonaize` directory
-3. **Start the application**:
+3. **Review local environment settings**: Update `./.envs/.local/.django` with any keys you need for OpenAI, Mapbox, or Google Earth Engine
+4. **Start the application**:
    ```bash
    docker-compose -f docker-compose.local.yml up -d
    ```
-4. **Make and run database migrations**:
+5. **Make and run database migrations**:
    ```bash
    docker-compose -f docker-compose.local.yml run --rm django python manage.py makemigrations
    ```
    ```bash
    docker-compose -f docker-compose.local.yml run --rm django python manage.py migrate
    ```
-5. **Create a superuser**:
+6. **Create a superuser**:
    ```bash
    docker-compose -f docker-compose.local.yml run --rm django python manage.py createsuperuser
    ```
-6. **Visit the application**: http://localhost:8000
+7. **Visit the application**: http://localhost:8000
 
 **Important**: No need to install Python packages locally - everything runs in Docker containers!
 
@@ -108,12 +109,23 @@ ARMADILLO_HOST_PORT=18081 docker-compose -f vendor/molgenis-service-armadillo/do
    cd harmonaize
    ```
 
-3. **Build and start the application**:
+3. **Configure local environment variables** in `./.envs/.local/.django`.
+
+   Common local settings:
+   ```bash
+   OPENAI_API_KEY=sk-your-key
+   MAPBOX_ACCESS_TOKEN=pk.your-mapbox-token
+   GOOGLE_APPLICATION_CREDENTIALS=/app/.envs/.local/gee-credentials.json
+   ```
+
+   For Google Earth Engine, download the service account JSON key and place it at `./.envs/.local/gee-credentials.json` or another local path mounted into the container, then set `GOOGLE_APPLICATION_CREDENTIALS` to the matching in-container path. See `climate/GEE_SETUP.md` for the full workflow.
+
+4. **Build and start the application**:
    ```bash
    docker-compose -f docker-compose.local.yml up -d
    ```
 
-4. **Run initial setup**:
+5. **Run initial setup**:
    ```bash
    # Run database migrations
    docker-compose -f docker-compose.local.yml run --rm django python manage.py migrate
@@ -122,23 +134,50 @@ ARMADILLO_HOST_PORT=18081 docker-compose -f vendor/molgenis-service-armadillo/do
    docker-compose -f docker-compose.local.yml run --rm django python manage.py createsuperuser
    ```
 
-5. **Access the application** at http://localhost:8000
+6. **Access the application** at http://localhost:8000
 
-### Configure OpenAI access
+### Module-specific setup
 
-The transformation suggestion features rely on the OpenAI Responses API. Set an OpenAI API key before starting the containers:
+#### OpenAI
+
+The transformation suggestion features rely on the OpenAI Responses API.
 
 1. Copy your key from https://platform.openai.com/account/api-keys
-2. Add it to the local Django environment file `./.envs/.local/.django`:
+2. Add it to `./.envs/.local/.django`:
    ```bash
-   echo "OPENAI_API_KEY=sk-your-key" >> ./.envs/.local/.django
+   OPENAI_API_KEY=sk-your-key
    ```
-3. Restart the Django services so the environment variable is picked up:
+
+#### Mapbox
+
+Interactive map visualisations in the geolocation module require a Mapbox access token.
+
+1. Create or copy a token from https://account.mapbox.com/access-tokens/
+2. Add it to `./.envs/.local/.django`:
+   ```bash
+   MAPBOX_ACCESS_TOKEN=pk.your-mapbox-token
+   ```
+3. Restart the Django services after changing environment variables:
    ```bash
    docker-compose -f docker-compose.local.yml restart django celeryworker celerybeat flower
    ```
 
-Repeat the same configuration for other environments (e.g. `.envs/.production/.django`) before deploying.
+#### Google Earth Engine
+
+The climate module uses live Google Earth Engine data and requires credentials before climate requests will succeed.
+
+1. Follow `climate/GEE_SETUP.md` to create a service account and download the JSON key
+2. Save the file locally, for example at `./.envs/.local/gee-credentials.json`
+3. Add the matching path to `./.envs/.local/.django`:
+   ```bash
+   GOOGLE_APPLICATION_CREDENTIALS=/app/.envs/.local/gee-credentials.json
+   ```
+4. Restart the services after updating the environment file:
+   ```bash
+   docker-compose -f docker-compose.local.yml restart django celeryworker celerybeat flower
+   ```
+
+Repeat the same configuration pattern for other environments, such as `.envs/.production/.django`, before deploying.
 
 **Note**: All dependencies are managed within Docker containers - no need to install Python packages locally!
 
