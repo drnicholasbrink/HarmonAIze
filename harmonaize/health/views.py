@@ -2,11 +2,14 @@ import csv
 import io
 import json
 import logging
-from datetime import datetime
+import hashlib
+from datetime import datetime, timedelta
+import pandas as pd
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import (
     FileResponse,
     Http404,
+    HttpResponse,
     HttpResponseBadRequest,
     HttpResponseForbidden,
     JsonResponse,
@@ -16,20 +19,24 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
 from django.utils.text import slugify
+from django.db import models
 from django.forms import formset_factory
 from django.views.decorators.http import require_http_methods, require_POST
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.contrib.postgres.aggregates import ArrayAgg
 
-from core.models import Study, Attribute, Observation
+from core.models import Study, Attribute, Observation, ProjectMembership
+from climate.models import ClimateDataRequest
 from .models import MappingSchema, MappingRule, RawDataFile, RawDataColumn
 from core.forms import VariableConfirmationFormSetFactory
 from .forms import (
     ExportDataForm,
+    CombinedExportForm,
     MappingRuleForm,
     MappingSchemaForm,
     RawDataUploadForm,
 )
+from . import dataset_exports
 from .utils import (
     validate_raw_data_against_codebook,
     analyze_raw_data_columns,
@@ -41,23 +48,76 @@ from .eda_service import generate_eda_summary
 logger = logging.getLogger(__name__)
 
 
+LAG_UNIT_TO_DAYS = {
+    "days": 1,
+    "weeks": 7,
+    "months": 30,
+    "years": 365,
+}
+
+LAG_UNIT_SHORT = {
+    "days": "d",
+    "weeks": "w",
+    "months": "m",
+    "years": "y",
+}
+
+
+def _get_climate_lag_unit_for_study(study) -> str:
+    """Return the lag unit from the most recent climate request for this study (default: days)."""
+
+    if not study:
+        return "days"
+
+    request_qs = ClimateDataRequest.objects.filter(study=study)
+    # Prefer completed requests, then fall back to the newest request
+    request = (
+        request_qs.filter(status="completed")
+        .order_by("-completed_at", "-requested_at")
+        .first()
+        or request_qs.order_by("-requested_at").first()
+    )
+
+    if not request:
+        return "days"
+
+    config = request.configuration or {}
+    return config.get("lag_unit") or "days"
+
+
 def _user_can_export_raw_data(user, raw_data_file: RawDataFile) -> bool:
     if not getattr(user, "is_authenticated", False):
         return False
     if raw_data_file.uploaded_by_id == user.id:
         return True
-    if raw_data_file.study_id and raw_data_file.study.created_by_id == user.id:
-        return True
-    if (
-        raw_data_file.study_id
-        and raw_data_file.study.project_id
-        and raw_data_file.study.project.created_by_id == user.id
-    ):
-        return True
+    
+    # Check if user is owner or manager in the project
+    if raw_data_file.study:
+        membership = ProjectMembership.objects.filter(
+            project=raw_data_file.study.project,
+            user=user
+        ).first()
+        if membership and membership.role in ['owner', 'manager']:
+            return True
+
     if user.is_staff or user.is_superuser:
         return True
     else:
         return False
+
+
+def _check_study_management_permission(user, study: Study) -> bool:
+    """Check if user is owner or manager of the study's project."""
+    if not getattr(user, "is_authenticated", False):
+        return False
+    if user.is_staff or user.is_superuser:
+        return True
+    
+    membership = ProjectMembership.objects.filter(
+        project=study.project,
+        user=user
+    ).first()
+    return membership and membership.role in ['owner', 'manager']
 
 
 def _serialize_observation_value(observation: Observation) -> str:
@@ -99,6 +159,17 @@ def _serialize_observation_value(observation: Observation) -> str:
     return str(value)
 
 
+def _hash_patient_identifier(identifier: str) -> str:
+    if not identifier:
+        return ""
+    return hashlib.sha256(identifier.encode("utf-8")).hexdigest()[:12]
+
+
+def _hash_location_identifier(identifier: str) -> str:
+    # Reuse same hashing approach for locations
+    return _hash_patient_identifier(identifier)
+
+
 def _serialize_time_dimension(time_dimension) -> str:
     if not time_dimension:
         return ""
@@ -114,6 +185,162 @@ def _serialize_time_dimension(time_dimension) -> str:
     if end:
         return end.isoformat()
     return ""
+
+
+def _combined_long_stream(queryset, exported_at: str, deidentify: bool = False):
+    """Stream long-format CSV rows for the combined export."""
+    header = [
+        "patient_id",
+        "location_id",
+        "location_name",
+        "datetime",
+        "attribute_variable_name",
+        "attribute_display_name",
+        "category",
+        "source_type",
+        "value",
+        "observation_id",
+        "exported_at",
+    ]
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(header)
+    buffer.seek(0)
+    yield buffer.read()
+    buffer.truncate(0)
+    buffer.seek(0)
+
+    for obs in queryset.iterator(chunk_size=1000):
+        patient_identifier = ""
+        if obs.patient_id:
+            patient_identifier = getattr(obs.patient, "unique_id", None) or str(obs.patient_id)
+            patient_identifier = ""
+            if obs.patient_id:
+                patient_identifier = getattr(obs.patient, "unique_id", None) or str(obs.patient_id)
+            if deidentify:
+                patient_identifier = _hash_patient_identifier(patient_identifier)
+
+            loc_identifier = ""
+            if obs.location_id and not deidentify:
+                loc_identifier = str(obs.location_id)
+
+            loc_name = ""
+            if obs.location_id:
+                loc_name = getattr(obs.location, "name", "") or ""
+            if deidentify and loc_name:
+                loc_name = _hash_location_identifier(loc_name)
+
+        writer.writerow(
+            [
+                patient_identifier,
+                loc_identifier,
+                loc_name,
+                _serialize_time_dimension(obs.time),
+                obs.attribute.variable_name,
+                obs.attribute.display_name or "",
+                obs.attribute.category,
+                getattr(obs.attribute, "source_type", ""),
+                _serialize_observation_value(obs),
+                obs.id,
+                exported_at,
+            ]
+        )
+
+        buffer.seek(0)
+        yield buffer.read()
+        buffer.truncate(0)
+        buffer.seek(0)
+
+
+def _outcome_wide_stream(
+    outcome_qs,
+    climate_cache,
+    climate_columns,
+    location_cache,
+    location_columns,
+    climate_lag_unit: str,
+    exported_at: str,
+    deidentify: bool = False,
+):
+    """Stream wide-format rows keyed by outcome observations with location and climate context."""
+
+    header = [
+        "patient_id",
+        "attribute_name",
+        "attribute_value",
+        "attribute_datetime",
+        "attribute_location_name",
+    ] + [col[1] for col in location_columns] + ["climate_lag_unit"] + [col[3] for col in climate_columns] + ["exported_at"]
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(header)
+    buffer.seek(0)
+    yield buffer.read()
+    buffer.truncate(0)
+    buffer.seek(0)
+
+    for obs in outcome_qs.iterator(chunk_size=500):
+        patient_identifier = ""
+        if obs.patient_id:
+            patient_identifier = getattr(obs.patient, "unique_id", None) or str(obs.patient_id)
+        if deidentify:
+            patient_identifier = _hash_patient_identifier(patient_identifier)
+
+        loc_id = obs.location_id or ""
+        loc_name = ""
+        if obs.location_id:
+            loc_name = getattr(obs.location, "name", "") or ""
+        if deidentify and loc_name:
+            loc_name = _hash_location_identifier(loc_name)
+
+        dt_str = _serialize_time_dimension(obs.time)
+        dt = None
+        if obs.time:
+            if getattr(obs.time, "timestamp", None):
+                dt = obs.time.timestamp.date()
+            elif getattr(obs.time, "start_date", None):
+                dt = obs.time.start_date.date()
+            elif getattr(obs.time, "end_date", None):
+                dt = obs.time.end_date.date()
+
+        row = [
+            patient_identifier,
+            obs.attribute.variable_name,
+            _serialize_observation_value(obs),
+            dt_str,
+            loc_name,
+        ]
+
+        # Location-level attributes (geolocation category)
+        if loc_id:
+            for attr_id, _col_name in location_columns:
+                lval = location_cache.get((loc_id, attr_id))
+                row.append(lval if lval is not None else "")
+        else:
+            row.extend(["" for _ in location_columns])
+
+        # Indicate the lag unit used for this export
+        row.append(climate_lag_unit)
+
+        # Append climate lag values in the order of climate_columns
+        if dt is not None and loc_id:
+            for col in climate_columns:
+                attr_id, lag_value, lag_days, _col_name = col
+                value = climate_cache.get((loc_id, dt - timedelta(days=lag_days), attr_id))
+                row.append(value if value is not None else "")
+        else:
+            row.extend(["" for _ in climate_columns])
+
+        row.append(exported_at)
+
+        buffer.seek(0)
+        writer.writerow(row)
+        buffer.seek(0)
+        yield buffer.read()
+        buffer.truncate(0)
+        buffer.seek(0)
 
 
 def _harmonised_csv_stream(queryset, schema, raw_data_file, exported_at: str, user_id: int):
@@ -189,8 +416,11 @@ def map_codebook(request, study_id):
     This is the first step in the harmonisation process.
     Uses unified codebook processing utility.
     """
-    study = get_object_or_404(Study, id=study_id, created_by=request.user, study_purpose='source')
+    study = get_object_or_404(Study, id=study_id, study_purpose='source')
     
+    if not _check_study_management_permission(request.user, study):
+        return HttpResponseForbidden("You do not have permission to manage this study.")
+
     from core.utils import process_codebook_mapping
     result = process_codebook_mapping(request, study, codebook_type='source')
     
@@ -214,8 +444,11 @@ def extract_variables(request, study_id):
     Uses unified codebook processing utility.
     Placeholder for LLM integration to enhance variable metadata.
     """
-    study = get_object_or_404(Study, id=study_id, created_by=request.user, study_purpose='source')
+    study = get_object_or_404(Study, id=study_id, study_purpose='source')
     
+    if not _check_study_management_permission(request.user, study):
+        return HttpResponseForbidden("You do not have permission to manage this study.")
+
     from core.utils import process_codebook_extraction
     result = process_codebook_extraction(request, study, codebook_type='source')
     
@@ -249,14 +482,28 @@ def start_harmonisation(request, study_id):
     from .utils import MessageManager
     
     source_study = get_object_or_404(
-        Study, id=study_id, created_by=request.user, study_purpose="source",
+        Study, id=study_id, study_purpose="source",
     )
+
+    if not _check_study_management_permission(request.user, source_study):
+        return HttpResponseForbidden("You do not have permission to manage this study.")
     
     # Check if a mapping schema already exists
     existing_schema = MappingSchema.objects.filter(source_study=source_study).first()
     if existing_schema:
         MessageManager.info(request, "Using existing harmonization schema.")
         return redirect("health:harmonization_dashboard", schema_id=existing_schema.id)
+    
+    # Check if any target studies exist for this user in the same project
+    target_studies = Study.objects.filter(
+        study_purpose="target",
+        project__members=request.user
+    ).distinct()
+    
+    if source_study.project_id:
+        target_studies = target_studies.filter(project_id=source_study.project_id)
+    
+    has_target_studies = target_studies.exists()
     
     if request.method == "POST":
         form = MappingSchemaForm(
@@ -280,14 +527,22 @@ def start_harmonisation(request, study_id):
     return render(
         request,
         "health/start_harmonisation.html",
-        {"form": form, "study": source_study},
+        {
+            "form": form, 
+            "study": source_study,
+            "has_target_studies": has_target_studies,
+        },
     )
 @login_required
 def start_eda_generation(request, file_id):
     """Start EDA generation if caches are absent. POST only for safety."""
     if request.method != 'POST':
         return HttpResponseBadRequest('POST required')
-    raw_data_file = get_object_or_404(RawDataFile, id=file_id, uploaded_by=request.user)
+    
+    raw_data_file = get_object_or_404(RawDataFile, id=file_id)
+    if not _user_can_export_raw_data(request.user, raw_data_file):
+        return HttpResponseForbidden()
+
     clear = request.POST.get('clear') == '1'
     if clear:
         raw_data_file.eda_cache_source = None
@@ -310,7 +565,10 @@ def start_eda_generation(request, file_id):
 @login_required
 def eda_status(request, file_id):
     """Return JSON status for EDA cache availability so the frontend can poll."""
-    raw_data_file = get_object_or_404(RawDataFile, id=file_id, uploaded_by=request.user)
+    raw_data_file = get_object_or_404(RawDataFile, id=file_id)
+    if not _user_can_export_raw_data(request.user, raw_data_file):
+        return HttpResponseForbidden()
+
     data = {
         'source_available': bool(raw_data_file.eda_cache_source),
         'source_generated_at': raw_data_file.eda_cache_source_generated_at.isoformat() if raw_data_file.eda_cache_source_generated_at else None,
@@ -333,6 +591,9 @@ def approve_mapping(request, schema_id):
     - Optionally kicks off background transformation if raw data files exist and no transformations currently running.
     """
     schema = get_object_or_404(MappingSchema, id=schema_id)
+    
+    if not _check_study_management_permission(request.user, schema.source_study):
+        return HttpResponseForbidden("You do not have permission to approve this mapping.")
 
     if schema.status == 'approved':
         messages.info(request, 'Mapping schema already approved.')
@@ -374,7 +635,11 @@ def approve_mapping(request, schema_id):
 @login_required
 def finalize_harmonisation(request, schema_id):
     """Mark the study as harmonised after approval."""
-    schema = get_object_or_404(MappingSchema, id=schema_id, created_by=request.user)
+    schema = get_object_or_404(MappingSchema, id=schema_id)
+    
+    if not _check_study_management_permission(request.user, schema.source_study):
+        return HttpResponseForbidden("You do not have permission to finalize this study.")
+        
     if schema.status != "approved":
         messages.error(request, "You must approve the mapping before finalising.")
         return redirect("health:harmonization_dashboard", schema_id=schema.id)
@@ -391,7 +656,11 @@ def rerun_harmonisation_transformations(request, schema_id):
     """Re-queue harmonised observation generation for an approved mapping schema."""
     from .utils import MessageManager
     
-    schema = get_object_or_404(MappingSchema, id=schema_id, created_by=request.user)
+    schema = get_object_or_404(MappingSchema, id=schema_id)
+    
+    if not _check_study_management_permission(request.user, schema.source_study):
+        from django.http import HttpResponseForbidden
+        return HttpResponseForbidden("You do not have permission to manage this study.")
 
     if schema.status != "approved":
         MessageManager.error(
@@ -485,13 +754,22 @@ def _apply_universal_mappings(schema):
 def select_variables(request, study_id):  # noqa: C901 (complexity accepted temporarily)
     """
     Let user select which extracted variables to include in the study.
+    If variables already exist, redirect to study detail page.
     """
     study = get_object_or_404(
-        Study, id=study_id, created_by=request.user, study_purpose="source",
+        Study, id=study_id, study_purpose="source",
     )
+    
+    if not _check_study_management_permission(request.user, study):
+        return HttpResponseForbidden("You do not have permission to manage this study.")
     
     # Get variables data from session
     variables_data = request.session.get(f"variables_data_{study.id}")
+    
+    # If no session data but study already has variables, redirect to study detail
+    if not variables_data and study.variables.exists():
+        return redirect("core:study_detail", pk=study.pk)
+    
     if not variables_data:
         messages.error(
             request,
@@ -529,6 +807,7 @@ def select_variables(request, study_id):  # noqa: C901 (complexity accepted temp
                         attribute, _created = Attribute.objects.get_or_create(
                             variable_name=var_data["variable_name"],
                             source_type="source",  # ensure classification
+                            study=study,
                             defaults={
                                 "display_name": var_data.get(
                                     "display_name", var_data["variable_name"],
@@ -566,6 +845,53 @@ def select_variables(request, study_id):  # noqa: C901 (complexity accepted temp
                 study.variables.set(created_attributes)
                 study.status = "variables_extracted"
                 study.save(update_fields=["status"])
+                
+                # Check if we need to generate a codebook from raw data extraction
+                extract_from_raw = request.session.pop(f"extract_from_raw_{study.id}", False)
+                if extract_from_raw and created_attributes:
+                    # Generate a codebook CSV from the selected variables
+                    try:
+                        import csv
+                        import io
+                        from django.core.files.base import ContentFile
+                        
+                        # Create CSV content
+                        output = io.StringIO()
+                        writer = csv.writer(output)
+                        writer.writerow(['variable_name', 'display_name', 'description', 'variable_type', 'unit', 'ontology_code', 'category'])
+                        
+                        for attr in created_attributes:
+                            writer.writerow([
+                                attr.variable_name,
+                                attr.display_name,
+                                attr.description,
+                                attr.variable_type,
+                                attr.unit,
+                                attr.ontology_code,
+                                attr.category,
+                            ])
+                        
+                        csv_content = output.getvalue()
+                        output.close()
+                        
+                        # Save as the study's codebook
+                        codebook_filename = f"codebook_{study.name.lower().replace(' ', '_')}_generated.csv"
+                        study.codebook.save(codebook_filename, ContentFile(csv_content.encode('utf-8')), save=False)
+                        study.codebook_format = 'csv'
+                        study.status = 'variables_extracted'
+                        study.save()
+                        
+                        messages.info(
+                            request,
+                            f"A codebook has been generated from the selected variables and is available for download."
+                        )
+                    except Exception as e:
+                        # Non-fatal: continue even if codebook generation fails
+                        messages.warning(
+                            request,
+                            f"Variables saved, but codebook generation failed: {str(e)}"
+                        )
+                
                 # Clear session data
                 request.session.pop(f"variables_data_{study.id}", None)
                 request.session.pop(f"column_mapping_{study.id}", None)
@@ -649,7 +975,7 @@ def reset_variables(request, study_id):
     study = get_object_or_404(
         Study,
         id=study_id,
-        created_by=request.user,
+        project__members=request.user,
         study_purpose="source",
     )
     
@@ -830,6 +1156,7 @@ def harmonization_dashboard(request, schema_id):
                 "related_relation_type": schema.universal_relation_type or "",
                 "patient_id_attribute": schema.universal_patient_id,
                 "datetime_attribute": schema.universal_datetime,
+                "location_attribute": schema.universal_location,
             },
         )
         
@@ -839,6 +1166,8 @@ def harmonization_dashboard(request, schema_id):
                 mapping_rule.role = "patient_id"
             elif schema.universal_datetime == attr:
                 mapping_rule.role = "datetime"
+            elif schema.universal_location == attr:
+                mapping_rule.role = "location"
             mapping_rule.save()
         
         # Pre-populate form fields with universal settings if they're not already set
@@ -849,6 +1178,8 @@ def harmonization_dashboard(request, schema_id):
                 mapping_rule.datetime_attribute = schema.universal_datetime
             if not mapping_rule.related_relation_type and schema.universal_relation_type:
                 mapping_rule.related_relation_type = schema.universal_relation_type
+            if not mapping_rule.location_attribute and schema.universal_location:
+                mapping_rule.location_attribute = schema.universal_location
             # Save only if we made changes and the rule already exists
             if not created:
                 mapping_rule.save()
@@ -922,12 +1253,30 @@ def upload_raw_data(request, study_id=None):
     if study_id:
         study = get_object_or_404(Study, id=study_id, study_purpose='source')
         # Check if user has permission to upload data for this study
-        if study.created_by != request.user:
+        if not study.project.members.filter(id=request.user.id).exists():
             messages.error(request, "You don't have permission to upload data for this study.")
             return redirect('core:study_detail', pk=study.pk)
     
     # Check if study has variables
     has_variables = study.variables.exists() if study else False
+    
+    # Check if codebook exists but variables not extracted
+    has_codebook_unextracted = False
+    if study and study.codebook and not has_variables:
+        has_codebook_unextracted = True
+    
+    # Check if user explicitly chose to extract from raw data (override codebook)
+    extract_from_raw = request.POST.get('extract_from_raw') == 'true' or request.GET.get('extract_from_raw') == 'true'
+    
+    # If codebook exists but not extracted, and user hasn't explicitly chosen raw data extraction
+    if has_codebook_unextracted and not extract_from_raw and request.method == 'GET':
+        # Show suggestion to extract from codebook first
+        context = {
+            'study': study,
+            'has_codebook_unextracted': True,
+            'page_title': f'Upload Raw Data for {study.name}',
+        }
+        return render(request, 'health/upload_raw_data_codebook_warning.html', context)
     
     if request.method == 'POST':
         form = RawDataUploadForm(request.POST, request.FILES, user=request.user)
@@ -936,6 +1285,7 @@ def upload_raw_data(request, study_id=None):
         if not has_variables:
             form.fields['patient_id_column'].required = False
             form.fields['date_column'].required = False
+            form.fields['location_column'].required = False
         
         if form.is_valid():
             raw_data_file = form.save(commit=False)
@@ -950,6 +1300,7 @@ def upload_raw_data(request, study_id=None):
             # Persist selected column names onto the model
             raw_data_file.patient_id_column = form.cleaned_data.get("patient_id_column") or ""
             raw_data_file.date_column = form.cleaned_data.get("date_column") or ""
+            raw_data_file.location_column = form.cleaned_data.get("location_column") or ""
 
             # Compute checksum for duplicate detection
             import hashlib
@@ -1019,6 +1370,18 @@ def upload_raw_data(request, study_id=None):
                     columns = list(df.columns)
                     
                     if columns:
+                        # If user is extracting from raw data despite having a codebook, delete the codebook
+                        if extract_from_raw and raw_data_file.study.codebook:
+                            # Delete the existing codebook file
+                            raw_data_file.study.codebook.delete(save=False)
+                            raw_data_file.study.codebook = None
+                            raw_data_file.study.codebook_format = ''
+                            raw_data_file.study.save()
+                            messages.info(
+                                request,
+                                "Previous codebook has been removed. A new codebook will be generated from the extracted variables."
+                            )
+                        
                         # Create variables data structure for select_variables view
                         variables_data = []
                         for col_name in columns:
@@ -1039,11 +1402,13 @@ def upload_raw_data(request, study_id=None):
                         
                         # Store variables data in session
                         request.session[f"variables_data_{raw_data_file.study.id}"] = variables_data
+                        # Mark that we're extracting from raw data (for codebook generation later)
+                        request.session[f"extract_from_raw_{raw_data_file.study.id}"] = True
                         
                         messages.info(
                             request,
-                            f"No variables found for this study. Extracted {len(columns)} columns from your data file. "
-                            f"Please review and select which variables to include.",
+                            f"Extracted {len(columns)} columns from your data file. "
+                            f"Please review and select which variables to include. A codebook will be generated from your selection.",
                         )
                         
                         # Redirect to select_variables to let user review
@@ -1234,9 +1599,19 @@ def raw_data_list(request):
     Optionally filter by study if study parameter is provided.
     """
     # Get all raw data files for studies the user has access to
-    raw_data_files = RawDataFile.objects.filter(
-        uploaded_by=request.user
-    ).select_related('study', 'uploaded_by').order_by('-uploaded_at')
+    # Users can see files they uploaded, or all files if they are project owner/manager
+    qs = RawDataFile.objects.filter(
+        Q(uploaded_by=request.user) |
+        Q(
+            study__project__memberships__user=request.user,
+            study__project__memberships__role__in=['owner', 'manager']
+        )
+    ).distinct()
+    
+    if request.user.is_staff or request.user.is_superuser:
+        qs = RawDataFile.objects.all()
+
+    raw_data_files = qs.select_related('study', 'uploaded_by').order_by('-uploaded_at')
     
     # Filter by study if provided
     study_filter = request.GET.get('study')
@@ -1246,7 +1621,7 @@ def raw_data_list(request):
             filtered_study = get_object_or_404(
                 Study, 
                 id=study_filter, 
-                created_by=request.user
+                project__members=request.user
             )
             raw_data_files = raw_data_files.filter(study=filtered_study)
         except (ValueError, Http404):
@@ -1288,9 +1663,11 @@ def raw_data_detail(request, file_id):
     """
     raw_data_file = get_object_or_404(
         RawDataFile, 
-        id=file_id, 
-        uploaded_by=request.user
+        id=file_id 
     )
+
+    if not _user_can_export_raw_data(request.user, raw_data_file):
+        return HttpResponseForbidden("You do not have permission to view this file.")
     
     # Get view mode from query parameter (source, transformed, or both)
     view_mode = request.GET.get('view_mode', 'source')
@@ -1475,6 +1852,161 @@ def export_raw_data(request, file_id):
         "harmonised_available": harmonised_available,
     }
     return render(request, "health/export_data.html", context)
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def combined_export(request):
+    """Export transformed data (health, geolocation, climate) with study/variable selection."""
+
+    initial = {}
+    if request.method == "GET":
+        # Preselect target study when coming from a study or climate request context
+        target_hint = request.GET.get("target_study") or request.GET.get("study")
+        if target_hint:
+            initial["target_study"] = target_hint
+
+    form = CombinedExportForm(request.POST or None, user=request.user, initial=initial)
+
+    def _resolve_target(form_obj):
+        target_val = None
+        if form_obj.is_bound:
+            target_val = form_obj.data.get("target_study")
+        else:
+            target_val = form_obj.initial.get("target_study")
+        if not target_val:
+            return None
+        try:
+            return form_obj.fields["target_study"].queryset.get(pk=target_val)
+        except Exception:
+            return None
+
+    target_study = _resolve_target(form)
+    lag_unit = _get_climate_lag_unit_for_study(target_study)
+    
+    # Determine if user can perform normal (identifiable) export
+    can_normal_export = False
+    if target_study:
+        is_manager = _check_study_management_permission(request.user, target_study)
+        # Allow export if user uploaded any raw data file in this project
+        is_uploader = RawDataFile.objects.filter(study__project=target_study.project, uploaded_by=request.user).exists()
+        can_normal_export = is_manager or is_uploader
+    elif request.user.is_staff or request.user.is_superuser:
+        can_normal_export = True
+
+    lag_unit_label = lag_unit.capitalize()
+    if "max_lag_days" in form.fields:
+        form.fields["max_lag_days"].label = f"Max lag ({lag_unit_label})"
+
+    selected_ids = []
+    if form.is_bound:
+        selected_ids = request.POST.getlist("attributes")
+    else:
+        initial_attrs = form.initial.get("attributes") or []
+        selected_ids = [str(a.pk) if hasattr(a, "pk") else str(a) for a in initial_attrs]
+
+    use_all_attributes = not bool(selected_ids)
+
+    if request.method == "POST" and form.is_valid():
+        export_mode = request.POST.get("export_mode", "normal")
+        deidentify = export_mode == "deid"
+
+        if export_mode == "normal" and not can_normal_export:
+            messages.error(request, "Normal export is only available to users who uploaded source data. Use de-identified export instead.")
+            return render(
+                request,
+                "health/export_combined.html",
+                {
+                    "form": form,
+                    "lag_unit": lag_unit,
+                    "lag_unit_label": lag_unit_label,
+                    "can_normal_export": can_normal_export,
+                    "selected_ids": selected_ids,
+                    "use_all_attributes": use_all_attributes,
+                },
+            )
+
+        target_study = form.cleaned_data["target_study"]
+        lag_unit = _get_climate_lag_unit_for_study(target_study)
+        lag_unit_label = lag_unit.capitalize()
+        source_studies = form.cleaned_data.get("source_studies")
+        categories = form.cleaned_data.get("categories") or []
+        selected_attributes = form.cleaned_data.get("attributes")
+        export_format = form.cleaned_data.get("export_format")
+        file_format = form.cleaned_data.get("file_format")
+        max_lag_value = form.cleaned_data.get("max_lag_days") or 0
+
+        selection = dataset_exports.resolve_combined_export_selection(
+            target_study=target_study,
+            categories=categories,
+            selected_attributes=selected_attributes,
+            source_studies=source_studies,
+            deidentify=deidentify,
+        )
+
+        if not selection.attributes:
+            messages.error(
+                request,
+                "No transformed observations available for the selected target study and filters.",
+            )
+            return redirect("health:combined_export")
+
+        if not selection.outcome_attributes:
+            messages.error(request, "No health attributes found for this target study.")
+            return redirect("health:combined_export")
+
+        export_ts = timezone.now()
+        builder = dataset_exports.TargetStudyDatasetBuilder(
+            target_study=target_study,
+            outcome_attributes=selection.outcome_attributes,
+            confounder_attributes=selection.confounder_attributes,
+            climate_attributes=selection.climate_attributes,
+            location_attributes=selection.location_attributes,
+            dataset_shape=export_format,
+            source_studies=source_studies,
+            max_lag_value=max_lag_value,
+            deidentify=deidentify,
+            exported_at=export_ts,
+        )
+        artifact = builder.build_artifact()
+
+        if not artifact.rows:
+            messages.error(
+                request,
+                "No analysis-ready rows were generated for the selected target study and filters.",
+            )
+            return redirect("health:combined_export")
+
+        timestamp_component = export_ts.strftime("%Y%m%d_%H%M%S")
+        filename = f"{artifact.naming.structured_slug}_{timestamp_component}.{file_format}"
+
+        if file_format == "parquet":
+            dataframe = pd.DataFrame(artifact.rows, columns=artifact.columns)
+            parquet_buffer = io.BytesIO()
+            dataframe.to_parquet(parquet_buffer, index=False)
+            response = HttpResponse(
+                parquet_buffer.getvalue(),
+                content_type="application/x-parquet",
+            )
+        else:
+            stream = dataset_exports.build_csv_stream(artifact.columns, artifact.rows)
+            response = StreamingHttpResponse(stream, content_type="text/csv")
+
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
+    return render(
+        request,
+        "health/export_combined.html",
+        {
+            "form": form,
+            "lag_unit": lag_unit,
+            "lag_unit_label": lag_unit_label,
+            "can_normal_export": can_normal_export,
+            "selected_ids": selected_ids,
+            "use_all_attributes": use_all_attributes,
+        },
+    )
 
 
 @login_required
@@ -1693,6 +2225,52 @@ def map_raw_data_columns(request, file_id):
 
 
 @login_required
+def combined_export_attributes(request):
+    """Return variable card markup for attribute selection (HTMX)."""
+    target_id = request.GET.get("target_study")
+    if not target_id:
+        return HttpResponseBadRequest("Missing target_study")
+
+    try:
+        target = Study.objects.filter(project__members=request.user, study_purpose="target").distinct().get(pk=target_id)
+    except Study.DoesNotExist:
+        return HttpResponseForbidden("Not allowed")
+
+    categories = request.GET.getlist("categories")
+    attrs_qs = dataset_exports.observed_target_attribute_queryset(target)
+    if categories:
+        category_filter = Q()
+        non_health_categories = [value for value in categories if value != "health"]
+        if "health" in categories:
+            category_filter |= Q(
+                pk__in=dataset_exports.eligible_health_queryset(attrs_qs).values("pk"),
+            )
+        if non_health_categories:
+            category_filter |= Q(category__in=non_health_categories)
+        attrs_qs = attrs_qs.filter(category_filter)
+    else:
+        attrs_qs = attrs_qs.none()
+    attrs = attrs_qs.order_by("category", "display_name", "variable_name")
+
+    selected_ids = request.GET.getlist("attributes")
+    if selected_ids:
+        use_all_flag = False
+    else:
+        use_all_flag = request.GET.get("use_all_attributes", "on") != "off"
+
+    return render(
+        request,
+        "health/partials/attribute_cards.html",
+        {
+            "attributes": attrs,
+            "field_name": "attributes",
+            "selected_ids": selected_ids,
+            "use_all": use_all_flag,
+        },
+    )
+
+
+@login_required
 def study_variables_api(request, study_id):
     """
     API endpoint to fetch variables for a study for dynamic form population.
@@ -1704,7 +2282,7 @@ def study_variables_api(request, study_id):
         study = get_object_or_404(Study, id=study_id, study_purpose='source')
         
         # Check permission
-        if study.created_by != request.user:
+        if not study.project.members.filter(id=request.user.id).exists():
             return JsonResponse({'error': 'Permission denied'}, status=403)
         
         # Get participant ID variables (string/categorical types)
@@ -1736,13 +2314,21 @@ def similarity_suggestions_api(request, schema_id):
     Returns JSON with similarity suggestions for all source attributes.
     """
     from django.http import JsonResponse
+    from django.conf import settings
     from core.similarity_service import similarity_service
     
     try:
+        # Check if OpenAI API key is configured
+        if not settings.OPENAI_API_KEY:
+            return JsonResponse({
+                'error': 'OpenAI API key is not configured. Please set the OPENAI_API_KEY environment variable to enable AI-powered similarity suggestions.',
+                'api_key_missing': True
+            }, status=503)
+        
         schema = get_object_or_404(MappingSchema, id=schema_id)
         
         # Check permission - user must have access to the source study
-        if schema.source_study.created_by != request.user:
+        if not schema.source_study.project.members.filter(id=request.user.id).exists():
             return JsonResponse({'error': 'Permission denied'}, status=403)
         
         # Get similarity suggestions
@@ -1800,7 +2386,7 @@ def target_attribute_details_api(request, attribute_id):
         attribute = get_object_or_404(Attribute, id=attribute_id)
         
         # Check permission - user must have access to at least one study that uses this attribute
-        user_studies = Study.objects.filter(created_by=request.user)
+        user_studies = Study.objects.filter(project__members=request.user).distinct()
         accessible_studies = attribute.studies.filter(id__in=user_studies.values_list('id', flat=True))
         
         if not accessible_studies.exists():
@@ -1863,7 +2449,7 @@ def transformation_suggestion_api(request):
             return JsonResponse({"error": "One or both attributes not found"}, status=404)
         
         # Check user has access to both attributes via studies
-        user_studies = Study.objects.filter(created_by=request.user)
+        user_studies = Study.objects.filter(project__members=request.user).distinct()
         
         source_accessible = source_attribute.studies.filter(
             id__in=user_studies.values_list('id', flat=True)
@@ -2174,8 +2760,10 @@ def _calculate_deletion_impact(raw_data_file):
         )
         observations_count = study_observations.count()
         
-        # Count patients in the study
-        study_patients = Patient.objects.filter(study=study)
+        # Count patients linked via observations for this study's attributes
+        study_patients = Patient.objects.filter(
+            observations__attribute__study=study
+        ).distinct()
         patients_count = study_patients.count()
     
     return {
@@ -2249,7 +2837,7 @@ def delete_duplicates(request, file_id):
     raw_data_file = get_object_or_404(RawDataFile, id=file_id)
     
     # Check permissions
-    if raw_data_file.study.created_by != request.user:
+    if not raw_data_file.study.project.members.filter(id=request.user.id).exists():
         messages.error(request, "You don't have permission to modify this data.")
         return redirect('health:raw_data_list')
     
@@ -2319,7 +2907,7 @@ def start_duplicate_detection(request, file_id):
     raw_data_file = get_object_or_404(
         RawDataFile.objects.select_related('study'),
         id=file_id,
-        study__project__created_by=request.user,
+        study__project__members=request.user,
     )
     
     # Import the task

@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% load static %}
+{% load crispy_forms_tags %}
+
+{% block title %}Members - {{ project.name }}{% endblock title %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h2 mb-1">{{ project.name }} - Team</h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'core:project_list' %}">Projects</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'core:project_detail' pk=project.pk %}">{{ project.name }}</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Members</li>
+                </ol>
+            </nav>
+        </div>
+        <a href="{% url 'core:project_detail' pk=project.pk %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Project
+        </a>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">Current Members</h5>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>Joined</th>
+                                {% if can_manage %}
+                                <th>Actions</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for membership in members %}
+                            <tr>
+                                <td>{{ membership.user.name|default:membership.user.email }}</td>
+                                <td>{{ membership.user.email }}</td>
+                                <td>
+                                    <span class="badge {% if membership.role == 'owner' %}bg-primary{% elif membership.role == 'manager' %}bg-info{% else %}bg-secondary{% endif %}">
+                                        {{ membership.get_role_display }}
+                                    </span>
+                                </td>
+                                <td>{{ membership.joined_at|date:"M d, Y" }}</td>
+                                {% if can_manage %}
+                                <td>
+                                    {% if membership.user != request.user %}
+                                        <a href="{% url 'core:remove_member' project_id=project.pk member_id=membership.pk %}" 
+                                           class="btn btn-sm btn-outline-danger"
+                                           onclick="return confirm('Are you sure you want to remove this member?')">
+                                            Remove
+                                        </a>
+                                    {% endif %}
+                                </td>
+                                {% endif %}
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center text-muted py-4">No members found.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        {% if can_manage %}
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">Invite New Member</h5>
+                </div>
+                <div class="card-body">
+                    <form action="{% url 'core:invite_member' pk=project.pk %}" method="post">
+                        {% csrf_token %}
+                        {{ form|crispy }}
+                        <button type="submit" class="btn btn-primary w-100 mt-3">
+                            <i class="bi bi-envelope-plus"></i> Send Invitation
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            {% if invitations %}
+            <div class="card">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">Pending Invitations</h5>
+                </div>
+                <ul class="list-group list-group-flush">
+                    {% for invite in invitations %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="fw-bold">{{ invite.email }}</div>
+                            <small class="text-muted">Role: {{ invite.get_role_display }}</small>
+                            <br>
+                            <small class="text-muted">Sent: {{ invite.sent_at|date:"M d, Y" }}</small>
+                            <br>
+                            <small class="text-muted copy-link-container">
+                                <a href="#" onclick="navigator.clipboard.writeText('{{ request.scheme }}://{{ request.get_host }}{% url 'core:accept_invite' key=invite.key %}'); alert('Link copied!'); return false;">Copy Invite Link</a>
+                            </small>
+                        </div>
+                        <span class="badge bg-warning text-dark">Pending</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

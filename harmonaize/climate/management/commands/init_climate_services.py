@@ -228,15 +228,6 @@ class Command(BaseCommand):
                 "extra_parameters": {},
             },
             {
-                "variable": "relative_humidity",
-                "source_variable_name": "relative_humidity",
-                "source_dataset": "ECMWF/ERA5/DAILY",
-                "source_band": "relative_humidity_2m",
-                "scale_factor": 100.0,
-                "offset": 0.0,
-                "extra_parameters": {},
-            },
-            {
                 "variable": "wind_u_10m",
                 "source_variable_name": "u_component_of_wind_10m",
                 "source_dataset": "ECMWF/ERA5/DAILY",

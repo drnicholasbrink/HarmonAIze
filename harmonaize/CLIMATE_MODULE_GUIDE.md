@@ -1,5 +1,16 @@
 # Climate Module User Guide
 
+## Before You Start
+
+The climate module depends on live Google Earth Engine access. Before making climate requests:
+
+1. Complete the credential setup in `climate/GEE_SETUP.md`
+2. Save the JSON key in a local-only path such as `./.envs/.local/gee-credentials.json`
+3. Set `GOOGLE_APPLICATION_CREDENTIALS=/app/.envs/.local/gee-credentials.json` in `./.envs/.local/.django`
+4. Restart the Django services if you changed the environment file
+
+Without valid GEE credentials, climate requests will fail.
+
 ## Where Are the Dropdown Categories?
 
 ### Location 1: Django Admin - Add/Edit Climate Variable
@@ -50,6 +61,8 @@
 ---
 
 ## How to Make Climate Data Requests (Live API Calls)
+
+These requests use the configured Google Earth Engine credentials described in `climate/GEE_SETUP.md`.
 
 ### Method 1: Through the Web Interface
 

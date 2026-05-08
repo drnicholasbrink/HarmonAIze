@@ -1,0 +1,545 @@
+
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Combined Export - HarmonAIze{% endblock %}
+
+{% block css %}
+  {{ block.super }}
+  <style>
+    :root {
+      --primary-color: #007AFF;
+      --secondary-color: #5AC8FA;
+      --accent-color: #34C759;
+      --background-color: #F2F2F7;
+      --card-background: #FFFFFF;
+      --text-primary: #1C1C1E;
+      --text-secondary: #8E8E93;
+      --border-color: #C6C6C8;
+      --shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+      --border-radius: 12px;
+    }
+
+    body {
+      background-color: var(--background-color);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--text-primary);
+      line-height: 1.5;
+    }
+
+    /* Hero Section */
+    .hero-section {
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      color: white;
+      padding: 3rem 0;
+      margin: -1rem -15px 0 -15px;
+      text-align: center;
+    }
+
+    .hero-title {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    .hero-subtitle {
+      font-size: 1.1rem;
+      opacity: 0.9;
+      margin-bottom: 1.5rem;
+    }
+
+    /* Main Layout */
+    .main-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    .export-card {
+      background: var(--card-background);
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow);
+      padding: 2rem;
+      margin-bottom: 2rem;
+    }
+
+    .section-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    /* Form Controls */
+    .form-group {
+      margin-bottom: 1.5rem;
+    }
+
+    .form-label {
+      font-weight: 500;
+      margin-bottom: 0.5rem;
+      color: var(--text-primary);
+    }
+
+    .form-select, .form-control {
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      padding: 0.75rem;
+    }
+
+    .form-select:focus, .form-control:focus {
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+    }
+
+    /* Category Filters */
+    .category-filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-bottom: 2rem;
+      padding: 1rem;
+      background: var(--background-color);
+      border-radius: 8px;
+    }
+
+    .category-check {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: white;
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      border: 1px solid var(--border-color);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .category-check:hover {
+      border-color: var(--primary-color);
+    }
+
+    .category-check input:checked + span {
+      color: var(--primary-color);
+      font-weight: 500;
+    }
+
+    /* Buttons */
+    .btn {
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 600;
+      border: none;
+      transition: all 0.2s ease;
+    }
+
+    .btn-primary {
+      background-color: var(--primary-color);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background-color: #0056CC;
+      transform: translateY(-2px);
+    }
+
+    .btn-outline-primary {
+      background: transparent;
+      border: 2px solid var(--primary-color);
+      color: var(--primary-color);
+    }
+
+    .btn-outline-primary:hover {
+      background: var(--primary-color);
+      color: white;
+    }
+
+    /* Variable Cards Container */
+    .variables-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-top: 1rem;
+    }
+
+    /* Empty State */
+    .empty-message {
+      text-align: center;
+      padding: 3rem;
+      color: var(--text-secondary);
+      background: var(--background-color);
+      border-radius: 8px;
+    }
+
+    /* Variable Item Card */
+    .variable-item {
+      background: white;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .variable-item:hover {
+      border-color: var(--primary-color);
+      transform: translateY(-1px);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+
+    /* Selected State (manual selection) */
+    .variable-item.selected {
+      background-color: rgba(0, 122, 255, 0.05);
+      border-color: var(--primary-color);
+    }
+    .variable-item.selected .variable-name strong {
+      color: var(--primary-color);
+    }
+
+    .variable-header {
+      display: contents; /* Allows children to participate in flex layout */
+    }
+
+    .variable-name {
+      flex: 1;
+      font-size: 1rem;
+      color: var(--text-primary);
+      line-height: 1.2;
+    }
+    
+    .variable-name small {
+      font-size: 0.85em;
+      color: var(--text-secondary);
+      margin-left: 0.5rem;
+    }
+
+    /* Checkbox positioning */
+    .checkbox-container {
+      display: flex;
+      align-items: center;
+    }
+
+    .variable-actions {
+       display: flex;
+       align-items: center;
+    }
+    
+    /* Meta details */
+    .variable-details {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.35rem;
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+    }
+    
+    .variable-type {
+        background: var(--background-color);
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        font-weight: 500;
+        white-space: nowrap;
+    }
+
+    .badge-light {
+      background: var(--background-color);
+      color: var(--text-secondary);
+      border-radius: 12px;
+      padding: 2px 10px;
+      font-weight: 500;
+      font-size: 0.85rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .variable-meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+  </style>
+{% endblock css %}
+
+{% block content %}
+  <div class="hero-section">
+    <div class="container">
+      <h1 class="hero-title">Combined Data Export</h1>
+      <p class="hero-subtitle">Download analysis-ready long or wide datasets as CSV or Parquet</p>
+    </div>
+  </div>
+
+  <div class="main-content">
+    <form method="post" novalidate id="export-form">
+      {% csrf_token %}
+
+      <div class="row mb-4">
+        <!-- Configuration Section (Full Width) -->
+        <div class="col-12">
+          <div class="export-card">
+            <h3 class="section-title">
+              <svg class="icon" viewBox="0 0 24 24" width="24" height="24">
+                <path fill="currentColor" d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
+              </svg>
+              Export Settings
+            </h3>
+
+            <div class="row">
+              <div class="col-md-4">
+                <div class="form-group">
+                  <label class="form-label" for="id_target_study">Target Study</label>
+                  <select class="form-select"
+                          name="{{ form.target_study.html_name }}"
+                          id="{{ form.target_study.id_for_label }}"
+                          hx-get="{% url 'health:combined_export_attributes' %}"
+                          hx-trigger="change"
+                          hx-target="#attribute-cards"
+                          hx-include="#export-form">
+                    {% for opt in form.target_study.field.queryset %}
+                      <option value="{{ opt.pk }}" {% if form.target_study.value|stringformat:"s" == opt.pk|stringformat:"s" %}selected{% endif %}>{{ opt.name }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+
+              <div class="col-md-4">
+                <div class="form-group">
+                  <label class="form-label">Dataset Shape</label>
+                  {% for radio in form.export_format %}
+                    <div class="form-check">
+                      {{ radio.tag }}
+                      <label class="form-check-label" for="{{ radio.id_for_label }}">
+                        {{ radio.choice_label }}
+                      </label>
+                    </div>
+                  {% endfor %}
+                </div>
+              </div>
+
+              <div class="col-md-4">
+                <div class="form-group">
+                  <label class="form-label">Download File Type</label>
+                  {% for radio in form.file_format %}
+                    <div class="form-check">
+                      {{ radio.tag }}
+                      <label class="form-check-label" for="{{ radio.id_for_label }}">
+                        {{ radio.choice_label }}
+                      </label>
+                    </div>
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+
+            <div class="row mt-2">
+              <div class="col-md-4">
+                <div class="form-group">
+                  <label class="form-label">Climate Settings</label>
+                  {{ form.max_lag_days }}
+                  <div class="form-text mt-2">
+                    Lag unit: <strong>{{ lag_unit_label|default:"Days" }}</strong>
+                    (based on latest climate request)
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-12">
+                <div class="form-group">
+                  <label class="form-label" for="id_source_studies">Source Studies (optional)</label>
+                  {% with current_values=form.source_studies.value %}
+                    <select multiple class="form-select" name="{{ form.source_studies.html_name }}" id="id_source_studies">
+                      {% for opt in form.source_studies.field.queryset %}
+                        <option value="{{ opt.pk }}" {% if current_values and opt.pk|stringformat:'s' in current_values %}selected{% endif %}>{{ opt.name }}</option>
+                      {% endfor %}
+                    </select>
+                  {% endwith %}
+                  <div class="form-text">Filter to observations originating from these mapped source studies.</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="alert alert-info mt-3 mb-0" role="alert">
+              Confounders are exported as patient-linked context only and are not linked to time or location.
+            </div>
+
+            <div class="d-flex gap-2 justify-content-end mt-2">
+              <button type="submit" class="btn btn-outline-primary" name="export_mode" value="deid">
+                Export De-identified Data
+              </button>
+              <button type="submit" class="btn btn-primary" name="export_mode" value="normal" {% if not can_normal_export %}disabled{% endif %}>
+                Export Identifiable Data
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <!-- Variable Selection Section (Full Width) -->
+        <div class="col-12">
+          <div class="export-card">
+            <h3 class="section-title">
+              <svg class="icon" viewBox="0 0 24 24" width="24" height="24">
+                <path fill="currentColor" d="M3,13H5V11H3V13M3,17H5V15H3V17M3,9H5V7H3V9M3,5H5V3H3V5M7,5H21V3H7V5M7,17H21V15H7V17M7,13H21V11H7V13M7,9H21V7H7V9Z"/>
+              </svg>
+              Select Variables
+            </h3>
+
+            <!-- Category Filters -->
+            <div class="category-filters">
+              {% for checkbox in form.categories %}
+                <label class="category-check">
+                  {{ checkbox.tag }}
+                  <span class="category-label">{{ checkbox.choice_label }}</span>
+                </label>
+              {% endfor %}
+            </div>
+
+            <!-- Specific Variables -->
+                 <input type="hidden" name="use_all_attributes" id="use-all-attributes" value="{% if use_all_attributes %}on{% else %}off{% endif %}">
+            <div id="attribute-cards"
+                 hx-get="{% url 'health:combined_export_attributes' %}"
+                 hx-trigger="change from:.category-check input"
+                 hx-target="this"
+                 hx-include="#export-form"
+                 hx-swap="innerHTML">
+                 
+                <!-- Initial Load -->
+                 {% if form.target_study.value %}
+                    {% include "health/partials/attribute_cards.html" with attributes=form.fields.attributes.queryset selected_ids=selected_ids use_all=use_all_attributes field_name=form.attributes.html_name %}
+                 {% else %}
+                    <div class="empty-message">Please select a target study to view variables.</div>
+                 {% endif %}
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </form>
+  </div>
+{% endblock %}
+
+{% block inline_javascript %}
+{{ block.super }}
+<script>
+  (function() {
+    const containerId = 'attribute-cards';
+
+    // Always query fresh to avoid stale references after HTMX swaps
+    function getCheckboxes() {
+      return document.querySelectorAll('#' + containerId + ' .variable-checkbox');
+    }
+
+    function getCountDisplay() {
+      return document.querySelector('#' + containerId + ' #selected-count');
+    }
+
+    function getUseAllInput() {
+      return document.getElementById('use-all-attributes');
+    }
+
+    function updateSelectedCount() {
+      const checkboxes = getCheckboxes();
+      const countDisplay = getCountDisplay();
+      const useAllInput = getUseAllInput();
+
+      let count = 0;
+      checkboxes.forEach(cb => {
+        const card = cb.closest('.variable-item');
+        if (card) {
+          if (cb.checked) {
+            card.classList.add('selected');
+            count++;
+          } else {
+            card.classList.remove('selected');
+          }
+        }
+      });
+
+      if (countDisplay) {
+        countDisplay.textContent = count;
+      }
+
+      if (useAllInput) {
+        useAllInput.value = (count === checkboxes.length && checkboxes.length > 0) ? 'on' : 'off';
+      }
+    }
+
+    function selectAll() {
+      const checkboxes = getCheckboxes();
+      checkboxes.forEach(cb => {
+        cb.checked = true;
+      });
+      updateSelectedCount();
+    }
+
+    function selectNone() {
+      const checkboxes = getCheckboxes();
+      checkboxes.forEach(cb => {
+        cb.checked = false;
+      });
+      updateSelectedCount();
+    }
+
+    // Use event delegation on the container so we don't need to re-attach after HTMX swaps
+    document.addEventListener('click', (e) => {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+
+      // Handle Select All button
+      if (e.target.closest('#btn-select-all')) {
+        e.preventDefault();
+        selectAll();
+        return;
+      }
+
+      // Handle card click to toggle checkbox
+      const card = e.target.closest('.variable-item');
+      if (card && container.contains(card)) {
+        // Don't toggle if user clicked the checkbox itself
+        if (e.target.classList.contains('variable-checkbox')) {
+          return;
+        }
+        const cb = card.querySelector('.variable-checkbox');
+        if (cb) {
+          cb.checked = !cb.checked;
+          updateSelectedCount();
+        }
+      }
+    });
+
+    // Handle checkbox change events via delegation
+    document.addEventListener('change', (e) => {
+      if (e.target.classList.contains('variable-checkbox')) {
+        updateSelectedCount();
+      }
+    });
+
+    // Initialize on load
+    document.addEventListener('DOMContentLoaded', () => {
+      updateSelectedCount();
+
+      // Trigger initial HTMX load if needed
+      const targetSelect = document.getElementById('{{ form.target_study.id_for_label }}');
+      if (targetSelect && targetSelect.value && !document.querySelector('.variable-item')) {
+        htmx.trigger(targetSelect, 'change');
+      }
+    });
+
+    // Re-initialize count after HTMX swap
+    document.addEventListener('htmx:afterSwap', (evt) => {
+      if (evt.target.id === containerId) {
+        updateSelectedCount();
+      }
+    });
+  })();
+</script>
+{% endblock inline_javascript %}

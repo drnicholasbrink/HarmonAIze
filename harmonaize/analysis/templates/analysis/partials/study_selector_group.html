@@ -1,0 +1,58 @@
+<div class="attribute-group mb-4" data-field-name="{{ field.html_name }}">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+    <div>
+      <h3 class="attribute-group-title mb-1">{{ title }}</h3>
+      {% if help_text %}
+        <div class="text-muted small">{{ help_text }}</div>
+      {% endif %}
+    </div>
+    {% if field.field.queryset %}
+      <div class="d-flex gap-2 align-items-center">
+        <button type="button" class="btn btn-sm btn-outline-primary js-select-all" data-target-name="{{ field.html_name }}">
+          Select all
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-secondary js-clear-all" data-target-name="{{ field.html_name }}">
+          Clear
+        </button>
+        <span class="text-muted small">Selected: <strong class="js-selected-count">{{ selected_ids|length }}</strong></span>
+      </div>
+    {% endif %}
+  </div>
+
+  {% if field.errors %}
+    <div class="text-danger small mb-2">{{ field.errors|join:", " }}</div>
+  {% endif %}
+
+  {% if field.field.queryset %}
+    <div class="selection-grid">
+      {% for study in field.field.queryset %}
+        <label class="selection-card {% if study.pk|stringformat:'s' in selected_ids %}selected{% endif %}">
+          <span class="checkbox-container">
+            <input
+              type="checkbox"
+              class="variable-checkbox"
+              name="{{ field.html_name }}"
+              value="{{ study.pk }}"
+              {% if study.pk|stringformat:'s' in selected_ids %}checked{% endif %}
+            >
+          </span>
+          <span class="selection-card-title">{{ study.name }}</span>
+          <span class="variable-actions">
+            <span class="badge-light">{{ study.get_study_purpose_display }}</span>
+          </span>
+          <span class="selection-card-details">
+            <span>{{ study.description|default:"Mapped source study available for this target."|truncatewords:20 }}</span>
+            <span class="variable-meta-row">
+              <span class="badge-light">Project {{ study.project.name }}</span>
+              {% if study.status %}<span class="badge-light">Status {{ study.status }}</span>{% endif %}
+            </span>
+          </span>
+        </label>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="alert alert-light border text-muted mb-0">
+      No mapped source studies are currently available for this target study.
+    </div>
+  {% endif %}
+</div>

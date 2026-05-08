@@ -76,7 +76,7 @@ class TSNEProjectionService:
             tsne = TSNE(
                 n_components=2,
                 perplexity=effective_perplexity,
-                n_iter=n_iter or self.n_iter,
+                max_iter=n_iter or self.n_iter,
                 learning_rate=self.learning_rate,
                 early_exaggeration=self.early_exaggeration,
                 random_state=self.random_state,

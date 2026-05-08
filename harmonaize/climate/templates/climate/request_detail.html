@@ -4,6 +4,7 @@
 
 {% block css %}
   {{ block.super }}
+  <meta name="csrf-token" content="{{ csrf_token }}" />
   <style>
     :root {
       --primary-color: #007AFF;
@@ -298,6 +299,205 @@
       100% { opacity: 1; }
     }
 
+    .eda-summary-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, auto));
+      gap: 1rem;
+      margin: 1rem 0 1.5rem;
+    }
+
+    .eda-summary-chip {
+      padding: 0.75rem 1rem;
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(0, 122, 255, 0.12), rgba(90, 200, 250, 0.18));
+      border: 1px solid rgba(0, 122, 255, 0.18);
+    }
+
+    .eda-summary-chip .chip-label {
+      display: block;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-secondary);
+      margin-bottom: 0.35rem;
+    }
+
+    .eda-summary-chip .chip-value {
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+
+    .eda-summary-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .eda-summary-tag {
+      padding: 0.35rem 0.75rem;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.05);
+      color: var(--text-secondary);
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .eda-section {
+      margin-top: 2rem;
+    }
+
+    .eda-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .eda-section-body.is-collapsed {
+      display: none;
+    }
+
+    .eda-toggle {
+      background: rgba(0, 0, 0, 0.05);
+      border: none;
+      border-radius: 999px;
+      padding: 0.4rem 1rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--text-primary);
+    }
+
+    .eda-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.5rem;
+      margin-top: 1rem;
+    }
+
+    .eda-card {
+      background: var(--card-background);
+      border: 1px solid var(--border-color);
+      border-radius: var(--border-radius);
+      padding: 1.5rem;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .eda-card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .eda-stat-rows {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.6rem 0.9rem;
+      margin: 0;
+    }
+
+    .eda-stat-rows dt {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+    }
+
+    .eda-stat-rows dd {
+      margin: 0;
+      font-weight: 600;
+    }
+
+    .eda-chip {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 0.35rem 0.75rem;
+      background: rgba(0, 122, 255, 0.12);
+      color: var(--primary-color);
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .eda-detail-button {
+      border: none;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+      color: #fff;
+      padding: 0.65rem 0.9rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .eda-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1060;
+      padding: 1rem;
+    }
+
+    .eda-modal.is-visible {
+      display: flex;
+    }
+
+    .eda-modal__dialog {
+      position: relative;
+      width: min(1200px, 96vw);
+      max-height: 90vh;
+      overflow: auto;
+      background: #fff;
+      border-radius: 14px;
+      padding: 1.25rem;
+    }
+
+    .eda-modal__close {
+      position: absolute;
+      right: 0.75rem;
+      top: 0.5rem;
+      border: none;
+      background: transparent;
+      font-size: 1.6rem;
+      color: var(--text-secondary);
+    }
+
+    .eda-plotly-dashboard {
+      width: 100%;
+      min-height: 560px;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      border-radius: 12px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .eda-plotly-dashboard .js-plotly-plot,
+    .eda-plotly-dashboard .plotly-graph-div {
+      width: 100% !important;
+    }
+
+    .eda-heatmap {
+      min-height: 420px;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      border-radius: 12px;
+      background: #fff;
+    }
+
+    .eda-empty {
+      color: var(--text-secondary);
+      font-style: italic;
+    }
+
     @media (max-width: 768px) {
       .status-grid {
         grid-template-columns: 1fr 1fr;
@@ -468,10 +668,57 @@
     <p style="color: var(--text-secondary); margin-bottom: 2rem;">
       Successfully retrieved <strong>{{ observation_count }}</strong> climate observations for this study.
     </p>
+
+    <p style="color: var(--text-secondary); margin-top: -1rem; margin-bottom: 1.5rem; font-size: 0.9rem;">
+      {% if can_bypass_climate_privacy_thresholds %}
+        Full-detail climate EDA enabled (uploader access).
+      {% else %}
+        Privacy thresholds are applied to climate EDA summaries.
+      {% endif %}
+    </p>
+
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1rem; gap: 1rem; flex-wrap: wrap;">
+      <small style="color: var(--text-secondary);">
+        {% if climate_eda_generated_at %}
+          EDA generated: {{ climate_eda_generated_at }}
+        {% else %}
+          EDA not generated yet.
+        {% endif %}
+      </small>
+
+      {% if climate_eda_can_generate %}
+        {% if climate_eda_has_cache %}
+          <button type="button" id="regenerate-eda" class="btn-climate btn-climate-secondary" style="padding: 0.45rem 0.8rem; font-size: 0.8rem;">
+            Regenerate EDA
+          </button>
+        {% else %}
+          <button type="button" id="generate-eda" class="btn-climate btn-climate-success" style="padding: 0.45rem 0.8rem; font-size: 0.8rem;">
+            Generate EDA
+          </button>
+        {% endif %}
+      {% else %}
+        <button class="btn-climate btn-climate-secondary" disabled style="padding: 0.45rem 0.8rem; font-size: 0.8rem; opacity: 0.65; cursor: not-allowed;">
+          Generate EDA
+        </button>
+      {% endif %}
+    </div>
+
+    {% if climate_eda_has_cache %}
+      {{ climate_eda_summary_json|json_script:"climate-eda-summary-data" }}
+
+      <div style="margin-bottom: 2rem;">
+        {% include "health/partials/_eda_sections.html" with eda_data=climate_eda_summary prefix="climate-request" color_class="primary" show_summary_strip=True no_numeric_message="No numeric climate variables are available for this request scope." no_categorical_message="No categorical climate summaries are available for this request scope." %}
+      </div>
+    {% else %}
+      <p class="eda-empty" style="margin-bottom: 2rem;">{{ climate_eda_summary.reason }}</p>
+    {% endif %}
     
     <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
       <a href="{% url 'climate:data_export' climate_request.id %}" class="btn-climate btn-climate-success">
         Download Climate Data (CSV)
+      </a>
+      <a href="{% url 'health:combined_export' %}?target_study={{ climate_request.study.id }}" class="btn-climate btn-climate-secondary">
+        Open Combined Export
       </a>
     </div>
   </div>
@@ -490,17 +737,39 @@
         <button class="btn-climate btn-climate-success" id="process-request">
           Process Climate Request
         </button>
+        <button class="btn-climate btn-climate-warning" id="process-request-reset" title="Delete existing climate observations for this window and re-run">
+          Start From Scratch
+        </button>
         {% elif climate_request.status == 'processing' %}
         <button class="btn-climate btn-climate-warning" id="refresh-status">
           Refresh Status
+        </button>
+        <button class="btn-climate btn-climate-secondary" id="cancel-request">
+          Stop Processing
         </button>
         {% elif climate_request.status == 'completed' %}
         <a href="{% url 'climate:configure' climate_request.study.id %}" class="btn-climate">
           Create New Request
         </a>
+        <button class="btn-climate btn-climate-secondary" id="infill-missing" title="Fetch and fill any missing climate values without deleting existing data">
+          In-fill Missing Values
+        </button>
+        <button class="btn-climate btn-climate-success" id="process-request-reset" data-force="true" title="Re-run and replace existing climate observations">
+          Re-run (Start From Scratch)
+        </button>
+        {% elif climate_request.status == 'cancelled' %}
+        <button class="btn-climate btn-climate-success" id="process-request" data-force="true">
+          Restart Processing
+        </button>
+        <button class="btn-climate btn-climate-warning" id="process-request-reset" data-force="true" title="Re-run and replace existing climate observations">
+          Restart From Scratch
+        </button>
         {% elif climate_request.status == 'failed' %}
         <button class="btn-climate btn-climate-warning" id="retry-processing">
           Retry Processing
+        </button>
+        <button class="btn-climate btn-climate-success" id="process-request-reset" data-force="true" title="Re-run and replace existing climate observations">
+          Retry From Scratch
         </button>
         {% endif %}
       </div>
@@ -509,15 +778,20 @@
 </div>
 
 <script>
-// Helper function to get CSRF token from cookie
-function getCookie(name) {
+// Helper: get CSRF token from meta tag, fallback to cookie
+function getCsrfToken() {
+  const meta = document.querySelector('meta[name="csrf-token"]');
+  if (meta && meta.content) {
+    return meta.content;
+  }
+
   let cookieValue = null;
   if (document.cookie && document.cookie !== '') {
     const cookies = document.cookie.split(';');
     for (let i = 0; i < cookies.length; i++) {
       const cookie = cookies[i].trim();
-      if (cookie.substring(0, name.length + 1) === (name + '=')) {
-        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+      if (cookie.substring(0, 10) === ('csrftoken=')) {
+        cookieValue = decodeURIComponent(cookie.substring(10));
         break;
       }
     }
@@ -530,16 +804,31 @@ document.addEventListener('DOMContentLoaded', function() {
   const processBtn = document.getElementById('process-request');
   if (processBtn) {
     processBtn.addEventListener('click', function() {
+      const original = processBtn.textContent;
       processBtn.textContent = 'Processing...';
       processBtn.disabled = true;
 
-      const csrftoken = getCookie('csrftoken');
+      const csrftoken = getCsrfToken();
+      if (!csrftoken || csrftoken.length < 32) {
+        alert('Missing or invalid CSRF token. Please refresh the page and try again.');
+        processBtn.textContent = 'Process Climate Request';
+        processBtn.disabled = false;
+        return;
+      }
+
+      const payload = {
+        force_restart: processBtn.dataset.force === 'true'
+      };
 
       fetch(`{% url 'climate:process_request_api' climate_request.id %}`, {
         method: 'POST',
         headers: {
           'X-CSRFToken': csrftoken,
+          'Content-Type': 'application/json'
         }
+        ,
+        credentials: 'same-origin',
+        body: JSON.stringify(payload)
       })
       .then(response => response.json())
       .then(data => {
@@ -548,15 +837,62 @@ document.addEventListener('DOMContentLoaded', function() {
           location.reload();
         } else {
           alert('Error: ' + (data.error || data.message));
-          processBtn.textContent = 'Process Climate Request';
+          processBtn.textContent = original;
           processBtn.disabled = false;
         }
       })
       .catch(error => {
         console.error('Error:', error);
         alert('An error occurred while processing the request');
-        processBtn.textContent = 'Process Climate Request';
+        processBtn.textContent = original;
         processBtn.disabled = false;
+      });
+    });
+  }
+
+  // Start-from-scratch / restart with reset_existing
+  const resetBtn = document.getElementById('process-request-reset');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', function() {
+      const original = resetBtn.textContent;
+      resetBtn.textContent = 'Starting...';
+      resetBtn.disabled = true;
+
+      const csrftoken = getCsrfToken();
+      if (!csrftoken || csrftoken.length < 32) {
+        alert('Missing or invalid CSRF token. Please refresh the page and try again.');
+        resetBtn.textContent = original;
+        resetBtn.disabled = false;
+        return;
+      }
+
+      const payload = {
+        reset_existing: true,
+        force_restart: resetBtn.dataset.force === 'true'
+      };
+
+      fetch(`{% url 'climate:process_request_api' climate_request.id %}`, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': csrftoken,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify(payload)
+      })
+      .then(async response => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          const message = data.error || data.message || 'An error occurred while restarting the request';
+          throw new Error(message);
+        }
+        location.reload();
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        alert(`Start-from-scratch failed: ${error.message || error}`);
+        resetBtn.textContent = original;
+        resetBtn.disabled = false;
       });
     });
   }
@@ -568,23 +904,165 @@ document.addEventListener('DOMContentLoaded', function() {
       retryBtn.textContent = 'Retrying...';
       retryBtn.disabled = true;
 
-      const csrftoken = getCookie('csrftoken');
+      const csrftoken = getCsrfToken();
+      if (!csrftoken || csrftoken.length < 32) {
+        alert('Missing or invalid CSRF token. Please refresh the page and try again.');
+        retryBtn.textContent = 'Retry Processing';
+        retryBtn.disabled = false;
+        return;
+      }
 
       fetch(`{% url 'climate:process_request_api' climate_request.id %}`, {
         method: 'POST',
         headers: {
           'X-CSRFToken': csrftoken,
         }
+        ,
+        credentials: 'same-origin',
       })
-      .then(response => response.json())
-      .then(data => {
+      .then(async response => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          const message = data.error || data.message || 'An error occurred while retrying the request';
+          throw new Error(message);
+        }
+        // Successful start or completion; reload to show updated status
         location.reload();
       })
       .catch(error => {
         console.error('Error:', error);
-        alert('An error occurred while retrying the request');
+        alert(`Retry failed: ${error.message || error}`);
         retryBtn.textContent = 'Retry Processing';
         retryBtn.disabled = false;
+      });
+    });
+  }
+
+  // In-fill missing values without deleting existing observations
+  const infillBtn = document.getElementById('infill-missing');
+  if (infillBtn) {
+    infillBtn.addEventListener('click', function() {
+      const original = infillBtn.textContent;
+      infillBtn.textContent = 'In-filling...';
+      infillBtn.disabled = true;
+
+      const csrftoken = getCsrfToken();
+      if (!csrftoken || csrftoken.length < 32) {
+        alert('Missing or invalid CSRF token. Please refresh the page and try again.');
+        infillBtn.textContent = original;
+        infillBtn.disabled = false;
+        return;
+      }
+
+      const payload = {
+        reset_existing: false,
+        force_restart: true
+      };
+
+      fetch(`{% url 'climate:process_request_api' climate_request.id %}`, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': csrftoken,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify(payload)
+      })
+      .then(async response => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          const message = data.error || data.message || 'An error occurred while in-filling missing values';
+          throw new Error(message);
+        }
+        location.reload();
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        alert(`In-fill failed: ${error.message || error}`);
+        infillBtn.textContent = original;
+        infillBtn.disabled = false;
+      });
+    });
+  }
+
+  // Generate/Regenerate EDA (EDA only; does not re-run climate data retrieval)
+  const edaBtn = document.getElementById('generate-eda') || document.getElementById('regenerate-eda');
+  if (edaBtn) {
+    edaBtn.addEventListener('click', function() {
+      const original = edaBtn.textContent;
+      edaBtn.textContent = original.includes('Re') ? 'Regenerating...' : 'Generating...';
+      edaBtn.disabled = true;
+
+      const csrftoken = getCsrfToken();
+      if (!csrftoken || csrftoken.length < 32) {
+        alert('Missing or invalid CSRF token. Please refresh the page and try again.');
+        edaBtn.textContent = original;
+        edaBtn.disabled = false;
+        return;
+      }
+
+      fetch(`{% url 'climate:regenerate_eda_api' climate_request.id %}`, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': csrftoken,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({})
+      })
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          const message = data.error || data.message || 'Failed to generate EDA';
+          throw new Error(message);
+        }
+        location.reload();
+      })
+      .catch((error) => {
+        console.error('EDA generation error:', error);
+        alert(`EDA generation failed: ${error.message || error}`);
+        edaBtn.textContent = original;
+        edaBtn.disabled = false;
+      });
+    });
+  }
+
+  // Cancel/stop processing
+  const cancelBtn = document.getElementById('cancel-request');
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', function() {
+      const original = cancelBtn.textContent;
+      cancelBtn.textContent = 'Stopping...';
+      cancelBtn.disabled = true;
+
+      const csrftoken = getCsrfToken();
+      if (!csrftoken || csrftoken.length < 32) {
+        alert('Missing or invalid CSRF token. Please refresh the page and try again.');
+        cancelBtn.textContent = original;
+        cancelBtn.disabled = false;
+        return;
+      }
+
+      fetch(`{% url 'climate:cancel_request_api' climate_request.id %}`, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': csrftoken,
+        },
+        credentials: 'same-origin',
+      })
+      .then(async response => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          const message = data.error || data.message || 'An error occurred while stopping the request';
+          throw new Error(message);
+        }
+        location.reload();
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        alert(`Stop failed: ${error.message || error}`);
+        cancelBtn.textContent = original;
+        cancelBtn.disabled = false;
       });
     });
   }
@@ -644,4 +1122,175 @@ document.addEventListener('DOMContentLoaded', function() {
   {% endif %}
 });
 </script>
+
+{% if climate_eda_summary and climate_eda_summary.available %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const edaNode = document.getElementById('climate-eda-summary-data');
+  if (!edaNode) {
+    return;
+  }
+
+  let edaData = null;
+  try {
+    edaData = JSON.parse(edaNode.textContent);
+  } catch (err) {
+    console.error('Unable to parse climate EDA payload', err);
+    return;
+  }
+
+  const setSectionState = (button, target, expanded) => {
+    const collapseLabel = button.dataset.collapseLabel || 'Collapse';
+    const expandLabel = button.dataset.expandLabel || 'Expand';
+    button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    button.textContent = expanded ? collapseLabel : expandLabel;
+    target.classList.toggle('is-collapsed', !expanded);
+    target.classList.toggle('is-expanded', expanded);
+  };
+
+  document.querySelectorAll('[data-section-toggle]').forEach((button) => {
+    const targetId = button.getAttribute('data-section-toggle');
+    const target = document.getElementById(targetId);
+    if (!target) {
+      button.hidden = true;
+      return;
+    }
+    const initiallyExpanded = button.getAttribute('aria-expanded') === 'true';
+    setSectionState(button, target, initiallyExpanded);
+    button.addEventListener('click', () => {
+      const expanded = button.getAttribute('aria-expanded') === 'true';
+      setSectionState(button, target, !expanded);
+      if (!expanded && target.id === 'eda-section-correlation-climate-request') {
+        renderCorrelationHeatmap();
+      }
+    });
+  });
+
+  const modalStack = [];
+  const originalOverflow = document.body.style.overflow || '';
+
+  const openModal = (modal) => {
+    if (!modal) return;
+    modal.classList.add('is-visible');
+    modal.setAttribute('aria-hidden', 'false');
+    modalStack.push(modal);
+    document.body.style.overflow = 'hidden';
+  };
+
+  const closeModal = (modal) => {
+    if (!modal) return;
+    modal.classList.remove('is-visible');
+    modal.setAttribute('aria-hidden', 'true');
+    const idx = modalStack.indexOf(modal);
+    if (idx >= 0) {
+      modalStack.splice(idx, 1);
+    }
+    if (!modalStack.length) {
+      document.body.style.overflow = originalOverflow;
+    }
+  };
+
+  document.querySelectorAll('[data-modal-open]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const modal = document.getElementById(button.getAttribute('data-modal-open'));
+      openModal(modal);
+    });
+  });
+
+  document.querySelectorAll('[data-modal-close]').forEach((button) => {
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      closeModal(button.closest('.eda-modal'));
+    });
+  });
+
+  document.querySelectorAll('.eda-modal').forEach((modal) => {
+    modal.addEventListener('click', (event) => {
+      if (event.target === modal) {
+        closeModal(modal);
+      }
+    });
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && modalStack.length) {
+      closeModal(modalStack[modalStack.length - 1]);
+    }
+  });
+
+  const ensurePlotly = () => {
+    if (window.Plotly) {
+      return Promise.resolve(window.Plotly);
+    }
+    return new Promise((resolve, reject) => {
+      const existing = document.getElementById('plotly-cdn-script');
+      if (existing) {
+        existing.addEventListener('load', () => resolve(window.Plotly));
+        existing.addEventListener('error', reject);
+        return;
+      }
+      const script = document.createElement('script');
+      script.id = 'plotly-cdn-script';
+      script.src = 'https://cdn.plot.ly/plotly-2.35.2.min.js';
+      script.async = true;
+      script.onload = () => resolve(window.Plotly);
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  };
+
+  const renderCorrelationHeatmap = () => {
+    const corr = edaData && edaData.correlation;
+    if (!corr || !corr.labels || !corr.matrix) {
+      return;
+    }
+
+    const container = document.getElementById('eda-correlation-heatmap-climate-request');
+    if (!container || container.dataset.rendered === 'true') {
+      return;
+    }
+
+    ensurePlotly()
+      .then((PlotlyObj) => {
+        const data = [{
+          type: 'heatmap',
+          z: corr.matrix,
+          x: corr.labels,
+          y: corr.labels,
+          zmin: -1,
+          zmax: 1,
+          zmid: 0,
+          colorscale: [
+            [0, '#ff9f0a'],
+            [0.5, '#f2f2f7'],
+            [1, '#0a84ff']
+          ],
+          hovertemplate: '<b>%{y}</b> × <b>%{x}</b><br>r = %{z:.2f}<extra></extra>'
+        }];
+
+        const layout = {
+          margin: { t: 20, r: 10, b: 60, l: 80 },
+          paper_bgcolor: 'rgba(0,0,0,0)',
+          plot_bgcolor: 'rgba(0,0,0,0)',
+          xaxis: { side: 'top', tickangle: -45, automargin: true },
+          yaxis: { automargin: true },
+          autosize: true,
+        };
+        const config = { displayModeBar: false, responsive: true };
+
+        PlotlyObj.newPlot(container, data, layout, config);
+        container.dataset.rendered = 'true';
+      })
+      .catch((error) => {
+        console.error('Unable to render climate correlation heatmap', error);
+      });
+  };
+
+  const corrSection = document.getElementById('eda-section-correlation-climate-request');
+  if (corrSection && corrSection.classList.contains('is-expanded')) {
+    renderCorrelationHeatmap();
+  }
+});
+</script>
+{% endif %}
 {% endblock %}

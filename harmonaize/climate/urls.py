@@ -12,6 +12,7 @@ urlpatterns = [
 
     # Climate configuration
     path('configure/<int:study_id>/', views.climate_configuration_view, name='configure'),
+    path('configure/<int:study_id>/delete-data/', views.delete_climate_data_view, name='delete_climate_data'),
 
     # Climate request management
     path('requests/', views.ClimateRequestListView.as_view(), name='request_list'),
@@ -28,7 +29,9 @@ urlpatterns = [
 
     # API endpoints
     path('api/request/<int:request_id>/process/', views.process_climate_request_api, name='process_request_api'),
+    path('api/request/<int:request_id>/cancel/', views.cancel_climate_request_api, name='cancel_request_api'),
     path('api/request/<int:request_id>/status/', views.climate_request_status_api, name='request_status_api'),
+    path('api/request/<int:request_id>/eda/regenerate/', views.regenerate_climate_eda_api, name='regenerate_eda_api'),
     path('api/data-sources/', views.data_sources_api, name='data_sources_api'),
     path('api/variables/', views.climate_variables_api, name='variables_api'),
 ]

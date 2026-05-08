@@ -264,12 +264,22 @@ class ClimateDataRequest(models.Model):
         default='pending'
     )
     error_message = models.TextField(blank=True, help_text="Error details if request failed")
+
+    # Processing options
+    reset_existing = models.BooleanField(
+        default=False,
+        help_text="Delete existing climate observations for this study/time window before processing"
+    )
     
     # Processing metadata
     total_locations = models.IntegerField(default=0, help_text="Total number of locations to process")
     processed_locations = models.IntegerField(default=0, help_text="Number of locations processed")
     total_observations = models.IntegerField(default=0, help_text="Total observations created")
     
+    # Progress tracking (fine-grained)
+    total_estimated_units = models.BigIntegerField(default=0, help_text="Estimated total work units (loc * var * days)")
+    processed_units = models.BigIntegerField(default=0, help_text="processed work units")
+
     # Request tracking
     requested_at = models.DateTimeField(auto_now_add=True)
     started_at = models.DateTimeField(null=True, blank=True)
@@ -292,7 +302,10 @@ class ClimateDataRequest(models.Model):
     
     @property
     def progress_percentage(self):
-        """Calculate progress as percentage of locations processed."""
+        """Calculate progress as percentage of work units (if available) or locations."""
+        if self.total_estimated_units > 0:
+            return min(round((self.processed_units / self.total_estimated_units) * 100), 100)
+        
         if self.total_locations == 0:
             return 0
         return round((self.processed_locations / self.total_locations) * 100)

@@ -88,10 +88,9 @@
                 </a>
               </li>
               <li class="nav-item">
-                <a class="nav-link" href="{% url 'climate:dashboard' %}">Climate</a>
-                <a class="nav-link fw-bold" href="{% url 'geolocation:validation_dashboard' %}">
-                  {% include 'components/svg_icon.html' with icon='map-pin' size='16' class='inline-icon' %} Geolocation
-                </a>
+                <a class="nav-link" href="{% url 'analysis:dashboard' %}">Analysis</a>
+              </li>
+              <li class="nav-item">
               </li>
               <li class="nav-item">
                 <a class="nav-link"
@@ -118,7 +117,8 @@
       </div>
     </nav>
   </div>
-  <div class="container">
+  <div class="{% block container_class %}container-fluid{% endblock container_class %}">
+    {# Override container_class with 'container' for fixed width or empty string for custom layout #}
     {% if messages %}
       <div id="notification-container" class="notification-container">
         {% for message in messages %}

@@ -13,24 +13,95 @@ License: MIT
 
 1. **Install Docker Desktop**: https://www.docker.com/products/docker-desktop/
 2. **Clone and navigate**: Clone this repository and navigate to the `harmonaize` directory
-3. **Start the application**:
+3. **Review local environment settings**: Update `./.envs/.local/.django` with any keys you need for OpenAI, Mapbox, or Google Earth Engine
+4. **Start the application**:
    ```bash
    docker-compose -f docker-compose.local.yml up -d
    ```
-4. **Make and run database migrations**:
+5. **Make and run database migrations**:
    ```bash
    docker-compose -f docker-compose.local.yml run --rm django python manage.py makemigrations
    ```
    ```bash
    docker-compose -f docker-compose.local.yml run --rm django python manage.py migrate
    ```
-5. **Create a superuser**:
+6. **Create a superuser**:
    ```bash
    docker-compose -f docker-compose.local.yml run --rm django python manage.py createsuperuser
    ```
-6. **Visit the application**: http://localhost:8000
+7. **Visit the application**: http://localhost:8000
 
 **Important**: No need to install Python packages locally - everything runs in Docker containers!
+
+## Analysis module (DataSHIELD via Armadillo) - local setup
+
+The analysis module now supports local DataSHIELD-ready export workflows backed by Armadillo.
+
+This repository expects Armadillo as a pinned git submodule at `harmonaize/vendor/molgenis-service-armadillo`.
+The current pinned commit is `6864b346df28f4c05065dfab35149dad29a1990d` from the `harmonaize-integration` branch of `drnicholasbrink/molgenis-service-armadillo`.
+
+The local analysis stack does not use the Armadillo image alone. It also bind-mounts Armadillo quickstart configuration, Keycloak realm import files, logs, and data directories from the pinned checkout.
+
+1. Clone this repository with submodules, or initialise the submodule after cloning:
+   ```bash
+   git clone --recurse-submodules <repository-url>
+   cd HarmonAIzeToolkit
+
+   # If you already cloned without submodules
+   git submodule update --init --recursive
+   ```
+2. Ensure the writable quickstart directories exist:
+   ```bash
+   cd harmonaize
+   mkdir -p vendor/molgenis-service-armadillo/docker/quickstart/logs
+   mkdir -p vendor/molgenis-service-armadillo/docker/quickstart/data
+   ```
+3. Start the stack (including Armadillo and a dedicated snapshot PostgreSQL instance):
+   ```bash
+   docker-compose -f docker-compose.local.yml up -d
+   ```
+4. Create and apply migrations:
+   ```bash
+   docker-compose -f docker-compose.local.yml run --rm django python manage.py makemigrations analysis
+   docker-compose -f docker-compose.local.yml run --rm django python manage.py migrate
+   ```
+5. Open services:
+   - HarmonAIze: http://localhost:8000
+   - Armadillo: http://localhost:8081
+   - Snapshot PostgreSQL host port: 5433
+
+If Armadillo integration is not needed, leave `ANALYSIS_ENABLED=false` and do not start the `analysis` profile. In that mode, no Armadillo submodule checkout is required.
+
+Port allocations intentionally avoid overlap with the existing local stack (`8000`, `5432`, `8025`, `5555`).
+
+### If Armadillo snapshot tables look empty
+
+Run a manual backfill from HarmonAIze:
+
+```bash
+docker-compose -f docker-compose.local.yml run --rm django python manage.py shell -c "from analysis.services import AnalysisExportService; print(AnalysisExportService().run_incremental_export())"
+```
+
+Then verify row counts in the snapshot database:
+
+```bash
+docker-compose -f docker-compose.local.yml exec -T armadillo_postgres psql -U debug -d armadillo_snapshot -c "SELECT 'harmonised_studies_snapshot' AS table_name, COUNT(*) FROM harmonised_studies_snapshot UNION ALL SELECT 'harmonised_attributes_snapshot', COUNT(*) FROM harmonised_attributes_snapshot UNION ALL SELECT 'harmonised_mapping_schemas_snapshot', COUNT(*) FROM harmonised_mapping_schemas_snapshot UNION ALL SELECT 'harmonised_mapping_rules_snapshot', COUNT(*) FROM harmonised_mapping_rules_snapshot UNION ALL SELECT 'harmonised_source_datasets_snapshot', COUNT(*) FROM harmonised_source_datasets_snapshot;"
+```
+
+### Armadillo compose port overrides
+
+The vendored Armadillo compose files now default to non-overlapping host ports and support overrides via environment variables:
+
+- `ARMADILLO_HOST_PORT` (default: `8001` for quickstart, `8081` for root/ci compose)
+- `ARMADILLO_RSERVER_HOST_PORT` (default: `6312`)
+- `ARMADILLO_KEYCLOAK_HOST_PORT` (default: `8080`)
+- `ARMADILLO_KEYCLOAK_MANAGEMENT_HOST_PORT` (default: `9001`)
+
+Example:
+
+```bash
+ARMADILLO_HOST_PORT=18081 docker-compose -f vendor/molgenis-service-armadillo/docker/quickstart/docker-compose.yml up -d
+```
 
 ## Setup
 
@@ -52,21 +123,99 @@ License: MIT
    cd harmonaize
    ```
 
-3. **Build and start the application**:
+3. **Configure local environment variables** in `./.envs/.local/.django`.
+
+   Common local settings:
    ```bash
-   docker-compose -f docker-compose.local.yml up -d
+   ANALYSIS_ENABLED=false
+   OPENAI_API_KEY=sk-your-key
+   MAPBOX_ACCESS_TOKEN=pk.your-mapbox-token
+   GOOGLE_APPLICATION_CREDENTIALS=/app/.envs/.local/gee-credentials.json
    ```
 
-4. **Run initial setup**:
+   For Google Earth Engine, download the service account JSON key and place it at `./.envs/.local/gee-credentials.json` or another local path mounted into the container, then set `GOOGLE_APPLICATION_CREDENTIALS` to the matching in-container path. See `climate/GEE_SETUP.md` for the full workflow.
+
+   `ANALYSIS_ENABLED` is a Django application flag. When it is `false`, the app starts without registering the analysis module and `/analysis/` shows the fallback unavailable page.
+
+4. **Build and start the application**:
+   ```bash
+   docker compose -f docker-compose.local.yml up -d
+   ```
+
+   With `ANALYSIS_ENABLED=false` in `./.envs/.local/.django`, this starts the normal local stack without the analysis module.
+
+   To enable analysis locally, you need both pieces below:
+
+   1. Set `ANALYSIS_ENABLED=true` in `./.envs/.local/.django` so Django loads the analysis app.
+   2. Start Docker Compose with the `analysis` profile so Armadillo, Keycloak, and R server are started.
+
+   Example:
+   ```bash
+   COMPOSE_PROFILES=analysis docker compose -f docker-compose.local.yml up -d
+   ```
+
+   This split is deliberate. `ANALYSIS_ENABLED` controls Django inside the container, while `COMPOSE_PROFILES=analysis` controls which Docker services start outside the container. The Django env file cannot automatically turn on the Compose profile because Docker Compose resolves profiles before it loads the service `env_file` entries.
+
+   If you want to turn analysis back off, reset `ANALYSIS_ENABLED=false` in `./.envs/.local/.django` and start without the profile:
+   ```bash
+   docker compose -f docker-compose.local.yml up -d
+   ```
+
+5. **Run initial setup**:
    ```bash
    # Run database migrations
-   docker-compose -f docker-compose.local.yml run --rm django python manage.py migrate
+   docker compose -f docker-compose.local.yml run --rm django python manage.py migrate
    
    # Create a superuser account
-   docker-compose -f docker-compose.local.yml run --rm django python manage.py createsuperuser
+   docker compose -f docker-compose.local.yml run --rm django python manage.py createsuperuser
    ```
 
-5. **Access the application** at http://localhost:8000
+6. **Access the application** at http://localhost:8000
+
+### Module-specific setup
+
+#### OpenAI
+
+The transformation suggestion features rely on the OpenAI Responses API.
+
+1. Copy your key from https://platform.openai.com/account/api-keys
+2. Add it to `./.envs/.local/.django`:
+   ```bash
+   OPENAI_API_KEY=sk-your-key
+   ```
+
+#### Mapbox
+
+Interactive map visualisations in the geolocation module require a Mapbox access token.
+
+1. Create or copy a token from https://account.mapbox.com/access-tokens/
+2. Add it to `./.envs/.local/.django`:
+   ```bash
+   MAPBOX_ACCESS_TOKEN=pk.your-mapbox-token
+   ```
+3. Restart the Django services after changing environment variables:
+   ```bash
+   docker compose -f docker-compose.local.yml restart django celeryworker celerybeat flower
+   ```
+
+#### Google Earth Engine
+
+The climate module uses live Google Earth Engine data and requires credentials before climate requests will succeed.
+
+1. Follow `climate/GEE_SETUP.md` to create a service account and download the JSON key
+2. Save the file locally, for example at `./.envs/.local/gee-credentials.json`
+3. Add the matching path to `./.envs/.local/.django`:
+   ```bash
+   GOOGLE_APPLICATION_CREDENTIALS=/app/.envs/.local/gee-credentials.json
+   ```
+4. Restart the services after updating the environment file:
+   ```bash
+   docker compose -f docker-compose.local.yml restart django celeryworker celerybeat flower
+   ```
+
+Repeat the same configuration pattern for other environments, such as `.envs/.production/.django`, before deploying.
+
+For production, use the same rule: set `ANALYSIS_ENABLED=true` in `./.envs/.production/.django` only when the analysis module should be active, and start the production stack with the `analysis` profile only when the supporting analysis services are required.
 
 ### Configure OpenAI access
 
@@ -79,7 +228,7 @@ The transformation suggestion features rely on the OpenAI Responses API. Set an 
    ```
 3. Restart the Django services so the environment variable is picked up:
    ```bash
-   docker-compose -f docker-compose.local.yml restart django celeryworker celerybeat flower
+   docker compose -f docker-compose.local.yml restart django celeryworker celerybeat flower
    ```
 
 Repeat the same configuration for other environments (e.g. `.envs/.production/.django`) before deploying.

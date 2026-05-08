@@ -383,7 +383,10 @@
     <!-- Studies Needing Climate -->
     <div class="section-card">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-        <h2 class="section-title" style="margin-bottom: 0; border-bottom: none;">Studies Ready for Climate Data</h2>
+        <div>
+          <h2 class="section-title" style="margin-bottom: 0; border-bottom: none;">Studies Ready for Climate Data</h2>
+          <div style="color: var(--text-secondary); font-size: 0.9rem;">Includes studies you own that are marked “Climate Linkage”.</div>
+        </div>
         <a href="{% url 'core:study_list' %}" class="btn-climate-primary" style="font-size: 0.9rem; padding: 0.5rem 1rem;">
           View All Studies
         </a>
@@ -416,11 +419,6 @@
             </div>
           </div>
         {% endfor %}
-        {% if stats.studies_with_climate > 5 %}
-          <div style="text-align: center; margin-top: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
-            Showing 5 of {{ stats.studies_with_climate }} studies
-          </div>
-        {% endif %}
       {% else %}
         <div class="empty-state">
           <div class="empty-icon">

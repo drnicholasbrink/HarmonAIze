@@ -4,6 +4,7 @@ Celery tasks for asynchronous climate data processing.
 import logging
 from typing import Dict, Any
 from celery import shared_task
+from celery.exceptions import SoftTimeLimitExceeded
 from django.utils import timezone
 from .models import ClimateDataRequest
 from .services import ClimateDataProcessor
@@ -11,7 +12,39 @@ from .services import ClimateDataProcessor
 logger = logging.getLogger(__name__)
 
 
-@shared_task(bind=True)
+def calculate_time_limits_for_request(request_id: int) -> Dict[str, int]:
+    """Estimate per-task time limits based on request size.
+
+    Uses a simple heuristic: base allowance plus a small increment per
+    (location × variable × day). Capped to avoid unbounded growth.
+    """
+    try:
+        climate_request = ClimateDataRequest.objects.get(pk=request_id)
+    except ClimateDataRequest.DoesNotExist:
+        return {"soft_time_limit": 1800, "time_limit": 1860}
+
+    locations = climate_request.locations.count() or 1
+    variables = climate_request.variables.count() or 1
+    date_span_days = max((climate_request.end_date - climate_request.start_date).days + 1, 1)
+
+    total_units = locations * variables * date_span_days
+    estimated_seconds = 600 + total_units * 0.4  # base + per-unit allowance
+
+    soft_limit = max(1800, min(int(estimated_seconds), 6 * 3600))  # cap at 6h
+    hard_limit = soft_limit + 120
+
+    return {"soft_time_limit": soft_limit, "time_limit": hard_limit}
+
+
+@shared_task(
+    bind=True,
+    soft_time_limit=1800,
+    time_limit=1860,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_jitter=True,
+    retry_kwargs={"max_retries": 3},
+)
 def process_climate_data_request(self, request_id: int) -> Dict[str, Any]:
     """
     Asynchronous task to process a climate data request.
@@ -29,13 +62,26 @@ def process_climate_data_request(self, request_id: int) -> Dict[str, Any]:
         # Update task ID for tracking
         climate_request.configuration = climate_request.configuration or {}
         climate_request.configuration['celery_task_id'] = self.request.id
+        climate_request.configuration['effective_time_limits'] = {
+            'soft': getattr(self.request, 'soft_time_limit', None),
+            'hard': getattr(self.request, 'time_limit', None),
+        }
         climate_request.save()
         
         logger.info(f"Starting climate data processing for request {request_id}")
+
+        # Abort immediately if user cancelled before the task got to run
+        if climate_request.status == 'cancelled':
+            logger.info("Request %s was cancelled before start; aborting task", request_id)
+            return {'status': 'cancelled', 'error': 'Cancelled before start'}
         
         # Process the request
         processor = ClimateDataProcessor(climate_request)
         result = processor.process_request()
+
+        # If the processor cooperatively marked as cancelled, do not retry
+        if result.get('status') == 'cancelled':
+            return result
         
         logger.info(f"Completed climate data processing for request {request_id}: {result}")
         
@@ -46,6 +92,26 @@ def process_climate_data_request(self, request_id: int) -> Dict[str, Any]:
         logger.error(error_msg)
         return {'status': 'failed', 'error': error_msg}
         
+    except SoftTimeLimitExceeded as e:
+        error_msg = f"Climate request {request_id} exceeded time limit: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        try:
+            climate_request = ClimateDataRequest.objects.get(pk=request_id)
+            climate_request.error_message = error_msg
+            climate_request.save(update_fields=['error_message'])
+        except Exception:
+            pass
+        # Retry with backoff; if retries exhausted, fall through to failure handling
+        if self.request.retries < self.max_retries:
+            raise self.retry(exc=e, countdown=120)
+        try:
+            climate_request = ClimateDataRequest.objects.get(pk=request_id)
+            climate_request.status = 'failed'
+            climate_request.completed_at = timezone.now()
+            climate_request.save(update_fields=['status', 'completed_at'])
+        except Exception:
+            pass
+        return {'status': 'failed', 'error': error_msg}
     except Exception as e:
         error_msg = f"Error processing climate request {request_id}: {str(e)}"
         logger.error(error_msg, exc_info=True)
@@ -102,8 +168,7 @@ def update_data_source_availability() -> Dict[str, Any]:
     try:
         for source in ClimateDataSource.objects.filter(is_active=True):
             try:
-                # In a real implementation, this would ping the API endpoint
-                # For MVP, we'll just update the last_checked timestamp
+                # TODO: ping the API endpoint as a test, currently just returning current time.
                 source.last_checked = timezone.now()
                 source.save(update_fields=['last_checked'])
                 updated_count += 1
@@ -146,7 +211,7 @@ def generate_climate_data_report(study_id: int) -> Dict[str, Any]:
         # Get climate attributes for this study
         climate_attributes = Attribute.objects.filter(
             category='climate',
-            observations__location__observations__attribute__studies=study
+            observations__location__observations__attribute__study=study
         ).distinct()
         
         report_data = {
@@ -166,7 +231,7 @@ def generate_climate_data_report(study_id: int) -> Dict[str, Any]:
             # Get statistics for this variable
             stats = Observation.objects.filter(
                 attribute=attr,
-                location__observations__attribute__studies=study
+                location__observations__attribute__study=study
             ).aggregate(
                 count=Count('id'),
                 min_value=Min('float_value'),

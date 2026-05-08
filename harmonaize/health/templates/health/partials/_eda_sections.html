@@ -108,7 +108,7 @@ Parameters:
           {% endfor %}
         </div>
       {% else %}
-        <p class="eda-empty">No numeric columns met the privacy thresholds.</p>
+        <p class="eda-empty">{{ no_numeric_message|default:"No numeric columns met the privacy thresholds." }}</p>
       {% endif %}
     </div>
   </section>
@@ -163,7 +163,7 @@ Parameters:
           {% endfor %}
         </div>
       {% else %}
-        <p class="eda-empty">No categorical summaries available.</p>
+        <p class="eda-empty">{{ no_categorical_message|default:"No categorical summaries available." }}</p>
       {% endif %}
     </div>
   </section>

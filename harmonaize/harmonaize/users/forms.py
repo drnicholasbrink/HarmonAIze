@@ -1,5 +1,6 @@
 from allauth.account.forms import SignupForm
 from allauth.socialaccount.forms import SignupForm as SocialSignupForm
+from django import forms
 from django.contrib.auth import forms as admin_forms
 from django.forms import EmailField
 from django.utils.translation import gettext_lazy as _
@@ -35,6 +36,25 @@ class UserSignupForm(SignupForm):
     Check UserSocialSignupForm for accounts created from social.
     """
 
+    name = forms.CharField(
+        max_length=255,
+        label=_("Full Name"),
+        widget=forms.TextInput(attrs={"placeholder": _("Your full name")}),
+    )
+    organization = forms.CharField(
+        max_length=255,
+        required=False,
+        label=_("Organization"),
+        widget=forms.TextInput(attrs={"placeholder": _("Your organization or institution (optional)")}),
+    )
+
+    def save(self, request):
+        user = super().save(request)
+        user.name = self.cleaned_data.get("name", "")
+        user.organization = self.cleaned_data.get("organization", "")
+        user.save()
+        return user
+
 
 class UserSocialSignupForm(SocialSignupForm):
     """
@@ -42,3 +62,22 @@ class UserSocialSignupForm(SocialSignupForm):
     Default fields will be added automatically.
     See UserSignupForm otherwise.
     """
+
+    name = forms.CharField(
+        max_length=255,
+        label=_("Full Name"),
+        widget=forms.TextInput(attrs={"placeholder": _("Your full name")}),
+    )
+    organization = forms.CharField(
+        max_length=255,
+        required=False,
+        label=_("Organization"),
+        widget=forms.TextInput(attrs={"placeholder": _("Your organization or institution (optional)")}),
+    )
+
+    def save(self, request):
+        user = super().save(request)
+        user.name = self.cleaned_data.get("name", "")
+        user.organization = self.cleaned_data.get("organization", "")
+        user.save()
+        return user

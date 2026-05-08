@@ -23,6 +23,12 @@ class User(AbstractUser):
     last_name = None  # type: ignore[assignment]
     email = EmailField(_("email address"), unique=True)
     username = None  # type: ignore[assignment]
+    organization = CharField(
+        _("Organization"),
+        blank=True,
+        max_length=255,
+        help_text=_("Your organization or institution"),
+    )
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []

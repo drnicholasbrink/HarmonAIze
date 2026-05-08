@@ -47,6 +47,16 @@ class FakeClimateService:
         return data
 
 
+class FakeEmptyClimateService:
+    """Service that returns no data, used to test failure handling."""
+
+    def __init__(self, data_source):
+        self.data_source = data_source
+
+    def fetch_data(self, variable, location, start_date, end_date, **kwargs):
+        return []
+
+
 class ClimateModelsTestCase(TestCase):
     """Test climate data models."""
     
@@ -343,6 +353,26 @@ class ClimateServicesTestCase(TestCase):
         )
         request.variables.add(self.variable)
         request.locations.add(self.location)
+
+        # Create study observations to define target dates
+        health_attribute = Attribute.objects.create(
+            variable_name='test_health_var',
+            display_name='Test Health Variable',
+            variable_type='float',
+            category='health',
+        )
+        health_attribute.studies.add(self.study)
+
+        for day in range(1, 4):
+            time_dim = TimeDimension.objects.create(
+                timestamp=timezone.make_aware(datetime(2023, 6, day))
+            )
+            Observation.objects.create(
+                location=self.location,
+                attribute=health_attribute,
+                time=time_dim,
+                float_value=1.0,
+            )
         
         # Process the request
         processor = ClimateDataProcessor(request)
@@ -357,6 +387,47 @@ class ClimateServicesTestCase(TestCase):
         request.refresh_from_db()
         self.assertEqual(request.status, 'completed')
         self.assertEqual(request.processed_locations, 1)
+
+    def test_climate_data_processor_marks_failed_when_no_data(self):
+        """Ensure requests fail when the API returns no climate data."""
+        request = ClimateDataRequest.objects.create(
+            study=self.study,
+            data_source=self.source,
+            start_date=date(2023, 6, 1),
+            end_date=date(2023, 6, 3),
+            temporal_aggregation='none',
+            total_locations=1
+        )
+        request.variables.add(self.variable)
+        request.locations.add(self.location)
+
+        health_attribute = Attribute.objects.create(
+            variable_name='test_health_var_empty',
+            display_name='Test Health Variable (Empty)',
+            variable_type='float',
+            category='health',
+        )
+        health_attribute.studies.add(self.study)
+
+        time_dim = TimeDimension.objects.create(
+            timestamp=timezone.make_aware(datetime(2023, 6, 1))
+        )
+        Observation.objects.create(
+            location=self.location,
+            attribute=health_attribute,
+            time=time_dim,
+            float_value=1.0,
+        )
+
+        processor = ClimateDataProcessor(request)
+        with patch.object(ClimateDataProcessor, "_get_data_service", return_value=FakeEmptyClimateService(self.source)):
+            result = processor.process_request()
+
+        self.assertEqual(result['status'], 'failed')
+
+        request.refresh_from_db()
+        self.assertEqual(request.status, 'failed')
+        self.assertIn('Failed to retrieve report', request.error_message)
 
 
 class ClimateViewsTestCase(TestCase):

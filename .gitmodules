@@ -1,0 +1,3 @@
+[submodule "harmonaize/vendor/molgenis-service-armadillo"]
+	path = harmonaize/vendor/molgenis-service-armadillo
+	url = https://github.com/drnicholasbrink/molgenis-service-armadillo.git

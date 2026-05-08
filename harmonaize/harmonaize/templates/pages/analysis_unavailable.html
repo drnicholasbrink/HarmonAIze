@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}Analysis Unavailable - HarmonAIze{% endblock title %}
+
+{% block container_class %}container{% endblock container_class %}
+
+{% block content %}
+  <section class="py-5">
+    <div class="row justify-content-center">
+      <div class="col-lg-8">
+        <div class="card shadow-sm border-0">
+          <div class="card-body p-4 p-md-5">
+            <span class="badge text-bg-secondary mb-3">Analysis module</span>
+            <h1 class="h2 mb-3">Analysis is currently not available</h1>
+            <p class="text-muted mb-4">
+              This deployment was started with the analysis module disabled, so dataset sync,
+              Armadillo integration, and analysis workspace tools are not available right now.
+            </p>
+            <p class="mb-0">
+              If you need this feature, reach out to your administrator to create a deployment with the analysis module enabled.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock content %}

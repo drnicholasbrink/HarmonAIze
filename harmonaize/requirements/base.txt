@@ -34,6 +34,7 @@ pygraphviz==1.7  # https://pygraphviz.github.io/
 
 # Data processing and ML
 pandas==2.2.3  # https://github.com/pandas-dev/pandas
+pyarrow==18.1.0  # https://github.com/apache/arrow
 openpyxl==3.1.5  # https://openpyxl.readthedocs.io/
 pgvector==0.4.1  # https://github.com/pgvector/pgvector-python
 numpy==2.3.4  # https://numpy.org/

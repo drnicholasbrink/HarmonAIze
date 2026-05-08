@@ -40,12 +40,12 @@ def find_duplicate_observations(study=None, raw_data_file=None, limit=50, source
     
     if raw_data_file:
         # For a specific raw data file, check its study's observations
-        query = query.filter(attribute__studies=raw_data_file.study)
+        query = query.filter(attribute__study=raw_data_file.study)
         
         # Determine if this is source or transformed data based on study purpose
         is_source = raw_data_file.study.study_purpose == 'source'
     elif study:
-        query = query.filter(attribute__studies=study)
+        query = query.filter(attribute__study=study)
         is_source = study.study_purpose == 'source'
     else:
         is_source = True  # Default assumption
@@ -142,10 +142,10 @@ def find_multi_value_observations(study=None, raw_data_file=None, limit=30):
     
     # Determine data type
     if raw_data_file:
-        query = query.filter(attribute__studies=raw_data_file.study)
+        query = query.filter(attribute__study=raw_data_file.study)
         is_source = raw_data_file.study.study_purpose == 'source'
     elif study:
-        query = query.filter(attribute__studies=study)
+        query = query.filter(attribute__study=study)
         is_source = study.study_purpose == 'source'
     else:
         is_source = True

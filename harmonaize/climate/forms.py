@@ -36,7 +36,7 @@ class ClimateDataConfigurationForm(forms.ModelForm):
     )
 
     lag_value = forms.IntegerField(
-        min_value=1,
+        min_value=0,
         initial=30,
         widget=forms.NumberInput(attrs={'class': 'form-control', 'step': 1}),
         help_text="How far back to fetch climate data",
@@ -45,7 +45,7 @@ class ClimateDataConfigurationForm(forms.ModelForm):
     )
 
     lag_unit = forms.ChoiceField(
-        choices=[('days', 'Days'), ('weeks', 'Weeks'), ('months', 'Months')],
+        choices=[('days', 'Days'), ('weeks', 'Weeks'), ('months', 'Months'), ('years', 'Years')],
         initial='days',
         widget=forms.Select(attrs={'class': 'form-control'}),
         required=True,
@@ -68,6 +68,12 @@ class ClimateDataConfigurationForm(forms.ModelForm):
         help_text="Buffer radius around point locations in kilometres (0 for exact point)",
         required=False,
     )
+
+    reset_existing = forms.BooleanField(
+        required=False,
+        initial=False,
+        help_text="Delete existing climate observations in this window before processing",
+    )
     
     class Meta:
         model = ClimateDataRequest
@@ -78,6 +84,7 @@ class ClimateDataConfigurationForm(forms.ModelForm):
             'end_date',
             'temporal_aggregation',
             'spatial_buffer_km',
+            'reset_existing',
         ]
     
     def __init__(self, *args, study=None, user=None, observation_min_date=None, observation_max_date=None, **kwargs):
@@ -91,11 +98,11 @@ class ClimateDataConfigurationForm(forms.ModelForm):
         if 'variables' in self.fields:
             self.fields['variables'].queryset = ClimateVariable.objects.all().order_by('category', 'display_name')
         
-        # Set initial start/end based on observations and lag
+        # Set initial start/end using observed min/max; expand backwards by lag
         lag_value = self.fields['lag_value'].initial or 30
         lag_unit = self.fields['lag_unit'].initial or 'days'
-        if observation_max_date:
-            start_date = self._compute_start_date(observation_max_date, lag_value, lag_unit)
+        if observation_min_date and observation_max_date:
+            start_date = self._compute_start_date(observation_min_date, lag_value, lag_unit)
             self.fields['start_date'].initial = start_date
             self.fields['end_date'].initial = observation_max_date
     
@@ -112,11 +119,16 @@ class ClimateDataConfigurationForm(forms.ModelForm):
             raise ValidationError("No observation dates available for this study; cannot compute date range")
 
         if lag_value and lag_unit:
-            computed_start = self._compute_start_date(self.observation_max_date, lag_value, lag_unit)
+            base_min = self.observation_min_date
+            base_max = self.observation_max_date
+            if base_min is None or base_max is None:
+                raise ValidationError("No observation dates available for this study; cannot compute date range")
+
+            computed_start = self._compute_start_date(base_min, lag_value, lag_unit)
             cleaned_data['start_date'] = computed_start
-            cleaned_data['end_date'] = self.observation_max_date
+            cleaned_data['end_date'] = base_max
             start_date = computed_start
-            end_date = self.observation_max_date
+            end_date = base_max
         
         # Validate date range
         if start_date and end_date:
@@ -155,6 +167,9 @@ class ClimateDataConfigurationForm(forms.ModelForm):
         elif lag_unit == 'months':
             # Approximate months as 30 days for simplicity
             delta = timedelta(days=lag_value * 30)
+        elif lag_unit == 'years':
+            # Approximate years as 365 days
+            delta = timedelta(days=lag_value * 365)
         else:
             delta = timedelta(days=lag_value)
         return end_date - delta
@@ -162,6 +177,12 @@ class ClimateDataConfigurationForm(forms.ModelForm):
     def save(self, commit=True):
         instance = super().save(commit=False)
         instance.study = self.study
+        # Persist lag metadata in configuration so downstream exports know the unit/value used
+        instance.configuration = instance.configuration or {}
+        instance.configuration.update({
+            'lag_value': self.cleaned_data.get('lag_value'),
+            'lag_unit': self.cleaned_data.get('lag_unit'),
+        })
         # User authorization flows through study.created_by (Core module)
         # No need to set requested_by - accessed via property
 
@@ -173,7 +194,7 @@ class ClimateDataConfigurationForm(forms.ModelForm):
             # Add locations from study
             if self.study:
                 study_locations = Location.objects.filter(
-                    observations__attribute__studies=self.study
+                    observations__attribute__study=self.study
                 ).distinct()
                 instance.locations.set(study_locations)
         

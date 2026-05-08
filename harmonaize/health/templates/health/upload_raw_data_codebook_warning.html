@@ -1,0 +1,325 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Upload Raw Data - {{ study.name }}{% endblock %}
+
+{% block content %}
+<style>
+  .warning-container {
+    max-width: 700px;
+    margin: 2rem auto;
+    padding: 2rem;
+  }
+  
+  .warning-card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+  }
+  
+  .warning-header {
+    background: linear-gradient(135deg, #fff3cd, #ffeeba);
+    padding: 1.5rem 2rem;
+    border-bottom: 1px solid #ffc107;
+  }
+  
+  .warning-header h2 {
+    margin: 0;
+    color: #856404;
+    font-size: 1.4rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  
+  .warning-header h2 i {
+    font-size: 1.5rem;
+  }
+  
+  .warning-body {
+    padding: 2rem;
+  }
+  
+  .warning-message {
+    margin-bottom: 1.5rem;
+    color: #333;
+    line-height: 1.6;
+  }
+  
+  .warning-message strong {
+    color: #856404;
+  }
+  
+  .codebook-info {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+    border-left: 4px solid #007bff;
+  }
+  
+  .codebook-info .label {
+    font-size: 0.85rem;
+    color: #666;
+    margin-bottom: 0.25rem;
+  }
+  
+  .codebook-info .filename {
+    font-weight: 600;
+    color: #333;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  
+  .codebook-info .filename i {
+    color: #28a745;
+  }
+  
+  .options-section {
+    margin-top: 2rem;
+  }
+  
+  .options-section h3 {
+    font-size: 1.1rem;
+    color: #333;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 0.5rem;
+  }
+  
+  .option-card {
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+  
+  .option-card:hover {
+    border-color: #007bff;
+    background: rgba(0, 123, 255, 0.02);
+  }
+  
+  .option-card.recommended {
+    border-color: #28a745;
+    background: rgba(40, 167, 69, 0.03);
+  }
+  
+  .option-card.recommended:hover {
+    background: rgba(40, 167, 69, 0.06);
+  }
+  
+  .option-card.warning:hover {
+    border-color: #dc3545;
+    background: rgba(220, 53, 69, 0.02);
+  }
+  
+  .option-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  .option-header .badge {
+    font-size: 0.7rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  
+  .badge-recommended {
+    background: #28a745;
+    color: white;
+  }
+  
+  .badge-alternative {
+    background: #6c757d;
+    color: white;
+  }
+  
+  .option-title {
+    font-weight: 600;
+    color: #333;
+    font-size: 1.05rem;
+  }
+  
+  .option-description {
+    color: #666;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    margin-left: 1.5rem;
+  }
+  
+  .option-actions {
+    margin-top: 1rem;
+    margin-left: 1.5rem;
+  }
+  
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.2rem;
+    border-radius: 6px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    border: none;
+    cursor: pointer;
+  }
+  
+  .btn-primary {
+    background: #007bff;
+    color: white;
+  }
+  
+  .btn-primary:hover {
+    background: #0056b3;
+    color: white;
+    text-decoration: none;
+  }
+  
+  .btn-success {
+    background: #28a745;
+    color: white;
+  }
+  
+  .btn-success:hover {
+    background: #1e7e34;
+    color: white;
+    text-decoration: none;
+  }
+  
+  .btn-outline-secondary {
+    background: transparent;
+    color: #6c757d;
+    border: 1px solid #6c757d;
+  }
+  
+  .btn-outline-secondary:hover {
+    background: #6c757d;
+    color: white;
+    text-decoration: none;
+  }
+  
+  .btn-outline-danger {
+    background: transparent;
+    color: #dc3545;
+    border: 1px solid #dc3545;
+  }
+  
+  .btn-outline-danger:hover {
+    background: #dc3545;
+    color: white;
+    text-decoration: none;
+  }
+  
+  .warning-note {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    margin-top: 0.75rem;
+    font-size: 0.85rem;
+    color: #856404;
+  }
+  
+  .warning-note i {
+    margin-right: 0.5rem;
+  }
+  
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #666;
+    text-decoration: none;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+  }
+  
+  .back-link:hover {
+    color: #333;
+  }
+</style>
+
+<div class="warning-container">
+  <a href="{% url 'core:study_detail' pk=study.pk %}" class="back-link">
+    <i class="fas fa-arrow-left"></i> Back to Study
+  </a>
+  
+  <div class="warning-card">
+    <div class="warning-header">
+      <h2>
+        <i class="fas fa-exclamation-triangle"></i>
+        Codebook Found But Not Processed
+      </h2>
+    </div>
+    
+    <div class="warning-body">
+      <p class="warning-message">
+        You're trying to upload raw data for <strong>{{ study.name }}</strong>, but we noticed you have a codebook file that hasn't been processed yet.
+      </p>
+      
+      <div class="codebook-info">
+        <div class="label">Current Codebook</div>
+        <div class="filename">
+          <i class="fas fa-file-alt"></i>
+          {{ study.codebook.name|cut:"studies/codebooks/" }}
+        </div>
+      </div>
+      
+      <div class="options-section">
+        <h3>What would you like to do?</h3>
+        
+        <div class="option-card recommended">
+          <div class="option-header">
+            <i class="fas fa-check-circle" style="color: #28a745;"></i>
+            <span class="option-title">Extract Variables from Codebook</span>
+            <span class="badge badge-recommended">Recommended</span>
+          </div>
+          <p class="option-description">
+            Process the uploaded codebook to define your study variables. This ensures your raw data is validated against a properly defined schema.
+          </p>
+          <div class="option-actions">
+            <a href="{% url 'health:map_codebook' study_id=study.pk %}" class="btn btn-success">
+              <i class="fas fa-cogs"></i> Extract from Codebook
+            </a>
+          </div>
+        </div>
+        
+        <div class="option-card warning">
+          <div class="option-header">
+            <i class="fas fa-database" style="color: #6c757d;"></i>
+            <span class="option-title">Extract Variables from Raw Data Instead</span>
+            <span class="badge badge-alternative">Alternative</span>
+          </div>
+          <p class="option-description">
+            Ignore the codebook and extract column names from your raw data file. This will define variables based on what's in your data.
+          </p>
+          <div class="warning-note">
+            <i class="fas fa-exclamation-circle"></i>
+            <strong>Note:</strong> This will delete the current codebook. A new codebook will be generated from the extracted variables.
+          </div>
+          <div class="option-actions">
+            <a href="{% url 'health:upload_raw_data_for_study' study_id=study.pk %}?extract_from_raw=true" class="btn btn-outline-danger">
+              <i class="fas fa-upload"></i> Continue with Raw Data Upload
+            </a>
+          </div>
+        </div>
+      </div>
+      
+      <div style="margin-top: 2rem; text-align: center;">
+        <a href="{% url 'core:study_detail' pk=study.pk %}" class="btn btn-outline-secondary">
+          <i class="fas fa-times"></i> Cancel
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

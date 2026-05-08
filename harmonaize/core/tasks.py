@@ -23,7 +23,7 @@ def generate_attribute_embeddings(self, attribute_id: int):
     try:
         # Import here to avoid circular imports
         from core.models import Attribute
-        from core.embedding_service import embedding_service
+        from core.embedding_service import embedding_service, EmbeddingServiceError, EmbeddingQuotaError
         
         logger.info(f"Starting embedding generation for Attribute {attribute_id}")
         
@@ -38,11 +38,28 @@ def generate_attribute_embeddings(self, attribute_id: int):
                 "attribute_id": attribute_id
             }
         
-        # Generate embeddings
-        name_embedding, description_embedding = embedding_service.generate_attribute_embeddings(
-            variable_name=attribute.variable_name,
-            description=attribute.description
-        )
+        try:
+            # Generate embeddings
+            name_embedding, description_embedding = embedding_service.generate_attribute_embeddings(
+                variable_name=attribute.variable_name,
+                description=attribute.description
+            )
+        except EmbeddingQuotaError as e:
+            logger.error(f"OpenAI quota exceeded for Attribute {attribute_id}: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "attribute_id": attribute_id,
+                "quota_exceeded": True
+            }
+        except EmbeddingServiceError as e:
+            logger.error(f"Embedding service not configured: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "attribute_id": attribute_id,
+                "api_key_missing": True
+            }
         
         # Validate embeddings
         name_valid = embedding_service.validate_embedding_dimensions(name_embedding)
