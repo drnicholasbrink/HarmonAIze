@@ -107,6 +107,28 @@ ARMADILLO_HOST_PORT=18081 docker-compose -f vendor/molgenis-service-armadillo/do
 
 **This application runs entirely in Docker containers. You don't need to install Python packages locally.**
 
+### Environment Files
+
+The env files committed under `./.envs/` are sanitized templates for onboarding and deployment reference.
+They do not contain working credentials.
+
+Before running the stack, review and update the env files you need with your own local or deployment secrets:
+
+- `./.envs/.local/.django`
+- `./.envs/.local/.postgres`
+- `./.envs/.production/.django`
+- `./.envs/.production/.postgres`
+
+Typical placeholder values in these files look like `replace-with-...` and must be replaced before use.
+
+At minimum for local development:
+
+- Set the Django application settings you need in `./.envs/.local/.django`
+- Set the PostgreSQL credentials used by Docker in `./.envs/.local/.postgres`
+- Keep any credential files such as Google Earth Engine JSON keys in a local-only path, for example `./.envs/.local/gee-credentials.json`
+
+If you customize these files locally, keep your real secrets out of commits.
+
 ### Prerequisites
 
 - **Docker Desktop**: https://www.docker.com/products/docker-desktop/ (Required)
@@ -123,7 +145,7 @@ ARMADILLO_HOST_PORT=18081 docker-compose -f vendor/molgenis-service-armadillo/do
    cd harmonaize
    ```
 
-3. **Configure local environment variables** in `./.envs/.local/.django`.
+3. **Configure local environment variables** in `./.envs/.local/.django` and `./.envs/.local/.postgres`.
 
    Common local settings:
    ```bash
@@ -131,6 +153,15 @@ ARMADILLO_HOST_PORT=18081 docker-compose -f vendor/molgenis-service-armadillo/do
    OPENAI_API_KEY=sk-your-key
    MAPBOX_ACCESS_TOKEN=pk.your-mapbox-token
    GOOGLE_APPLICATION_CREDENTIALS=/app/.envs/.local/gee-credentials.json
+   ```
+
+   Common local PostgreSQL settings:
+   ```bash
+   POSTGRES_HOST=postgres
+   POSTGRES_PORT=5432
+   POSTGRES_DB=harmonaize
+   POSTGRES_USER=your-local-postgres-user
+   POSTGRES_PASSWORD=your-local-postgres-password
    ```
 
    For Google Earth Engine, download the service account JSON key and place it at `./.envs/.local/gee-credentials.json` or another local path mounted into the container, then set `GOOGLE_APPLICATION_CREDENTIALS` to the matching in-container path. See `climate/GEE_SETUP.md` for the full workflow.
@@ -213,9 +244,9 @@ The climate module uses live Google Earth Engine data and requires credentials b
    docker compose -f docker-compose.local.yml restart django celeryworker celerybeat flower
    ```
 
-Repeat the same configuration pattern for other environments, such as `.envs/.production/.django`, before deploying.
+Repeat the same configuration pattern for other environments, such as `.envs/.production/.django` and `.envs/.production/.postgres`, before deploying.
 
-For production, use the same rule: set `ANALYSIS_ENABLED=true` in `./.envs/.production/.django` only when the analysis module should be active, and start the production stack with the `analysis` profile only when the supporting analysis services are required.
+For production, use the same rule: set `ANALYSIS_ENABLED=true` in `./.envs/.production/.django` only when the analysis module should be active, configure the production database credentials in `./.envs/.production/.postgres`, and start the production stack with the `analysis` profile only when the supporting analysis services are required.
 
 ### Configure OpenAI access
 
