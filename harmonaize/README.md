@@ -112,6 +112,9 @@ ARMADILLO_HOST_PORT=18081 docker-compose -f vendor/molgenis-service-armadillo/do
 The env files committed under `./.envs/` are sanitized templates for onboarding and deployment reference.
 They do not contain working credentials.
 
+For local development, many of these values can be arbitrary as long as they are valid for your local Docker setup and are used consistently across the matching env files.
+This is especially true for local usernames, passwords, admin paths, and other non-public development secrets.
+
 Before running the stack, review and update the env files you need with your own local or deployment secrets:
 
 - `./.envs/.local/.django`
@@ -120,6 +123,9 @@ Before running the stack, review and update the env files you need with your own
 - `./.envs/.production/.postgres`
 
 Typical placeholder values in these files look like `replace-with-...` and must be replaced before use.
+
+For local deployments, replacing them with any reasonable local-only value is often sufficient.
+For production deployments, use real secret values and managed credentials.
 
 At minimum for local development:
 
