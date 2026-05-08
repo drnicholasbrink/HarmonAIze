@@ -1,0 +1,64 @@
+# General
+# ------------------------------------------------------------------------------
+# DJANGO_READ_DOT_ENV_FILE=True
+DJANGO_SETTINGS_MODULE=config.settings.production
+ANALYSIS_ENABLED=false
+DJANGO_SECRET_KEY=replace-with-production-django-secret-key
+DJANGO_ADMIN_URL=replace-with-production-admin-url/
+DJANGO_ALLOWED_HOSTS=.harmonaize.org
+
+# Security
+# ------------------------------------------------------------------------------
+# TIP: better off using DNS, however, redirect is OK too
+DJANGO_SECURE_SSL_REDIRECT=False
+
+# Email
+# ------------------------------------------------------------------------------
+DJANGO_SERVER_EMAIL=admin@harmonaize.org
+
+SENDGRID_API_KEY=replace-with-production-sendgrid-api-key
+SENDGRID_GENERATE_MESSAGE_ID=True
+SENDGRID_MERGE_FIELD_FORMAT=None
+
+
+# Azure
+# ------------------------------------------------------------------------------
+DJANGO_AZURE_ACCOUNT_KEY=
+DJANGO_AZURE_ACCOUNT_NAME=
+DJANGO_AZURE_CONTAINER_NAME=
+
+# django-allauth
+# ------------------------------------------------------------------------------
+DJANGO_ACCOUNT_ALLOW_REGISTRATION=True
+
+# Gunicorn
+# ------------------------------------------------------------------------------
+WEB_CONCURRENCY=4
+
+# Sentry
+# ------------------------------------------------------------------------------
+SENTRY_DSN=
+
+
+# Redis
+# ------------------------------------------------------------------------------
+REDIS_URL=redis://redis:6379/0
+
+# Celery
+# ------------------------------------------------------------------------------
+
+# Flower
+CELERY_FLOWER_USER=replace-with-production-flower-user
+CELERY_FLOWER_PASSWORD=replace-with-production-flower-password
+
+# OpenAI API
+# ------------------------------------------------------------------------------
+# Required for embedding functionality in production
+OPENAI_API_KEY=replace-with-production-openai-api-key
+
+# Optional: Override default embedding settings (uncomment if needed)
+# OPENAI_EMBEDDING_MODEL=text-embedding-3-large
+# EMBEDDING_DIMENSIONS=3072
+# EMBEDDING_CHUNK_TOKENS=8000
+# EMBEDDING_CHUNK_OVERLAP=50
+
