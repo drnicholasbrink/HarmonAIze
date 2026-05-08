@@ -1,6 +1,7 @@
 # General
 # ------------------------------------------------------------------------------
 USE_DOCKER=yes
+ANALYSIS_ENABLED=false
 IPYTHONDIR=/app/.ipython
 # Redis
 # ------------------------------------------------------------------------------
@@ -17,7 +18,7 @@ CELERY_FLOWER_PASSWORD=yHvwYNVOR0VWclgvDGeuuY84Xk0sYuuQo4RUL2a2FH9xFAUWBvUfh175q
 DATABASE_URL=postgres://VyEeAsAhLQRemlTBkLvZEOFiVOAtvIHf:DA3372kNwHHhsmhr5cS5ucomOjsY9hs0UiNzxlfOITRM4ZwjW1nTYXSPz1zWousV@postgres:5432/harmonaize
 
 # Mapbox
-MAPBOX_ACCESS_TOKEN=pk.eyJ1IjoibmljYnJpbmsiLCJhIjoiY21penl2MmtrMDM3ZjNkcXdqang3M3o3NiJ9.B_pqsayJC_8VW6D39MolOw
-
 # Google Earth Engine
-GOOGLE_APPLICATION_CREDENTIALS=/app/.envs/.local/harmonaize-480812-56e3fe1ed230.json
+#MapBox
+#OpenAI
+#Gemini
