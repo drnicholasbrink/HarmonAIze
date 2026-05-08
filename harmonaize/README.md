@@ -113,6 +113,7 @@ ARMADILLO_HOST_PORT=18081 docker-compose -f vendor/molgenis-service-armadillo/do
 
    Common local settings:
    ```bash
+   ANALYSIS_ENABLED=false
    OPENAI_API_KEY=sk-your-key
    MAPBOX_ACCESS_TOKEN=pk.your-mapbox-token
    GOOGLE_APPLICATION_CREDENTIALS=/app/.envs/.local/gee-credentials.json
@@ -120,18 +121,39 @@ ARMADILLO_HOST_PORT=18081 docker-compose -f vendor/molgenis-service-armadillo/do
 
    For Google Earth Engine, download the service account JSON key and place it at `./.envs/.local/gee-credentials.json` or another local path mounted into the container, then set `GOOGLE_APPLICATION_CREDENTIALS` to the matching in-container path. See `climate/GEE_SETUP.md` for the full workflow.
 
+   `ANALYSIS_ENABLED` is a Django application flag. When it is `false`, the app starts without registering the analysis module and `/analysis/` shows the fallback unavailable page.
+
 4. **Build and start the application**:
    ```bash
-   docker-compose -f docker-compose.local.yml up -d
+   docker compose -f docker-compose.local.yml up -d
+   ```
+
+   With `ANALYSIS_ENABLED=false` in `./.envs/.local/.django`, this starts the normal local stack without the analysis module.
+
+   To enable analysis locally, you need both pieces below:
+
+   1. Set `ANALYSIS_ENABLED=true` in `./.envs/.local/.django` so Django loads the analysis app.
+   2. Start Docker Compose with the `analysis` profile so Armadillo, Keycloak, and R server are started.
+
+   Example:
+   ```bash
+   COMPOSE_PROFILES=analysis docker compose -f docker-compose.local.yml up -d
+   ```
+
+   This split is deliberate. `ANALYSIS_ENABLED` controls Django inside the container, while `COMPOSE_PROFILES=analysis` controls which Docker services start outside the container. The Django env file cannot automatically turn on the Compose profile because Docker Compose resolves profiles before it loads the service `env_file` entries.
+
+   If you want to turn analysis back off, reset `ANALYSIS_ENABLED=false` in `./.envs/.local/.django` and start without the profile:
+   ```bash
+   docker compose -f docker-compose.local.yml up -d
    ```
 
 5. **Run initial setup**:
    ```bash
    # Run database migrations
-   docker-compose -f docker-compose.local.yml run --rm django python manage.py migrate
+   docker compose -f docker-compose.local.yml run --rm django python manage.py migrate
    
    # Create a superuser account
-   docker-compose -f docker-compose.local.yml run --rm django python manage.py createsuperuser
+   docker compose -f docker-compose.local.yml run --rm django python manage.py createsuperuser
    ```
 
 6. **Access the application** at http://localhost:8000
@@ -159,7 +181,7 @@ Interactive map visualisations in the geolocation module require a Mapbox access
    ```
 3. Restart the Django services after changing environment variables:
    ```bash
-   docker-compose -f docker-compose.local.yml restart django celeryworker celerybeat flower
+   docker compose -f docker-compose.local.yml restart django celeryworker celerybeat flower
    ```
 
 #### Google Earth Engine
@@ -174,10 +196,12 @@ The climate module uses live Google Earth Engine data and requires credentials b
    ```
 4. Restart the services after updating the environment file:
    ```bash
-   docker-compose -f docker-compose.local.yml restart django celeryworker celerybeat flower
+   docker compose -f docker-compose.local.yml restart django celeryworker celerybeat flower
    ```
 
 Repeat the same configuration pattern for other environments, such as `.envs/.production/.django`, before deploying.
+
+For production, use the same rule: set `ANALYSIS_ENABLED=true` in `./.envs/.production/.django` only when the analysis module should be active, and start the production stack with the `analysis` profile only when the supporting analysis services are required.
 
 ### Configure OpenAI access
 
@@ -190,7 +214,7 @@ The transformation suggestion features rely on the OpenAI Responses API. Set an 
    ```
 3. Restart the Django services so the environment variable is picked up:
    ```bash
-   docker-compose -f docker-compose.local.yml restart django celeryworker celerybeat flower
+   docker compose -f docker-compose.local.yml restart django celeryworker celerybeat flower
    ```
 
 Repeat the same configuration for other environments (e.g. `.envs/.production/.django`) before deploying.

@@ -45,6 +45,8 @@ LOCALE_PATHS = [str(BASE_DIR / "locale")]
 # DATABASES
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#databases
+ANALYSIS_ENABLED = env.bool("ANALYSIS_ENABLED", default=True)
+
 DATABASES = {
     'default': env.db('DATABASE_URL', default='postgres://VyEeAsAhLQRemlTBkLvZEOFiVOAtvIHf:DA3372kNwHHhsmhr5cS5ucomOjsY9hs0UiNzxlfOITRM4ZwjW1nTYXSPz1zWousV@localhost:5432/harmonaize')
 }
@@ -105,9 +107,12 @@ LOCAL_APPS = [
     "health", 
     "climate",
     "geolocation",
-    "analysis",
     # Your stuff: custom apps go here
 ]
+
+if ANALYSIS_ENABLED:
+    LOCAL_APPS.append("analysis")
+
 # https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
