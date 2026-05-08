@@ -37,26 +37,40 @@ License: MIT
 
 The analysis module now supports local DataSHIELD-ready export workflows backed by Armadillo.
 
-1. Clone Armadillo into the project vendor directory:
+This repository expects Armadillo as a pinned git submodule at `harmonaize/vendor/molgenis-service-armadillo`.
+The current pinned commit is `6864b346df28f4c05065dfab35149dad29a1990d` from the `harmonaize-integration` branch of `drnicholasbrink/molgenis-service-armadillo`.
+
+The local analysis stack does not use the Armadillo image alone. It also bind-mounts Armadillo quickstart configuration, Keycloak realm import files, logs, and data directories from the pinned checkout.
+
+1. Clone this repository with submodules, or initialise the submodule after cloning:
+   ```bash
+   git clone --recurse-submodules <repository-url>
+   cd HarmonAIzeToolkit
+
+   # If you already cloned without submodules
+   git submodule update --init --recursive
+   ```
+2. Ensure the writable quickstart directories exist:
    ```bash
    cd harmonaize
-   mkdir -p vendor
-   git clone https://github.com/molgenis/molgenis-service-armadillo.git vendor/molgenis-service-armadillo
-   mkdir -p vendor/molgenis-service-armadillo/logs vendor/molgenis-service-armadillo/data
+   mkdir -p vendor/molgenis-service-armadillo/docker/quickstart/logs
+   mkdir -p vendor/molgenis-service-armadillo/docker/quickstart/data
    ```
-2. Start the stack (including Armadillo and a dedicated snapshot PostgreSQL instance):
+3. Start the stack (including Armadillo and a dedicated snapshot PostgreSQL instance):
    ```bash
    docker-compose -f docker-compose.local.yml up -d
    ```
-3. Create and apply migrations:
+4. Create and apply migrations:
    ```bash
    docker-compose -f docker-compose.local.yml run --rm django python manage.py makemigrations analysis
    docker-compose -f docker-compose.local.yml run --rm django python manage.py migrate
    ```
-4. Open services:
+5. Open services:
    - HarmonAIze: http://localhost:8000
    - Armadillo: http://localhost:8081
    - Snapshot PostgreSQL host port: 5433
+
+If Armadillo integration is not needed, leave `ANALYSIS_ENABLED=false` and do not start the `analysis` profile. In that mode, no Armadillo submodule checkout is required.
 
 Port allocations intentionally avoid overlap with the existing local stack (`8000`, `5432`, `8025`, `5555`).
 
