@@ -4,6 +4,7 @@ Handles large file processing in the background.
 """
 
 import logging
+import json
 import pandas as pd
 import numpy as np
 from typing import Any
@@ -15,10 +16,63 @@ from celery import shared_task
 from celery.exceptions import Retry
 from dateutil.parser import ParserError
 
-from .models import RawDataFile, RawDataColumn
+from .models import HarmonizationAIRun, RawDataFile, RawDataColumn
 from core.models import Study, Attribute, Patient, Observation, TimeDimension, Location
 
 logger = logging.getLogger(__name__)
+
+
+@shared_task(bind=True, max_retries=1, default_retry_delay=60)
+def run_harmonization_ai_refresh(self, run_id: int) -> dict[str, Any]:
+    """Run an OpenAI-backed mapping-rule refresh for a schema or selected attributes."""
+    from .ai_harmonization_service import ai_harmonization_service
+
+    try:
+        run = HarmonizationAIRun.objects.select_related(
+            "schema",
+            "schema__source_study",
+            "schema__target_study",
+        ).get(pk=run_id)
+    except HarmonizationAIRun.DoesNotExist:
+        return {"success": False, "message": f"HarmonizationAIRun {run_id} not found"}
+
+    run.status = "running"
+    run.celery_task_id = self.request.id or ""
+    run.started_at = timezone.now()
+    run.error_message = ""
+    run.save(update_fields=["status", "celery_task_id", "started_at", "error_message", "updated_at"])
+
+    try:
+        result = ai_harmonization_service.refresh_run(run)
+    except Exception as exc:
+        logger.exception("AI harmonization refresh failed for run %s", run_id)
+        run.status = "failed"
+        run.error_message = str(exc)
+        run.completed_at = timezone.now()
+        run.save(update_fields=["status", "error_message", "completed_at", "updated_at"])
+        return {"success": False, "message": str(exc), "run_id": run_id}
+
+    run.status = "completed"
+    run.processed_attributes_count = result.get("processed_attributes_count", 0)
+    run.failed_attributes_count = result.get("failed_attributes_count", 0)
+    run.usage_summary = result.get("usage_summary", {})
+    run.openai_response_ids = result.get("openai_response_ids", [])
+    run.error_message = result.get("message", "")
+    run.completed_at = timezone.now()
+    run.save(
+        update_fields=[
+            "status",
+            "processed_attributes_count",
+            "failed_attributes_count",
+            "usage_summary",
+            "openai_response_ids",
+            "error_message",
+            "completed_at",
+            "updated_at",
+        ]
+    )
+
+    return {"success": True, "run_id": run_id, **result}
 
 #patch, re=imported from views.py to resolve import error. 
 def _serialize_observation_value(observation: Observation) -> str:

@@ -1212,6 +1212,120 @@
       margin: 0 auto 1rem;
     }
 
+    .codebook-generation-card {
+      margin-top: 1rem;
+      padding: 1rem 1.25rem;
+      border: 1px solid rgba(15, 118, 110, 0.18);
+      border-radius: 12px;
+      background: linear-gradient(180deg, rgba(240, 253, 250, 0.95), rgba(255, 255, 255, 0.98));
+    }
+
+    .codebook-generation-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      align-items: flex-start;
+      margin-bottom: 0.9rem;
+    }
+
+    .codebook-generation-header h4 {
+      margin: 0 0 0.3rem;
+      font-size: 1rem;
+      color: var(--text-primary);
+    }
+
+    .codebook-generation-header p {
+      margin: 0;
+      color: var(--text-secondary);
+      line-height: 1.45;
+      font-size: 0.92rem;
+    }
+
+    .codebook-run-badge {
+      flex-shrink: 0;
+      padding: 0.35rem 0.7rem;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      white-space: nowrap;
+      border: 1px solid transparent;
+    }
+
+    .codebook-run-badge.status-pending,
+    .codebook-run-badge.status-running {
+      background: rgba(245, 158, 11, 0.14);
+      border-color: rgba(245, 158, 11, 0.25);
+      color: #9a6700;
+    }
+
+    .codebook-run-badge.status-completed {
+      background: rgba(34, 197, 94, 0.14);
+      border-color: rgba(34, 197, 94, 0.22);
+      color: #166534;
+    }
+
+    .codebook-run-badge.status-failed {
+      background: rgba(239, 68, 68, 0.12);
+      border-color: rgba(239, 68, 68, 0.22);
+      color: #991b1b;
+    }
+
+    .codebook-run-badge.status-idle {
+      background: rgba(100, 116, 139, 0.12);
+      border-color: rgba(100, 116, 139, 0.18);
+      color: #334155;
+    }
+
+    .codebook-generation-progress-row {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      margin-bottom: 0.65rem;
+      flex-wrap: wrap;
+    }
+
+    .codebook-progress-bar {
+      flex: 1 1 240px;
+      min-width: 200px;
+      height: 10px;
+      background: rgba(148, 163, 184, 0.18);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .codebook-progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #0f766e, #14b8a6);
+      transition: width 0.35s ease;
+    }
+
+    .codebook-progress-count {
+      color: var(--text-primary);
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+
+    .codebook-run-message {
+      color: var(--text-secondary);
+      font-size: 0.92rem;
+      line-height: 1.45;
+      margin-bottom: 0.8rem;
+    }
+
+    .codebook-generation-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.9rem;
+      flex-wrap: wrap;
+    }
+
+    .codebook-generation-note {
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      line-height: 1.4;
+      flex: 1 1 280px;
+    }
+
     .supported-formats {
       font-size: 0.85rem;
       color: var(--text-secondary);
@@ -1879,6 +1993,63 @@
             <i class="fas fa-upload"></i>
             Upload {% if study.study_purpose == 'target' %}Target{% else %}Source{% endif %} Codebook
           </button>
+        </div>
+      {% endif %}
+
+      {% if study.variables.count > 0 %}
+        <div class="codebook-generation-card" id="codebookGenerationCard">
+          <div class="codebook-generation-header">
+            <div>
+              <h4>Generated Codebook Sync</h4>
+              <p>Generate or regenerate the study codebook.</p>
+            </div>
+            {% with latest_codebook_run as run %}
+              <span id="codebookRunBadge" class="codebook-run-badge {% if run %}status-{{ run.status }}{% else %}status-idle{% endif %}">
+                {% if run %}{{ run.get_status_display }}{% else %}Idle{% endif %}
+              </span>
+            {% endwith %}
+          </div>
+
+          <div class="codebook-generation-progress-row">
+            {% with latest_codebook_run as run %}
+              <div class="codebook-progress-bar">
+                <div id="codebookRunProgressBar" class="codebook-progress-fill" style="width: {% if run %}{{ run.progress_percentage }}{% else %}0{% endif %}%;"></div>
+              </div>
+              <div id="codebookRunCount" class="codebook-progress-count">
+                {% if run %}
+                  {{ run.processed_attributes_count }}/{{ run.total_attributes_count }} processed{% if run.failed_attributes_count %}, {{ run.failed_attributes_count }} unchanged{% endif %}
+                {% else %}
+                  No generation run yet
+                {% endif %}
+              </div>
+            {% endwith %}
+          </div>
+
+          <div id="codebookRunMessage" class="codebook-run-message">
+            {% if latest_codebook_run %}
+              {% if latest_codebook_run.status == 'failed' %}
+                {{ latest_codebook_run.error_message|default:'The last codebook generation run failed.' }}
+              {% elif latest_codebook_run.status == 'completed' %}
+                Last completed {{ latest_codebook_run.completed_at|timesince }} ago.
+              {% elif latest_codebook_run.status == 'running' %}
+                Codebook generation is in progress.
+              {% else %}
+                Generation is queued and will start shortly.
+              {% endif %}
+            {% else %}
+              Generate or regenerate the study codebook from the current variables.
+            {% endif %}
+          </div>
+
+          <div class="codebook-generation-actions">
+            <form method="post" action="{% url 'core:generate_study_codebook' study.id %}" id="codebookGenerationForm">
+              {% csrf_token %}
+              <button type="submit" id="codebookGenerationButton" class="btn btn-secondary" {% if latest_codebook_run and latest_codebook_run.is_active %}disabled{% endif %}>
+                <i class="fas fa-sync-alt"></i>
+                {% if study.codebook %}Regenerate Codebook{% else %}Generate Codebook{% endif %}
+              </button>
+            </form>
+          </div>
         </div>
       {% endif %}
       
@@ -3506,8 +3677,69 @@
       form.submit();
     }
 
+    let codebookRunPollHandle = null;
+
+    function startCodebookRunPolling(studyId) {
+      if (codebookRunPollHandle) {
+        clearInterval(codebookRunPollHandle);
+      }
+
+      const poll = () => {
+        fetch(`/app/studies/${studyId}/codebook-generation-status/`)
+          .then(response => response.json())
+          .then(data => {
+            updateCodebookRunCard(data);
+            if (!data.is_active && codebookRunPollHandle) {
+              clearInterval(codebookRunPollHandle);
+              codebookRunPollHandle = null;
+            }
+          })
+          .catch(error => {
+            console.error('Error polling codebook generation status:', error);
+            if (codebookRunPollHandle) {
+              clearInterval(codebookRunPollHandle);
+              codebookRunPollHandle = null;
+            }
+          });
+      };
+
+      poll();
+      codebookRunPollHandle = setInterval(poll, 3000);
+    }
+
+    function updateCodebookRunCard(data) {
+      const badge = document.getElementById('codebookRunBadge');
+      const progressBar = document.getElementById('codebookRunProgressBar');
+      const count = document.getElementById('codebookRunCount');
+      const message = document.getElementById('codebookRunMessage');
+      const button = document.getElementById('codebookGenerationButton');
+
+      if (!badge || !progressBar || !count || !message || !button || !data.has_run) {
+        return;
+      }
+
+      badge.className = `codebook-run-badge status-${data.status}`;
+      badge.textContent = data.status_display;
+      progressBar.style.width = `${data.progress_percentage || 0}%`;
+      count.textContent = `${data.processed}/${data.total} processed${data.failed ? `, ${data.failed} unchanged` : ''}`;
+
+      if (data.status === 'failed') {
+        message.textContent = data.error_message || 'The latest codebook generation run failed.';
+      } else if (data.status === 'completed') {
+        message.textContent = 'Codebook generation completed. The file now reflects the current study attributes.';
+      } else if (data.status === 'running') {
+        message.textContent = 'Codebook generation is in progress.';
+      } else {
+        message.textContent = 'Generation is queued and will start shortly.';
+      }
+
+      button.disabled = data.is_active;
+    }
+
     // Setup file input listeners for document uploads
     document.addEventListener('DOMContentLoaded', function() {
+      const studyId = {{ study.id }};
+
       // Protocol file input
       const protocolInput = document.getElementById('protocolFileInput');
       if (protocolInput) {
@@ -3552,6 +3784,11 @@
       const additionalDropzone = document.getElementById('additionalDropzone');
       if (additionalDropzone) {
         setupDropzone(additionalDropzone, additionalInput);
+      }
+
+      const codebookBadge = document.getElementById('codebookRunBadge');
+      if (codebookBadge && (codebookBadge.classList.contains('status-pending') || codebookBadge.classList.contains('status-running'))) {
+        startCodebookRunPolling(studyId);
       }
     });
 

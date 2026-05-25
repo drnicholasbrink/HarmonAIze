@@ -1,17 +1,378 @@
 """
 Utility functions for processing codebooks and extracting variable information.
 """
-import pandas as pd
-import sqlite3
+import csv
+import html
+import io
 import json
-import xml.etree.ElementTree as ET
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any
 import logging
-from django.shortcuts import redirect
+import re
+import sqlite3
+import xml.etree.ElementTree as ET
+import zipfile
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+import pandas as pd
 from django.contrib import messages
+from django.core.files.base import ContentFile
+from django.shortcuts import redirect
 
 logger = logging.getLogger(__name__)
+
+
+VARIABLE_NAME_EXPANSIONS = {
+    "age": "age",
+    "sex": "sex",
+    "gender": "gender",
+    "dob": "date of birth",
+    "bp": "blood pressure",
+    "sbp": "systolic blood pressure",
+    "dbp": "diastolic blood pressure",
+    "hr": "heart rate",
+    "rr": "respiratory rate",
+    "temp": "temperature",
+    "wt": "weight",
+    "ht": "height",
+    "bmi": "body mass index",
+    "id": "identifier",
+    "pid": "patient identifier",
+    "pt": "patient",
+    "adm": "admission",
+    "dx": "diagnosis",
+    "rx": "treatment",
+    "addr": "address",
+    "lat": "latitude",
+    "lon": "longitude",
+    "lng": "longitude",
+    "loc": "location",
+}
+
+GEOLOCATION_HINTS = {"lat", "latitude", "lon", "lng", "longitude", "location", "address", "city", "country", "village", "district", "region", "site"}
+CLIMATE_HINTS = {"temperature", "temp", "rain", "rainfall", "precip", "precipitation", "humidity", "weather", "wind", "solar", "climate"}
+IDENTIFIER_HINTS = {"id", "identifier", "patient_id", "participant_id", "record_id", "study_id", "visit_id", "sample_id"}
+DATE_HINTS = {"date", "time", "datetime", "timestamp", "visit_date", "admission_date", "discharge_date", "dob", "birth_date"}
+BOOLEAN_VALUES = {"0", "1", "true", "false", "yes", "no", "y", "n", "t", "f"}
+
+
+def _tokenize_variable_name(variable_name: str) -> list[str]:
+    raw_tokens = re.split(r"[^a-zA-Z0-9]+", (variable_name or "").lower())
+    tokens: list[str] = []
+    for token in raw_tokens:
+        if not token:
+            continue
+        expanded = VARIABLE_NAME_EXPANSIONS.get(token)
+        if expanded:
+            tokens.extend(expanded.split())
+        else:
+            tokens.append(token)
+    return tokens
+
+
+def _humanize_variable_name(variable_name: str) -> str:
+    tokens = _tokenize_variable_name(variable_name)
+    if not tokens:
+        return str(variable_name or "")
+    return " ".join(tokens).replace(" id", " ID").title().replace("Id", "ID")
+
+
+def _infer_category_from_name(variable_name: str) -> str:
+    name_tokens = set(_tokenize_variable_name(variable_name))
+    if name_tokens & GEOLOCATION_HINTS:
+        return "geolocation"
+    if name_tokens & CLIMATE_HINTS:
+        return "climate"
+    return "health"
+
+
+def _infer_unit_from_name(variable_name: str) -> str:
+    lowered = (variable_name or "").lower()
+    if "age" in lowered:
+        return "years"
+    if any(token in lowered for token in {"weight", "wt"}):
+        return "kg"
+    if any(token in lowered for token in {"height", "ht"}):
+        return "cm"
+    if "bmi" in lowered:
+        return "kg/m^2"
+    if any(token in lowered for token in {"sbp", "dbp", "pressure", "bp"}):
+        return "mmHg"
+    if "temp" in lowered or "temperature" in lowered:
+        return "C"
+    return ""
+
+
+def _infer_variable_type_from_series(series: pd.Series, variable_name: str) -> str:
+    lowered = (variable_name or "").lower()
+    non_null = series.dropna()
+    sample = non_null.head(25)
+
+    if any(hint in lowered for hint in IDENTIFIER_HINTS):
+        return "string"
+
+    if any(hint in lowered for hint in DATE_HINTS):
+        parsed = pd.to_datetime(sample, errors="coerce")
+        if len(sample) and parsed.notna().sum() >= max(1, int(len(sample) * 0.6)):
+            return "datetime"
+
+    if pd.api.types.is_bool_dtype(series):
+        return "boolean"
+
+    if len(sample):
+        normalized = {str(value).strip().lower() for value in sample.tolist() if str(value).strip()}
+        if normalized and normalized <= BOOLEAN_VALUES:
+            return "boolean"
+
+    if pd.api.types.is_integer_dtype(series):
+        return "int"
+    if pd.api.types.is_float_dtype(series):
+        return "float"
+
+    if len(sample):
+        parsed = pd.to_datetime(sample, errors="coerce")
+        if parsed.notna().sum() >= max(1, int(len(sample) * 0.8)):
+            return "datetime"
+
+    unique_count = non_null.nunique()
+    if len(non_null) and unique_count and unique_count <= min(12, max(3, int(len(non_null) * 0.2))):
+        return "categorical"
+
+    return "string"
+
+
+def _read_text_excerpt(file_path: str, max_chars: int = 12000) -> str:
+    path = Path(file_path)
+    if not path.exists():
+        return ""
+
+    suffix = path.suffix.lower()
+
+    try:
+        if suffix in {".txt", ".md", ".csv", ".json", ".xml", ".rtf"}:
+            return path.read_text(encoding="utf-8", errors="ignore")[:max_chars]
+
+        if suffix == ".docx":
+            with zipfile.ZipFile(path) as archive:
+                xml_bytes = archive.read("word/document.xml")
+            xml_text = xml_bytes.decode("utf-8", errors="ignore")
+            stripped = re.sub(r"<[^>]+>", " ", xml_text)
+            return html.unescape(re.sub(r"\s+", " ", stripped)).strip()[:max_chars]
+    except Exception:
+        logger.debug("Could not extract text from %s", file_path, exc_info=True)
+
+    return ""
+
+
+def _collect_study_context_fragments(study) -> list[dict[str, str]]:
+    fragments: list[dict[str, str]] = []
+    if not study:
+        return fragments
+
+    study_description = getattr(study, "description", "") or ""
+    if study_description.strip():
+        fragments.append({"label": "study description", "text": study_description.strip()})
+
+    protocol_file = getattr(study, "protocol_file", None)
+    protocol_path = getattr(protocol_file, "path", "") if protocol_file else ""
+    protocol_name = Path(getattr(protocol_file, "name", "protocol") or "protocol").name if protocol_file else "protocol"
+    if protocol_path:
+        protocol_text = _read_text_excerpt(protocol_path)
+        if protocol_text:
+            fragments.append({"label": protocol_name, "text": protocol_text})
+
+    documents = getattr(study, "documents", None)
+    if documents is None:
+        return fragments
+
+    try:
+        iterable = documents.all()
+    except Exception:
+        iterable = []
+
+    for document in iterable:
+        doc_text = _read_text_excerpt(getattr(getattr(document, "file", None), "path", ""))
+        doc_name = getattr(document, "filename", None) or Path(getattr(getattr(document, "file", None), "name", "document")).name
+        doc_description = getattr(document, "description", "") or ""
+        combined = "\n".join(part for part in [doc_description.strip(), doc_text.strip()] if part).strip()
+        if combined:
+            fragments.append({"label": doc_name, "text": combined[:12000]})
+
+    return fragments
+
+
+def _find_context_snippet(variable_name: str, fragments: list[dict[str, str]]) -> str:
+    if not fragments:
+        return ""
+
+    tokens = {token for token in _tokenize_variable_name(variable_name) if len(token) > 2}
+    variable_lower = (variable_name or "").lower()
+    best_match = ""
+    best_score = 0
+
+    for fragment in fragments:
+        sentences = re.split(r"(?<=[.!?])\s+|\n+", fragment["text"])
+        for sentence in sentences:
+            normalized = sentence.strip()
+            if not normalized:
+                continue
+            lowered = normalized.lower()
+            score = 0
+            if variable_lower and variable_lower in lowered:
+                score += 4
+            score += sum(1 for token in tokens if token in lowered)
+            if score > best_score:
+                best_score = score
+                best_match = f"{normalized[:220]} (source: {fragment['label']})"
+
+    return best_match
+
+
+def _normalize_documentation_snippet(snippet: str) -> str:
+    cleaned = re.sub(r"\s*\(source:.*\)$", "", (snippet or "").strip())
+    return re.sub(r"\s+", " ", cleaned)[:240].strip()
+
+
+def _build_codebook_description(
+    *,
+    variable_name: str,
+    display_name: str,
+    variable_type: str,
+    unit: str,
+    documentation_snippet: str,
+) -> str:
+    if documentation_snippet:
+        description = _normalize_documentation_snippet(documentation_snippet)
+        if unit and unit.lower() not in description.lower():
+            description = f"{description.rstrip('.')} Recorded in {unit}."
+        return description
+
+    noun_phrase = display_name[:1].lower() + display_name[1:] if display_name else variable_name
+    descriptions_by_type = {
+        "datetime": f"Records the date or time associated with {noun_phrase}.",
+        "boolean": f"Indicates whether {noun_phrase} is present for the observation.",
+        "categorical": f"Captures the category or coded value for {noun_phrase}.",
+        "float": f"Stores the measured value for {noun_phrase}.",
+        "int": f"Stores the measured value for {noun_phrase}.",
+        "string": f"Stores the recorded value for {noun_phrase}.",
+    }
+    description = descriptions_by_type.get(variable_type, f"Stores the recorded value for {noun_phrase}.")
+    if unit:
+        description = f"{description.rstrip('.')} Recorded in {unit}."
+    return description
+
+
+def infer_variables_from_dataframe(
+    df: pd.DataFrame,
+    study=None,
+    source_label: str = "raw data file",
+) -> List[Dict[str, Any]]:
+    """Build variable metadata from raw columns when a study has no codebook.
+
+    The original column name remains the canonical variable_name. Other fields are
+    derived from column names, container-local type checks, and any readable study
+    documentation such as protocol text or attached documents. Row-level values are
+    never copied into the generated description text.
+    """
+    context_fragments = _collect_study_context_fragments(study)
+    variables: List[Dict[str, Any]] = []
+
+    for column_name in df.columns:
+        variable_name = str(column_name)
+        series = df[column_name]
+        display_name = _humanize_variable_name(variable_name)
+        variable_type = _infer_variable_type_from_series(series, variable_name)
+        unit = _infer_unit_from_name(variable_name)
+        category = _infer_category_from_name(variable_name)
+        snippet = _find_context_snippet(variable_name, context_fragments)
+        description = _build_codebook_description(
+            variable_name=variable_name,
+            display_name=display_name,
+            variable_type=variable_type,
+            unit=unit,
+            documentation_snippet=snippet,
+        )
+
+        variables.append(
+            {
+                "variable_name": variable_name,
+                "display_name": display_name,
+                "description": description,
+                "variable_type": variable_type,
+                "unit": unit,
+                "ontology_code": "",
+                "category": category,
+            }
+        )
+
+    return variables
+
+
+def infer_variables_from_latest_raw_data(study) -> tuple[List[Dict[str, Any]], Any | None]:
+    """Infer variable metadata from the newest raw data file for a study."""
+    from health.models import RawDataFile
+
+    raw_data_file = (
+        RawDataFile.objects.filter(study=study)
+        .exclude(file="")
+        .order_by("-uploaded_at")
+        .first()
+    )
+    if not raw_data_file or not raw_data_file.file:
+        return [], None
+
+    file_path = raw_data_file.file.path
+    file_format = detect_file_format(file_path)
+    if file_format == "csv":
+        df = pd.read_csv(file_path, nrows=50)
+    elif file_format in ["excel", "xlsx"]:
+        df = pd.read_excel(file_path, nrows=50)
+    elif file_format == "json":
+        df = pd.read_json(file_path, lines=True, nrows=50)
+    else:
+        raise ValueError(f"Unsupported raw data format for inference: {file_format}")
+
+    return infer_variables_from_dataframe(
+        df,
+        study=study,
+        source_label=raw_data_file.original_filename or Path(file_path).name,
+    ), raw_data_file
+
+
+def save_generated_codebook_for_study(study, attributes: Optional[List[Any]] = None) -> str:
+    """Write the current study attributes to the generated codebook CSV."""
+    selected_attributes = attributes or list(study.variables.order_by("variable_name"))
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "variable_name",
+        "display_name",
+        "description",
+        "variable_type",
+        "unit",
+        "ontology_code",
+        "category",
+    ])
+
+    for attr in selected_attributes:
+        writer.writerow([
+            attr.variable_name,
+            attr.display_name,
+            attr.description,
+            attr.variable_type,
+            attr.unit,
+            attr.ontology_code,
+            attr.category,
+        ])
+
+    csv_content = output.getvalue()
+    output.close()
+
+    codebook_filename = f"codebook_{study.name.lower().replace(' ', '_')}_generated.csv"
+    study.codebook.save(codebook_filename, ContentFile(csv_content.encode("utf-8")), save=False)
+    study.codebook_format = "csv"
+    study.save(update_fields=["codebook", "codebook_format", "updated_at"] if hasattr(study, "updated_at") else ["codebook", "codebook_format"])
+    return codebook_filename
 
 
 def detect_file_format(file_path: str) -> str:
@@ -346,7 +707,37 @@ def process_codebook_mapping(request, study, codebook_type='source'):
         Tuple of (df, detected_format, context) or redirect response
     """
     if not study.codebook:
-        messages.error(request, f'No codebook file found for this {codebook_type} study.')
+        try:
+            inferred_variables, raw_data_file = infer_variables_from_latest_raw_data(study)
+        except Exception as exc:
+            logger.warning("Could not infer variables from raw data for study %s: %s", study.pk, exc)
+            inferred_variables, raw_data_file = [], None
+
+        if inferred_variables:
+            session_variables_key = (
+                f'{codebook_type}_variables_data_{study.id}'
+                if codebook_type == 'target'
+                else f'variables_data_{study.id}'
+            )
+            request.session[session_variables_key] = inferred_variables
+            request.session[f'extract_from_raw_{study.id}'] = True
+            messages.info(
+                request,
+                (
+                    f'No codebook was found, so HarmonAIze drafted {len(inferred_variables)} '
+                    f'variable definitions from the latest raw data file '
+                    f'({raw_data_file.original_filename if raw_data_file else "raw upload"}) '
+                    f'using column names, local type checks, and any available protocol or study documents without copying row-level values into the generated codebook.'
+                ),
+            )
+            if codebook_type == 'target':
+                return redirect('core:target_select_variables', study_id=study.id)
+            return redirect('health:select_variables', study_id=study.id)
+
+        messages.error(
+            request,
+            f'No codebook file found for this {codebook_type} study. Upload a raw data file or add protocol documentation so variable metadata can be inferred.',
+        )
         return redirect('core:study_detail', pk=study.pk)
     
     try:

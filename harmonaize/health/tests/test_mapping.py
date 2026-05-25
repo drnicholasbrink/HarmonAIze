@@ -144,6 +144,31 @@ def test_validate_safe_transform_code_blocks_disallowed_call():
         validate_safe_transform_code("lambda value: __import__('os').system('echo x')")
 
 
+def test_validate_safe_transform_code_allows_simple_for_loop():
+    validate_safe_transform_code(
+        """def transform(value):
+    if not value:
+        return []
+    cleaned = []
+    for item in value.split(','):
+        item = item.strip()
+        if item:
+            cleaned.append(item)
+    return cleaned"""
+    )
+
+
+def test_validate_safe_transform_code_blocks_for_else():
+    with pytest.raises(ValidationError):
+        validate_safe_transform_code(
+            """def transform(value):
+    for item in value:
+        return item
+    else:
+        return None"""
+        )
+
+
 # ------------------- Form validation -------------------
 
 def test_mapping_rule_form_role_relation(schema, attributes):

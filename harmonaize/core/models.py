@@ -628,3 +628,83 @@ class StudyDocument(models.Model):
     def file_extension(self):
         import os
         return os.path.splitext(self.file.name)[1].lower()
+
+
+class CodebookGenerationRun(models.Model):
+    """Track background codebook generation and enrichment for a study."""
+
+    STATUS_PENDING = "pending"
+    STATUS_RUNNING = "running"
+    STATUS_COMPLETED = "completed"
+    STATUS_FAILED = "failed"
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Queued"),
+        (STATUS_RUNNING, "Running"),
+        (STATUS_COMPLETED, "Completed"),
+        (STATUS_FAILED, "Failed"),
+    ]
+
+    TRIGGER_AUTO = "auto"
+    TRIGGER_MANUAL = "manual"
+    TRIGGER_CHOICES = [
+        (TRIGGER_AUTO, "Automatic"),
+        (TRIGGER_MANUAL, "Manual"),
+    ]
+
+    study = models.ForeignKey(
+        Study,
+        on_delete=models.CASCADE,
+        related_name="codebook_generation_runs",
+    )
+    requested_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="codebook_generation_runs",
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING,
+    )
+    trigger_mode = models.CharField(
+        max_length=20,
+        choices=TRIGGER_CHOICES,
+        default=TRIGGER_AUTO,
+    )
+    requested_attributes = models.ManyToManyField(
+        Attribute,
+        blank=True,
+        related_name="codebook_generation_runs",
+        help_text="Attributes targeted by this codebook generation run",
+    )
+    total_attributes_count = models.PositiveIntegerField(default=0)
+    processed_attributes_count = models.PositiveIntegerField(default=0)
+    failed_attributes_count = models.PositiveIntegerField(default=0)
+    celery_task_id = models.CharField(max_length=255, blank=True)
+    codebook_filename = models.CharField(max_length=255, blank=True)
+    openai_response_ids = models.JSONField(default=list, blank=True)
+    usage_summary = models.JSONField(default=dict, blank=True)
+    error_message = models.TextField(blank=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Codebook run {self.id} for {self.study.name}"
+
+    @property
+    def progress_percentage(self):
+        if self.total_attributes_count == 0:
+            return 0
+        completed_count = min(self.total_attributes_count, self.processed_attributes_count)
+        return round((completed_count / self.total_attributes_count) * 100, 1)
+
+    @property
+    def is_active(self):
+        return self.status in {self.STATUS_PENDING, self.STATUS_RUNNING}

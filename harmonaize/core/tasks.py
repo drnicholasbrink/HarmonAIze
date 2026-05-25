@@ -2,11 +2,132 @@
 Celery tasks for generating embeddings asynchronously.
 """
 import logging
+from typing import Any
+
 from celery import shared_task
 from django.db import transaction
 from django.core.exceptions import ObjectDoesNotExist
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
+
+
+@shared_task(bind=True, max_retries=2, default_retry_delay=60)
+def enrich_generated_codebook_descriptions(self, run_id: int) -> dict[str, Any]:
+    """Update study attributes first, then rebuild the generated codebook from all study attributes."""
+    try:
+        from core.models import CodebookGenerationRun
+        from core.utils import save_generated_codebook_for_study
+
+        run = CodebookGenerationRun.objects.select_related("study").get(id=run_id)
+        study = run.study
+    except ObjectDoesNotExist:
+        return {
+            "success": False,
+            "error": f"Codebook generation run with ID {run_id} not found",
+            "run_id": run_id,
+        }
+
+    try:
+        run.status = "running"
+        run.started_at = timezone.now()
+        run.celery_task_id = self.request.id or ""
+        if run.total_attributes_count == 0:
+            run.total_attributes_count = run.requested_attributes.count() or study.variables.count()
+        run.error_message = ""
+        run.save(
+            update_fields=[
+                "status",
+                "started_at",
+                "celery_task_id",
+                "total_attributes_count",
+                "error_message",
+                "updated_at",
+            ]
+        )
+
+        requested_attribute_ids = list(
+            run.requested_attributes.order_by("id").values_list("id", flat=True)
+        ) or list(study.variables.order_by("id").values_list("id", flat=True))
+
+        result: dict[str, Any] = {}
+        updated_attribute_ids: list[int] = []
+        if requested_attribute_ids:
+            try:
+                from core.attribute_description_service import AttributeDescriptionRAGService
+
+                service = AttributeDescriptionRAGService()
+            except ValueError as exc:
+                logger.warning(
+                    "Description enrichment unavailable for study %s, regenerating local codebook only: %s",
+                    study.id,
+                    exc,
+                )
+                run.error_message = str(exc)
+            else:
+                result = service.enrich_study(study, attribute_ids=requested_attribute_ids)
+                updated_attribute_ids = result.get("updated_attribute_ids", [])
+
+        codebook_filename = save_generated_codebook_for_study(study)
+
+        for attribute_id in updated_attribute_ids:
+            regenerate_attribute_embeddings.delay(attribute_id)
+
+        processed_count = len(requested_attribute_ids)
+        failed_count = 0
+        if requested_attribute_ids and updated_attribute_ids:
+            failed_count = max(0, len(requested_attribute_ids) - len(updated_attribute_ids))
+
+        run.status = "completed"
+        run.processed_attributes_count = processed_count
+        run.failed_attributes_count = failed_count
+        run.codebook_filename = codebook_filename
+        run.openai_response_ids = result.get("response_ids", [])
+        run.usage_summary = result.get("usage", {}) or {}
+        run.completed_at = timezone.now()
+        run.save(
+            update_fields=[
+                "status",
+                "processed_attributes_count",
+                "failed_attributes_count",
+                "codebook_filename",
+                "openai_response_ids",
+                "usage_summary",
+                "error_message",
+                "completed_at",
+                "updated_at",
+            ]
+        )
+
+        return {
+            "success": True,
+            "study_id": study.id,
+            "run_id": run.id,
+            "codebook_filename": codebook_filename,
+            **result,
+        }
+    except Exception as exc:
+        logger.error("Error enriching codebook descriptions for run %s: %s", run_id, exc)
+        try:
+            raise self.retry(exc=exc, countdown=60 * (2 ** self.request.retries))
+        except self.MaxRetriesExceededError:
+            run.status = "failed"
+            run.error_message = f"Max retries exceeded: {str(exc)}"
+            run.completed_at = timezone.now()
+            run.save(
+                update_fields=[
+                    "status",
+                    "error_message",
+                    "completed_at",
+                    "updated_at",
+                ]
+            )
+            return {
+                "success": False,
+                "error": f"Max retries exceeded: {str(exc)}",
+                "run_id": run_id,
+                "study_id": study.id,
+            }
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)

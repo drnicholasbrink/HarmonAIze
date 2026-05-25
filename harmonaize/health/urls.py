@@ -182,4 +182,24 @@ urlpatterns = [
         views.transformation_suggestion_api,
         name="transformation_suggestion_api",
     ),
+    path(
+        "api/mapping/<int:schema_id>/ai-refresh/start/",
+        views.start_ai_harmonization_refresh,
+        name="start_ai_harmonization_refresh",
+    ),
+    path(
+        "api/mapping/<int:schema_id>/ai-refresh/rerun-attribute/",
+        views.rerun_attribute_ai_harmonization,
+        name="rerun_attribute_ai_harmonization",
+    ),
+    path(
+        "api/ai-refresh-run/<int:run_id>/status/",
+        views.ai_harmonization_run_status,
+        name="ai_harmonization_run_status",
+    ),
+    path(
+        "api/ai-refresh-run/<int:run_id>/status-partial/",
+        views.ai_harmonization_run_status_partial,
+        name="ai_harmonization_run_status_partial",
+    ),
 ]

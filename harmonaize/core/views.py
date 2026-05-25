@@ -7,11 +7,12 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.conf import settings
+from django.db import transaction
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.offline import plot
-from .models import Study, Project, ProjectMembership, ProjectInvitation, Attribute
+from .models import Study, Project, ProjectMembership, ProjectInvitation, Attribute, CodebookGenerationRun
 from .forms import StudyCreationForm, ProjectCreationForm, ProjectInvitationForm
 from health.models import RawDataFile
 from core.tsne_service import tsne_service
@@ -211,9 +212,92 @@ class StudyDetailView(LoginRequiredMixin, DetailView):
             'variables_with_embeddings': variables_with_embeddings,
             'embedding_progress': round(embedding_progress, 1),
             'has_harmonised_sources': has_harmonised_sources,
+            'latest_codebook_run': study.codebook_generation_runs.first(),
         })
         
         return context
+
+
+def _queue_codebook_generation_run(study, user, trigger_mode, attribute_ids=None):
+    attribute_id_list = list(
+        attribute_ids or study.variables.order_by("id").values_list("id", flat=True)
+    )
+    run = CodebookGenerationRun.objects.create(
+        study=study,
+        requested_by=user,
+        trigger_mode=trigger_mode,
+        total_attributes_count=len(attribute_id_list),
+    )
+    if attribute_id_list:
+        run.requested_attributes.set(attribute_id_list)
+
+    def _enqueue():
+        from core.tasks import enrich_generated_codebook_descriptions
+
+        task = enrich_generated_codebook_descriptions.delay(run.id)
+        CodebookGenerationRun.objects.filter(id=run.id).update(
+            celery_task_id=getattr(task, "id", ""),
+        )
+
+    transaction.on_commit(_enqueue)
+    return run
+
+
+@login_required
+@require_http_methods(["POST"])
+def generate_study_codebook(request, study_id):
+    study = get_object_or_404(Study, id=study_id, project__members=request.user)
+
+    if not study.variables.exists():
+        messages.error(request, "Add variables to the study before generating a codebook.")
+        return redirect("core:study_detail", pk=study_id)
+
+    latest_run = study.codebook_generation_runs.first()
+    if latest_run and latest_run.is_active:
+        messages.warning(request, "A codebook generation run is already in progress for this study.")
+        return redirect("core:study_detail", pk=study_id)
+
+    run = _queue_codebook_generation_run(
+        study,
+        request.user,
+        CodebookGenerationRun.TRIGGER_MANUAL,
+    )
+
+    messages.success(
+        request,
+        f"Codebook generation queued for {run.total_attributes_count} variables.",
+    )
+    return redirect("core:study_detail", pk=study_id)
+
+
+@login_required
+@require_http_methods(["GET"])
+def codebook_generation_status(request, study_id):
+    study = get_object_or_404(Study, id=study_id, project__members=request.user)
+    run = study.codebook_generation_runs.first()
+
+    if not run:
+        return JsonResponse({
+            "has_run": False,
+            "is_active": False,
+        })
+
+    return JsonResponse({
+        "has_run": True,
+        "run_id": run.id,
+        "status": run.status,
+        "status_display": run.get_status_display(),
+        "trigger_mode": run.trigger_mode,
+        "progress_percentage": run.progress_percentage,
+        "total": run.total_attributes_count,
+        "processed": run.processed_attributes_count,
+        "failed": run.failed_attributes_count,
+        "is_active": run.is_active,
+        "error_message": run.error_message,
+        "started_at": run.started_at.isoformat() if run.started_at else None,
+        "completed_at": run.completed_at.isoformat() if run.completed_at else None,
+        "codebook_filename": run.codebook_filename,
+    })
 
 
 @login_required

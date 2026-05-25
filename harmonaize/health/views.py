@@ -5,6 +5,7 @@ import logging
 import hashlib
 from datetime import datetime, timedelta
 import pandas as pd
+from django.conf import settings
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import (
     FileResponse,
@@ -19,15 +20,16 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
 from django.utils.text import slugify
-from django.db import models
+from django.db import models, transaction
 from django.forms import formset_factory
 from django.views.decorators.http import require_http_methods, require_POST
 from django.db.models import Count, Q
 from django.contrib.postgres.aggregates import ArrayAgg
 
 from core.models import Study, Attribute, Observation, ProjectMembership
+from core.utils import infer_variables_from_dataframe, save_generated_codebook_for_study
 from climate.models import ClimateDataRequest
-from .models import MappingSchema, MappingRule, RawDataFile, RawDataColumn
+from .models import HarmonizationAIRun, MappingSchema, MappingRule, RawDataFile, RawDataColumn
 from core.forms import VariableConfirmationFormSetFactory
 from .forms import (
     ExportDataForm,
@@ -42,10 +44,28 @@ from .utils import (
     analyze_raw_data_columns,
     suggest_column_mappings,
 )
-from .tasks import ingest_raw_data_file
+from .tasks import ingest_raw_data_file, run_harmonization_ai_refresh
 from .eda_service import generate_eda_summary
 
 logger = logging.getLogger(__name__)
+
+
+def _coerce_bool(value, default: bool = False) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(value)
+
+
+def _coerce_positive_int(value, default: int) -> int:
+    try:
+        coerced = int(value)
+    except (TypeError, ValueError):
+        return default
+    return coerced if coerced > 0 else default
 
 
 LAG_UNIT_TO_DAYS = {
@@ -851,40 +871,32 @@ def select_variables(request, study_id):  # noqa: C901 (complexity accepted temp
                 if extract_from_raw and created_attributes:
                     # Generate a codebook CSV from the selected variables
                     try:
-                        import csv
-                        import io
-                        from django.core.files.base import ContentFile
-                        
-                        # Create CSV content
-                        output = io.StringIO()
-                        writer = csv.writer(output)
-                        writer.writerow(['variable_name', 'display_name', 'description', 'variable_type', 'unit', 'ontology_code', 'category'])
-                        
-                        for attr in created_attributes:
-                            writer.writerow([
-                                attr.variable_name,
-                                attr.display_name,
-                                attr.description,
-                                attr.variable_type,
-                                attr.unit,
-                                attr.ontology_code,
-                                attr.category,
-                            ])
-                        
-                        csv_content = output.getvalue()
-                        output.close()
-                        
-                        # Save as the study's codebook
-                        codebook_filename = f"codebook_{study.name.lower().replace(' ', '_')}_generated.csv"
-                        study.codebook.save(codebook_filename, ContentFile(csv_content.encode('utf-8')), save=False)
-                        study.codebook_format = 'csv'
-                        study.status = 'variables_extracted'
-                        study.save()
+                        save_generated_codebook_for_study(study, created_attributes)
                         
                         messages.info(
                             request,
                             f"A codebook has been generated from the selected variables and is available for download."
                         )
+
+                        if settings.OPENAI_API_KEY:
+                            from core.models import CodebookGenerationRun
+                            from core.views import _queue_codebook_generation_run
+
+                            run = _queue_codebook_generation_run(
+                                study,
+                                request.user,
+                                CodebookGenerationRun.TRIGGER_AUTO,
+                                [attribute.id for attribute in created_attributes],
+                            )
+                            messages.info(
+                                request,
+                                f"Codebook refinement run #{run.id} has been queued.",
+                            )
+                        else:
+                            messages.warning(
+                                request,
+                                "The generated codebook uses local draft descriptions because OPENAI_API_KEY is not configured. Configure the API key to enable Celery-managed RAG enrichment from study documents.",
+                            )
                     except Exception as e:
                         # Non-fatal: continue even if codebook generation fails
                         messages.warning(
@@ -1219,6 +1231,7 @@ def harmonization_dashboard(request, schema_id):
         "progress_percent": progress_percent,
         "raw_data_files": raw_data_files,
         "has_raw_data": has_raw_data,
+        "latest_ai_run": schema.ai_runs.first(),
         "page_title": "Harmonise Study Dashboard",
     }
     
@@ -1353,11 +1366,11 @@ def upload_raw_data(request, study_id=None):
                     # Read file to get columns
                     import pandas as pd
                     if file_ext == 'csv':
-                        df = pd.read_csv(upload, nrows=5)
+                        df = pd.read_csv(upload, nrows=50)
                     elif file_ext in ['xlsx', 'xls']:
-                        df = pd.read_excel(upload, nrows=5)
+                        df = pd.read_excel(upload, nrows=50)
                     elif file_ext == 'json':
-                        df = pd.read_json(upload, lines=True, nrows=5)
+                        df = pd.read_json(upload, lines=True, nrows=50)
                     else:
                         raise ValueError(f"Unsupported file format: {file_ext}")
                     
@@ -1382,18 +1395,14 @@ def upload_raw_data(request, study_id=None):
                                 "Previous codebook has been removed. A new codebook will be generated from the extracted variables."
                             )
                         
-                        # Create variables data structure for select_variables view
-                        variables_data = []
-                        for col_name in columns:
-                            variables_data.append({
-                                "variable_name": str(col_name),
-                                "display_name": str(col_name),
-                                "description": f"Auto-extracted from raw data file: {raw_data_file.original_filename}",
-                                "variable_type": "string",  # Default to string, user can change
-                                "unit": "",
-                                "ontology_code": "",
-                                "category": "health",
-                            })
+                        # Create variables data structure for select_variables view.
+                        # Keep the original column name as variable_name, but infer richer
+                        # metadata from observed values and any available study documents.
+                        variables_data = infer_variables_from_dataframe(
+                            df,
+                            study=raw_data_file.study,
+                            source_label=raw_data_file.original_filename,
+                        )
                         
                         # Save the file first (but don't process yet)
                         raw_data_file.processing_status = 'pending'
@@ -1408,7 +1417,7 @@ def upload_raw_data(request, study_id=None):
                         messages.info(
                             request,
                             f"Extracted {len(columns)} columns from your data file. "
-                            f"Please review and select which variables to include. A codebook will be generated from your selection.",
+                            f"Please review and select which variables to include. HarmonAIze drafted display names, descriptions, and type hints from column names, local type checks, and any available study documents. After you confirm the variables, a Celery-managed OpenAI RAG task can refine the codebook descriptions using documents only.",
                         )
                         
                         # Redirect to select_variables to let user review
@@ -2375,6 +2384,136 @@ def similarity_suggestions_api(request, schema_id):
 
 
 @login_required
+@require_http_methods(["POST"])
+def start_ai_harmonization_refresh(request, schema_id):
+    """Queue a schema-wide AI refresh for mapping rules."""
+    schema = get_object_or_404(MappingSchema, id=schema_id)
+
+    if not schema.source_study.project.members.filter(id=request.user.id).exists():
+        return JsonResponse({"error": "Permission denied"}, status=403)
+
+    if not settings.OPENAI_API_KEY:
+        return JsonResponse({"error": "OpenAI API key is not configured."}, status=503)
+
+    payload = json.loads(request.body or "{}") if request.body else {}
+    run = HarmonizationAIRun.objects.create(
+        schema=schema,
+        requested_by=request.user,
+        trigger_mode="batch",
+        run_below_confidence_grade=payload.get("run_below_confidence_grade") or "excellent",
+        top_candidates_per_variable=_coerce_positive_int(payload.get("top_candidates_per_variable"), 3),
+        include_protocol=_coerce_bool(payload.get("include_protocol"), True),
+        include_additional_documents=_coerce_bool(payload.get("include_additional_documents"), True),
+        include_deidentified_summary_stats=_coerce_bool(payload.get("include_deidentified_summary_stats"), False),
+        include_existing_codebooks=_coerce_bool(payload.get("include_existing_codebooks"), True),
+        use_openai_background=_coerce_bool(payload.get("use_openai_background"), True),
+    )
+    async_result = run_harmonization_ai_refresh.delay(run.id)
+    run.celery_task_id = async_result.id
+    run.save(update_fields=["celery_task_id", "updated_at"])
+
+    return JsonResponse({
+        "success": True,
+        "run_id": run.id,
+        "status": run.status,
+    })
+
+
+@login_required
+@require_http_methods(["POST"])
+def rerun_attribute_ai_harmonization(request, schema_id):
+    """Queue an AI refresh for a single source attribute within a schema."""
+    schema = get_object_or_404(MappingSchema, id=schema_id)
+
+    if not schema.source_study.project.members.filter(id=request.user.id).exists():
+        return JsonResponse({"error": "Permission denied"}, status=403)
+
+    if not settings.OPENAI_API_KEY:
+        return JsonResponse({"error": "OpenAI API key is not configured."}, status=503)
+
+    payload = json.loads(request.body or "{}") if request.body else {}
+    attribute_id = payload.get("source_attribute_id")
+    if not attribute_id:
+        return JsonResponse({"error": "source_attribute_id is required"}, status=400)
+
+    if not schema.source_study.variables.filter(pk=attribute_id).exists():
+        return JsonResponse({"error": "Attribute does not belong to the source study"}, status=400)
+
+    run = HarmonizationAIRun.objects.create(
+        schema=schema,
+        requested_by=request.user,
+        trigger_mode="single_attribute",
+        requested_attribute_ids=[int(attribute_id)],
+        run_below_confidence_grade=payload.get("run_below_confidence_grade") or "all",
+        top_candidates_per_variable=_coerce_positive_int(payload.get("top_candidates_per_variable"), 3),
+        include_protocol=_coerce_bool(payload.get("include_protocol"), True),
+        include_additional_documents=_coerce_bool(payload.get("include_additional_documents"), True),
+        include_deidentified_summary_stats=_coerce_bool(payload.get("include_deidentified_summary_stats"), False),
+        include_existing_codebooks=_coerce_bool(payload.get("include_existing_codebooks"), True),
+        use_openai_background=_coerce_bool(payload.get("use_openai_background"), False),
+    )
+    async_result = run_harmonization_ai_refresh.delay(run.id)
+    run.celery_task_id = async_result.id
+    run.save(update_fields=["celery_task_id", "updated_at"])
+
+    return JsonResponse({
+        "success": True,
+        "run_id": run.id,
+        "status": run.status,
+    })
+
+
+@login_required
+@require_http_methods(["GET"])
+def ai_harmonization_run_status(request, run_id):
+    """Return the current status of an AI harmonization refresh run."""
+    run = get_object_or_404(
+        HarmonizationAIRun.objects.select_related("schema", "schema__source_study"),
+        id=run_id,
+    )
+
+    if not run.schema.source_study.project.members.filter(id=request.user.id).exists():
+        return JsonResponse({"error": "Permission denied"}, status=403)
+
+    return JsonResponse(
+        {
+            "run_id": run.id,
+            "status": run.status,
+            "progress_percentage": run.progress_percentage,
+            "requested_attribute_count": run.requested_attribute_count,
+            "processed_attributes_count": run.processed_attributes_count,
+            "failed_attributes_count": run.failed_attributes_count,
+            "error_message": run.error_message,
+            "trigger_mode": run.trigger_mode,
+            "requested_attribute_ids": run.requested_attribute_ids,
+            "completed_at": run.completed_at.isoformat() if run.completed_at else None,
+        }
+    )
+
+
+@login_required
+@require_http_methods(["GET"])
+def ai_harmonization_run_status_partial(request, run_id):
+    """Render the harmonization run monitor partial for HTMX polling."""
+    run = get_object_or_404(
+        HarmonizationAIRun.objects.select_related("schema", "schema__source_study"),
+        id=run_id,
+    )
+
+    if not run.schema.source_study.project.members.filter(id=request.user.id).exists():
+        return HttpResponseForbidden("Not allowed")
+
+    return render(
+        request,
+        "health/partials/_ai_run_status.html",
+        {
+            "run": run,
+            "auto_reload": request.GET.get("live") == "1",
+        },
+    )
+
+
+@login_required
 def target_attribute_details_api(request, attribute_id):
     """
     API endpoint to get detailed information about a target attribute.
@@ -2435,6 +2574,11 @@ def transformation_suggestion_api(request):
         data = json.loads(request.body)
         source_attribute_id = data.get("source_attribute_id")
         target_attribute_id = data.get("target_attribute_id")
+        schema_id = data.get("schema_id")
+        include_deidentified_summary_stats = _coerce_bool(
+            data.get("include_deidentified_summary_stats"),
+            False,
+        )
         
         if not source_attribute_id or not target_attribute_id:
             return JsonResponse({
@@ -2447,6 +2591,10 @@ def transformation_suggestion_api(request):
             target_attribute = Attribute.objects.get(id=target_attribute_id)
         except Attribute.DoesNotExist:
             return JsonResponse({"error": "One or both attributes not found"}, status=404)
+
+        schema = None
+        if schema_id:
+            schema = get_object_or_404(MappingSchema, id=schema_id)
         
         # Check user has access to both attributes via studies
         user_studies = Study.objects.filter(project__members=request.user).distinct()
@@ -2460,10 +2608,21 @@ def transformation_suggestion_api(request):
         
         if not source_accessible or not target_accessible:
             return JsonResponse({"error": "Permission denied"}, status=403)
+
+        if schema is not None:
+            if not schema.source_study.project.members.filter(id=request.user.id).exists():
+                return JsonResponse({"error": "Permission denied"}, status=403)
+            if not schema.source_study.variables.filter(id=source_attribute.id).exists():
+                return JsonResponse({"error": "Source attribute is not part of this mapping schema"}, status=400)
+            if not schema.target_study.variables.filter(id=target_attribute.id).exists():
+                return JsonResponse({"error": "Target attribute is not part of this mapping schema"}, status=400)
         
         # Generate transformation suggestion
         transformation_code = transformation_suggestion_service.suggest_transformation_code(
-            source_attribute, target_attribute
+            source_attribute,
+            target_attribute,
+            source_study=schema.source_study if schema is not None else None,
+            include_deidentified_summary_stats=include_deidentified_summary_stats,
         )
         
         # Handle different response cases

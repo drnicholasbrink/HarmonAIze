@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
-
+#TO DO: Need to implement partials for the attribute cards which load after the initial page load, otherwise appears too lagged. 
 {% block title %}{{ page_title|default:"Harmonization Dashboard" }}{% endblock %}
 
 {% block css %}
@@ -311,6 +311,8 @@
       border: 1px solid var(--border-color);
       border-radius: 8px;
       font-size: 0.9rem;
+      max-width: 100%;
+      box-sizing: border-box;
     }
 
     .search-input {
@@ -902,6 +904,197 @@
       display: flex;
       flex-direction: column;
       gap: 0.5rem;
+    }
+
+    .matching-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .matching-subsection {
+      padding: 1rem;
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      background: var(--background-color);
+    }
+
+    .matching-subsection-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: 0.4rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .matching-subsection-help {
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+      margin-bottom: 0.75rem;
+      line-height: 1.4;
+    }
+
+    .matching-config-grid {
+      display: grid;
+      gap: 0.75rem;
+      min-width: 0;
+    }
+
+    .matching-config-grid > * {
+      min-width: 0;
+    }
+
+    .matching-status-box {
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+      padding: 0.75rem;
+      border-radius: 8px;
+      background: rgba(0, 122, 255, 0.05);
+      border: 1px solid rgba(0, 122, 255, 0.12);
+    }
+
+    .matching-subsection .filter-select,
+    .matching-subsection .form-select,
+    .matching-subsection .form-input {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+    }
+
+    .matching-subsection .checkbox-wrapper {
+      align-items: flex-start;
+      min-width: 0;
+    }
+
+    .matching-subsection .checkbox-label-horizontal {
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+
+    .agent-progress-card {
+      background: #f8f9fa;
+      border: 1px solid #e9ecef;
+      padding: 1rem;
+      border-radius: 12px;
+      margin-top: 1rem;
+    }
+
+    .agent-progress-card.status-pending {
+      background: rgba(90, 200, 250, 0.08);
+      border-color: rgba(90, 200, 250, 0.2);
+    }
+
+    .agent-progress-card.status-running {
+      background: rgba(255, 149, 0, 0.08);
+      border-color: rgba(255, 149, 0, 0.2);
+    }
+
+    .agent-progress-card.status-completed {
+      background: rgba(52, 199, 89, 0.08);
+      border-color: rgba(52, 199, 89, 0.2);
+    }
+
+    .agent-progress-card.status-failed,
+    .agent-progress-card.status-cancelled {
+      background: rgba(255, 59, 48, 0.08);
+      border-color: rgba(255, 59, 48, 0.2);
+    }
+
+    .agent-progress-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .agent-progress-copy {
+      min-width: 0;
+    }
+
+    .agent-progress-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.2rem;
+    }
+
+    .agent-progress-detail {
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+      line-height: 1.4;
+    }
+
+    .agent-progress-badge {
+      flex-shrink: 0;
+      padding: 0.3rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      background: rgba(108, 117, 125, 0.12);
+      color: #495057;
+    }
+
+    .agent-progress-badge.status-pending {
+      background: rgba(90, 200, 250, 0.15);
+      color: #0c5460;
+    }
+
+    .agent-progress-badge.status-running {
+      background: rgba(255, 149, 0, 0.15);
+      color: #8a5300;
+    }
+
+    .agent-progress-badge.status-completed {
+      background: rgba(52, 199, 89, 0.15);
+      color: #1d6f42;
+    }
+
+    .agent-progress-badge.status-failed,
+    .agent-progress-badge.status-cancelled {
+      background: rgba(255, 59, 48, 0.15);
+      color: #8b1f18;
+    }
+
+    .agent-progress-metrics {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .agent-progress-metric {
+      background: rgba(255, 255, 255, 0.6);
+      border-radius: 8px;
+      padding: 0.7rem;
+    }
+
+    .agent-progress-metric-label {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 0.2rem;
+    }
+
+    .agent-progress-metric-value {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .agent-progress-meta {
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+      margin-top: 0.6rem;
+      line-height: 1.4;
     }
 
     .action-btn {
@@ -1714,7 +1907,8 @@
       {% csrf_token %}
       
   {% for variable_form in variable_forms %}
-  <div class="variable-card {% if variable_form.instance.not_mappable %}not-mappable{% elif variable_form.is_complete %}complete{% else %}incomplete{% endif %}" 
+    <div class="variable-card {% if variable_form.instance.not_mappable %}not-mappable{% elif variable_form.is_complete %}complete{% else %}incomplete{% endif %}" 
+      data-attribute-id="{{ variable_form.attribute.id }}"
        data-variable-name="{{ variable_form.attribute.variable_name|lower }}"
        data-completion="{% if variable_form.instance.not_mappable %}not-mappable{% elif variable_form.is_complete %}complete{% else %}incomplete{% endif %}">
         
@@ -1835,11 +2029,11 @@
                   </div>
                 </div>
               </div>
-              <!-- AI Similarity Suggestions Dropdown -->
+              <!-- Agent Suggestions Dropdown -->
               <div class="ai-suggestions-dropdown" id="ai-dropdown-{{ variable_form.attribute.id }}" style="display: none;">
                 <div class="dropdown-header" onclick="toggleAISuggestions({{ variable_form.attribute.id }})">
                   <div class="dropdown-title">
-                    <i class="fas fa-robot text-info"></i> AI Suggestions
+                    <i class="fas fa-robot text-info"></i> Agent Suggestions
                     <span class="suggestions-count" id="count-{{ variable_form.attribute.id }}"></span>
                   </div>
                   <i class="fas fa-chevron-down dropdown-arrow" id="arrow-{{ variable_form.attribute.id }}"></i>
@@ -1850,12 +2044,21 @@
                     <span>Analyzing similarity...</span>
                   </div>
                   <div class="suggestions-list" id="suggestions-list-{{ variable_form.attribute.id }}">
-                    <!-- AI suggestions will be populated here -->
+                    <!-- Agent suggestions will be populated here -->
                   </div>
                   <div class="dropdown-help">
                     <i class="fas fa-lightbulb"></i>
                     Click any suggestion to automatically apply it as the target variable
                   </div>
+                  {% if variable_form.mapping_rule.ai_last_refreshed_at %}
+                  <div class="dropdown-help" id="ai-provenance-{{ variable_form.attribute.id }}">
+                    <i class="fas fa-history"></i>
+                    Agent refreshed {{ variable_form.mapping_rule.ai_last_refreshed_at|date:"M d, Y H:i" }}
+                    {% if variable_form.mapping_rule.ai_confidence_label %}
+                      ({{ variable_form.mapping_rule.ai_confidence_label }})
+                    {% endif %}
+                  </div>
+                  {% endif %}
                 </div>
               </div>
               
@@ -1945,6 +2148,10 @@
                     <i class="fas fa-code"></i> Transform Code (Optional)
                   </label>
                   <div class="code-buttons">
+                    <button type="button" class="btn btn-sm btn-outline-info" onclick="rerunAIForAttribute({{ variable_form.attribute.id }}, this)">
+                      <i class="fas fa-robot"></i>
+                      {% if variable_form.mapping_rule.ai_last_refreshed_at %}Rerun Agent{% else %}Run Agent{% endif %}
+                    </button>
                     <button type="button" class="btn btn-sm btn-outline-primary" onclick="generateTransformationCode({{ variable_form.attribute.id }})">
                       <i class="fas fa-magic"></i> Generate Coding Instructions
                     </button>
@@ -2094,47 +2301,89 @@
 
     <!-- Bulk Actions -->
     <div class="sidebar-section">
-      <h3 class="sidebar-title">Bulk Actions</h3>
-      <div class="bulk-actions">
-        <button type="button" class="btn btn-primary action-btn" onclick="processAllVariablesWithAI()">
-          <i class="fas fa-robot"></i>
-          AI Process All
-        </button>
-        <button type="button" class="btn btn-success action-btn" onclick="approveExcellentMatches()">
-          <i class="fas fa-star"></i>
-          Approve ≥85%
-        </button>
-        <button type="button" class="btn btn-info action-btn" onclick="approveGoodPlusMatches()">
-          <i class="fas fa-thumbs-up"></i>
-          Approve ≥70%
-        </button>
-        <button type="button" class="btn btn-warning action-btn" onclick="approveFairPlusMatches()">
-          <i class="fas fa-check"></i>
-          Approve ≥55%
-        </button>
-        <button type="button" class="btn btn-outline action-btn" onclick="applyUniversalSettings()">
-          <i class="fas fa-magic"></i>
-          Apply Universal Settings
-        </button>
-        <button type="button" class="btn btn-outline action-btn" onclick="clearAllMappings()">
-          <i class="fas fa-trash"></i>
-          Clear All Mappings
-        </button>
-        <button type="button" class="btn btn-primary action-btn" onclick="validateAllMappings()">
-          <i class="fas fa-check-circle"></i>
-          Validate All
-        </button>
+      <h3 class="sidebar-title">Matching Controls</h3>
+      <div class="matching-panel">
+        <div class="matching-subsection">
+          <div class="matching-subsection-title">
+            <i class="fas fa-magnifying-glass"></i>
+            Embedding Matching
+          </div>
+          <div class="matching-subsection-help">
+            Uses the current embedding similarity suggestions already loaded in the dashboard. Choose the minimum similarity threshold to auto-approve baseline matches.
+          </div>
+          <div class="matching-config-grid">
+            <div class="form-group" style="margin: 0;">
+              <label class="form-label">Embedding Approval Threshold</label>
+              <select class="filter-select" id="embedding-approval-threshold">
+                <option value="0.85">Excellent only (≥85%)</option>
+                <option value="0.70">Good or better (≥70%)</option>
+                <option value="0.55">Fair or better (≥55%)</option>
+              </select>
+            </div>
+            <button type="button" class="btn btn-success action-btn" onclick="approveEmbeddingThreshold()">
+              <i class="fas fa-check"></i>
+              Approve Selected Embedding Matches
+            </button>
+          </div>
+        </div>
+
+        <div class="matching-subsection">
+          <div class="matching-subsection-title">
+            <i class="fas fa-robot"></i>
+            Agentic Matching
+          </div>
+          <div class="matching-subsection-help">
+            Runs the agent harmonisation flow for lower-confidence mappings and writes the reviewed result back into the existing mapping rules.
+          </div>
+          <label class="checkbox-label" style="display: flex; align-items: flex-start; gap: 0.5rem; margin: 0.75rem 0; font-size: 0.85rem; color: var(--text-secondary);">
+            <input type="checkbox" id="ai-include-summary-data" style="margin-top: 0.2rem;" {% if latest_ai_run and latest_ai_run.include_deidentified_summary_stats %}checked{% endif %}>
+            <span>Allow AI to use de-identified summary data when available.</span>
+          </label>
+          <div class="matching-config-grid">
+            <div class="form-group" style="margin: 0;">
+              <label class="form-label">Run Agent On</label>
+              <select class="filter-select" id="agent-run-threshold">
+                <option value="excellent">Below Excellent</option>
+                <option value="good">Below Good</option>
+                <option value="fair">Below Fair</option>
+                <option value="all">All Variables</option>
+              </select>
+            </div>
+            <button type="button" class="btn btn-primary action-btn" id="run-agent-harmonisation-btn" onclick="processAllVariablesWithAI()">
+              <i class="fas fa-robot"></i>
+              Run Agent Harmonisation
+            </button>
+          </div>
+        </div>
+
+        <div class="matching-subsection">
+          <div class="matching-subsection-title">
+            <i class="fas fa-sliders"></i>
+            Other Actions
+          </div>
+          <div class="bulk-actions">
+            <button type="button" class="btn btn-outline action-btn" onclick="applyUniversalSettings()">
+              <i class="fas fa-magic"></i>
+              Apply Universal Settings
+            </button>
+            <button type="button" class="btn btn-outline action-btn" onclick="clearAllMappings()">
+              <i class="fas fa-trash"></i>
+              Clear All Mappings
+            </button>
+            <button type="button" class="btn btn-primary action-btn" onclick="validateAllMappings()">
+              <i class="fas fa-check-circle"></i>
+              Validate All
+            </button>
+          </div>
+        </div>
       </div>
       
-      <!-- AI Progress Bar -->
-      <div class="ai-progress" id="ai-progress" style="display: none;">
-        <div class="progress-info">
-          <span class="progress-text" id="progress-text">Processing variables...</span>
-          <span class="progress-count" id="progress-count">0/0</span>
-        </div>
-        <div class="progress">
-          <div class="progress-bar" id="progress-bar" role="progressbar" style="width: 0%"></div>
-        </div>
+      <div id="ai-run-monitor-shell">
+        {% if latest_ai_run %}
+          {% include 'health/partials/_ai_run_status.html' with run=latest_ai_run %}
+        {% else %}
+          <div id="ai-run-monitor"></div>
+        {% endif %}
       </div>
     </div>
 
@@ -2494,7 +2743,34 @@ function toggleSettingsForm() {
     }
 }
 
+  function syncTransformCodeEditors(variableId = null) {
+    if (typeof ace === 'undefined') {
+      return;
+    }
+
+    const aceEditors = document.querySelectorAll('.ace_editor');
+    aceEditors.forEach(aceContainer => {
+      const textareaElement = aceContainer.previousElementSibling;
+      if (!textareaElement || textareaElement.tagName !== 'TEXTAREA' || !textareaElement.name) {
+        return;
+      }
+
+      if (!textareaElement.name.includes('transform_code')) {
+        return;
+      }
+
+      if (variableId !== null && !textareaElement.name.includes(`variable_${variableId}-transform_code`)) {
+        return;
+      }
+
+      if (aceContainer.env && aceContainer.env.editor) {
+        textareaElement.value = aceContainer.env.editor.getValue();
+      }
+    });
+  }
+
 function saveMapping(variableId, isAutoSave = false) {
+    syncTransformCodeEditors(variableId);
     const form = document.getElementById('mappings-form');
     const formData = new FormData(form);
     
@@ -2575,6 +2851,7 @@ function saveMapping(variableId, isAutoSave = false) {
 }
 
 function saveAllMappings() {
+  syncTransformCodeEditors();
     const form = document.getElementById('mappings-form');
     const formData = new FormData(form);
     
@@ -3138,6 +3415,7 @@ function insertExample(variableId, exampleType) {
             editor.setValue(exampleCode);
             editor.clearSelection();
             editor.focus();
+        syncTransformCodeEditors(variableId);
             
             // Trigger change event for auto-save
             setTimeout(() => {
@@ -3256,6 +3534,7 @@ function clearCode(variableId) {
             editor.setValue('');
             editor.clearSelection();
             editor.focus();
+        syncTransformCodeEditors(variableId);
             
             // Trigger change event for auto-save
             setTimeout(() => {
@@ -3313,6 +3592,7 @@ function generateTransformationCode(variableId) {
     }
     
     const targetAttributeId = targetSelect.value;
+    const includeSummaryData = document.getElementById('ai-include-summary-data');
     
     // Find the transformation code textarea/editor
     const textareaName = `variable_${variableId}-transform_code`;
@@ -3339,6 +3619,8 @@ function generateTransformationCode(variableId) {
         body: JSON.stringify({
             source_attribute_id: sourceAttributeId,
             target_attribute_id: targetAttributeId,
+          schema_id: {{ schema.id }},
+          include_deidentified_summary_stats: Boolean(includeSummaryData && includeSummaryData.checked),
         }),
     })
     .then(response => response.json())
@@ -3396,6 +3678,7 @@ function setTransformationCode(variableId, code) {
             // Set the editor content
             editor.setValue(code);
             editor.clearSelection();
+        syncTransformCodeEditors(variableId);
             
             // Trigger change event for auto-save
             setTimeout(() => {
@@ -3670,7 +3953,7 @@ function populateAllSuggestions() {
 }
 
 function approveFairPlusMatches() {
-    if (!confirm('Approve all mappings with "Fair" or better confidence scores (≥55% similarity)? This will apply AI suggestions for medium to high confidence matches.')) {
+  if (!confirm('Approve all mappings with "Fair" or better confidence scores (≥55% similarity)? This will apply embedding suggestions for medium to high confidence matches.')) {
         return;
     }
     
@@ -3684,7 +3967,7 @@ function approveFairPlusMatches() {
     let approvedCount = 0;
     let totalFairPlus = 0;
     
-    // Find all variables with AI suggestions using similarity score threshold
+    // Find all variables with embedding suggestions using similarity score threshold
     if (similaritySuggestions) {
         // Count fair+ matches first (≥55% similarity)
         Object.keys(similaritySuggestions).forEach(variableId => {
@@ -3703,7 +3986,7 @@ function approveFairPlusMatches() {
             if (suggestions && suggestions.length > 0) {
                 const bestSuggestion = suggestions[0];
                 if (bestSuggestion.combined_similarity >= 0.55) {
-                    // Apply the AI suggestion for this variable
+                    // Apply the suggested match for this variable
                     applyAISuggestion(variableId, bestSuggestion);
                     approvedCount++;
                 }
@@ -3724,13 +4007,13 @@ function approveFairPlusMatches() {
         if (approvedCount > 0) {
             showNotification(`Successfully approved ${approvedCount} fair+ matches (≥55% similarity)!`, 'success');
         } else {
-            showNotification('No fair+ matches found to approve. Try running AI suggestions first.', 'info');
+            showNotification('No fair+ matches found to approve. Load suggestions first.', 'info');
         }
     }, 500);
 }
 
 function approveGoodPlusMatches() {
-    if (!confirm('Approve all mappings with "Good" or "Excellent" confidence scores (≥70% similarity)? This will apply AI suggestions for high and medium-high confidence matches.')) {
+  if (!confirm('Approve all mappings with "Good" or "Excellent" confidence scores (≥70% similarity)? This will apply embedding suggestions for high and medium-high confidence matches.')) {
         return;
     }
     
@@ -3744,7 +4027,7 @@ function approveGoodPlusMatches() {
     let approvedCount = 0;
     let totalGoodPlus = 0;
     
-    // Find all variables with AI suggestions using similarity score threshold
+    // Find all variables with embedding suggestions using similarity score threshold
     if (similaritySuggestions) {
         // Count good+ matches first (≥70% similarity)
         Object.keys(similaritySuggestions).forEach(variableId => {
@@ -3763,7 +4046,7 @@ function approveGoodPlusMatches() {
             if (suggestions && suggestions.length > 0) {
                 const bestSuggestion = suggestions[0];
                 if (bestSuggestion.combined_similarity >= 0.70) {
-                    // Apply the AI suggestion for this variable
+                    // Apply the suggested match for this variable
                     applyAISuggestion(variableId, bestSuggestion);
                     approvedCount++;
                 }
@@ -3784,13 +4067,13 @@ function approveGoodPlusMatches() {
         if (approvedCount > 0) {
             showNotification(`Successfully approved ${approvedCount} good+ matches (≥70% similarity)!`, 'success');
         } else {
-            showNotification('No good+ matches found to approve. Try running AI suggestions first.', 'info');
+            showNotification('No good+ matches found to approve. Load suggestions first.', 'info');
         }
     }, 500);
 }
 
 function approveExcellentMatches() {
-    if (!confirm('Approve all mappings with "Excellent" confidence scores (≥85% similarity)? This will apply AI suggestions for high-confidence matches only.')) {
+  if (!confirm('Approve all mappings with "Excellent" confidence scores (≥85% similarity)? This will apply embedding suggestions for high-confidence matches only.')) {
         return;
     }
     
@@ -3804,7 +4087,7 @@ function approveExcellentMatches() {
     let approvedCount = 0;
     let totalExcellent = 0;
     
-    // Find all variables with AI suggestions using similarity score threshold
+    // Find all variables with embedding suggestions using similarity score threshold
     if (similaritySuggestions) {
         // Count excellent matches first (≥85% similarity)
         Object.keys(similaritySuggestions).forEach(variableId => {
@@ -3823,7 +4106,7 @@ function approveExcellentMatches() {
             if (suggestions && suggestions.length > 0) {
                 const bestSuggestion = suggestions[0];
                 if (bestSuggestion.combined_similarity >= 0.85) {
-                    // Apply the AI suggestion for this variable
+                    // Apply the suggested match for this variable
                     applyAISuggestion(variableId, bestSuggestion);
                     approvedCount++;
                 }
@@ -3844,50 +4127,152 @@ function approveExcellentMatches() {
         if (approvedCount > 0) {
             showNotification(`Successfully approved ${approvedCount} excellent matches (≥85% similarity)!`, 'success');
         } else {
-            showNotification('No excellent matches found to approve. Try running AI suggestions first.', 'info');
+            showNotification('No excellent matches found to approve. Load suggestions first.', 'info');
         }
     }, 500);
 }
 
-// Global AI Processing Functions
+// Global Agent Processing Functions
 function processAllVariablesWithAI() {
-    const processBtn = document.querySelector('button[onclick="processAllVariablesWithAI()"]');
-    const progressDiv = document.getElementById('ai-progress');
-    const progressText = document.getElementById('progress-text');
-    const progressCount = document.getElementById('progress-count');
-    const progressBar = document.getElementById('progress-bar');
-    
-    // Show progress
-    progressDiv.style.display = 'block';
-    processBtn.disabled = true;
-    processBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
-    
-    // Get all variables that can be mapped
-    const variableCards = document.querySelectorAll('.variable-card:not(.not-mappable)');
-    const totalVariables = variableCards.length;
-    let processedCount = 0;
-    
-    progressCount.textContent = `0/${totalVariables}`;
-    progressBar.style.width = '0%';
-    
-    // Process each variable sequentially
-    processVariablesSequentially(variableCards, 0, totalVariables, (current, total) => {
-        processedCount = current;
-        const percent = Math.round((current / total) * 100);
-        progressCount.textContent = `${current}/${total}`;
-        progressBar.style.width = `${percent}%`;
-        progressText.textContent = current < total ? 
-            `Processing variable ${current + 1} of ${total}...` : 
-            'Processing complete!';
-            
-        if (current >= total) {
-            setTimeout(() => {
-                progressDiv.style.display = 'none';
-                processBtn.disabled = false;
-                processBtn.innerHTML = '<i class="fas fa-robot"></i> AI Process All';
-                showNotification(`Successfully processed ${total} variables with AI suggestions!`, 'success');
-            }, 1000);
+  const processBtn = document.getElementById('run-agent-harmonisation-btn');
+    const monitor = document.getElementById('ai-run-monitor');
+    const includeSummaryStats = document.getElementById('ai-include-summary-data');
+    const activeStatuses = ['pending', 'running'];
+    const currentStatus = monitor ? monitor.dataset.runStatus : '';
+    const runThreshold = document.getElementById('agent-run-threshold').value;
+
+    if (activeStatuses.includes(currentStatus)) {
+      showNotification('An agent harmonisation run is already in progress.', 'info');
+      return;
+    }
+
+    if (processBtn.dataset.starting === 'true') {
+      return;
+    }
+
+    processBtn.dataset.starting = 'true';
+
+    fetch(`/health/api/mapping/{{ schema.id }}/ai-refresh/start/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+      },
+      body: JSON.stringify({
+        run_below_confidence_grade: runThreshold,
+        top_candidates_per_variable: 3,
+        include_deidentified_summary_stats: Boolean(includeSummaryStats && includeSummaryStats.checked),
+      }),
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to start agent harmonisation');
+      }
+      refreshAgentRunMonitor(data.run_id);
+    })
+    .catch(error => {
+      showNotification(error.message || 'Failed to start agent harmonisation.', 'error');
+    })
+    .finally(() => {
+      delete processBtn.dataset.starting;
+    });
+}
+
+  function refreshAgentRunMonitor(runId) {
+    const monitorShell = document.getElementById('ai-run-monitor-shell');
+    if (!monitorShell) {
+      return;
+    }
+
+    fetch(`/health/api/ai-refresh-run/${runId}/status-partial/?live=1`)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Failed to load agent monitor.');
         }
+        return response.text();
+      })
+      .then(html => {
+        monitorShell.innerHTML = html;
+        if (window.htmx) {
+          window.htmx.process(monitorShell);
+        }
+      })
+      .catch(error => {
+        showNotification(error.message || 'Failed to load agent monitor.', 'error');
+      });
+}
+
+function approveEmbeddingThreshold() {
+    const threshold = parseFloat(document.getElementById('embedding-approval-threshold').value);
+    if (threshold >= 0.85) {
+        approveExcellentMatches();
+        return;
+    }
+    if (threshold >= 0.70) {
+        approveGoodPlusMatches();
+        return;
+    }
+    approveFairPlusMatches();
+}
+
+function rerunAIForAttribute(variableId, buttonElement) {
+  const button = buttonElement || document.querySelector(`button[onclick*="rerunAIForAttribute(${variableId}"]`);
+  const includeSummaryStats = document.getElementById('ai-include-summary-data');
+  const originalText = button.innerHTML;
+  button.disabled = true;
+  button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running...';
+
+  fetch(`/health/api/mapping/{{ schema.id }}/ai-refresh/rerun-attribute/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+    },
+    body: JSON.stringify({
+      source_attribute_id: variableId,
+      top_candidates_per_variable: 3,
+      include_deidentified_summary_stats: Boolean(includeSummaryStats && includeSummaryStats.checked),
+    }),
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to queue attribute rerun');
+    }
+    pollSingleAttributeAIRun(data.run_id, variableId, button, originalText);
+  })
+  .catch(error => {
+    button.disabled = false;
+    button.innerHTML = originalText;
+    showNotification(error.message || 'Failed to queue attribute rerun.', 'error');
+  });
+}
+
+function pollSingleAttributeAIRun(runId, variableId, button, originalText) {
+  fetch(`/health/api/ai-refresh-run/${runId}/status/`)
+    .then(response => response.json())
+    .then(data => {
+      if (data.status === 'completed') {
+        button.disabled = false;
+        button.innerHTML = originalText;
+        showNotification('Agent run completed. Reloading mapping card...', 'success');
+        window.location.reload();
+        return;
+      }
+
+      if (data.status === 'failed' || data.status === 'cancelled') {
+        button.disabled = false;
+        button.innerHTML = originalText;
+        throw new Error(data.error_message || `Run ${data.status}`);
+      }
+
+      setTimeout(() => pollSingleAttributeAIRun(runId, variableId, button, originalText), 2500);
+    })
+    .catch(error => {
+      button.disabled = false;
+      button.innerHTML = originalText;
+      showNotification(error.message || 'Agent run failed.', 'error');
     });
 }
 

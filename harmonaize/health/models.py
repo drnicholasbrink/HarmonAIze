@@ -121,6 +121,93 @@ class MappingSchema(models.Model):
             )
 
 
+class HarmonizationAIRun(models.Model):
+    """Track a Celery-managed AI harmonisation refresh for a mapping schema."""
+
+    STATUS_CHOICES = (
+        ("pending", "Pending"),
+        ("running", "Running"),
+        ("completed", "Completed"),
+        ("failed", "Failed"),
+        ("cancelled", "Cancelled"),
+    )
+
+    TRIGGER_CHOICES = (
+        ("batch", "Batch"),
+        ("single_attribute", "Single Attribute"),
+    )
+
+    schema = models.ForeignKey(
+        MappingSchema,
+        on_delete=models.CASCADE,
+        related_name="ai_runs",
+    )
+    requested_by = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="harmonization_ai_runs",
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="pending",
+    )
+    trigger_mode = models.CharField(
+        max_length=20,
+        choices=TRIGGER_CHOICES,
+        default="batch",
+    )
+    requested_attribute_ids = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Subset of source attribute IDs targeted by this run.",
+    )
+    run_below_confidence_grade = models.CharField(
+        max_length=20,
+        default="excellent",
+        help_text="Only run AI for variables below this baseline confidence grade.",
+    )
+    top_candidates_per_variable = models.PositiveSmallIntegerField(default=3)
+    include_protocol = models.BooleanField(default=True)
+    include_additional_documents = models.BooleanField(default=True)
+    include_deidentified_summary_stats = models.BooleanField(default=False)
+    include_existing_codebooks = models.BooleanField(default=True)
+    use_openai_background = models.BooleanField(
+        default=False,
+        help_text="Whether the Celery worker may use OpenAI background responses internally.",
+    )
+    celery_task_id = models.CharField(max_length=255, blank=True)
+    openai_response_ids = models.JSONField(default=list, blank=True)
+    usage_summary = models.JSONField(default=dict, blank=True)
+    processed_attributes_count = models.PositiveIntegerField(default=0)
+    failed_attributes_count = models.PositiveIntegerField(default=0)
+    error_message = models.TextField(blank=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Harmonization AI Run"
+        verbose_name_plural = "Harmonization AI Runs"
+
+    def __str__(self) -> str:
+        return f"AI run {self.pk} for schema {self.schema_id} ({self.status})"
+
+    @property
+    def requested_attribute_count(self) -> int:
+        return len(self.requested_attribute_ids or [])
+
+    @property
+    def progress_percentage(self) -> int:
+        total = self.requested_attribute_count
+        if total <= 0:
+            return 0
+        completed = min(total, self.processed_attributes_count + self.failed_attributes_count)
+        return int((completed / total) * 100)
+
+
 def validate_safe_transform_code(code: str):
     """Validate transform code with a conservative AST whitelist allowing safe method calls."""
     import ast
@@ -135,19 +222,20 @@ def validate_safe_transform_code(code: str):
         raise ValidationError(msg) from e
 
     allowed_nodes = (
-        ast.Module, ast.Expr, ast.Assign, ast.Return,
+        ast.Module, ast.Expr, ast.Assign, ast.AugAssign, ast.Return,
         ast.Lambda, ast.FunctionDef, ast.arguments, ast.arg,
         ast.BinOp, ast.UnaryOp, ast.BoolOp, ast.Compare, ast.IfExp,
         ast.Call, ast.Name, ast.Load, ast.Store,
         ast.Num, ast.Str, ast.Constant, ast.List, ast.Tuple, ast.Dict,
-        ast.Attribute, ast.Subscript, ast.Slice,
+        ast.Set, ast.Attribute, ast.Subscript, ast.Slice,
         ast.NameConstant,
         ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow, ast.Mod,
         ast.And, ast.Or, ast.Not, ast.USub, ast.UAdd,
         ast.Eq, ast.NotEq, ast.Lt, ast.LtE, ast.Gt, ast.GtE,
         ast.In, ast.NotIn, ast.Is, ast.IsNot,  # Add missing comparison operators
         # Allow basic control flow and comprehensions
-        ast.If, ast.ListComp, ast.DictComp, ast.SetComp, ast.GeneratorExp,
+        ast.If, ast.For, ast.Break, ast.Continue,
+        ast.ListComp, ast.DictComp, ast.SetComp, ast.GeneratorExp,
         ast.comprehension,
     )
     banned_names = {"__import__", "open", "exec", "eval", "compile", "globals", "locals", "input", "help"}
@@ -180,7 +268,11 @@ def validate_safe_transform_code(code: str):
             return super().visit(node)
 
         def visit_Call(self, node: ast.Call):
-            safe_call_names = {"int", "float", "str", "bool", "round", "abs", "min", "max", "len", "sum", "any", "all", "sorted", "reversed"}
+            safe_call_names = {
+                "int", "float", "str", "bool", "round", "abs", "min", "max",
+                "len", "sum", "any", "all", "sorted", "reversed", "enumerate",
+                "range", "zip", "list", "tuple", "dict", "set",
+            }
             if isinstance(node.func, ast.Name):
                 # Direct function calls like int(), str(), etc.
                 if node.func.id in banned_names or node.func.id not in safe_call_names:
@@ -222,6 +314,13 @@ def validate_safe_transform_code(code: str):
             if node.id in banned_names:
                 msg = f"Use of banned identifier: {node.id}"
                 raise ValidationError(msg)
+
+        def visit_For(self, node: ast.For):
+            # Allow simple iteration, but do not allow the optional else block.
+            if node.orelse:
+                msg = "for-else is not allowed in transform code."
+                raise ValidationError(msg)
+            self.generic_visit(node)
 
     SafeVisitor().visit(tree)
 
@@ -278,6 +377,16 @@ class MappingRule(models.Model):
     )
     transform_code = models.TextField(blank=True, help_text="Optional safe Python: lambda value: ... or def transform(value): return ...")
     comments = models.TextField(blank=True)
+    ai_last_refreshed_at = models.DateTimeField(null=True, blank=True)
+    ai_last_run = models.ForeignKey(
+        HarmonizationAIRun,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="updated_rules",
+    )
+    ai_confidence_label = models.CharField(max_length=32, blank=True)
+    ai_reasoning_summary = models.TextField(blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

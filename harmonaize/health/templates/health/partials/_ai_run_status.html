@@ -1,0 +1,89 @@
+<div id="ai-run-monitor"
+  class="agent-progress-wrapper"
+  data-run-status="{% if run %}{{ run.status }}{% endif %}"
+  {% if run and run.status != 'completed' and run.status != 'failed' and run.status != 'cancelled' %}
+  hx-get="{% url 'health:ai_harmonization_run_status_partial' run.id %}?live=1"
+     hx-trigger="every 2s"
+     hx-swap="outerHTML"
+     {% endif %}>
+  {% if run %}
+    <div class="agent-progress-card status-{{ run.status }}">
+      <div class="agent-progress-header">
+        <div class="agent-progress-copy">
+          <div class="agent-progress-title">
+            {% if run.status == 'pending' %}
+              <i class="fas fa-hourglass-half"></i>
+              Agent run pending
+            {% elif run.status == 'running' %}
+              <i class="fas fa-spinner fa-spin"></i>
+              Agent harmonisation running
+            {% elif run.status == 'completed' %}
+              <i class="fas fa-check-circle"></i>
+              Agent harmonisation completed
+            {% elif run.status == 'failed' %}
+              <i class="fas fa-triangle-exclamation"></i>
+              Agent harmonisation failed
+            {% else %}
+              <i class="fas fa-ban"></i>
+              Agent harmonisation cancelled
+            {% endif %}
+          </div>
+          <div class="agent-progress-detail">
+            {% if run.status == 'pending' %}
+              The run is queued and will start shortly.
+            {% elif run.status == 'running' %}
+              {{ run.processed_attributes_count }} of {{ run.requested_attribute_count|default:0 }} variables processed.
+            {% elif run.status == 'completed' %}
+              {% if run.failed_attributes_count and run.error_message %}
+                Completed with issues {{ run.completed_at|timesince }} ago.
+              {% else %}
+                Completed {{ run.completed_at|timesince }} ago.
+              {% endif %}
+            {% elif run.error_message %}
+              {{ run.error_message }}
+            {% else %}
+              Run ended with status {{ run.get_status_display|lower }}.
+            {% endif %}
+          </div>
+        </div>
+        <span class="agent-progress-badge status-{{ run.status }}">{{ run.get_status_display }}</span>
+      </div>
+      <div class="agent-progress-metrics">
+        <div class="agent-progress-metric">
+          <div class="agent-progress-metric-label">Processed</div>
+          <div class="agent-progress-metric-value">{{ run.processed_attributes_count }}</div>
+        </div>
+        <div class="agent-progress-metric">
+          <div class="agent-progress-metric-label">Failed</div>
+          <div class="agent-progress-metric-value">{{ run.failed_attributes_count }}</div>
+        </div>
+      </div>
+      <div class="progress-info">
+        <span class="progress-count">
+          {% if run.requested_attribute_count %}
+            {{ run.progress_percentage }}% complete
+          {% else %}
+            {{ run.get_status_display }}
+          {% endif %}
+        </span>
+      </div>
+      <div class="progress">
+        <div class="progress-bar{% if run.status == 'running' or run.status == 'pending' %} progress-bar-striped progress-bar-animated{% endif %}"
+             role="progressbar"
+             style="width: {{ run.progress_percentage }}%"></div>
+      </div>
+      <div class="agent-progress-meta">
+        {% if run.failed_attributes_count and run.error_message %}
+          {{ run.error_message }}
+        {% elif run.requested_attribute_count %}
+          Targeted {{ run.requested_attribute_count }} variable{{ run.requested_attribute_count|pluralize }}.
+        {% else %}
+          Waiting for the run to determine the eligible variables.
+        {% endif %}
+      </div>
+    </div>
+
+  {% else %}
+    <div id="ai-run-monitor"></div>
+  {% endif %}
+</div>
