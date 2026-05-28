@@ -598,7 +598,7 @@ def update_attribute(request, attribute_id):
                 
                 # Validate category choices
                 if field_name == 'category':
-                    valid_categories = ['health', 'climate', 'geolocation']
+                    valid_categories = ['health', 'climate', 'geolocation', 'relationship_system']
                     if field_value not in valid_categories:
                         return JsonResponse({'success': False, 'error': f'Invalid category: {field_value}'}, status=400)
                 

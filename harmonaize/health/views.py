@@ -39,6 +39,14 @@ from .forms import (
     RawDataUploadForm,
 )
 from . import dataset_exports
+from .relationship_system import (
+    RELATIONSHIP_SYSTEM_CATEGORY,
+    build_relationship_export_lookup,
+    is_relationship_system_attribute,
+    relation_instance_choices,
+    relation_instance_previews,
+    validate_relationship_attribute_compatibility,
+)
 from .utils import (
     validate_raw_data_against_codebook,
     analyze_raw_data_columns,
@@ -366,6 +374,9 @@ def _outcome_wide_stream(
 def _harmonised_csv_stream(queryset, schema, raw_data_file, exported_at: str, user_id: int):
     header = [
         "patient_id",
+        "source_patient_id",
+        "patient_relation_type",
+        "patient_relation_name",
         "attribute_variable_name",
         "attribute_display_name",
         "variable_type",
@@ -388,6 +399,7 @@ def _harmonised_csv_stream(queryset, schema, raw_data_file, exported_at: str, us
     buffer.seek(0)
 
     row_count = 0
+    relationship_lookup = build_relationship_export_lookup(schema.target_study)
     for observation in queryset.iterator(chunk_size=1000):
         patient_identifier = ""
         if observation.patient_id:
@@ -395,6 +407,14 @@ def _harmonised_csv_stream(queryset, schema, raw_data_file, exported_at: str, us
                 getattr(observation.patient, "unique_id", None)
                 or str(observation.patient_id)
             )
+        relation_metadata = relationship_lookup.get(patient_identifier)
+        source_patient_id = patient_identifier
+        relation_type = "self"
+        relation_name = ""
+        if relation_metadata:
+            source_patient_id = relation_metadata.source_patient_id
+            relation_type = relation_metadata.relation_type
+            relation_name = relation_metadata.relation_name
 
         location_name = ""
         if observation.location_id:
@@ -403,6 +423,9 @@ def _harmonised_csv_stream(queryset, schema, raw_data_file, exported_at: str, us
         writer.writerow(
             [
                 patient_identifier,
+                source_patient_id,
+                relation_type,
+                relation_name,
                 observation.attribute.variable_name,
                 observation.attribute.display_name or "",
                 observation.attribute.variable_type,
@@ -627,6 +650,20 @@ def approve_mapping(request, schema_id):
     )
     if not complete_rules_qs.exists():
         messages.error(request, 'Cannot approve schema without at least one completed mapping rule.')
+        return redirect('health:harmonization_dashboard', schema_id=schema.id)
+
+    validation_errors: list[str] = []
+    for rule in complete_rules_qs.select_related("source_attribute"):
+        try:
+            rule.full_clean()
+        except Exception as exc:
+            validation_errors.append(f"{rule.source_attribute.variable_name}: {exc}")
+    validation_errors.extend(validate_relationship_attribute_compatibility(schema.target_study))
+    if validation_errors:
+        for error in validation_errors[:10]:
+            messages.error(request, error)
+        if len(validation_errors) > 10:
+            messages.error(request, f"... and {len(validation_errors) - 10} more validation errors.")
         return redirect('health:harmonization_dashboard', schema_id=schema.id)
 
     schema.status = 'approved'
@@ -1069,6 +1106,7 @@ def harmonization_dashboard(request, schema_id):
         updated_count = 0
         errors = []
         processed_variable_name = None
+        saved_relation_instance = None
         is_complete = False
         
         for attr in source_attrs:
@@ -1083,7 +1121,7 @@ def harmonization_dashboard(request, schema_id):
                     source_attribute=attr,
                     defaults={
                         'role': 'value',
-                        'related_relation_type': schema.universal_relation_type,
+                        'relation_type': schema.universal_relation_type or 'self',
                     }
                 )
                 
@@ -1102,6 +1140,13 @@ def harmonization_dashboard(request, schema_id):
                     rule.save()
                     updated_count += 1
                     is_complete = rule.target_attribute is not None
+                    if rule.relation_type and rule.relation_type != "self" and rule.relation_name:
+                        saved_relation_instance = {
+                            "relation_type": rule.relation_type,
+                            "relation_name": rule.relation_name,
+                            "value": f"existing:{rule.relation_type}:{rule.relation_name}",
+                            "label": f"Use existing {rule.relation_name} ({rule.relation_type})",
+                        }
                 else:
                     for field, field_errors in form.errors.items():
                         for error in field_errors:
@@ -1132,6 +1177,12 @@ def harmonization_dashboard(request, schema_id):
                     'updated_count': updated_count,
                     'variable_name': processed_variable_name,
                     'is_complete': is_complete,
+                    'saved_relation_instance': saved_relation_instance,
+                    'relation_instance_choices': [
+                        {"value": value, "label": label}
+                        for value, label in relation_instance_choices(schema)
+                    ],
+                    'relation_instance_previews': relation_instance_previews(schema),
                 })
             return redirect("health:harmonization_dashboard", schema_id=schema_id)
     
@@ -1165,7 +1216,7 @@ def harmonization_dashboard(request, schema_id):
             source_attribute=attr,
             defaults={
                 "role": "value",
-                "related_relation_type": schema.universal_relation_type or "",
+                "relation_type": schema.universal_relation_type or "self",
                 "patient_id_attribute": schema.universal_patient_id,
                 "datetime_attribute": schema.universal_datetime,
                 "location_attribute": schema.universal_location,
@@ -1188,8 +1239,8 @@ def harmonization_dashboard(request, schema_id):
                 mapping_rule.patient_id_attribute = schema.universal_patient_id
             if not mapping_rule.datetime_attribute and schema.universal_datetime:
                 mapping_rule.datetime_attribute = schema.universal_datetime
-            if not mapping_rule.related_relation_type and schema.universal_relation_type:
-                mapping_rule.related_relation_type = schema.universal_relation_type
+            if not mapping_rule.relation_type and schema.universal_relation_type:
+                mapping_rule.relation_type = schema.universal_relation_type
             if not mapping_rule.location_attribute and schema.universal_location:
                 mapping_rule.location_attribute = schema.universal_location
             # Save only if we made changes and the rule already exists
@@ -1232,6 +1283,7 @@ def harmonization_dashboard(request, schema_id):
         "raw_data_files": raw_data_files,
         "has_raw_data": has_raw_data,
         "latest_ai_run": schema.ai_runs.first(),
+        "relation_instance_previews": relation_instance_previews(schema),
         "page_title": "Harmonise Study Dashboard",
     }
     
@@ -1808,7 +1860,11 @@ def export_raw_data(request, file_id):
                 else:
                     target_study = schema.target_study
                     target_attribute_ids = list(
-                        target_study.variables.filter(source_type="target").values_list(
+                        target_study.variables.filter(
+                            source_type="target",
+                        ).exclude(
+                            category=RELATIONSHIP_SYSTEM_CATEGORY,
+                        ).values_list(
                             "id", flat=True
                         )
                     )
@@ -2247,6 +2303,7 @@ def combined_export_attributes(request):
 
     categories = request.GET.getlist("categories")
     attrs_qs = dataset_exports.observed_target_attribute_queryset(target)
+    attrs_qs = attrs_qs.exclude(category=RELATIONSHIP_SYSTEM_CATEGORY)
     if categories:
         category_filter = Q()
         non_health_categories = [value for value in categories if value != "health"]

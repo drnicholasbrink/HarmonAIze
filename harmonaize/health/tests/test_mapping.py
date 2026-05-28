@@ -4,9 +4,16 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.urls import reverse
 
-from core.models import Attribute, Project, Study
+from core.models import Attribute, Observation, Patient, Project, Study
 from health.forms import MappingRuleForm
 from health.models import MappingRule, MappingSchema, validate_safe_transform_code
+from health.relationship_system import (
+    RELATIONSHIP_SYSTEM_CATEGORY,
+    RELATIONSHIP_DIRECTION,
+    RELATIONSHIP_RELATED_PATIENT_ID,
+    RELATIONSHIP_TYPE,
+    relation_instance_choices,
+)
 
 User = get_user_model()
 
@@ -51,21 +58,25 @@ def attributes(source_study, target_study):
     src_attr1 = Attribute.objects.create(
         variable_name="age",
         variable_type="int",
+        category="health",
         source_type="source",
     )
     src_attr2 = Attribute.objects.create(
         variable_name="pid",
         variable_type="string",
+        category="health",
         source_type="source",
     )
     tgt_attr1 = Attribute.objects.create(
         variable_name="AGE_YEARS",
         variable_type="int",
+        category="health",
         source_type="target",
     )
     tgt_attr2 = Attribute.objects.create(
         variable_name="PATIENT_ID",
         variable_type="string",
+        category="health",
         source_type="target",
     )
     source_study.variables.set([src_attr1, src_attr2])
@@ -106,25 +117,27 @@ def test_mapping_schema_purpose_validation(user, project, source_study, target_s
         ms.clean()
 
 
-def test_mapping_rule_role_requires_relation(schema, attributes):
+def test_mapping_rule_non_self_requires_relation_metadata(schema, attributes):
     rule = MappingRule(
         schema=schema,
         source_attribute=attributes["src_pid"],
         target_attribute=attributes["tgt_pid"],
-        role="related_patient_id",
+        role="value",
+        relation_type="child",
     )
     with pytest.raises(ValidationError) as exc:
         rule.clean()
     assert "relation" in str(exc.value).lower()
 
 
-def test_mapping_rule_role_rejects_relation_when_not_related(schema, attributes):
+def test_mapping_rule_rejects_relation_metadata_for_self(schema, attributes):
     rule = MappingRule(
         schema=schema,
         source_attribute=attributes["src_age"],
         target_attribute=attributes["tgt_age"],
         role="value",
-        related_relation_type="self",
+        relation_type="self",
+        relation_name="child_1",
     )
     with pytest.raises(ValidationError):
         rule.clean()
@@ -171,18 +184,52 @@ def test_validate_safe_transform_code_blocks_for_else():
 
 # ------------------- Form validation -------------------
 
-def test_mapping_rule_form_role_relation(schema, attributes):
+def test_mapping_rule_form_infers_relation_instance(schema, attributes):
     form = MappingRuleForm(
         schema=schema,
         data={
             "source_attribute": attributes["src_pid"].id,
             "target_attribute": attributes["tgt_pid"].id,
-            "role": "related_patient_id",
-            "related_relation_type": "",  # missing
+            "role": "value",
+            "relation_type": "child",
+            "relation_instance": "",
+            "create_relation_instance": "child",
         },
     )
+    assert form.is_valid()
+    rule = form.save(commit=False)
+    assert rule.relation_name == "child_1"
+    assert rule.inverse_relation_type == "parent"
+
+
+@pytest.mark.django_db
+def test_mapping_rule_form_does_not_advance_from_only_current_instance(schema, attributes):
+    rule = MappingRule.objects.create(
+        schema=schema,
+        source_attribute=attributes["src_age"],
+        target_attribute=attributes["tgt_age"],
+        role="value",
+        relation_type="child",
+        relation_name="child_1",
+        inverse_relation_type="parent",
+        inverse_relation_name="parent",
+    )
+
+    form = MappingRuleForm(
+        schema=schema,
+        instance=rule,
+        data={
+            "source_attribute": attributes["src_age"].id,
+            "target_attribute": attributes["tgt_age"].id,
+            "role": "value",
+            "relation_type": "child",
+            "relation_instance": "",
+            "create_relation_instance": "child",
+        },
+    )
+
     assert not form.is_valid()
-    assert "related_relation_type" in form.errors
+    assert "already uses the next relation instance" in str(form.errors)
 
 
 # ------------------- View workflow -------------------
@@ -202,52 +249,59 @@ def test_start_harmonisation_view(client, user, source_study, target_study):
 
 
 @pytest.mark.django_db
-def test_edit_mapping_persists_role_and_relation(client, user, schema, attributes):
+def test_dashboard_persists_relation_metadata(client, user, schema, attributes):
     client.force_login(user)
-    # Build formset POST payload
-    url = reverse("health:edit_mapping", kwargs={"schema_id": schema.id})
-    management = {
-        "form-TOTAL_FORMS": "2",
-        "form-INITIAL_FORMS": "0",
-        "form-MIN_NUM_FORMS": "0",
-        "form-MAX_NUM_FORMS": "1000",
+    url = reverse("health:harmonization_dashboard", kwargs={"schema_id": schema.id})
+    prefix = f"variable_{attributes['src_age'].id}"
+    payload = {
+        f"{prefix}-source_attribute": attributes["src_age"].id,
+        f"{prefix}-target_attribute": attributes["tgt_age"].id,
+        f"{prefix}-role": "value",
+        f"{prefix}-relation_type": "child",
+        f"{prefix}-relation_instance": "",
+        f"{prefix}-create_relation_instance": "child",
+        f"{prefix}-transform_code": "lambda value: value",
+        f"{prefix}-comments": "child age mapping",
     }
-    form0 = {
-        "form-0-source_attribute": attributes["src_age"].id,
-        "form-0-target_attribute": attributes["tgt_age"].id,
-        "form-0-role": "value",
-        "form-0-related_relation_type": "",
-        "form-0-transform_code": "lambda value: value",
-        "form-0-comments": "age mapping",
-    }
-    form1 = {
-        "form-1-source_attribute": attributes["src_pid"].id,
-        "form-1-target_attribute": attributes["tgt_pid"].id,
-        "form-1-role": "related_patient_id",
-        "form-1-related_relation_type": "child",
-        "form-1-transform_code": "",
-        "form-1-comments": "child id",
-    }
-    payload = {**management, **form0, **form1}
     resp = client.post(url, payload)
     assert resp.status_code == HTTP_REDIRECT
     rules = {r.source_attribute.variable_name: r for r in schema.rules.all()}
     assert rules["age"].role == "value"
-    assert rules["pid"].role == "related_patient_id"
-    assert rules["pid"].related_relation_type == "child"
+    assert rules["age"].relation_type == "child"
+    assert rules["age"].relation_name == "child_1"
+    assert rules["age"].inverse_relation_type == "parent"
 
 
 @pytest.mark.django_db
-def test_edit_mapping_view_includes_role_help(client, user, schema, attributes):
+def test_relation_instance_choices_only_include_existing_instances(schema, attributes):
+    MappingRule.objects.create(
+        schema=schema,
+        source_attribute=attributes["src_age"],
+        target_attribute=attributes["tgt_age"],
+        role="value",
+        relation_type="child",
+        relation_name="child_1",
+        inverse_relation_type="parent",
+        inverse_relation_name="parent",
+    )
+
+    values = [value for value, _label in relation_instance_choices(schema)]
+
+    assert "existing:child:child_1" in values
+    assert "create:child" not in values
+
+
+@pytest.mark.django_db
+def test_dashboard_includes_relation_controls(client, user, schema, attributes):
     client.force_login(user)
     # ensure at least one source attribute so form renders rows
-    url = reverse("health:edit_mapping", kwargs={"schema_id": schema.id})
+    url = reverse("health:harmonization_dashboard", kwargs={"schema_id": schema.id})
     resp = client.get(url)
     assert resp.status_code == HTTP_OK
     content = resp.content.decode().lower()
     # Check fragments from the help partial
-    assert "role guidance" in content
-    assert "related patient id" in content
+    assert "mapping role" in content
+    assert "relation type" in content
 
 
 @pytest.mark.django_db
@@ -269,6 +323,55 @@ def test_approve_mapping_view(client, user, schema, attributes):
     assert schema.approved_at is not None
 
 
+@pytest.mark.django_db
+def test_transform_routes_child_mapping_to_generated_patient(schema, attributes):
+    from health.tasks import transform_observations_for_schema
+
+    patient = Patient.objects.create(unique_id="P001")
+    Observation.objects.create(
+        patient=patient,
+        attribute=attributes["src_age"],
+        int_value=7,
+    )
+    MappingRule.objects.create(
+        schema=schema,
+        source_attribute=attributes["src_age"],
+        target_attribute=attributes["tgt_age"],
+        role="value",
+        relation_type="child",
+        relation_name="child_1",
+        inverse_relation_type="parent",
+        inverse_relation_name="parent",
+    )
+
+    result = transform_observations_for_schema.run(schema.id)
+
+    assert result["success"] is True
+    child = Patient.objects.get(unique_id="P001_child_1")
+    assert Observation.objects.filter(
+        patient=child,
+        attribute=attributes["tgt_age"],
+        int_value=7,
+    ).exists()
+    system_attrs = schema.target_study.variables.filter(category=RELATIONSHIP_SYSTEM_CATEGORY)
+    assert system_attrs.count() == 7
+    assert Observation.objects.filter(
+        patient=patient,
+        attribute__variable_name=RELATIONSHIP_TYPE,
+        text_value="child",
+    ).exists()
+    assert Observation.objects.filter(
+        patient=patient,
+        attribute__variable_name=RELATIONSHIP_RELATED_PATIENT_ID,
+        text_value="P001_child_1",
+    ).exists()
+    assert Observation.objects.filter(
+        patient=child,
+        attribute__variable_name=RELATIONSHIP_DIRECTION,
+        text_value="inverse",
+    ).exists()
+
+
 HTTP_OK = 200
 
 
@@ -282,4 +385,3 @@ def test_mapping_schemas_list_view(client, user, schema):
         content = resp.content.decode()
         assert schema.target_study.name in content
         assert "Harmonisation Schemas" in content
-

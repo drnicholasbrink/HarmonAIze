@@ -1148,6 +1148,78 @@
       opacity: 1;
     }
 
+    .relation-instance-control {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .relation-instance-modal-content {
+      max-width: 460px;
+    }
+
+    .relation-instance-preview {
+      margin-top: 0.75rem;
+      padding: 0.75rem 1rem;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      font-weight: 600;
+      color: var(--text-primary);
+      background: #F8F9FA;
+    }
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 2000;
+      background: rgba(0, 0, 0, 0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+
+    .modal-content {
+      width: 100%;
+      background: var(--card-background);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .modal-header,
+    .modal-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 1rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .modal-footer {
+      justify-content: flex-end;
+      border-top: 1px solid var(--border-color);
+      border-bottom: 0;
+    }
+
+    .modal-body {
+      padding: 1rem;
+    }
+
+    .modal-header h3 {
+      margin: 0;
+      font-size: 1.1rem;
+    }
+
+    .modal-close {
+      border: 0;
+      background: transparent;
+      font-size: 1.5rem;
+      line-height: 1;
+      cursor: pointer;
+    }
+
     /* Error styling */
     .form-group.error .form-select,
     .form-group.error .form-input,
@@ -2079,7 +2151,7 @@
                   <strong>Value:</strong> Map to target variable (most common) | 
                   <strong>Patient ID:</strong> Use as patient identifier | 
                   <strong>Date/Time:</strong> Use as timestamp | 
-                  <strong>Related Patient ID:</strong> For family/related person data
+                  <strong>Location:</strong> Use as location name
                 </small>
               </div>
 
@@ -2126,19 +2198,37 @@
                   <small class="help-text">Override universal datetime setting for this specific mapping</small>
                 </div>
                 
-                <!-- Relationship Type (only for related patient role) -->
-                <div class="form-group" id="relationship-{{ variable_form.attribute.id }}" style="{% if variable_form.form.role.value != 'related_patient_id' %}display: none;{% endif %}">
-                  <label class="form-label">Relationship Type</label>
-                  {{ variable_form.form.related_relation_type }}
-                  {% if variable_form.form.related_relation_type.errors %}
+                <div class="form-group" id="relationship-{{ variable_form.attribute.id }}">
+                  <label class="form-label">Relation Type</label>
+                  {{ variable_form.form.relation_type }}
+                  {% if variable_form.form.relation_type.errors %}
                     <div class="error-message">
-                      {% for error in variable_form.form.related_relation_type.errors %}
+                      {% for error in variable_form.form.relation_type.errors %}
                         <span>{{ error }}</span>
                       {% endfor %}
                     </div>
                   {% endif %}
-                  <small class="help-text">Required when role is 'Related Patient ID'</small>
+                  <small class="help-text">Choose who this mapped value belongs to.</small>
                 </div>
+
+                <div class="form-group relation-detail" data-relation-detail-for="{{ variable_form.attribute.id }}">
+                  <label class="form-label">Relation Instance</label>
+                  <div class="relation-instance-control">
+                    {{ variable_form.form.relation_instance }}
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="openRelationInstanceModal({{ variable_form.attribute.id }})">
+                      <i class="fas fa-plus"></i> New
+                    </button>
+                  </div>
+                  {% if variable_form.form.relation_instance.errors %}
+                    <div class="error-message">
+                      {% for error in variable_form.form.relation_instance.errors %}
+                        <span>{{ error }}</span>
+                      {% endfor %}
+                    </div>
+                  {% endif %}
+                  <small class="help-text">Choose an existing relation or create the next inferred one.</small>
+                </div>
+                {{ variable_form.form.create_relation_instance }}
               </div>
               
               <!-- Transform Code -->
@@ -2494,15 +2584,41 @@
   <i class="fas fa-save"></i> Saving...
 </div>
 
+<div class="modal-overlay" id="relation-instance-modal" style="display: none;" aria-hidden="true">
+  <div class="modal-content relation-instance-modal-content">
+    <div class="modal-header">
+      <h3>Create Relation Instance</h3>
+      <button type="button" class="modal-close" onclick="closeRelationInstanceModal()" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p class="help-text" id="relation-instance-modal-copy"></p>
+      <div class="relation-instance-preview" id="relation-instance-modal-preview"></div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-outline" onclick="closeRelationInstanceModal()">Cancel</button>
+      <button type="button" class="btn btn-primary" onclick="confirmRelationInstanceCreate()">
+        <i class="fas fa-plus"></i> Create and Save
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- Include ACE Editor JavaScript -->
 {% for variable_form in variable_forms %}
   {{ variable_form.form.media.js }}
 {% endfor %}
 
+{{ relation_instance_previews|json_script:"relation-instance-previews-data" }}
+
 <script>
+let relationInstancePreviews = JSON.parse(
+    document.getElementById('relation-instance-previews-data')?.textContent || '{}'
+);
+
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize role-dependent sections
     initializeRoleDependentSections();
+    initializeRelationInstanceControls();
     
     // Initialize filters
     initializeFilters();
@@ -2573,23 +2689,151 @@ function initializeNotMappableHandlers() {
 }
 
 function initializeRoleDependentSections() {
-    document.querySelectorAll('select[name$="-role"]').forEach(select => {
-        const variableId = select.name.match(/variable_(\d+)-role/)[1];
-        const relationshipSection = document.getElementById(`relationship-${variableId}`);
-        
-        function toggleRelationshipSection() {
-            if (select.value === 'related_patient_id') {
-                relationshipSection.style.display = 'block';
-            } else {
-                relationshipSection.style.display = 'none';
-            }
+    document.querySelectorAll('select[name$="-relation_type"]').forEach(select => {
+        const match = select.name.match(/variable_(\d+)-relation_type/);
+        if (!match) return;
+        const variableId = match[1];
+        const relationDetails = document.querySelectorAll(`[data-relation-detail-for="${variableId}"]`);
+
+        function toggleRelationDetails() {
+            relationDetails.forEach(section => {
+                section.style.display = select.value && select.value !== 'self' ? 'block' : 'none';
+            });
         }
-        
-        // Initialize state
-        toggleRelationshipSection();
-        
-        // Listen for changes
-        select.addEventListener('change', toggleRelationshipSection);
+
+        toggleRelationDetails();
+        select.addEventListener('change', toggleRelationDetails);
+    });
+}
+
+let pendingRelationInstanceVariableId = null;
+
+function initializeRelationInstanceControls() {
+    document.querySelectorAll('.variable-card').forEach(card => {
+        const relationTypeSelect = card.querySelector('select[name$="-relation_type"]');
+        const relationInstanceSelect = card.querySelector('select[name$="-relation_instance"]');
+        if (!relationTypeSelect || !relationInstanceSelect) return;
+
+        filterRelationInstanceOptions(card);
+        relationTypeSelect.addEventListener('change', () => {
+            filterRelationInstanceOptions(card);
+        });
+    });
+}
+
+function filterRelationInstanceOptions(card) {
+    const relationTypeSelect = card.querySelector('select[name$="-relation_type"]');
+    const relationInstanceSelect = card.querySelector('select[name$="-relation_instance"]');
+    if (!relationTypeSelect || !relationInstanceSelect) return;
+
+    const relationType = relationTypeSelect.value || 'self';
+    let firstVisibleValue = '';
+    let selectedStillVisible = false;
+
+    Array.from(relationInstanceSelect.options).forEach(option => {
+        const value = option.value || '';
+        const isDefault = value === '';
+        const matchesType = value.includes(`:${relationType}:`);
+        const visible = relationType !== 'self' && (isDefault || matchesType);
+        option.hidden = !visible;
+        option.disabled = !visible;
+        if (visible && !firstVisibleValue) {
+            firstVisibleValue = value;
+        }
+        if (visible && option.selected) {
+            selectedStillVisible = true;
+        }
+    });
+
+    if (relationType === 'self') {
+        relationInstanceSelect.value = '';
+        return;
+    }
+    if (!selectedStillVisible) {
+        relationInstanceSelect.value = firstVisibleValue;
+    }
+}
+
+function openRelationInstanceModal(variableId) {
+    const card = document.querySelector(`.variable-card[data-attribute-id="${variableId}"]`);
+    if (!card) return;
+    const relationTypeSelect = card.querySelector('select[name$="-relation_type"]');
+    const relationInstanceSelect = card.querySelector('select[name$="-relation_instance"]');
+    const relationType = relationTypeSelect?.value || 'self';
+    if (relationType === 'self') {
+        showErrorNotification('Choose a non-self relation type before creating a relation instance.');
+        return;
+    }
+
+    filterRelationInstanceOptions(card);
+    if (relationInstanceSelect?.value?.startsWith(`existing:${relationType}:`)) {
+        showErrorNotification('This mapping already uses a relation instance. Create the next instance from another mapping that does not already use this relation.');
+        return;
+    }
+    const preview = relationInstancePreviews[relationType];
+    if (!preview || !preview.relation_name) {
+        showErrorNotification('No relation instance preview is available for this relation type.');
+        return;
+    }
+
+    pendingRelationInstanceVariableId = variableId;
+    const modal = document.getElementById('relation-instance-modal');
+    document.getElementById('relation-instance-modal-copy').textContent = `This will create the next ${preview.relation_label} relation instance and save the current mapping so other variables can reuse it.`;
+    document.getElementById('relation-instance-modal-preview').textContent = preview.relation_name;
+    modal.style.display = 'flex';
+    modal.setAttribute('aria-hidden', 'false');
+}
+
+function closeRelationInstanceModal() {
+    const modal = document.getElementById('relation-instance-modal');
+    modal.style.display = 'none';
+    modal.setAttribute('aria-hidden', 'true');
+    pendingRelationInstanceVariableId = null;
+}
+
+function confirmRelationInstanceCreate() {
+    if (!pendingRelationInstanceVariableId) return;
+    const variableId = pendingRelationInstanceVariableId;
+    const card = document.querySelector(`.variable-card[data-attribute-id="${variableId}"]`);
+    if (!card) return;
+    const relationTypeSelect = card.querySelector('select[name$="-relation_type"]');
+    const relationInstanceSelect = card.querySelector('select[name$="-relation_instance"]');
+    const createRelationInput = card.querySelector('input[name$="-create_relation_instance"]');
+    const relationType = relationTypeSelect?.value || 'self';
+    if (relationInstanceSelect) {
+        relationInstanceSelect.value = '';
+    }
+    if (createRelationInput) {
+        createRelationInput.value = relationType;
+    }
+    closeRelationInstanceModal();
+    saveMapping(variableId);
+}
+
+function refreshRelationInstancePreviews(previews) {
+    if (previews && typeof previews === 'object') {
+        relationInstancePreviews = previews;
+    }
+}
+
+function refreshRelationInstanceChoices(choices) {
+    if (!Array.isArray(choices)) return;
+    document.querySelectorAll('select[name$="-relation_instance"]').forEach(select => {
+        const previousValue = select.value;
+        select.innerHTML = '';
+        choices.forEach(choice => {
+            const option = document.createElement('option');
+            option.value = choice.value;
+            option.textContent = choice.label;
+            select.appendChild(option);
+        });
+        if (Array.from(select.options).some(option => option.value === previousValue)) {
+            select.value = previousValue;
+        }
+        const card = select.closest('.variable-card');
+        if (card) {
+            filterRelationInstanceOptions(card);
+        }
     });
 }
 
@@ -2783,6 +3027,10 @@ function saveMapping(variableId, isAutoSave = false) {
             newFormData.append(key, value);
         }
     }
+    const createRelationInput = form.querySelector(`input[name="variable_${variableId}-create_relation_instance"]`);
+    if (createRelationInput) {
+        createRelationInput.value = '';
+    }
     
     if (!isAutoSave) {
         document.getElementById('auto-save-indicator').innerHTML = '<i class="fas fa-save"></i> Saving...';
@@ -2799,6 +3047,16 @@ function saveMapping(variableId, isAutoSave = false) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
+            refreshRelationInstancePreviews(data.relation_instance_previews);
+            refreshRelationInstanceChoices(data.relation_instance_choices);
+            if (data.saved_relation_instance && data.saved_relation_instance.value) {
+                const currentCard = document.querySelector(`.variable-card[data-attribute-id="${variableId}"]`);
+                const currentInstanceSelect = currentCard?.querySelector('select[name$="-relation_instance"]');
+                if (currentInstanceSelect) {
+                    currentInstanceSelect.value = data.saved_relation_instance.value;
+                    filterRelationInstanceOptions(currentCard);
+                }
+            }
             if (!isAutoSave) {
                 document.getElementById('auto-save-indicator').innerHTML = '<i class="fas fa-check"></i> Saved!';
                 setTimeout(() => {
@@ -3765,19 +4023,13 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // Add event listeners for role changes
-    document.querySelectorAll('select[name*="role"]').forEach(roleSelect => {
-        roleSelect.addEventListener('change', function() {
+    document.querySelectorAll('select[name*="relation_type"]').forEach(relationSelect => {
+        relationSelect.addEventListener('change', function() {
             const variableCard = this.closest('.variable-card');
-            const relationshipSection = variableCard.querySelector('[id^="relationship-"]');
-            
-            if (this.value === 'related_patient_id') {
-                // Show relationship type for related patient ID role
-                relationshipSection.style.display = 'block';
-            } else {
-                // Hide relationship type for other roles
-                relationshipSection.style.display = 'none';
-            }
+            const relationDetails = variableCard.querySelectorAll('.relation-detail');
+            relationDetails.forEach(section => {
+                section.style.display = this.value && this.value !== 'self' ? 'block' : 'none';
+            });
         });
     });
     
@@ -3813,11 +4065,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Clear the custom settings fields when hiding
                 const patientIdField = customSettingsSection.querySelector('select[name*="patient_id_attribute"]');
                 const datetimeField = customSettingsSection.querySelector('select[name*="datetime_attribute"]');
-                const relationField = customSettingsSection.querySelector('select[name*="related_relation_type"]');
+                const relationField = customSettingsSection.querySelector('select[name*="relation_type"]');
+                const relationInstanceField = customSettingsSection.querySelector('select[name*="relation_instance"]');
                 
                 if (patientIdField) patientIdField.selectedIndex = 0;
                 if (datetimeField) datetimeField.selectedIndex = 0;
-                if (relationField) relationField.selectedIndex = 0;
+                if (relationField) relationField.value = 'self';
+                if (relationInstanceField) relationInstanceField.selectedIndex = 0;
             }
         });
     });

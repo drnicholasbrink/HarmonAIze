@@ -18,6 +18,13 @@ from core.models import Attribute, StudyDocument
 from core.similarity_service import similarity_service
 
 from .models import HarmonizationAIRun, MappingRule
+from .relationship_system import (
+    REPEATABLE_RELATION_TYPES,
+    infer_inverse_relation,
+    infer_next_relation_name,
+    relation_instance_choices,
+    relation_name_from_order,
+)
 from .summary_stats_context import build_deidentified_summary_stats_context
 
 logger = logging.getLogger(__name__)
@@ -468,9 +475,44 @@ class AIHarmonizationService:
         rule.datetime_attribute = self._get_source_attribute(run, mapping_payload.get("datetime_attribute_id"))
         rule.location_attribute = self._get_source_attribute(run, mapping_payload.get("location_attribute_id"))
 
-        relation_type = mapping_payload.get("related_relation_type") or ""
+        previous_relation_type = rule.relation_type
+        previous_relation_name = rule.relation_name
+        relation_type = mapping_payload.get("relation_type") or "self"
         valid_relations = {choice[0] for choice in run.schema.RELATION_CHOICES}
-        rule.related_relation_type = relation_type if relation_type in valid_relations else ""
+        rule.relation_type = relation_type if relation_type in valid_relations else "self"
+        if rule.relation_type == "self":
+            rule.relation_name = ""
+            rule.inverse_relation_type = ""
+            rule.inverse_relation_name = ""
+        else:
+            relation_order = mapping_payload.get("relation_instance_order")
+            if relation_order is not None:
+                try:
+                    relation_order = int(relation_order)
+                    rule.relation_name = relation_name_from_order(
+                        rule.relation_type,
+                        relation_order,
+                    )
+                except (TypeError, ValueError, ValidationError):
+                    relation_order = None
+                    rule.relation_name = ""
+            if not rule.relation_name and rule.relation_type not in REPEATABLE_RELATION_TYPES:
+                rule.relation_name = relation_name_from_order(rule.relation_type)
+            if (
+                not rule.relation_name
+                and previous_relation_type == rule.relation_type
+                and previous_relation_name
+            ):
+                rule.relation_name = previous_relation_name
+            if not rule.relation_name:
+                rule.relation_name = infer_next_relation_name(
+                    schema=run.schema,
+                    relation_type=rule.relation_type,
+                    exclude_rule_id=rule.pk,
+                )
+            rule.inverse_relation_type, rule.inverse_relation_name = infer_inverse_relation(
+                rule.relation_type,
+            )
 
         transform_code = (mapping_payload.get("transform_code") or "").strip()
         rule.transform_code = transform_code
@@ -580,6 +622,16 @@ class AIHarmonizationService:
                     "top_candidates_per_variable": run.top_candidates_per_variable,
                     "include_deidentified_summary_stats": bool(summary_stats_context),
                 },
+                "relation_naming_policy": {
+                    "repeatable_relation_types": sorted(REPEATABLE_RELATION_TYPES),
+                    "repeatable_names": "Use relation_instance_order only; the application constructs names as <relation_type>_<order>, for example child_1.",
+                    "non_repeatable_names": "For mother, father, parent, and spouse, leave relation_instance_order null; the application uses the relation type as the instance name.",
+                    "existing_instances": [
+                        {"value": value, "label": label}
+                        for value, label in relation_instance_choices(run.schema)
+                        if value
+                    ],
+                },
                 "deidentified_summary_stats_context": summary_stats_context,
                 "variables": variables_payload,
             },
@@ -614,6 +666,10 @@ class AIHarmonizationService:
             "Only use summary statistics when they are supplied in the prompt. Never infer or request row-level data, example records, or potentially identifiable values. "
             "Only recommend target attributes from the candidate_targets list for each variable unless "
             "you determine the variable is not mappable. Keep transform code safe and simple. "
+            "Use relation_type='self' unless the source variable clearly describes another entity, such as a child, parent, spouse, sibling, mother, or father. "
+            "Do not map source variables directly to relationship-system target attributes. "
+            "For non-self repeatable mappings, provide relation_instance_order only when the source variable clearly encodes the instance order, such as child 1 or sibling 2. "
+            "Do not provide free-text relation instance names; the application constructs stable names and inverse relation metadata. "
             "If transform code is needed, return exactly one inline lambda expression or one def transform(value) function. "
             "Do not invent helper functions, utility wrappers, or extra defs. "
             "Only use whitelisted built-ins such as int, float, str, bool, round, abs, min, max, len, sum, any, all, sorted, reversed, enumerate, range, zip, list, tuple, dict, and set, plus safe string/list/dict methods like strip, lower, upper, split, replace, append, get, items, and update. "
@@ -674,7 +730,8 @@ class AIHarmonizationService:
                                     "patient_id_attribute_id",
                                     "datetime_attribute_id",
                                     "location_attribute_id",
-                                    "related_relation_type",
+                                    "relation_type",
+                                    "relation_instance_order",
                                     "transform_code",
                                     "comments",
                                 ],
@@ -686,17 +743,17 @@ class AIHarmonizationService:
                                             "value",
                                             "patient_id",
                                             "datetime",
-                                            "related_patient_id",
                                             "location",
                                         ],
                                     },
                                     "patient_id_attribute_id": {"type": ["integer", "null"]},
                                     "datetime_attribute_id": {"type": ["integer", "null"]},
                                     "location_attribute_id": {"type": ["integer", "null"]},
-                                    "related_relation_type": {
-                                        "type": ["string", "null"],
-                                        "enum": ["self", "child", "father", "mother", "spouse", "sibling", "other", None],
+                                    "relation_type": {
+                                        "type": "string",
+                                        "enum": ["self", "child", "parent", "father", "mother", "spouse", "sibling", "other"],
                                     },
+                                    "relation_instance_order": {"type": ["integer", "null"]},
                                     "transform_code": {"type": "string"},
                                     "comments": {"type": "string"},
                                 },

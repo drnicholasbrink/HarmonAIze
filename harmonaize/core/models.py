@@ -195,6 +195,7 @@ class Attribute(models.Model):
             ('health', 'Health'),
             ('climate', 'Climate'),
             ('geolocation', 'Geolocation'),
+            ('relationship_system', 'Relationship System'),
         ],
     )
     # Field to distinguish between source and target variables

@@ -47,8 +47,10 @@ def enrich_generated_codebook_descriptions(self, run_id: int) -> dict[str, Any]:
         )
 
         requested_attribute_ids = list(
-            run.requested_attributes.order_by("id").values_list("id", flat=True)
-        ) or list(study.variables.order_by("id").values_list("id", flat=True))
+            run.requested_attributes.exclude(category="relationship_system").order_by("id").values_list("id", flat=True)
+        ) or list(
+            study.variables.exclude(category="relationship_system").order_by("id").values_list("id", flat=True)
+        )
 
         result: dict[str, Any] = {}
         updated_attribute_ids: list[int] = []

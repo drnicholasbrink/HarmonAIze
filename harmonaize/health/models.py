@@ -21,6 +21,7 @@ class MappingSchema(models.Model):
     RELATION_CHOICES = (
         ("self", "Self"),
         ("child", "Child"),
+        ("parent", "Parent"),
         ("father", "Father"),
         ("mother", "Mother"),
         ("spouse", "Spouse/Partner"),
@@ -332,7 +333,6 @@ class MappingRule(models.Model):
         ("value", "Value"),
         ("patient_id", "Patient ID"),
         ("datetime", "Date/Time"),
-        ("related_patient_id", "Related Patient ID"),
         ("location", "Location"),
     )
     schema = models.ForeignKey(MappingSchema, on_delete=models.CASCADE, related_name="rules")
@@ -369,12 +369,20 @@ class MappingRule(models.Model):
         help_text="Location attribute to use for this mapping",
     )
 
-    related_relation_type = models.CharField(
+    relation_type = models.CharField(
+        max_length=20,
+        choices=MappingSchema.RELATION_CHOICES,
+        default="self",
+        help_text="Entity that owns this mapped value.",
+    )
+    relation_name = models.SlugField(max_length=80, blank=True)
+    inverse_relation_type = models.CharField(
         max_length=20,
         choices=MappingSchema.RELATION_CHOICES,
         blank=True,
-        help_text="Relation type (only for related patient id role)",
+        help_text="Reverse relationship from the generated related entity.",
     )
+    inverse_relation_name = models.SlugField(max_length=80, blank=True)
     transform_code = models.TextField(blank=True, help_text="Optional safe Python: lambda value: ... or def transform(value): return ...")
     comments = models.TextField(blank=True)
     ai_last_refreshed_at = models.DateTimeField(null=True, blank=True)
@@ -409,6 +417,26 @@ class MappingRule(models.Model):
         if self.schema_id and self.location_attribute_id:
             if not self.schema.source_study.variables.filter(pk=self.location_attribute_id).exists():
                 errors["location_attribute"] = "Must be an attribute of the source study."
+        relation_type = self.relation_type or "self"
+        if relation_type == "self":
+            if self.relation_name:
+                errors["relation_name"] = "Self mappings cannot set a relation name."
+            if self.inverse_relation_type:
+                errors["inverse_relation_type"] = "Self mappings cannot set an inverse relation type."
+            if self.inverse_relation_name:
+                errors["inverse_relation_name"] = "Self mappings cannot set an inverse relation name."
+        else:
+            from .relationship_system import infer_inverse_relation, is_suffix_safe_relation_name
+
+            if not self.inverse_relation_type or not self.inverse_relation_name:
+                self.inverse_relation_type, self.inverse_relation_name = infer_inverse_relation(relation_type)
+            if not self.relation_name:
+                errors["relation_name"] = "Non-self mappings require a relation instance."
+
+            if self.relation_name and not is_suffix_safe_relation_name(self.relation_name):
+                errors["relation_name"] = "Relation name must be a suffix-safe slug."
+            if self.inverse_relation_name and not is_suffix_safe_relation_name(self.inverse_relation_name):
+                errors["inverse_relation_name"] = "Inverse relation name must be a suffix-safe slug."
         try:
             validate_safe_transform_code(self.transform_code or "")
         except ValidationError as e:

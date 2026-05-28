@@ -11,6 +11,13 @@ from .models import (
     RawDataFile,
     validate_safe_transform_code,
 )
+from .relationship_system import RELATIONSHIP_SYSTEM_CATEGORY
+from .relationship_system import (
+    infer_next_relation_name,
+    infer_inverse_relation,
+    relation_instance_choices,
+    resolve_relation_instance_choice,
+)
 
 
 class TargetAttributeWidget(forms.Select):
@@ -85,6 +92,15 @@ class MappingRuleForm(forms.ModelForm):
         queryset=Attribute.objects.none(),
         disabled=True,
     )
+    relation_instance = forms.ChoiceField(
+        required=False,
+        choices=[],
+        label="Relation instance",
+    )
+    create_relation_instance = forms.CharField(
+        required=False,
+        widget=forms.HiddenInput(),
+    )
 
     # Form-only field for toggling custom settings visibility
     use_custom_settings = forms.BooleanField(
@@ -104,9 +120,11 @@ class MappingRuleForm(forms.ModelForm):
             "role",
             "patient_id_attribute",
             "datetime_attribute",
-            "related_relation_type",
+            "relation_type",
             "location_attribute",
             "target_attribute",
+            "relation_instance",
+            "create_relation_instance",
             "transform_code",
             "comments",
         ]
@@ -145,6 +163,7 @@ class MappingRuleForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         schema: MappingSchema = kwargs.pop("schema")
+        self._schema = schema
         super().__init__(*args, **kwargs)
 
         src_qs = schema.source_study.variables.all().order_by("variable_name")
@@ -186,14 +205,14 @@ class MappingRuleForm(forms.ModelForm):
             "Override universal location setting for this specific mapping"
         )
 
-        # Relation type for related patient mappings
-        self.fields["related_relation_type"].required = False
-        self.fields["related_relation_type"].empty_label = (
-            "Use universal setting (recommended)"
-        )
-        self.fields["related_relation_type"].help_text = (
-            "Only needed when role is not 'Value'"
-        )
+        self.fields["relation_type"].required = False
+        self.fields["relation_type"].help_text = "Entity that owns this mapped value"
+        self.fields["relation_instance"].choices = relation_instance_choices(schema)
+        self.fields["relation_instance"].help_text = "Choose an existing relation instance, or create the next one with New."
+        if self.instance and self.instance.relation_type and self.instance.relation_name:
+            self.fields["relation_instance"].initial = (
+                f"existing:{self.instance.relation_type}:{self.instance.relation_name}"
+            )
 
         # Pre-populate from universal settings if enabled and no custom value set
         if schema.auto_populate_enabled:
@@ -213,13 +232,8 @@ class MappingRuleForm(forms.ModelForm):
                     schema.universal_datetime
                 )
 
-            if (
-                schema.universal_relation_type
-                and not getattr(self.instance, "related_relation_type", None)
-            ):
-                self.fields["related_relation_type"].initial = (
-                    schema.universal_relation_type
-                )
+            if schema.universal_relation_type and not getattr(self.instance, "relation_type", None):
+                self.fields["relation_type"].initial = schema.universal_relation_type
 
             if (
                 schema.universal_location
@@ -240,8 +254,7 @@ class MappingRuleForm(forms.ModelForm):
             "Value: Standard mapping to target variable | "
             "Patient ID: Use as patient identifier | "
             "Date/Time: Use as timestamp | "
-            "Location: Use as location name | "
-            "Related Patient ID: For family/related person data"
+            "Location: Use as location name"
         )
         self.fields["target_attribute"].help_text = (
             "Select the target variable this source variable maps to"
@@ -252,9 +265,86 @@ class MappingRuleForm(forms.ModelForm):
         # If variable marked as not mappable, do not enforce role/target
         if cleaned.get("not_mappable"):
             cleaned["role"] = cleaned.get("role") or "value"
+            cleaned["relation_type"] = "self"
+            cleaned["relation_instance"] = ""
+            cleaned["create_relation_instance"] = ""
+            self._sync_relation_metadata_for_model_validation(cleaned)
             # target_attribute can remain empty
             return cleaned
+        relation_type = cleaned.get("relation_type") or "self"
+        cleaned["relation_type"] = relation_type
+        if relation_type == "self":
+            cleaned["relation_instance"] = ""
+            cleaned["create_relation_instance"] = ""
+        else:
+            schema = self.instance.schema if self.instance and self.instance.schema_id else self._schema
+            create_relation_type = cleaned.get("create_relation_instance") or ""
+            if create_relation_type:
+                if create_relation_type != relation_type:
+                    self.add_error(
+                        "relation_instance",
+                        "Create intent does not match the selected relation type.",
+                    )
+                else:
+                    next_relation_name = infer_next_relation_name(
+                        schema=schema,
+                        relation_type=relation_type,
+                        exclude_rule_id=self.instance.pk if self.instance else None,
+                    )
+                    if (
+                        self.instance
+                        and self.instance.pk
+                        and self.instance.relation_type == relation_type
+                        and self.instance.relation_name == next_relation_name
+                    ):
+                        self.add_error(
+                            "relation_instance",
+                            "This mapping already uses the next relation instance. Use it in another mapping before creating the next one.",
+                        )
+                    else:
+                        cleaned["relation_name"] = next_relation_name
+            else:
+                try:
+                    cleaned["relation_name"] = resolve_relation_instance_choice(
+                        schema=schema,
+                        relation_type=relation_type,
+                        choice=cleaned.get("relation_instance") or "",
+                    )
+                except ValidationError as exc:
+                    self.add_error("relation_instance", exc)
+        self._sync_relation_metadata_for_model_validation(cleaned)
         return cleaned
+
+    def _sync_relation_metadata_for_model_validation(self, cleaned):
+        relation_type = cleaned.get("relation_type") or "self"
+        self.instance.relation_type = relation_type
+        if relation_type == "self":
+            self.instance.relation_name = ""
+            self.instance.inverse_relation_type = ""
+            self.instance.inverse_relation_name = ""
+            return
+
+        relation_name = cleaned.get("relation_name")
+        if not relation_name:
+            relation_name = self.instance.relation_name or "invalid_relation_instance"
+        self.instance.relation_name = relation_name
+        self.instance.inverse_relation_type, self.instance.inverse_relation_name = infer_inverse_relation(relation_type)
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        relation_type = self.cleaned_data.get("relation_type") or "self"
+        instance.relation_type = relation_type
+        if relation_type == "self":
+            instance.relation_name = ""
+            instance.inverse_relation_type = ""
+            instance.inverse_relation_name = ""
+        else:
+            instance.relation_name = self.cleaned_data.get("relation_name") or instance.relation_name
+            instance.inverse_relation_type, instance.inverse_relation_name = infer_inverse_relation(relation_type)
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance
 
     def clean_transform_code(self):
         code = self.cleaned_data.get("transform_code", "") or ""
@@ -664,7 +754,7 @@ class CombinedExportForm(forms.Form):
             observed_attributes = dataset_exports.observed_target_attribute_queryset(target_obj)
             eligible_health = dataset_exports.eligible_health_queryset(observed_attributes)
             visible_attribute_ids = list(eligible_health.values_list("pk", flat=True)) + list(
-                observed_attributes.exclude(category="health").values_list("pk", flat=True),
+                observed_attributes.exclude(category__in=["health", RELATIONSHIP_SYSTEM_CATEGORY]).values_list("pk", flat=True),
             )
             self.fields["attributes"].queryset = (
                 observed_attributes.filter(pk__in=visible_attribute_ids)

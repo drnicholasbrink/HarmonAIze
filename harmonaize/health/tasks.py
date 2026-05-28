@@ -17,6 +17,14 @@ from celery.exceptions import Retry
 from dateutil.parser import ParserError
 
 from .models import HarmonizationAIRun, RawDataFile, RawDataColumn
+from .relationship_system import (
+    create_relationship_edge_time,
+    delete_relationship_observations_for_schema,
+    generated_patient_id,
+    get_or_create_relationship_attributes,
+    infer_inverse_relation,
+    write_relationship_edge,
+)
 from core.models import Study, Attribute, Patient, Observation, TimeDimension, Location
 
 logger = logging.getLogger(__name__)
@@ -987,7 +995,10 @@ def transform_observations_for_schema(
         ).get(id=schema_id)
 
         rules = (
-            MappingRule.objects.select_related("source_attribute", "target_attribute")
+            MappingRule.objects.select_related(
+                "source_attribute",
+                "target_attribute",
+            )
             .filter(
                 schema=schema,
                 not_mappable=False,
@@ -1001,17 +1012,31 @@ def transform_observations_for_schema(
         skipped = 0
         deleted_count = 0
         errors: list[str] = []
+        edge_times: dict[tuple[str, str, str, str, str, str], TimeDimension] = {}
+        relationship_attributes = None
+        has_non_self_rules = rules.exclude(relation_type="self").exists()
+        if has_non_self_rules:
+            relationship_attributes = get_or_create_relationship_attributes(schema.target_study)
 
         target_attribute_ids: list[int] = []
         if delete_existing:
+            deleted_count += delete_relationship_observations_for_schema(
+                target_study=schema.target_study,
+                schema_id=schema.id,
+            )
             target_attribute_ids = list(
-                schema.target_study.variables.filter(source_type="target").values_list("id", flat=True)
+                schema.target_study.variables.filter(
+                    source_type="target",
+                ).exclude(
+                    category="relationship_system",
+                ).values_list("id", flat=True)
             )
             if target_attribute_ids:
                 delete_qs = Observation.objects.filter(attribute_id__in=target_attribute_ids)
                 if schema.created_at:
                     delete_qs = delete_qs.filter(created_at__gte=schema.created_at)
-                deleted_count, _ = delete_qs.delete()
+                target_deleted_count, _ = delete_qs.delete()
+                deleted_count += target_deleted_count
                 logger.info(
                     "Deleted %s prior harmonised observations for schema %s before re-processing",
                     deleted_count,
@@ -1059,6 +1084,67 @@ def transform_observations_for_schema(
                         skipped += 1
                         continue
 
+                    target_patient = src_obs.patient
+                    effective_relation_name = ""
+                    if rule.relation_type and rule.relation_type != "self":
+                        if src_obs.patient is None:
+                            skipped += 1
+                            continue
+                        effective_relation_name = rule.relation_name
+                        if not effective_relation_name:
+                            skipped += 1
+                            continue
+
+                        base_patient_id = src_obs.patient.unique_id
+                        related_patient_id = generated_patient_id(
+                            base_patient_id,
+                            effective_relation_name,
+                        )
+                        target_patient, _ = Patient.objects.get_or_create(
+                            unique_id=related_patient_id,
+                        )
+                        inverse_relation_type, inverse_relation_name = infer_inverse_relation(
+                            rule.relation_type,
+                        )
+                        edge_key = (
+                            base_patient_id,
+                            related_patient_id,
+                            rule.relation_type,
+                            effective_relation_name,
+                            inverse_relation_type,
+                            inverse_relation_name,
+                        )
+                        edge_time = edge_times.get(edge_key)
+                        if edge_time is None:
+                            edge_time = create_relationship_edge_time(src_obs.time)
+                            edge_times[edge_key] = edge_time
+                        if relationship_attributes is None:
+                            relationship_attributes = get_or_create_relationship_attributes(
+                                schema.target_study,
+                            )
+                        write_relationship_edge(
+                            attributes=relationship_attributes,
+                            patient=src_obs.patient,
+                            source_patient_id=base_patient_id,
+                            related_patient_id=related_patient_id,
+                            relation_type=rule.relation_type,
+                            relation_name=effective_relation_name,
+                            direction="forward",
+                            schema_id=schema.id,
+                            time=edge_time,
+                        )
+                        write_relationship_edge(
+                            attributes=relationship_attributes,
+                            patient=target_patient,
+                            source_patient_id=related_patient_id,
+                            related_patient_id=base_patient_id,
+                            relation_type=inverse_relation_type,
+                            relation_name=inverse_relation_name,
+                            direction="inverse",
+                            schema_id=schema.id,
+                            time=edge_time,
+                        )
+
                     # Prepare defaults according to target attribute type
                     target_location = src_obs.location
 
@@ -1085,7 +1171,7 @@ def transform_observations_for_schema(
                             target_location = location_obj
 
                     defaults: dict[str, Any] = {
-                        "patient": src_obs.patient,
+                        "patient": target_patient,
                         "location": target_location,
                         "time": src_obs.time,
                     }
@@ -1114,7 +1200,7 @@ def transform_observations_for_schema(
 
                     # Upsert target observation
                     obj, created = Observation.objects.get_or_create(
-                        patient=src_obs.patient,
+                        patient=target_patient,
                         location=target_location,
                         attribute=rule.target_attribute,
                         time=src_obs.time,
@@ -1309,6 +1395,7 @@ def delete_duplicates_task(self, raw_data_file_id: int) -> dict[str, Any]:
         # Note: Observations are linked to raw data files through attribute->study relationship
         duplicate_groups = (
             Observation.objects.filter(attribute__study=raw_data_file.study)
+            .exclude(attribute__category="relationship_system")
             .values('patient_id', 'attribute_id', 'time_id', 'location_id',
                    'float_value', 'int_value', 'text_value', 'boolean_value', 'datetime_value')
             .annotate(

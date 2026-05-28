@@ -8,6 +8,7 @@ patient, attribute, time, location, and value) versus legitimate data variations
 from typing import Any
 from django.db.models import Count, Q
 from core.models import Observation
+from .relationship_system import RELATIONSHIP_SYSTEM_CATEGORY
 
 
 def find_duplicate_observations(study=None, raw_data_file=None, limit=50, source_only=True):
@@ -49,6 +50,7 @@ def find_duplicate_observations(study=None, raw_data_file=None, limit=50, source
         is_source = study.study_purpose == 'source'
     else:
         is_source = True  # Default assumption
+    query = query.exclude(attribute__category=RELATIONSHIP_SYSTEM_CATEGORY)
     
     # OPTIMIZATION: Just count duplicates without fetching all details
     # This is much faster for large datasets
@@ -149,6 +151,7 @@ def find_multi_value_observations(study=None, raw_data_file=None, limit=30):
         is_source = study.study_purpose == 'source'
     else:
         is_source = True
+    query = query.exclude(attribute__category=RELATIONSHIP_SYSTEM_CATEGORY)
     
     # Find cases where patient+attribute+time+location has multiple observations
     multi_context = (

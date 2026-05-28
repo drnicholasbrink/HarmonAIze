@@ -14,6 +14,10 @@ from django.utils.text import slugify
 
 from climate.models import ClimateDataRequest
 from core.models import Attribute, Observation, Study
+from .relationship_system import (
+    RELATIONSHIP_SYSTEM_CATEGORY,
+    build_relationship_export_lookup,
+)
 
 LAG_UNIT_TO_DAYS = {
     "days": 1,
@@ -162,6 +166,7 @@ class TargetStudyDatasetBuilder:
         self.lag_unit = get_climate_lag_unit_for_study(target_study)
         self.lag_unit_short = LAG_UNIT_SHORT.get(self.lag_unit, "d")
         self.lag_multiplier = LAG_UNIT_TO_DAYS.get(self.lag_unit, 1)
+        self.relationship_lookup = build_relationship_export_lookup(target_study)
 
     @property
     def long_columns(self) -> list[str]:
@@ -171,6 +176,9 @@ class TargetStudyDatasetBuilder:
             "target_study_id",
             "target_study_name",
             "patient_id",
+            "source_patient_id",
+            "patient_relation_type",
+            "patient_relation_name",
             "outcome_variable_name",
             "outcome_display_name",
             "outcome_value",
@@ -197,6 +205,9 @@ class TargetStudyDatasetBuilder:
             "target_study_id",
             "target_study_name",
             "patient_id",
+            "source_patient_id",
+            "patient_relation_type",
+            "patient_relation_name",
             "outcome_variable_name",
             "outcome_display_name",
             "outcome_value",
@@ -327,6 +338,9 @@ class TargetStudyDatasetBuilder:
                     "target_study_id",
                     "target_study_name",
                     "patient_id",
+                    "source_patient_id",
+                    "patient_relation_type",
+                    "patient_relation_name",
                     "outcome_variable_name",
                     "outcome_display_name",
                     "outcome_value",
@@ -444,8 +458,17 @@ class TargetStudyDatasetBuilder:
         patient_identifier = ""
         if observation.patient_id:
             patient_identifier = getattr(observation.patient, "unique_id", None) or str(observation.patient_id)
+        relation_metadata = self.relationship_lookup.get(patient_identifier)
+        source_patient_identifier = patient_identifier
+        relation_type = "self"
+        relation_name = ""
+        if relation_metadata:
+            source_patient_identifier = relation_metadata.source_patient_id
+            relation_type = relation_metadata.relation_type
+            relation_name = relation_metadata.relation_name
         if self.deidentify:
             patient_identifier = hash_identifier(patient_identifier)
+            source_patient_identifier = hash_identifier(source_patient_identifier)
 
         location_name = ""
         if observation.location_id:
@@ -459,6 +482,9 @@ class TargetStudyDatasetBuilder:
             "target_study_id": self.target_study.id,
             "target_study_name": self.target_study.name,
             "patient_id": patient_identifier,
+            "source_patient_id": source_patient_identifier,
+            "patient_relation_type": relation_type,
+            "patient_relation_name": relation_name,
             "outcome_variable_name": observation.attribute.variable_name,
             "outcome_display_name": observation.attribute.display_name or "",
             "outcome_value": serialize_observation_value(observation),
@@ -497,6 +523,7 @@ def resolve_combined_export_selection(
     category_values = list(categories or [])
 
     attrs_qs = observed_target_attribute_queryset(target_study)
+    attrs_qs = attrs_qs.exclude(category=RELATIONSHIP_SYSTEM_CATEGORY)
     if selected_attributes:
         attribute_ids = [attribute.pk for attribute in selected_attributes if getattr(attribute, "pk", None)]
         attrs_qs = attrs_qs.filter(

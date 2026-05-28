@@ -18,6 +18,13 @@ import plotly.graph_objects as go
 import plotly.express as px
 from plotly.offline import plot as plotly_plot
 
+from core.models import Patient
+from .relationship_system import (
+    RELATIONSHIP_SYSTEM_CATEGORY,
+    build_relationship_export_lookup,
+    relationship_summary_from_observations,
+)
+
 logger = logging.getLogger(__name__)
 
 # Try importing matplotlib for word cloud generation
@@ -1336,11 +1343,18 @@ def generate_eda_summary_from_observations(raw_data_file, study, is_transformed=
 
         # Get the patients from the SOURCE study (linked to this raw data file)
         source_study = raw_data_file.study
-        source_patients = Observation.objects.filter(
+        source_patients = list(Observation.objects.filter(
             attribute__study=source_study
-        ).values_list("patient_id", flat=True).distinct()
+        ).values_list("patient_id", flat=True).distinct())
+        relationship_lookup = build_relationship_export_lookup(study)
+        generated_patients = list(
+            Patient.objects.filter(
+                unique_id__in=relationship_lookup.keys(),
+            ).values_list("id", flat=True)
+        )
+        transformed_patients = source_patients + generated_patients
 
-        patient_count = len(list(source_patients))
+        patient_count = len(source_patients)
         logger.info(
             "Found %d unique patients in source study: %s (ID: %s)",
             patient_count,
@@ -1351,7 +1365,7 @@ def generate_eda_summary_from_observations(raw_data_file, study, is_transformed=
         # Now get transformed observations for target study, but ONLY for those patients
         query_filters = {
             "attribute__study": study,  # target study
-            "patient_id__in": source_patients,  # same patients as source
+            "patient_id__in": transformed_patients,
         }
 
         logger.info(
@@ -1375,7 +1389,9 @@ def generate_eda_summary_from_observations(raw_data_file, study, is_transformed=
     
     # Optimize query by selecting only needed fields
     # Include FK IDs and related fields needed for DataFrame construction
-    observations = Observation.objects.filter(**query_filters).select_related(
+    observations = Observation.objects.filter(**query_filters).exclude(
+        attribute__category=RELATIONSHIP_SYSTEM_CATEGORY,
+    ).select_related(
         "attribute",
         "patient",  # Need this for patient.unique_id
     ).only(
@@ -1440,6 +1456,8 @@ def generate_eda_summary_from_observations(raw_data_file, study, is_transformed=
         total_columns=len(df.columns),
         sanitize_pii=False,  # Already sanitized
     )
+    if is_transformed:
+        eda_result["relationship_summary"] = relationship_summary_from_observations(study)
     
     logger.info(
         "EDA result for %s data - numeric cols: %s, categorical cols: %s, string cols: %s",
@@ -1501,4 +1519,3 @@ def generate_eda_summary_from_observation_queryset(
         privacy_min_rows=1 if bypass_privacy_thresholds else PRIVACY_MIN_ROWS,
         privacy_min_group_count=1 if bypass_privacy_thresholds else PRIVACY_MIN_GROUP_COUNT,
     )
-
