@@ -25,6 +25,7 @@ from django.forms import formset_factory
 from django.views.decorators.http import require_http_methods, require_POST
 from django.db.models import Count, Q
 from django.contrib.postgres.aggregates import ArrayAgg
+from celery import current_app
 
 from core.models import Study, Attribute, Observation, ProjectMembership
 from core.utils import infer_variables_from_dataframe, save_generated_codebook_for_study
@@ -74,6 +75,43 @@ def _coerce_positive_int(value, default: int) -> int:
     except (TypeError, ValueError):
         return default
     return coerced if coerced > 0 else default
+
+
+def _openai_api_key_is_configured() -> bool:
+    return bool((settings.OPENAI_API_KEY or "").strip())
+
+
+def _parse_json_body(request) -> dict:
+    if not request.body:
+        return {}
+    try:
+        payload = json.loads(request.body)
+    except json.JSONDecodeError:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _create_harmonization_ai_run(schema, user, payload: dict, *, trigger_mode: str, attribute_ids=None):
+    return HarmonizationAIRun.objects.create(
+        schema=schema,
+        requested_by=user,
+        trigger_mode=trigger_mode,
+        requested_attribute_ids=list(attribute_ids or []),
+        run_below_confidence_grade=payload.get("run_below_confidence_grade")
+        or ("all" if trigger_mode == "single_attribute" else "excellent"),
+        top_candidates_per_variable=_coerce_positive_int(payload.get("top_candidates_per_variable"), 3),
+        include_protocol=_coerce_bool(payload.get("include_protocol"), True),
+        include_additional_documents=_coerce_bool(payload.get("include_additional_documents"), True),
+        include_deidentified_summary_stats=_coerce_bool(payload.get("include_deidentified_summary_stats"), False),
+        include_existing_codebooks=_coerce_bool(payload.get("include_existing_codebooks"), True),
+        use_openai_background=_coerce_bool(payload.get("use_openai_background"), trigger_mode == "batch"),
+    )
+
+
+def _queue_harmonization_ai_run(run: HarmonizationAIRun) -> None:
+    async_result = run_harmonization_ai_refresh.delay(run.id)
+    run.celery_task_id = async_result.id
+    run.save(update_fields=["celery_task_id", "updated_at"])
 
 
 LAG_UNIT_TO_DAYS = {
@@ -2449,30 +2487,67 @@ def start_ai_harmonization_refresh(request, schema_id):
     if not schema.source_study.project.members.filter(id=request.user.id).exists():
         return JsonResponse({"error": "Permission denied"}, status=403)
 
-    if not settings.OPENAI_API_KEY:
+    if not _openai_api_key_is_configured():
         return JsonResponse({"error": "OpenAI API key is not configured."}, status=503)
 
-    payload = json.loads(request.body or "{}") if request.body else {}
-    run = HarmonizationAIRun.objects.create(
-        schema=schema,
-        requested_by=request.user,
-        trigger_mode="batch",
-        run_below_confidence_grade=payload.get("run_below_confidence_grade") or "excellent",
-        top_candidates_per_variable=_coerce_positive_int(payload.get("top_candidates_per_variable"), 3),
-        include_protocol=_coerce_bool(payload.get("include_protocol"), True),
-        include_additional_documents=_coerce_bool(payload.get("include_additional_documents"), True),
-        include_deidentified_summary_stats=_coerce_bool(payload.get("include_deidentified_summary_stats"), False),
-        include_existing_codebooks=_coerce_bool(payload.get("include_existing_codebooks"), True),
-        use_openai_background=_coerce_bool(payload.get("use_openai_background"), True),
-    )
-    async_result = run_harmonization_ai_refresh.delay(run.id)
-    run.celery_task_id = async_result.id
-    run.save(update_fields=["celery_task_id", "updated_at"])
+    payload = _parse_json_body(request)
+    run = _create_harmonization_ai_run(schema, request.user, payload, trigger_mode="batch")
+    _queue_harmonization_ai_run(run)
 
     return JsonResponse({
         "success": True,
         "run_id": run.id,
         "status": run.status,
+    })
+
+
+@login_required
+@require_http_methods(["POST"])
+def restart_ai_harmonization_refresh(request, schema_id):
+    """Cancel any active AI refresh state for the schema and queue a fresh batch run."""
+    schema = get_object_or_404(MappingSchema, id=schema_id)
+
+    if not schema.source_study.project.members.filter(id=request.user.id).exists():
+        return JsonResponse({"error": "Permission denied"}, status=403)
+
+    if not _openai_api_key_is_configured():
+        return JsonResponse({"error": "OpenAI API key is not configured."}, status=503)
+
+    payload = _parse_json_body(request)
+    now = timezone.now()
+    active_runs = list(schema.ai_runs.filter(status__in=["pending", "running"]))
+    for active_run in active_runs:
+        if active_run.celery_task_id:
+            try:
+                current_app.control.revoke(active_run.celery_task_id, terminate=True)
+            except Exception:
+                logger.exception("Failed revoking AI harmonization task %s", active_run.celery_task_id)
+        active_run.status = "cancelled"
+        active_run.error_message = "Run was cancelled because a manual restart was requested."
+        active_run.completed_at = now
+        active_run.save(update_fields=["status", "error_message", "completed_at", "updated_at"])
+
+    latest_run = schema.ai_runs.exclude(status__in=["pending", "running"]).first()
+    if latest_run:
+        payload = {
+            "run_below_confidence_grade": latest_run.run_below_confidence_grade,
+            "top_candidates_per_variable": latest_run.top_candidates_per_variable,
+            "include_protocol": latest_run.include_protocol,
+            "include_additional_documents": latest_run.include_additional_documents,
+            "include_deidentified_summary_stats": latest_run.include_deidentified_summary_stats,
+            "include_existing_codebooks": latest_run.include_existing_codebooks,
+            "use_openai_background": latest_run.use_openai_background,
+            **payload,
+        }
+
+    run = _create_harmonization_ai_run(schema, request.user, payload, trigger_mode="batch")
+    _queue_harmonization_ai_run(run)
+
+    return JsonResponse({
+        "success": True,
+        "run_id": run.id,
+        "status": run.status,
+        "cancelled_run_ids": [active_run.id for active_run in active_runs],
     })
 
 
@@ -2485,10 +2560,10 @@ def rerun_attribute_ai_harmonization(request, schema_id):
     if not schema.source_study.project.members.filter(id=request.user.id).exists():
         return JsonResponse({"error": "Permission denied"}, status=403)
 
-    if not settings.OPENAI_API_KEY:
+    if not _openai_api_key_is_configured():
         return JsonResponse({"error": "OpenAI API key is not configured."}, status=503)
 
-    payload = json.loads(request.body or "{}") if request.body else {}
+    payload = _parse_json_body(request)
     attribute_id = payload.get("source_attribute_id")
     if not attribute_id:
         return JsonResponse({"error": "source_attribute_id is required"}, status=400)
@@ -2496,22 +2571,14 @@ def rerun_attribute_ai_harmonization(request, schema_id):
     if not schema.source_study.variables.filter(pk=attribute_id).exists():
         return JsonResponse({"error": "Attribute does not belong to the source study"}, status=400)
 
-    run = HarmonizationAIRun.objects.create(
-        schema=schema,
-        requested_by=request.user,
+    run = _create_harmonization_ai_run(
+        schema,
+        request.user,
+        payload,
         trigger_mode="single_attribute",
-        requested_attribute_ids=[int(attribute_id)],
-        run_below_confidence_grade=payload.get("run_below_confidence_grade") or "all",
-        top_candidates_per_variable=_coerce_positive_int(payload.get("top_candidates_per_variable"), 3),
-        include_protocol=_coerce_bool(payload.get("include_protocol"), True),
-        include_additional_documents=_coerce_bool(payload.get("include_additional_documents"), True),
-        include_deidentified_summary_stats=_coerce_bool(payload.get("include_deidentified_summary_stats"), False),
-        include_existing_codebooks=_coerce_bool(payload.get("include_existing_codebooks"), True),
-        use_openai_background=_coerce_bool(payload.get("use_openai_background"), False),
+        attribute_ids=[int(attribute_id)],
     )
-    async_result = run_harmonization_ai_refresh.delay(run.id)
-    run.celery_task_id = async_result.id
-    run.save(update_fields=["celery_task_id", "updated_at"])
+    _queue_harmonization_ai_run(run)
 
     return JsonResponse({
         "success": True,

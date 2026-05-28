@@ -188,6 +188,11 @@ urlpatterns = [
         name="start_ai_harmonization_refresh",
     ),
     path(
+        "api/mapping/<int:schema_id>/ai-refresh/restart/",
+        views.restart_ai_harmonization_refresh,
+        name="restart_ai_harmonization_refresh",
+    ),
+    path(
         "api/mapping/<int:schema_id>/ai-refresh/rerun-attribute/",
         views.rerun_attribute_ai_harmonization,
         name="rerun_attribute_ai_harmonization",

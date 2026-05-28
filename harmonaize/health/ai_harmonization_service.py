@@ -44,16 +44,27 @@ class AIHarmonizationService:
     }
 
     def __init__(self) -> None:
-        if not settings.OPENAI_API_KEY:
+        api_key = (settings.OPENAI_API_KEY or "").strip()
+        if not api_key:
             msg = "OPENAI_API_KEY must be set in settings"
             raise ValueError(msg)
 
-        self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        self.client = OpenAI(api_key=api_key)
         self.model = getattr(settings, "OPENAI_TRANSFORMATION_MODEL", "gpt-5")
 
     def refresh_run(self, run: HarmonizationAIRun) -> dict[str, Any]:
         """Run an AI refresh for either a schema batch or a selected attribute set."""
         schema = run.schema
+        logger.info(
+            "AI harmonization run started run_id=%s schema_id=%s source_study_id=%s target_study_id=%s trigger=%s threshold=%s candidates_per_variable=%s",
+            run.id,
+            schema.id,
+            schema.source_study_id,
+            schema.target_study_id,
+            run.trigger_mode,
+            run.run_below_confidence_grade,
+            run.top_candidates_per_variable,
+        )
         source_attributes = list(schema.source_study.variables.order_by("variable_name"))
         baseline = similarity_service.get_mapping_suggestions(
             source_study_id=schema.source_study_id,
@@ -74,6 +85,13 @@ class AIHarmonizationService:
         ]
 
         if not eligible_attributes:
+            logger.info(
+                "AI harmonization run has no eligible variables run_id=%s schema_id=%s requested_ids=%s threshold=%s",
+                run.id,
+                schema.id,
+                sorted(requested_ids),
+                run.run_below_confidence_grade,
+            )
             return {
                 "processed_attributes_count": 0,
                 "failed_attributes_count": 0,
@@ -96,55 +114,136 @@ class AIHarmonizationService:
         )
 
         vector_store_id, uploaded_file_ids = self._prepare_retrieval_context(run)
-        response = self._request_structured_refresh(
-            run=run,
-            attributes=eligible_attributes,
-            baseline=baseline,
-            vector_store_id=vector_store_id,
-            fallback_file_ids=uploaded_file_ids[:4],
+        logger.info(
+            "AI harmonization run prepared context run_id=%s schema_id=%s eligible_count=%s batch_size=%s vector_store_id=%s uploaded_file_count=%s variables=%s",
+            run.id,
+            schema.id,
+            len(eligible_attributes),
+            self._get_batch_size(run),
+            vector_store_id or "",
+            len(uploaded_file_ids),
+            self._format_attribute_list_for_log(eligible_attributes),
         )
-
-        payload = self._extract_structured_payload(response)
-        self._log_response_payload(
-            label="harmonization_refresh_response",
-            response=response,
-            payload=payload,
-        )
-        results = payload.get("results", []) if isinstance(payload, Mapping) else []
-
         processed_count = 0
         failed_count = 0
         warning_messages: list[str] = []
-        for item in results:
-            try:
-                warning_message = self._apply_result_to_mapping_rule(run=run, result=item)
-                processed_count += 1
-                if warning_message:
-                    warning_messages.append(warning_message)
-            except Exception:
-                failed_count += 1
-                warning_messages.append(self._build_item_failure_message(item, "Failed applying AI harmonization result."))
-                logger.exception(
-                    "Failed applying AI harmonization result for schema %s",
-                    schema.id,
-                )
-            run.processed_attributes_count = processed_count
-            run.failed_attributes_count = failed_count
-            run.save(
-                update_fields=[
-                    "processed_attributes_count",
-                    "failed_attributes_count",
-                    "updated_at",
-                ]
+        response_ids: list[str] = []
+        usage_summary: dict[str, int] = {}
+        returned_source_ids: set[int] = set()
+        batch_size = self._get_batch_size(run)
+
+        for batch_number, attribute_batch in enumerate(self._chunks(eligible_attributes, batch_size), start=1):
+            logger.info(
+                "AI harmonization batch started run_id=%s schema_id=%s batch=%s variable_count=%s variables=%s",
+                run.id,
+                schema.id,
+                batch_number,
+                len(attribute_batch),
+                self._format_attribute_list_for_log(attribute_batch),
+            )
+            response = self._request_structured_refresh(
+                run=run,
+                attributes=attribute_batch,
+                baseline=baseline,
+                vector_store_id=vector_store_id,
+                fallback_file_ids=uploaded_file_ids[:4],
             )
 
-        missing_ids = {attribute.id for attribute in eligible_attributes} - {
-            int(item.get("source_attribute_id"))
-            for item in results
-            if isinstance(item, Mapping) and item.get("source_attribute_id") is not None
-        }
+            payload = self._extract_structured_payload(response)
+            self._log_response_payload(
+                label=f"harmonization_refresh_response_batch_{batch_number}",
+                response=response,
+                payload=payload,
+            )
+            results = payload.get("results", []) if isinstance(payload, Mapping) else []
+            logger.info(
+                "AI harmonization batch response parsed run_id=%s schema_id=%s batch=%s response_id=%s status=%s result_count=%s usage=%s",
+                run.id,
+                schema.id,
+                batch_number,
+                getattr(response, "id", None) or "",
+                getattr(response, "status", None) or "",
+                len(results),
+                self._extract_usage_summary(response),
+            )
+            returned_source_ids.update(
+                int(item.get("source_attribute_id"))
+                for item in results
+                if isinstance(item, Mapping) and item.get("source_attribute_id") is not None
+            )
+
+            for item in results:
+                logger.info(
+                    "AI harmonization result received run_id=%s schema_id=%s batch=%s %s",
+                    run.id,
+                    schema.id,
+                    batch_number,
+                    self._format_result_for_log(run=run, result=item),
+                )
+                try:
+                    warning_message = self._apply_result_to_mapping_rule(run=run, result=item)
+                    processed_count += 1
+                    if warning_message:
+                        warning_messages.append(warning_message)
+                except Exception:
+                    failed_count += 1
+                    warning_messages.append(
+                        self._build_item_failure_message(item, "Failed applying AI harmonization result.")
+                    )
+                    logger.exception(
+                        "Failed applying AI harmonization result run_id=%s schema_id=%s batch=%s %s",
+                        run.id,
+                        schema.id,
+                        batch_number,
+                        self._format_result_for_log(run=run, result=item),
+                    )
+
+                run.processed_attributes_count = processed_count
+                run.failed_attributes_count = failed_count
+                run.save(
+                    update_fields=[
+                        "processed_attributes_count",
+                        "failed_attributes_count",
+                        "updated_at",
+                    ]
+                )
+
+            self._merge_usage_summary(usage_summary, self._extract_usage_summary(response))
+            response_id = getattr(response, "id", None)
+            if response_id:
+                response_ids.append(response_id)
+
+            run.usage_summary = usage_summary
+            run.openai_response_ids = response_ids
+            run.save(
+                update_fields=[
+                    "usage_summary",
+                    "openai_response_ids",
+                    "updated_at",
+                ],
+            )
+            logger.info(
+                "AI harmonization batch completed run_id=%s schema_id=%s batch=%s processed_total=%s failed_total=%s response_ids=%s usage_total=%s",
+                run.id,
+                schema.id,
+                batch_number,
+                processed_count,
+                failed_count,
+                response_ids,
+                usage_summary,
+            )
+
+        missing_ids = {attribute.id for attribute in eligible_attributes} - returned_source_ids
         failed_count += len(missing_ids)
         if missing_ids:
+            missing_attributes = [attribute for attribute in eligible_attributes if attribute.id in missing_ids]
+            logger.warning(
+                "AI harmonization missing results run_id=%s schema_id=%s missing_count=%s variables=%s",
+                run.id,
+                schema.id,
+                len(missing_ids),
+                self._format_attribute_list_for_log(missing_attributes),
+            )
             warning_messages.extend(
                 [f"No AI result returned for source attribute {attribute_id}." for attribute_id in sorted(missing_ids)]
             )
@@ -158,9 +257,15 @@ class AIHarmonizationService:
                 ]
             )
 
-        usage_summary = self._extract_usage_summary(response)
-        response_ids = [value for value in [getattr(response, "id", None)] if value]
-
+        logger.info(
+            "AI harmonization run completed run_id=%s schema_id=%s processed=%s failed=%s responses=%s usage=%s",
+            run.id,
+            schema.id,
+            processed_count,
+            failed_count,
+            response_ids,
+            usage_summary,
+        )
         return {
             "processed_attributes_count": processed_count,
             "failed_attributes_count": failed_count,
@@ -189,6 +294,69 @@ class AIHarmonizationService:
             if attribute_id is not None:
                 return f"Source attribute {attribute_id}: {default_message}"
         return default_message
+
+    def _get_batch_size(self, run: HarmonizationAIRun) -> int:
+        configured_size = getattr(settings, "OPENAI_HARMONIZATION_BATCH_SIZE", 20)
+        try:
+            batch_size = int(configured_size)
+        except (TypeError, ValueError):
+            batch_size = 20
+        return max(1, batch_size)
+
+    def _chunks(self, values: list[Attribute], size: int) -> Iterable[list[Attribute]]:
+        for index in range(0, len(values), size):
+            yield values[index : index + size]
+
+    def _merge_usage_summary(self, target: dict[str, int], source: Mapping[str, Any]) -> None:
+        for key in ("input_tokens", "output_tokens", "total_tokens"):
+            value = source.get(key)
+            if isinstance(value, int):
+                target[key] = target.get(key, 0) + value
+
+    def _format_attribute_for_log(self, attribute: Attribute | None) -> str:
+        if attribute is None:
+            return "<none>"
+        return (
+            f"id={attribute.id} name={attribute.variable_name!r} "
+            f"display={attribute.display_name or ''!r} type={attribute.variable_type or ''!r}"
+        )
+
+    def _format_attribute_list_for_log(self, attributes: Iterable[Attribute]) -> list[str]:
+        return [self._format_attribute_for_log(attribute) for attribute in attributes]
+
+    def _format_result_for_log(self, *, run: HarmonizationAIRun, result: Any) -> str:
+        if not isinstance(result, Mapping):
+            return f"result_type={type(result).__name__} result={self._truncate_for_log(result)}"
+
+        source_attribute = self._get_source_attribute(run, result.get("source_attribute_id"))
+        target_id = result.get("recommended_target_attribute_id")
+        target_attribute = None
+        if target_id:
+            target_attribute = run.schema.target_study.variables.filter(pk=target_id).first()
+
+        mapping_payload = result.get("mapping_rule", {}) or {}
+        if not isinstance(mapping_payload, Mapping):
+            mapping_payload = {}
+
+        reasoning = self._truncate_text(result.get("reasoning_summary") or "", 500)
+        return (
+            f"source=({self._format_attribute_for_log(source_attribute)}) "
+            f"decision={result.get('decision') or ''!r} "
+            f"target=({self._format_attribute_for_log(target_attribute)}) "
+            f"confidence={result.get('confidence_label') or ''!r} "
+            f"role={mapping_payload.get('role') or ''!r} "
+            f"not_mappable={mapping_payload.get('not_mappable')} "
+            f"relation={mapping_payload.get('relation_type') or ''!r} "
+            f"relation_order={mapping_payload.get('relation_instance_order')} "
+            f"transform_chars={len((mapping_payload.get('transform_code') or '').strip())} "
+            f"reasoning={reasoning!r}"
+        )
+
+    def _truncate_text(self, value: Any, limit: int) -> str:
+        text = str(value or "")
+        if len(text) <= limit:
+            return text
+        return f"{text[:limit]}... [truncated {len(text) - limit} chars]"
 
     def _attribute_is_eligible(
         self,
@@ -374,7 +542,15 @@ class AIHarmonizationService:
                 "schema_id": run.schema_id,
                 "model": self.model,
                 "use_background": use_background,
-                "attribute_ids": [attribute.id for attribute in attributes],
+                "attributes": [
+                    {
+                        "id": attribute.id,
+                        "variable_name": attribute.variable_name,
+                        "display_name": attribute.display_name or "",
+                        "variable_type": attribute.variable_type or "",
+                    }
+                    for attribute in attributes
+                ],
                 "tools": tools,
                 "user_prompt": user_content[0]["text"],
             },
@@ -382,14 +558,66 @@ class AIHarmonizationService:
 
         try:
             response = self.client.responses.create(**request_kwargs)
-        except (BadRequestError, APIError, RateLimitError):
-            logger.exception("OpenAI harmonization refresh request failed")
-            raise
+        except (BadRequestError, APIError, RateLimitError) as exc:
+            message = self._format_openai_exception(exc)
+            logger.exception("OpenAI harmonization refresh request failed: %s", message)
+            raise RuntimeError(message) from exc
 
+        logger.info(
+            "OpenAI harmonization response created run_id=%s schema_id=%s response_id=%s status=%s background=%s variable_count=%s",
+            run.id,
+            run.schema_id,
+            getattr(response, "id", None) or "",
+            getattr(response, "status", None) or "",
+            use_background,
+            len(attributes),
+        )
         if use_background:
             response = self._poll_background_response(response.id)
 
+        self._raise_for_failed_response(response)
         return response
+
+    def _format_openai_exception(self, exc: Exception) -> str:
+        body = getattr(exc, "body", None)
+        if isinstance(body, Mapping):
+            error = body.get("error")
+            if isinstance(error, Mapping):
+                message = error.get("message")
+                code = error.get("code")
+                if message and code:
+                    return f"OpenAI API error ({code}): {message}"
+                if message:
+                    return f"OpenAI API error: {message}"
+
+        response = getattr(exc, "response", None)
+        if response is not None:
+            try:
+                data = response.json()
+            except Exception:
+                data = None
+            if isinstance(data, Mapping):
+                error = data.get("error")
+                if isinstance(error, Mapping) and error.get("message"):
+                    return f"OpenAI API error: {error['message']}"
+
+        message = str(exc).strip()
+        return f"OpenAI API error: {message}" if message else "OpenAI API request failed."
+
+    def _raise_for_failed_response(self, response) -> None:
+        status = getattr(response, "status", None)
+        if status not in {"failed", "cancelled", "incomplete"}:
+            return
+
+        error = getattr(response, "error", None) or getattr(response, "incomplete_details", None)
+        if isinstance(error, Mapping):
+            message = error.get("message") or error.get("reason") or str(error)
+        else:
+            message = getattr(error, "message", None) or getattr(error, "reason", None) or str(error or "")
+        raise RuntimeError(
+            f"OpenAI response {getattr(response, 'id', '') or '<unknown>'} ended with status {status}: "
+            f"{message or 'No error details returned.'}"
+        )
 
     def _truncate_for_log(self, value: Any) -> str:
         if isinstance(value, str):
@@ -407,21 +635,59 @@ class AIHarmonizationService:
         logger.info("%s: %s", label, self._truncate_for_log(payload))
 
     def _log_response_payload(self, *, label: str, response: Any, payload: Any) -> None:
+        result_count = ""
+        if isinstance(payload, Mapping) and isinstance(payload.get("results"), list):
+            result_count = len(payload["results"])
         logger.info(
-            "%s: response_id=%s payload=%s",
+            "%s: response_id=%s status=%s result_count=%s usage=%s payload=%s",
             label,
             getattr(response, "id", None),
+            getattr(response, "status", None),
+            result_count,
+            self._extract_usage_summary(response),
             self._truncate_for_log(payload),
         )
 
     def _poll_background_response(self, response_id: str):
         deadline = time.monotonic() + 600
-        response = self.client.responses.retrieve(response_id)
+        started_at = time.monotonic()
+        try:
+            response = self.client.responses.retrieve(response_id)
+        except APIError as exc:
+            message = self._format_openai_exception(exc)
+            logger.exception("OpenAI background response polling failed: %s", message)
+            raise RuntimeError(message) from exc
+        logger.info(
+            "OpenAI background response poll started response_id=%s status=%s",
+            response_id,
+            getattr(response, "status", None) or "",
+        )
         while getattr(response, "status", None) in {"queued", "in_progress"}:
             if time.monotonic() >= deadline:
                 raise TimeoutError(f"Timed out waiting for OpenAI background response {response_id}")
             time.sleep(2)
-            response = self.client.responses.retrieve(response_id)
+            try:
+                response = self.client.responses.retrieve(response_id)
+            except APIError as exc:
+                message = self._format_openai_exception(exc)
+                logger.exception("OpenAI background response polling failed: %s", message)
+                raise RuntimeError(message) from exc
+            elapsed = int(time.monotonic() - started_at)
+            if elapsed % 30 < 2:
+                logger.info(
+                    "OpenAI background response still running response_id=%s status=%s elapsed_seconds=%s",
+                    response_id,
+                    getattr(response, "status", None) or "",
+                    elapsed,
+                )
+        logger.info(
+            "OpenAI background response completed response_id=%s status=%s elapsed_seconds=%s usage=%s",
+            response_id,
+            getattr(response, "status", None) or "",
+            int(time.monotonic() - started_at),
+            self._extract_usage_summary(response),
+        )
+        self._raise_for_failed_response(response)
         return response
 
     def _extract_structured_payload(self, response) -> Mapping[str, Any]:
@@ -450,7 +716,7 @@ class AIHarmonizationService:
 
     def _apply_result_to_mapping_rule(self, *, run: HarmonizationAIRun, result: Mapping[str, Any]) -> str | None:
         source_attribute_id = int(result["source_attribute_id"])
-        rule, _ = MappingRule.objects.get_or_create(
+        rule, created = MappingRule.objects.get_or_create(
             schema=run.schema,
             source_attribute_id=source_attribute_id,
             defaults={"role": "value"},
@@ -544,6 +810,21 @@ class AIHarmonizationService:
             rule.full_clean()
 
         rule.save()
+        logger.info(
+            "AI harmonization mapping rule saved run_id=%s schema_id=%s rule_id=%s created=%s source=(%s) target=(%s) not_mappable=%s role=%s relation=%s relation_name=%s confidence=%s transform_chars=%s",
+            run.id,
+            run.schema_id,
+            rule.id,
+            created,
+            self._format_attribute_for_log(rule.source_attribute),
+            self._format_attribute_for_log(rule.target_attribute),
+            rule.not_mappable,
+            rule.role,
+            rule.relation_type,
+            rule.relation_name,
+            rule.ai_confidence_label,
+            len(rule.transform_code or ""),
+        )
         return transform_warning
 
     def _get_source_attribute(self, run: HarmonizationAIRun, attribute_id: Any) -> Attribute | None:

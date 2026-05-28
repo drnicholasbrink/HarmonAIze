@@ -13,7 +13,7 @@ from django.utils import timezone
 from django.db import transaction, IntegrityError, DatabaseError
 from django.db.models import F
 from celery import shared_task
-from celery.exceptions import Retry
+from celery.exceptions import Retry, SoftTimeLimitExceeded
 from dateutil.parser import ParserError
 
 from .models import HarmonizationAIRun, RawDataFile, RawDataColumn
@@ -30,11 +30,15 @@ from core.models import Study, Attribute, Patient, Observation, TimeDimension, L
 logger = logging.getLogger(__name__)
 
 
-@shared_task(bind=True, max_retries=1, default_retry_delay=60)
+@shared_task(
+    bind=True,
+    max_retries=1,
+    default_retry_delay=60,
+    soft_time_limit=1800,
+    time_limit=1860,
+)
 def run_harmonization_ai_refresh(self, run_id: int) -> dict[str, Any]:
     """Run an OpenAI-backed mapping-rule refresh for a schema or selected attributes."""
-    from .ai_harmonization_service import ai_harmonization_service
-
     try:
         run = HarmonizationAIRun.objects.select_related(
             "schema",
@@ -51,13 +55,50 @@ def run_harmonization_ai_refresh(self, run_id: int) -> dict[str, Any]:
     run.save(update_fields=["status", "celery_task_id", "started_at", "error_message", "updated_at"])
 
     try:
+        from .ai_harmonization_service import ai_harmonization_service
+
         result = ai_harmonization_service.refresh_run(run)
+    except SoftTimeLimitExceeded:
+        message = (
+            "AI harmonization refresh exceeded the worker soft time limit. "
+            "The run was stopped before OpenAI returned a completed response."
+        )
+        logger.exception("AI harmonization refresh soft-timed out for run %s", run_id)
+        run.status = "failed"
+        run.error_message = message
+        run.failed_attributes_count = max(
+            run.failed_attributes_count,
+            run.requested_attribute_count,
+        )
+        run.completed_at = timezone.now()
+        run.save(
+            update_fields=[
+                "status",
+                "error_message",
+                "failed_attributes_count",
+                "completed_at",
+                "updated_at",
+            ]
+        )
+        return {"success": False, "message": message, "run_id": run_id}
     except Exception as exc:
         logger.exception("AI harmonization refresh failed for run %s", run_id)
         run.status = "failed"
         run.error_message = str(exc)
+        run.failed_attributes_count = max(
+            run.failed_attributes_count,
+            run.requested_attribute_count,
+        )
         run.completed_at = timezone.now()
-        run.save(update_fields=["status", "error_message", "completed_at", "updated_at"])
+        run.save(
+            update_fields=[
+                "status",
+                "error_message",
+                "failed_attributes_count",
+                "completed_at",
+                "updated_at",
+            ]
+        )
         return {"success": False, "message": str(exc), "run_id": run_id}
 
     run.status = "completed"

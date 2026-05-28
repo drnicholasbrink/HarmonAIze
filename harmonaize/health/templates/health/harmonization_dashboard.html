@@ -2443,6 +2443,10 @@
               <i class="fas fa-robot"></i>
               Run Agent Harmonisation
             </button>
+            <button type="button" class="btn btn-outline action-btn" id="restart-agent-harmonisation-btn" onclick="restartAgentHarmonisation()">
+              <i class="fas fa-rotate-right"></i>
+              Restart Agent Harmonisation
+            </button>
           </div>
         </div>
 
@@ -4433,6 +4437,47 @@ function processAllVariablesWithAI() {
     });
 }
 
+function restartAgentHarmonisation() {
+  const restartBtn = document.getElementById('restart-agent-harmonisation-btn');
+  const includeSummaryStats = document.getElementById('ai-include-summary-data');
+  const runThreshold = document.getElementById('agent-run-threshold').value;
+
+  if (restartBtn.dataset.starting === 'true') {
+    return;
+  }
+
+  restartBtn.dataset.starting = 'true';
+  restartBtn.disabled = true;
+
+  fetch(`/health/api/mapping/{{ schema.id }}/ai-refresh/restart/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+    },
+    body: JSON.stringify({
+      run_below_confidence_grade: runThreshold,
+      top_candidates_per_variable: 3,
+      include_deidentified_summary_stats: Boolean(includeSummaryStats && includeSummaryStats.checked),
+    }),
+  })
+    .then(response => response.json())
+    .then(data => {
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to restart agent harmonisation');
+      }
+      showNotification('Agent harmonisation restarted.', 'info');
+      refreshAgentRunMonitor(data.run_id);
+    })
+    .catch(error => {
+      showNotification(error.message || 'Failed to restart agent harmonisation.', 'error');
+    })
+    .finally(() => {
+      delete restartBtn.dataset.starting;
+      restartBtn.disabled = false;
+    });
+}
+
   function refreshAgentRunMonitor(runId) {
     const monitorShell = document.getElementById('ai-run-monitor-shell');
     if (!monitorShell) {
@@ -4510,6 +4555,9 @@ function pollSingleAttributeAIRun(runId, variableId, button, originalText) {
       if (data.status === 'completed') {
         button.disabled = false;
         button.innerHTML = originalText;
+        if (data.failed_attributes_count > 0) {
+          throw new Error(data.error_message || 'Agent run completed with failed variable updates.');
+        }
         showNotification('Agent run completed. Reloading mapping card...', 'success');
         window.location.reload();
         return;
