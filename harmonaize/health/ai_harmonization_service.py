@@ -50,7 +50,7 @@ class AIHarmonizationService:
             raise ValueError(msg)
 
         self.client = OpenAI(api_key=api_key)
-        self.model = getattr(settings, "OPENAI_TRANSFORMATION_MODEL", "gpt-5")
+        self.model = getattr(settings, "OPENAI_TRANSFORMATION_MODEL", "gpt-5.4-mini")
 
     def refresh_run(self, run: HarmonizationAIRun) -> dict[str, Any]:
         """Run an AI refresh for either a schema batch or a selected attribute set."""
@@ -114,53 +114,67 @@ class AIHarmonizationService:
         )
 
         vector_store_id, uploaded_file_ids = self._prepare_retrieval_context(run)
+        bootstrap_response = self._bootstrap_run_context(
+            run=run,
+            vector_store_id=vector_store_id,
+            fallback_file_ids=uploaded_file_ids[:4],
+        )
+        bootstrap_response_id = getattr(bootstrap_response, "id", None)
+        if bootstrap_response_id:
+            run.bootstrap_response_id = bootstrap_response_id
+            run.openai_response_ids = [bootstrap_response_id]
+            run.save(update_fields=["bootstrap_response_id", "openai_response_ids", "updated_at"])
         logger.info(
-            "AI harmonization run prepared context run_id=%s schema_id=%s eligible_count=%s batch_size=%s vector_store_id=%s uploaded_file_count=%s variables=%s",
+            "AI harmonization run prepared context run_id=%s schema_id=%s eligible_count=%s vector_store_id=%s uploaded_file_count=%s bootstrap_response_id=%s variables=%s",
             run.id,
             schema.id,
             len(eligible_attributes),
-            self._get_batch_size(run),
             vector_store_id or "",
             len(uploaded_file_ids),
+            bootstrap_response_id or "",
             self._format_attribute_list_for_log(eligible_attributes),
         )
         processed_count = 0
         failed_count = 0
         warning_messages: list[str] = []
         response_ids: list[str] = []
+        if bootstrap_response_id:
+            response_ids.append(bootstrap_response_id)
         usage_summary: dict[str, int] = {}
+        if bootstrap_response is not None:
+            self._merge_usage_summary(usage_summary, self._extract_usage_summary(bootstrap_response))
         returned_source_ids: set[int] = set()
-        batch_size = self._get_batch_size(run)
 
-        for batch_number, attribute_batch in enumerate(self._chunks(eligible_attributes, batch_size), start=1):
+        for variable_number, attribute in enumerate(eligible_attributes, start=1):
             logger.info(
-                "AI harmonization batch started run_id=%s schema_id=%s batch=%s variable_count=%s variables=%s",
+                "AI harmonization variable analysis started run_id=%s schema_id=%s variable_number=%s variable=%s",
                 run.id,
                 schema.id,
-                batch_number,
-                len(attribute_batch),
-                self._format_attribute_list_for_log(attribute_batch),
+                variable_number,
+                self._format_attribute_for_log(attribute),
             )
-            response = self._request_structured_refresh(
+            response = self._request_structured_refresh_for_attribute(
                 run=run,
-                attributes=attribute_batch,
+                attribute=attribute,
                 baseline=baseline,
                 vector_store_id=vector_store_id,
                 fallback_file_ids=uploaded_file_ids[:4],
+                previous_response_id=bootstrap_response_id,
             )
 
             payload = self._extract_structured_payload(response)
             self._log_response_payload(
-                label=f"harmonization_refresh_response_batch_{batch_number}",
+                label=f"harmonization_refresh_response_variable_{attribute.id}",
                 response=response,
                 payload=payload,
             )
-            results = payload.get("results", []) if isinstance(payload, Mapping) else []
+            result = self._extract_single_result(payload)
+            results = [result] if result else []
             logger.info(
-                "AI harmonization batch response parsed run_id=%s schema_id=%s batch=%s response_id=%s status=%s result_count=%s usage=%s",
+                "AI harmonization variable response parsed run_id=%s schema_id=%s variable_number=%s response_id=%s status=%s result_count=%s usage=%s",
                 run.id,
                 schema.id,
-                batch_number,
+                variable_number,
                 getattr(response, "id", None) or "",
                 getattr(response, "status", None) or "",
                 len(results),
@@ -174,27 +188,29 @@ class AIHarmonizationService:
 
             for item in results:
                 logger.info(
-                    "AI harmonization result received run_id=%s schema_id=%s batch=%s %s",
+                    "AI harmonization result received run_id=%s schema_id=%s variable_number=%s %s",
                     run.id,
                     schema.id,
-                    batch_number,
+                    variable_number,
                     self._format_result_for_log(run=run, result=item),
                 )
                 try:
                     warning_message = self._apply_result_to_mapping_rule(run=run, result=item)
-                    processed_count += 1
                     if warning_message:
+                        failed_count += 1
                         warning_messages.append(warning_message)
+                    else:
+                        processed_count += 1
                 except Exception:
                     failed_count += 1
                     warning_messages.append(
                         self._build_item_failure_message(item, "Failed applying AI harmonization result.")
                     )
                     logger.exception(
-                        "Failed applying AI harmonization result run_id=%s schema_id=%s batch=%s %s",
+                        "Failed applying AI harmonization result run_id=%s schema_id=%s variable_number=%s %s",
                         run.id,
                         schema.id,
-                        batch_number,
+                        variable_number,
                         self._format_result_for_log(run=run, result=item),
                     )
 
@@ -223,10 +239,10 @@ class AIHarmonizationService:
                 ],
             )
             logger.info(
-                "AI harmonization batch completed run_id=%s schema_id=%s batch=%s processed_total=%s failed_total=%s response_ids=%s usage_total=%s",
+                "AI harmonization variable analysis completed run_id=%s schema_id=%s variable_number=%s processed_total=%s failed_total=%s response_ids=%s usage_total=%s",
                 run.id,
                 schema.id,
-                batch_number,
+                variable_number,
                 processed_count,
                 failed_count,
                 response_ids,
@@ -313,6 +329,15 @@ class AIHarmonizationService:
             if isinstance(value, int):
                 target[key] = target.get(key, 0) + value
 
+    def _extract_single_result(self, payload: Mapping[str, Any]) -> Mapping[str, Any] | None:
+        result = payload.get("result")
+        if isinstance(result, Mapping):
+            return result
+        results = payload.get("results")
+        if isinstance(results, list) and results and isinstance(results[0], Mapping):
+            return results[0]
+        return None
+
     def _format_attribute_for_log(self, attribute: Attribute | None) -> str:
         if attribute is None:
             return "<none>"
@@ -342,12 +367,18 @@ class AIHarmonizationService:
         return (
             f"source=({self._format_attribute_for_log(source_attribute)}) "
             f"decision={result.get('decision') or ''!r} "
+            f"target_source={result.get('target_source') or ''!r} "
+            f"duplicate_conflict={result.get('duplicate_conflict')} "
             f"target=({self._format_attribute_for_log(target_attribute)}) "
             f"confidence={result.get('confidence_label') or ''!r} "
             f"role={mapping_payload.get('role') or ''!r} "
             f"not_mappable={mapping_payload.get('not_mappable')} "
             f"relation={mapping_payload.get('relation_type') or ''!r} "
             f"relation_order={mapping_payload.get('relation_instance_order')} "
+            f"custom_patient_id={mapping_payload.get('uses_custom_patient_id')} "
+            f"custom_datetime={mapping_payload.get('uses_custom_datetime')} "
+            f"custom_location={mapping_payload.get('uses_custom_location')} "
+            f"custom_relation={mapping_payload.get('uses_custom_relation')} "
             f"transform_chars={len((mapping_payload.get('transform_code') or '').strip())} "
             f"reasoning={reasoning!r}"
         )
@@ -409,14 +440,156 @@ class AIHarmonizationService:
             if uploaded:
                 uploaded_file_ids.append(uploaded)
 
+        context_file_ids = self._upload_run_context_files(run)
+        uploaded_file_ids.extend(context_file_ids)
+        run.context_file_ids = context_file_ids
+        run.save(update_fields=["context_file_ids", "updated_at"])
+
         vector_store_id = None
         if uploaded_file_ids:
             try:
                 vector_store_id = self._create_vector_store(uploaded_file_ids, run)
+                if vector_store_id:
+                    run.openai_vector_store_id = vector_store_id
+                    run.save(update_fields=["openai_vector_store_id", "updated_at"])
             except Exception:
                 logger.exception("Failed creating vector store for AI harmonization run %s", run.id)
 
         return vector_store_id, uploaded_file_ids
+
+    def _upload_run_context_files(self, run: HarmonizationAIRun) -> list[str]:
+        context_documents = {
+            "target_variable_catalog.json": self._target_variable_catalog(run),
+            "existing_mapping_rules.json": self._existing_mapping_rules_context(run),
+            "mapping_policy.json": self._mapping_policy_context(run),
+        }
+        uploaded_ids: list[str] = []
+        for filename, payload in context_documents.items():
+            try:
+                uploaded_id = self._upload_json_context_file(filename, payload)
+            except Exception:
+                logger.exception("Failed uploading AI harmonization context file %s for run %s", filename, run.id)
+                continue
+            if uploaded_id:
+                uploaded_ids.append(uploaded_id)
+        return uploaded_ids
+
+    def _upload_json_context_file(self, filename: str, payload: Mapping[str, Any]) -> str | None:
+        content = json.dumps(payload, ensure_ascii=True, indent=2).encode("utf-8")
+        uploaded = self.client.files.create(
+            file=(filename, content),
+            purpose="user_data",
+        )
+        return getattr(uploaded, "id", None)
+
+    def _attribute_payload(self, attribute: Attribute | None) -> dict[str, Any] | None:
+        if attribute is None:
+            return None
+        return {
+            "attribute_id": attribute.id,
+            "variable_name": attribute.variable_name,
+            "display_name": attribute.display_name or "",
+            "description": attribute.description or "",
+            "variable_type": attribute.variable_type or "",
+            "unit": attribute.unit or "",
+            "category": attribute.category or "",
+            "ontology_code": attribute.ontology_code or "",
+            "source_type": attribute.source_type or "",
+        }
+
+    def _target_variable_catalog(self, run: HarmonizationAIRun) -> dict[str, Any]:
+        return {
+            "schema_id": run.schema_id,
+            "target_study": {
+                "id": run.schema.target_study_id,
+                "name": run.schema.target_study.name,
+            },
+            "target_variables": [
+                self._attribute_payload(attribute)
+                for attribute in run.schema.target_study.variables.order_by("variable_name")
+            ],
+        }
+
+    def _existing_mapping_rules_context(self, run: HarmonizationAIRun) -> dict[str, Any]:
+        rules = (
+            MappingRule.objects.filter(schema=run.schema)
+            .select_related(
+                "source_attribute",
+                "target_attribute",
+                "patient_id_attribute",
+                "datetime_attribute",
+                "location_attribute",
+                "ai_last_run",
+            )
+            .order_by("source_attribute__variable_name")
+        )
+        return {
+            "schema_id": run.schema_id,
+            "mappings": [
+                {
+                    "rule_id": rule.id,
+                    "source_attribute": self._attribute_payload(rule.source_attribute),
+                    "target_attribute": self._attribute_payload(rule.target_attribute),
+                    "not_mappable": rule.not_mappable,
+                    "role": rule.role,
+                    "patient_id_attribute": self._attribute_payload(rule.patient_id_attribute),
+                    "datetime_attribute": self._attribute_payload(rule.datetime_attribute),
+                    "location_attribute": self._attribute_payload(rule.location_attribute),
+                    "relation_type": rule.relation_type,
+                    "relation_name": rule.relation_name,
+                    "inverse_relation_type": rule.inverse_relation_type,
+                    "inverse_relation_name": rule.inverse_relation_name,
+                    "has_transform_code": bool(rule.transform_code),
+                    "comments": rule.comments,
+                    "ai_confidence_label": rule.ai_confidence_label,
+                    "ai_reasoning_summary": rule.ai_reasoning_summary,
+                    "ai_last_run_id": rule.ai_last_run_id,
+                }
+                for rule in rules
+            ],
+        }
+
+    def _mapping_policy_context(self, run: HarmonizationAIRun) -> dict[str, Any]:
+        return {
+            "schema_id": run.schema_id,
+            "universal_defaults": self._schema_defaults_payload(run),
+            "relation_policy": {
+                "allowed_relation_types": [choice[0] for choice in run.schema.RELATION_CHOICES],
+                "repeatable_relation_types": sorted(REPEATABLE_RELATION_TYPES),
+                "repeatable_names": "Use relation_instance_order only; the application constructs names as <relation_type>_<order>.",
+                "non_repeatable_names": "For mother, father, parent, and spouse, leave relation_instance_order null.",
+                "existing_instances": [
+                    {"value": value, "label": label}
+                    for value, label in relation_instance_choices(run.schema)
+                    if value
+                ],
+            },
+            "duplicate_policy": {
+                "mode": "soft_avoid",
+                "occupied_target_attribute_ids": self._occupied_target_attribute_ids(run),
+                "instruction": "Avoid exact duplicate value mappings. If the best target is already occupied by another value rule, return duplicate_conflict=true and decision='needs_review'.",
+            },
+        }
+
+    def _schema_defaults_payload(self, run: HarmonizationAIRun) -> dict[str, Any]:
+        return {
+            "auto_populate_enabled": run.schema.auto_populate_enabled,
+            "universal_patient_id_attribute": self._attribute_payload(run.schema.universal_patient_id),
+            "universal_datetime_attribute": self._attribute_payload(run.schema.universal_datetime),
+            "universal_location_attribute": self._attribute_payload(run.schema.universal_location),
+            "universal_relation_type": run.schema.universal_relation_type or "self",
+        }
+
+    def _occupied_target_attribute_ids(self, run: HarmonizationAIRun, *, exclude_source_attribute_id: int | None = None) -> list[int]:
+        rules = MappingRule.objects.filter(
+            schema=run.schema,
+            not_mappable=False,
+            target_attribute__isnull=False,
+            role="value",
+        )
+        if exclude_source_attribute_id:
+            rules = rules.exclude(source_attribute_id=exclude_source_attribute_id)
+        return list(rules.values_list("target_attribute_id", flat=True).distinct())
 
     def _upload_file(self, file_field) -> str | None:
         file_path = getattr(file_field, "path", None)
@@ -447,9 +620,23 @@ class AIHarmonizationService:
         if vector_stores is None:
             return None
 
-        store = vector_stores.create(
-            name=f"harmonization-schema-{run.schema_id}-run-{run.id}",
-        )
+        create_kwargs = {
+            "name": f"harmonization-schema-{run.schema_id}-run-{run.id}",
+            "metadata": {
+                "schema_id": str(run.schema_id),
+                "run_id": str(run.id),
+                "purpose": "health_harmonization",
+            },
+            "expires_after": {
+                "anchor": "last_active_at",
+                "days": getattr(settings, "OPENAI_HARMONIZATION_VECTOR_STORE_TTL_DAYS", 7),
+            },
+        }
+        try:
+            store = vector_stores.create(**create_kwargs)
+        except TypeError:
+            create_kwargs.pop("expires_after", None)
+            store = vector_stores.create(**create_kwargs)
         file_batches = getattr(vector_stores, "file_batches", None)
         if file_batches is None:
             return None
@@ -473,22 +660,101 @@ class AIHarmonizationService:
 
         return None
 
-    def _request_structured_refresh(
+    def _bootstrap_system_prompt(self) -> str:
+        return (
+            "You are preparing a reusable health-data harmonization context for later one-variable mapping calls. "
+            "Read the attached codebooks, target variable catalog, existing mapping rules, relation policy, and duplicate policy. "
+            "Summarize the target catalog structure, repeated naming patterns, common source-to-target mapping patterns, "
+            "date/patient/location conventions, relation conventions, and occupied targets. "
+            "Do not output row-level data or request identifiable values. This response will be referenced by later calls."
+        )
+
+    def _build_bootstrap_prompt(self, run: HarmonizationAIRun) -> str:
+        return json.dumps(
+            {
+                "task": "bootstrap_harmonization_context",
+                "run_id": run.id,
+                "schema_id": run.schema_id,
+                "source_study": {
+                    "id": run.schema.source_study_id,
+                    "name": run.schema.source_study.name,
+                },
+                "target_study": {
+                    "id": run.schema.target_study_id,
+                    "name": run.schema.target_study.name,
+                },
+                "instructions": [
+                    "Use the vector store files as the durable context for subsequent variable-level calls.",
+                    "Pay special attention to existing_mapping_rules.json because it contains human corrections and patterns.",
+                    "Pay special attention to mapping_policy.json because it defines duplicate handling and custom patient/date/location/relation defaults.",
+                    "Later calls will provide one source variable and top embedding candidates; use this bootstrap context when candidates are weak or missing.",
+                ],
+            },
+            indent=2,
+        )
+
+    def _bootstrap_run_context(
         self,
         *,
         run: HarmonizationAIRun,
-        attributes: list[Attribute],
-        baseline: dict[int, list[dict[str, Any]]],
         vector_store_id: str | None,
         fallback_file_ids: list[str],
     ):
+        tools = self._file_search_tools(vector_store_id)
         user_content: list[dict[str, Any]] = [
             {
                 "type": "input_text",
-                "text": self._build_user_prompt(run=run, attributes=attributes, baseline=baseline),
+                "text": self._build_bootstrap_prompt(run),
             },
         ]
+        if not vector_store_id:
+            for file_id in fallback_file_ids:
+                user_content.append({"type": "input_file", "file_id": file_id})
 
+        request_kwargs = {
+            "model": self.model,
+            "input": [
+                {
+                    "role": "system",
+                    "content": [{"type": "input_text", "text": self._bootstrap_system_prompt()}],
+                },
+                {
+                    "role": "user",
+                    "content": user_content,
+                },
+            ],
+            "tools": tools,
+            "store": True,
+        }
+        if tools:
+            request_kwargs["include"] = ["file_search_call.results"]
+
+        logger.info(
+            "AI harmonization bootstrap request run_id=%s schema_id=%s vector_store_id=%s context_file_ids=%s",
+            run.id,
+            run.schema_id,
+            vector_store_id or "",
+            run.context_file_ids,
+        )
+        try:
+            response = self.client.responses.create(**request_kwargs)
+        except (BadRequestError, APIError, RateLimitError) as exc:
+            message = self._format_openai_exception(exc)
+            logger.exception("OpenAI harmonization bootstrap request failed: %s", message)
+            raise RuntimeError(message) from exc
+
+        self._raise_for_failed_response(response)
+        logger.info(
+            "AI harmonization bootstrap response run_id=%s schema_id=%s response_id=%s status=%s usage=%s",
+            run.id,
+            run.schema_id,
+            getattr(response, "id", None) or "",
+            getattr(response, "status", None) or "",
+            self._extract_usage_summary(response),
+        )
+        return response
+
+    def _file_search_tools(self, vector_store_id: str | None) -> list[dict[str, Any]]:
         tools: list[dict[str, Any]] = []
         if vector_store_id:
             tools.append(
@@ -498,7 +764,27 @@ class AIHarmonizationService:
                     "max_num_results": 6,
                 }
             )
-        else:
+        return tools
+
+    def _request_structured_refresh_for_attribute(
+        self,
+        *,
+        run: HarmonizationAIRun,
+        attribute: Attribute,
+        baseline: dict[int, list[dict[str, Any]]],
+        vector_store_id: str | None,
+        fallback_file_ids: list[str],
+        previous_response_id: str | None,
+    ):
+        user_content: list[dict[str, Any]] = [
+            {
+                "type": "input_text",
+                "text": self._build_user_prompt(run=run, attribute=attribute, baseline=baseline),
+            },
+        ]
+
+        tools = self._file_search_tools(vector_store_id)
+        if not vector_store_id:
             for file_id in fallback_file_ids:
                 user_content.append({"type": "input_file", "file_id": file_id})
 
@@ -528,29 +814,21 @@ class AIHarmonizationService:
                 }
             },
             "tools": tools,
+            "store": True,
         }
-
-        use_background = bool(run.use_openai_background and len(attributes) > 3)
-        if use_background:
-            request_kwargs["background"] = True
-            request_kwargs["store"] = True
+        if previous_response_id:
+            request_kwargs["previous_response_id"] = previous_response_id
+        if tools:
+            request_kwargs["include"] = ["file_search_call.results"]
 
         self._log_request_payload(
-            label="harmonization_refresh_request",
+            label="harmonization_variable_refresh_request",
             payload={
                 "run_id": run.id,
                 "schema_id": run.schema_id,
                 "model": self.model,
-                "use_background": use_background,
-                "attributes": [
-                    {
-                        "id": attribute.id,
-                        "variable_name": attribute.variable_name,
-                        "display_name": attribute.display_name or "",
-                        "variable_type": attribute.variable_type or "",
-                    }
-                    for attribute in attributes
-                ],
+                "previous_response_id": previous_response_id or "",
+                "attribute": self._attribute_payload(attribute),
                 "tools": tools,
                 "user_prompt": user_content[0]["text"],
             },
@@ -564,16 +842,13 @@ class AIHarmonizationService:
             raise RuntimeError(message) from exc
 
         logger.info(
-            "OpenAI harmonization response created run_id=%s schema_id=%s response_id=%s status=%s background=%s variable_count=%s",
+            "OpenAI harmonization variable response created run_id=%s schema_id=%s response_id=%s status=%s source_attribute_id=%s",
             run.id,
             run.schema_id,
             getattr(response, "id", None) or "",
             getattr(response, "status", None) or "",
-            use_background,
-            len(attributes),
+            attribute.id,
         )
-        if use_background:
-            response = self._poll_background_response(response.id)
 
         self._raise_for_failed_response(response)
         return response
@@ -638,6 +913,8 @@ class AIHarmonizationService:
         result_count = ""
         if isinstance(payload, Mapping) and isinstance(payload.get("results"), list):
             result_count = len(payload["results"])
+        elif isinstance(payload, Mapping) and isinstance(payload.get("result"), Mapping):
+            result_count = 1
         logger.info(
             "%s: response_id=%s status=%s result_count=%s usage=%s payload=%s",
             label,
@@ -734,7 +1011,27 @@ class AIHarmonizationService:
         if role not in dict(MappingRule.ROLE_CHOICES):
             role = "value"
 
-        rule.target_attribute = target_attribute
+        transform_warning = None
+        duplicate_conflict = False
+        if target_id and target_attribute is None:
+            transform_warning = (
+                f"{rule.source_attribute.variable_name}: AI recommended target attribute {target_id}, "
+                "but it is not part of the target study."
+            )
+        elif (
+            target_attribute is not None
+            and role == "value"
+            and not bool(mapping_payload.get("not_mappable", decision == "not_mappable"))
+            and self._target_is_occupied_by_another_rule(run, target_attribute.id, rule.source_attribute_id)
+        ):
+            duplicate_conflict = True
+            transform_warning = (
+                f"{rule.source_attribute.variable_name}: AI recommended {target_attribute.variable_name}, "
+                "but that target is already mapped by another source variable. Existing mapping was preserved."
+            )
+
+        if not duplicate_conflict:
+            rule.target_attribute = target_attribute
         rule.not_mappable = bool(mapping_payload.get("not_mappable", decision == "not_mappable"))
         rule.role = role
         rule.patient_id_attribute = self._get_source_attribute(run, mapping_payload.get("patient_id_attribute_id"))
@@ -789,7 +1086,18 @@ class AIHarmonizationService:
         rule.ai_last_run = run
         rule.ai_confidence_label = (result.get("confidence_label") or "").strip()
         rule.ai_reasoning_summary = (result.get("reasoning_summary") or "").strip()
-        transform_warning = None
+        if result.get("target_source") or result.get("duplicate_conflict") is not None:
+            metadata_summary = (
+                f"target_source={result.get('target_source') or 'none'}; "
+                f"duplicate_conflict={bool(result.get('duplicate_conflict') or duplicate_conflict)}"
+            )
+            rule.ai_reasoning_summary = " ".join(
+                part for part in [rule.ai_reasoning_summary, metadata_summary] if part
+            ).strip()
+        if transform_warning:
+            rule.ai_reasoning_summary = " ".join(
+                part for part in [rule.ai_reasoning_summary, transform_warning] if part
+            ).strip()
 
         try:
             rule.full_clean()
@@ -827,6 +1135,19 @@ class AIHarmonizationService:
         )
         return transform_warning
 
+    def _target_is_occupied_by_another_rule(
+        self,
+        run: HarmonizationAIRun,
+        target_attribute_id: int,
+        source_attribute_id: int,
+    ) -> bool:
+        return MappingRule.objects.filter(
+            schema=run.schema,
+            target_attribute_id=target_attribute_id,
+            not_mappable=False,
+            role="value",
+        ).exclude(source_attribute_id=source_attribute_id).exists()
+
     def _get_source_attribute(self, run: HarmonizationAIRun, attribute_id: Any) -> Attribute | None:
         if not attribute_id:
             return None
@@ -836,10 +1157,10 @@ class AIHarmonizationService:
         self,
         *,
         run: HarmonizationAIRun,
-        attributes: Iterable[Attribute],
+        attribute: Attribute,
         baseline: dict[int, list[dict[str, Any]]],
     ) -> str:
-        summary_stats_context = self._build_summary_stats_context(run=run, attributes=attributes)
+        summary_stats_context = self._build_summary_stats_context(run=run, attributes=[attribute])
         summary_stats_by_variable = {}
         if isinstance(summary_stats_context, Mapping):
             candidate_summary_stats = summary_stats_context.get("variables", {})
@@ -857,39 +1178,26 @@ class AIHarmonizationService:
             )
             summary_stats_context = {}
 
-        variables_payload = []
-        for attribute in attributes:
-            candidates = []
-            for match in baseline.get(attribute.id, []):
-                candidates.append(
-                    {
-                        "attribute_id": match.get("attribute_id"),
-                        "variable_name": match.get("variable_name"),
-                        "display_name": match.get("display_name"),
-                        "description": match.get("description"),
-                        "variable_type": match.get("variable_type"),
-                        "unit": match.get("unit"),
-                        "combined_similarity": match.get("combined_similarity"),
-                        "confidence_grade": match.get("confidence_grade"),
-                    }
-                )
-
-            variables_payload.append(
+        candidates = []
+        for match in baseline.get(attribute.id, []):
+            candidates.append(
                 {
-                    "source_attribute_id": attribute.id,
-                    "variable_name": attribute.variable_name,
-                    "display_name": attribute.display_name or "",
-                    "description": attribute.description or "",
-                    "variable_type": attribute.variable_type or "",
-                    "unit": attribute.unit or "",
-                    "ontology_code": attribute.ontology_code or "",
-                    "deidentified_summary_stats": summary_stats_by_variable.get(attribute.variable_name, {}),
-                    "candidate_targets": candidates,
+                    "attribute_id": match.get("attribute_id"),
+                    "variable_name": match.get("variable_name"),
+                    "display_name": match.get("display_name"),
+                    "description": match.get("description"),
+                    "variable_type": match.get("variable_type"),
+                    "unit": match.get("unit"),
+                    "combined_similarity": match.get("combined_similarity"),
+                    "confidence_grade": match.get("confidence_grade"),
                 }
             )
 
+        current_rule = MappingRule.objects.filter(schema=run.schema, source_attribute=attribute).first()
+
         return json.dumps(
             {
+                "task": "analyze_one_source_variable",
                 "source_study": {
                     "id": run.schema.source_study_id,
                     "name": run.schema.source_study.name,
@@ -902,22 +1210,43 @@ class AIHarmonizationService:
                     "run_below_confidence_grade": run.run_below_confidence_grade,
                     "top_candidates_per_variable": run.top_candidates_per_variable,
                     "include_deidentified_summary_stats": bool(summary_stats_context),
+                    "candidate_policy": "Prefer candidate_targets. If none fit, use the target catalog and retrieved codebook context from the bootstrap/vector store.",
+                    "duplicate_policy": "Avoid exact duplicate value mappings. If a recommended value target is already occupied by another source variable, set duplicate_conflict=true and decision='needs_review'.",
                 },
-                "relation_naming_policy": {
-                    "repeatable_relation_types": sorted(REPEATABLE_RELATION_TYPES),
-                    "repeatable_names": "Use relation_instance_order only; the application constructs names as <relation_type>_<order>, for example child_1.",
-                    "non_repeatable_names": "For mother, father, parent, and spouse, leave relation_instance_order null; the application uses the relation type as the instance name.",
-                    "existing_instances": [
-                        {"value": value, "label": label}
-                        for value, label in relation_instance_choices(run.schema)
-                        if value
-                    ],
+                "schema_defaults": self._schema_defaults_payload(run),
+                "reserved_target_attribute_ids": self._occupied_target_attribute_ids(
+                    run,
+                    exclude_source_attribute_id=attribute.id,
+                ),
+                "source_variable": {
+                    **(self._attribute_payload(attribute) or {}),
+                    "deidentified_summary_stats": summary_stats_by_variable.get(attribute.variable_name, {}),
+                    "candidate_targets": candidates,
                 },
-                "deidentified_summary_stats_context": summary_stats_context,
-                "variables": variables_payload,
+                "current_mapping_rule": self._mapping_rule_payload(current_rule),
+                "required_output": "Return exactly one complete result object. Include every mapping_rule setting even when it is null, false, self, or empty.",
             },
             indent=2,
         )
+
+    def _mapping_rule_payload(self, rule: MappingRule | None) -> dict[str, Any] | None:
+        if rule is None:
+            return None
+        return {
+            "rule_id": rule.id,
+            "target_attribute": self._attribute_payload(rule.target_attribute),
+            "not_mappable": rule.not_mappable,
+            "role": rule.role,
+            "patient_id_attribute": self._attribute_payload(rule.patient_id_attribute),
+            "datetime_attribute": self._attribute_payload(rule.datetime_attribute),
+            "location_attribute": self._attribute_payload(rule.location_attribute),
+            "relation_type": rule.relation_type,
+            "relation_name": rule.relation_name,
+            "has_transform_code": bool(rule.transform_code),
+            "comments": rule.comments,
+            "ai_confidence_label": rule.ai_confidence_label,
+            "ai_reasoning_summary": rule.ai_reasoning_summary,
+        }
 
     def _build_summary_stats_context(
         self,
@@ -943,11 +1272,14 @@ class AIHarmonizationService:
     def _system_prompt(self) -> str:
         return (
             "You are a health data harmonization assistant. Use the supplied source variable metadata, "
-            "candidate target attributes, retrieved study documentation, and any explicitly provided de-identified summary statistics to refresh mapping rules. "
+            "candidate target attributes, prior bootstrap response, retrieved study documentation, target variable catalog, existing mapping rules, "
+            "and any explicitly provided de-identified summary statistics to refresh exactly one mapping rule. "
             "Only use summary statistics when they are supplied in the prompt. Never infer or request row-level data, example records, or potentially identifiable values. "
-            "Only recommend target attributes from the candidate_targets list for each variable unless "
-            "you determine the variable is not mappable. Keep transform code safe and simple. "
+            "Prefer target attributes from candidate_targets. If none are appropriate, use the target_variable_catalog and retrieved codebook context and set target_source accordingly. "
+            "Avoid exact duplicate value mappings. If a value target is already reserved by another source variable, set duplicate_conflict=true and decision='needs_review'. "
+            "Return all mapping settings for the source variable, including patient ID, datetime, location, relation, transform, and comments. "
             "Use relation_type='self' unless the source variable clearly describes another entity, such as a child, parent, spouse, sibling, mother, or father. "
+            "If patient/date/location/relation settings differ from the schema defaults supplied in the prompt, set the corresponding uses_custom_* boolean to true and provide the explicit attribute ID or relation setting. "
             "Do not map source variables directly to relationship-system target attributes. "
             "For non-self repeatable mappings, provide relation_instance_order only when the source variable clearly encodes the instance order, such as child 1 or sibling 2. "
             "Do not provide free-text relation instance names; the application constructs stable names and inverse relation metadata. "
@@ -959,91 +1291,118 @@ class AIHarmonizationService:
         )
 
     def _response_schema(self) -> dict[str, Any]:
-        return {
+        result_schema = {
             "type": "object",
             "additionalProperties": False,
-            "required": ["results"],
+            "required": [
+                "source_attribute_id",
+                "decision",
+                "recommended_target_attribute_id",
+                "target_source",
+                "duplicate_conflict",
+                "confidence_label",
+                "reasoning_summary",
+                "evidence",
+                "mapping_rule",
+            ],
             "properties": {
-                "results": {
+                "source_attribute_id": {"type": "integer"},
+                "decision": {
+                    "type": "string",
+                    "enum": ["map", "not_mappable", "needs_review"],
+                },
+                "recommended_target_attribute_id": {
+                    "type": ["integer", "null"],
+                },
+                "target_source": {
+                    "type": "string",
+                    "enum": ["embedding_candidate", "catalog_fallback", "retrieved_codebook", "none"],
+                },
+                "duplicate_conflict": {"type": "boolean"},
+                "confidence_label": {"type": "string"},
+                "reasoning_summary": {"type": "string"},
+                "evidence": {
                     "type": "array",
                     "items": {
                         "type": "object",
                         "additionalProperties": False,
-                        "required": [
-                            "source_attribute_id",
-                            "decision",
-                            "recommended_target_attribute_id",
-                            "confidence_label",
-                            "reasoning_summary",
-                            "evidence",
-                            "mapping_rule",
-                        ],
+                        "required": ["source", "quote", "relevance"],
                         "properties": {
-                            "source_attribute_id": {"type": "integer"},
-                            "decision": {
-                                "type": "string",
-                                "enum": ["map", "not_mappable", "needs_review"],
-                            },
-                            "recommended_target_attribute_id": {
-                                "type": ["integer", "null"],
-                            },
-                            "confidence_label": {"type": "string"},
-                            "reasoning_summary": {"type": "string"},
-                            "evidence": {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "additionalProperties": False,
-                                    "required": ["source", "quote", "relevance"],
-                                    "properties": {
-                                        "source": {"type": "string"},
-                                        "quote": {"type": "string"},
-                                        "relevance": {"type": "string"},
-                                    },
-                                },
-                            },
-                            "mapping_rule": {
-                                "type": "object",
-                                "additionalProperties": False,
-                                "required": [
-                                    "not_mappable",
-                                    "role",
-                                    "patient_id_attribute_id",
-                                    "datetime_attribute_id",
-                                    "location_attribute_id",
-                                    "relation_type",
-                                    "relation_instance_order",
-                                    "transform_code",
-                                    "comments",
-                                ],
-                                "properties": {
-                                    "not_mappable": {"type": "boolean"},
-                                    "role": {
-                                        "type": "string",
-                                        "enum": [
-                                            "value",
-                                            "patient_id",
-                                            "datetime",
-                                            "location",
-                                        ],
-                                    },
-                                    "patient_id_attribute_id": {"type": ["integer", "null"]},
-                                    "datetime_attribute_id": {"type": ["integer", "null"]},
-                                    "location_attribute_id": {"type": ["integer", "null"]},
-                                    "relation_type": {
-                                        "type": "string",
-                                        "enum": ["self", "child", "parent", "father", "mother", "spouse", "sibling", "other"],
-                                    },
-                                    "relation_instance_order": {"type": ["integer", "null"]},
-                                    "transform_code": {"type": "string"},
-                                    "comments": {"type": "string"},
-                                },
-                            },
+                            "source": {"type": "string"},
+                            "quote": {"type": "string"},
+                            "relevance": {"type": "string"},
                         },
                     },
-                }
+                },
+                "mapping_rule": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": [
+                        "not_mappable",
+                        "role",
+                        "patient_id_attribute_id",
+                        "datetime_attribute_id",
+                        "location_attribute_id",
+                        "relation_type",
+                        "relation_instance_order",
+                        "transform_code",
+                        "comments",
+                        "uses_custom_patient_id",
+                        "uses_custom_datetime",
+                        "uses_custom_location",
+                        "uses_custom_relation",
+                    ],
+                    "properties": {
+                        "not_mappable": {"type": "boolean"},
+                        "role": {
+                            "type": "string",
+                            "enum": [
+                                "value",
+                                "patient_id",
+                                "datetime",
+                                "location",
+                            ],
+                        },
+                        "patient_id_attribute_id": {"type": ["integer", "null"]},
+                        "datetime_attribute_id": {"type": ["integer", "null"]},
+                        "location_attribute_id": {"type": ["integer", "null"]},
+                        "relation_type": {
+                            "type": "string",
+                            "enum": ["self", "child", "parent", "father", "mother", "spouse", "sibling", "other"],
+                        },
+                        "relation_instance_order": {"type": ["integer", "null"]},
+                        "transform_code": {"type": "string"},
+                        "comments": {"type": "string"},
+                        "uses_custom_patient_id": {"type": "boolean"},
+                        "uses_custom_datetime": {"type": "boolean"},
+                        "uses_custom_location": {"type": "boolean"},
+                        "uses_custom_relation": {"type": "boolean"},
+                    },
+                },
+            },
+        }
+        return {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["result"],
+            "properties": {
+                "result": result_schema,
             },
         }
 
 
-ai_harmonization_service = AIHarmonizationService()
+class LazyAIHarmonizationService:
+    """Instantiate the OpenAI-backed service only when a run actually needs it."""
+
+    _service: AIHarmonizationService | None = None
+
+    def _get_service(self) -> AIHarmonizationService:
+        if self._service is None:
+            self._service = AIHarmonizationService()
+        return self._service
+
+    def refresh_run(self, run: HarmonizationAIRun) -> dict[str, Any]:
+        return self._get_service().refresh_run(run)
+
+
+ai_harmonization_service = LazyAIHarmonizationService()

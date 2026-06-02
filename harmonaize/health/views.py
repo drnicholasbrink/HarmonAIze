@@ -99,7 +99,7 @@ def _create_harmonization_ai_run(schema, user, payload: dict, *, trigger_mode: s
         requested_attribute_ids=list(attribute_ids or []),
         run_below_confidence_grade=payload.get("run_below_confidence_grade")
         or ("all" if trigger_mode == "single_attribute" else "excellent"),
-        top_candidates_per_variable=_coerce_positive_int(payload.get("top_candidates_per_variable"), 3),
+        top_candidates_per_variable=_coerce_positive_int(payload.get("top_candidates_per_variable"), 10),
         include_protocol=_coerce_bool(payload.get("include_protocol"), True),
         include_additional_documents=_coerce_bool(payload.get("include_additional_documents"), True),
         include_deidentified_summary_stats=_coerce_bool(payload.get("include_deidentified_summary_stats"), False),

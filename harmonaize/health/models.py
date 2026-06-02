@@ -168,7 +168,7 @@ class HarmonizationAIRun(models.Model):
         default="excellent",
         help_text="Only run AI for variables below this baseline confidence grade.",
     )
-    top_candidates_per_variable = models.PositiveSmallIntegerField(default=3)
+    top_candidates_per_variable = models.PositiveSmallIntegerField(default=10)
     include_protocol = models.BooleanField(default=True)
     include_additional_documents = models.BooleanField(default=True)
     include_deidentified_summary_stats = models.BooleanField(default=False)
@@ -178,6 +178,9 @@ class HarmonizationAIRun(models.Model):
         help_text="Whether the Celery worker may use OpenAI background responses internally.",
     )
     celery_task_id = models.CharField(max_length=255, blank=True)
+    openai_vector_store_id = models.CharField(max_length=255, blank=True)
+    bootstrap_response_id = models.CharField(max_length=255, blank=True)
+    context_file_ids = models.JSONField(default=list, blank=True)
     openai_response_ids = models.JSONField(default=list, blank=True)
     usage_summary = models.JSONField(default=dict, blank=True)
     processed_attributes_count = models.PositiveIntegerField(default=0)

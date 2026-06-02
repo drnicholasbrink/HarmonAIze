@@ -26,7 +26,7 @@ class AttributeDescriptionRAGService:
             raise ValueError(msg)
 
         self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
-        self.model = getattr(settings, "OPENAI_TRANSFORMATION_MODEL", "gpt-5")
+        self.model = getattr(settings, "OPENAI_TRANSFORMATION_MODEL", "gpt-5.4-mini")
 
     def enrich_study(self, study, *, attribute_ids: list[int] | None = None) -> dict[str, Any]:
         queryset = study.variables.order_by("variable_name")

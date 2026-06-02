@@ -4418,7 +4418,7 @@ function processAllVariablesWithAI() {
       },
       body: JSON.stringify({
         run_below_confidence_grade: runThreshold,
-        top_candidates_per_variable: 3,
+        top_candidates_per_variable: 10,
         include_deidentified_summary_stats: Boolean(includeSummaryStats && includeSummaryStats.checked),
       }),
     })
@@ -4457,7 +4457,7 @@ function restartAgentHarmonisation() {
     },
     body: JSON.stringify({
       run_below_confidence_grade: runThreshold,
-      top_candidates_per_variable: 3,
+      top_candidates_per_variable: 10,
       include_deidentified_summary_stats: Boolean(includeSummaryStats && includeSummaryStats.checked),
     }),
   })
@@ -4530,7 +4530,7 @@ function rerunAIForAttribute(variableId, buttonElement) {
     },
     body: JSON.stringify({
       source_attribute_id: variableId,
-      top_candidates_per_variable: 3,
+      top_candidates_per_variable: 10,
       include_deidentified_summary_stats: Boolean(includeSummaryStats && includeSummaryStats.checked),
     }),
   })

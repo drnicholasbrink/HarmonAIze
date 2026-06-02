@@ -42,7 +42,7 @@ class TransformationSuggestionService:
         self.model = getattr(
             settings,
             "OPENAI_TRANSFORMATION_MODEL",
-            "gpt-5.1",
+            "gpt-5.4-mini",
         )
 
     def suggest_transformation_code(
