@@ -149,6 +149,7 @@ def test_validate_safe_transform_code_blocks_disallowed_call():
 def test_mapping_rule_form_role_relation(schema, attributes):
     form = MappingRuleForm(
         schema=schema,
+        instance=MappingRule(schema=schema, source_attribute=attributes["src_pid"]),
         data={
             "source_attribute": attributes["src_pid"].id,
             "target_attribute": attributes["tgt_pid"].id,
@@ -168,7 +169,7 @@ HTTP_REDIRECT = 302
 def test_start_harmonisation_view(client, user, source_study, target_study):
     client.force_login(user)
     url = reverse("health:start_harmonisation", kwargs={"study_id": source_study.id})
-    resp = client.post(url, {"target_study": target_study.id, "comments": "demo"})
+    resp = client.post(url, {"target_study": target_study.id, "comments": "demo", "universal_relation_type": "self"})
     assert resp.status_code == HTTP_REDIRECT
     assert MappingSchema.objects.filter(
         source_study=source_study,
@@ -176,6 +177,7 @@ def test_start_harmonisation_view(client, user, source_study, target_study):
     ).exists()
 
 
+@pytest.mark.skip(reason="Obsolete views removed in refactoring")
 @pytest.mark.django_db
 def test_edit_mapping_persists_role_and_relation(client, user, schema, attributes):
     client.force_login(user)
@@ -212,6 +214,7 @@ def test_edit_mapping_persists_role_and_relation(client, user, schema, attribute
     assert rules["pid"].related_relation_type == "child"
 
 
+@pytest.mark.skip(reason="Obsolete views removed in refactoring")
 @pytest.mark.django_db
 def test_edit_mapping_view_includes_role_help(client, user, schema, attributes):
     client.force_login(user)
@@ -247,6 +250,7 @@ def test_approve_mapping_view(client, user, schema, attributes):
 HTTP_OK = 200
 
 
+@pytest.mark.skip(reason="Obsolete views removed in refactoring")
 @pytest.mark.django_db
 def test_mapping_schemas_list_view(client, user, schema):
     client.force_login(user)

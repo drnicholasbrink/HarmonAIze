@@ -4,13 +4,13 @@ from types import SimpleNamespace
 from django.contrib.messages.storage.fallback import FallbackStorage
 from django.contrib.sessions.middleware import SessionMiddleware
 from django.test import RequestFactory
-from django.test import SimpleTestCase
+from django.test import TestCase
 from django.test import override_settings
 from django.urls import clear_url_caches
 from django.urls import resolve
 
 
-class AnalysisAvailabilityTests(SimpleTestCase):
+class AnalysisAvailabilityTests(TestCase):
 	def setUp(self):
 		self.factory = RequestFactory()
 

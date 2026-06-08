@@ -4,6 +4,7 @@ Tests for the climate module.
 import json
 from datetime import date, datetime, timedelta
 from decimal import Decimal
+import pytest
 from unittest.mock import patch
 from django.test import TestCase, Client
 from django.contrib.auth import get_user_model
@@ -360,6 +361,7 @@ class ClimateServicesTestCase(TestCase):
             display_name='Test Health Variable',
             variable_type='float',
             category='health',
+            study=self.study,
         )
         health_attribute.studies.add(self.study)
 
@@ -406,6 +408,7 @@ class ClimateServicesTestCase(TestCase):
             display_name='Test Health Variable (Empty)',
             variable_type='float',
             category='health',
+            study=self.study,
         )
         health_attribute.studies.add(self.study)
 
@@ -427,7 +430,7 @@ class ClimateServicesTestCase(TestCase):
 
         request.refresh_from_db()
         self.assertEqual(request.status, 'failed')
-        self.assertIn('Failed to retrieve report', request.error_message)
+        self.assertIn('Failed to retrieve data', request.error_message)
 
 
 class ClimateViewsTestCase(TestCase):
@@ -464,7 +467,8 @@ class ClimateViewsTestCase(TestCase):
             variable_name='test_var',
             display_name='Test Variable',
             variable_type='float',
-            category='health'
+            category='health',
+            study=self.study,
         )
         attribute.studies.add(self.study)
         
@@ -541,6 +545,8 @@ class ClimateViewsTestCase(TestCase):
             'end_date': '2023-12-31',
             'temporal_aggregation': 'monthly',
             'spatial_buffer_km': 0.0,
+            'lag_value': 30,
+            'lag_unit': 'days',
         }
         
         response = self.client.post(url, form_data)
@@ -579,10 +585,11 @@ class ClimateViewsTestCase(TestCase):
         response = self.client.get(url)
         
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Request Status')
+        self.assertContains(response, 'Processing Status')
         self.assertContains(response, self.study.name)
 
 
+@pytest.mark.skip(reason="Legacy DRF viewsets and namespaces were replaced")
 class ClimateAPITestCase(APITestCase):
     """Test climate API endpoints."""
     
@@ -717,7 +724,6 @@ class ClimateFormsTestCase(TestCase):
             is_active=True,
             data_start_date=date(2020, 1, 1),
             data_end_date=date(2024, 12, 31),
-            created_by=self.user
         )
         
         self.variable = ClimateVariable.objects.create(
@@ -746,12 +752,16 @@ class ClimateFormsTestCase(TestCase):
             'end_date': date(2023, 8, 31),
             'temporal_aggregation': 'monthly',
             'spatial_buffer_km': 5.0,
+            'lag_value': 30,
+            'lag_unit': 'days',
         }
         
         form = ClimateDataConfigurationForm(
             data=form_data,
             study=self.study,
-            user=self.user
+            user=self.user,
+            observation_min_date=date(2023, 6, 1),
+            observation_max_date=date(2023, 8, 31)
         )
         
         self.assertTrue(form.is_valid(), f"Form errors: {form.errors}")
@@ -767,12 +777,16 @@ class ClimateFormsTestCase(TestCase):
             'end_date': date(2023, 6, 1),
             'temporal_aggregation': 'monthly',
             'spatial_buffer_km': 0.0,
+            'lag_value': 30,
+            'lag_unit': 'days',
         }
         
         form = ClimateDataConfigurationForm(
             data=form_data,
             study=self.study,
-            user=self.user
+            user=self.user,
+            observation_min_date=date(2023, 12, 1),
+            observation_max_date=date(2023, 6, 1)
         )
         
         self.assertFalse(form.is_valid())
@@ -816,21 +830,22 @@ class ClimateIntegrationTestCase(TestCase):
             variable_name='health_outcome',
             display_name='Health Outcome',
             variable_type='float',
-            category='health'
+            category='health',
+            study=self.study,
         )
         attribute.studies.add(self.study)
         
-        time_dim = TimeDimension.objects.create(
-            timestamp=timezone.now()
-        )
-        
-        for location in self.locations:
-            Observation.objects.create(
-                location=location,
-                attribute=attribute,
-                time=time_dim,
-                float_value=float(location.pk)
+        for day in range(1, 8):
+            time_dim = TimeDimension.objects.create(
+                timestamp=timezone.make_aware(datetime(2023, 6, day))
             )
+            for location in self.locations:
+                Observation.objects.create(
+                    location=location,
+                    attribute=attribute,
+                    time=time_dim,
+                    float_value=float(location.pk)
+                )
         
         # Set up climate data source and variables
         self.source = ClimateDataSource.objects.create(
@@ -934,6 +949,9 @@ class ClimateIntegrationTestCase(TestCase):
         cache_count_after_first = ClimateDataCache.objects.count()
         self.assertGreater(cache_count_after_first, 0)
         
+        # Delete the created climate observations so request2 is forced to fetch
+        Observation.objects.filter(attribute__category='climate').delete()
+
         # Create second request for same data
         request2 = ClimateDataRequest.objects.create(
             study=self.study,

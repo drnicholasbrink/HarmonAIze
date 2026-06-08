@@ -1,0 +1,46 @@
+# HarmonAIze Terraform variables — EXAMPLE
+# Copy to terraform.tfvars and fill in. terraform.tfvars is gitignored; never commit real secrets.
+
+# --- Core ---
+# prefix      = "harmonaize"
+# environment = "prod"
+# location    = "southafricanorth"
+
+# --- Container image (set after Phase 1 creates the ACR; see DEPLOYMENT.md §4) ---
+# container_app_image = "<acr_login_server>/harmonaize_production_django:latest"
+
+# --- OpenAI-compatible API ---
+# The app uses the public OpenAI SDK, so it works with OpenAI or any 3rd-party
+# OpenAI-compatible endpoint. Set the base URL and the matching key (openai_api_key below).
+# openai_base_url     = "https://api.openai.com/v1"   # or e.g. a 3rd-party provider's /v1 URL
+# deploy_azure_openai = false                          # leave off unless you specifically want Azure OpenAI
+
+# --- Hostnames ---
+# allowed_hosts = "harmonaize.org"   # comma-separated; set to your real domain(s), avoid "*"
+
+# --- Application secrets ---
+# ALL of these are stored in Key Vault and consumed by the Container Apps via managed-identity
+# references. Leave blank ("") to seed empty secrets and set real values in Key Vault later
+# (DEPLOYMENT.md §6.3). Generated/infra secrets (DB password, Redis/Storage keys, SECRET_KEY) are
+# created automatically and are NOT listed here.
+django_admin_url         = ""   # e.g. "manage-a1b2c3/"
+sendgrid_api_key         = ""   # e.g. "SG.xxxxxxxx"
+sentry_dsn               = ""   # e.g. "https://<key>@<org>.ingest.sentry.io/<id>"
+openai_api_key           = ""   # e.g. "sk-..."  (works with any OpenAI-compatible provider)
+google_geocoding_api_key = ""   # geolocation; optional
+gemini_api_key           = ""   # LLM-assisted geolocation; optional
+mapbox_access_token      = ""   # geolocation; optional
+# analysis_deidentification_salt = ""   # leave blank to auto-generate a strong random salt
+
+# --- Sizing / behaviour (defaults shown) ---
+# min_replicas               = 0       # web floors to 1 internally
+# max_replicas               = 5
+# enable_postgres_ha         = true    # Zone-Redundant HA (raises cost)
+# db_sku_name                = "GP_Standard_D2s_v3"
+# redis_sku_name             = "Standard"
+# redis_capacity             = 1
+# storage_replication_type   = "GRS"
+
+# --- Worker autoscaling (KEDA Redis scaler) ---
+# celery_queue_name          = "celery"
+# worker_target_queue_length = 5

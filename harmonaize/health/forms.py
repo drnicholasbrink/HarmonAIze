@@ -77,6 +77,7 @@ class MappingSchemaForm(forms.ModelForm):
         self.fields["universal_patient_id"].required = False
         self.fields["universal_datetime"].required = False
         self.fields["universal_location"].required = False
+        self.fields["universal_relation_type"].required = False
         # Patient / datetime assignment handled per-rule
 
 

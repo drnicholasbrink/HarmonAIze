@@ -75,6 +75,12 @@ class Project(models.Model):
         if total_studies == 0:
             return 0
 
+        completed_studies = self.studies.filter(
+            status__in=["harmonised", "completed"],
+        ).count()
+
+        return round((completed_studies / total_studies) * 100)
+
 
 class ProjectMembership(models.Model):
     ROLE_CHOICES = (
@@ -105,13 +111,6 @@ class ProjectInvitation(models.Model):
 
     def __str__(self):
         return f"Invite for {self.email} to {self.project.name}"
-
-
-        completed_studies = self.studies.filter(
-            status__in=["harmonised", "completed"],
-        ).count()
-
-        return round((completed_studies / total_studies) * 100)
 
 class Patient(models.Model):
     """
@@ -628,3 +627,16 @@ class StudyDocument(models.Model):
     def file_extension(self):
         import os
         return os.path.splitext(self.file.name)[1].lower()
+
+
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
+@receiver(post_save, sender=Project)
+def create_project_owner_membership(sender, instance, created, **kwargs):
+    if created and instance.created_by:
+        ProjectMembership.objects.get_or_create(
+            project=instance,
+            user=instance.created_by,
+            defaults={'role': 'owner'}
+        )

@@ -305,6 +305,11 @@ class MappingRule(models.Model):
         except ValidationError as e:
             errors["transform_code"] = e.messages
 
+        if self.role == "related_patient_id" and not self.related_relation_type:
+            errors["related_relation_type"] = "Relation type is required when role is related patient ID."
+        elif self.role != "related_patient_id" and self.related_relation_type:
+            errors["related_relation_type"] = "Relation type should only be specified for related patient ID mappings."
+
         if errors:
             raise ValidationError(errors)
 

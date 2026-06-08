@@ -37,7 +37,7 @@ class AnalysisAccessTests(TestCase):
 			description="",
 			created_by=self.user,
 		)
-		ProjectMembership.objects.create(project=project, user=self.user, role="manager")
+		ProjectMembership.objects.filter(project=project, user=self.user).update(role="manager")
 
 		self.client.force_login(self.user)
 		response = self.client.get(reverse("analysis:dashboard"))
