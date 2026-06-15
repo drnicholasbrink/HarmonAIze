@@ -117,6 +117,7 @@ class MappingRuleForm(forms.ModelForm):
         fields = [
             "source_attribute",
             "not_mappable",
+            "needs_review",
             "role",
             "patient_id_attribute",
             "datetime_attribute",
@@ -145,15 +146,18 @@ class MappingRuleForm(forms.ModelForm):
                 showgutter=True,  # To hide/show line numbers
                 behaviours=True,  # To disable auto-append of quote when quotes are entered
                 useworker=True,
-                extensions=None,
-                basicautocompletion=False,
-                liveautocompletion=False,
+                extensions=["language_tools"],
+                basicautocompletion=True,
+                liveautocompletion=True,
             ),
             "comments": forms.Textarea(
                 attrs={"rows": 2, "placeholder": "Optional notes about this mapping..."}
             ),
             "not_mappable": forms.CheckboxInput(
                 attrs={"class": "not-mappable-checkbox"}
+            ),
+            "needs_review": forms.CheckboxInput(
+                attrs={"class": "needs-review-checkbox"}
             ),
             "use_custom_settings": forms.CheckboxInput(
                 attrs={"class": "custom-settings-checkbox"}
@@ -172,6 +176,14 @@ class MappingRuleForm(forms.ModelForm):
         self.fields["source_attribute"].queryset = src_qs
         self.fields["target_attribute"].queryset = tgt_qs
         self.fields["target_attribute"].required = False  # Allow provisional saves
+        if (
+            not getattr(self.instance, "source_attribute_id", None)
+            and self.is_bound
+            and self.data
+        ):
+            posted_source = self.data.get(self.add_prefix("source_attribute"))
+            if posted_source:
+                self.fields["source_attribute"].initial = posted_source
 
         # Default role to "value"; do not require
         self.fields["role"].initial = "value"
@@ -180,29 +192,23 @@ class MappingRuleForm(forms.ModelForm):
         # Set up patient_id and datetime attribute fields (for custom overrides)
         self.fields["patient_id_attribute"].queryset = src_qs
         self.fields["patient_id_attribute"].required = False
-        self.fields["patient_id_attribute"].empty_label = (
-            "Use universal setting (recommended)"
-        )
+        self.fields["patient_id_attribute"].empty_label = "Use schema default"
         self.fields["patient_id_attribute"].help_text = (
-            "Override universal patient ID setting for this specific mapping"
+            "Select the source field that identifies the patient for this mapping"
         )
 
         self.fields["datetime_attribute"].queryset = src_qs
         self.fields["datetime_attribute"].required = False
-        self.fields["datetime_attribute"].empty_label = (
-            "Use universal setting (recommended)"
-        )
+        self.fields["datetime_attribute"].empty_label = "Use schema default"
         self.fields["datetime_attribute"].help_text = (
-            "Override universal datetime setting for this specific mapping"
+            "Select the source field that gives the date or time for this mapping"
         )
 
         self.fields["location_attribute"].queryset = src_qs
         self.fields["location_attribute"].required = False
-        self.fields["location_attribute"].empty_label = (
-            "Use universal setting (recommended)"
-        )
+        self.fields["location_attribute"].empty_label = "Use schema default"
         self.fields["location_attribute"].help_text = (
-            "Override universal location setting for this specific mapping"
+            "Select the source field that gives the location for this mapping"
         )
 
         self.fields["relation_type"].required = False
@@ -245,10 +251,23 @@ class MappingRuleForm(forms.ModelForm):
 
         # Help text for better UX
         self.fields["not_mappable"].help_text = (
-            "Check if this variable cannot be mapped to any target variable"
+            "Mark this variable as intentionally not mapped to any target variable"
+        )
+        self.fields["needs_review"].help_text = (
+            "Flag this mapping for human review before approval"
         )
         self.fields["use_custom_settings"].help_text = (
-            "Override universal settings with custom patient ID/datetime for this mapping"
+            "Select patient, date/time, or location fields that differ from the schema defaults."
+        )
+        self.fields["use_custom_settings"].initial = any(
+            (
+                getattr(self.instance, "patient_id_attribute_id", None)
+                and self.instance.patient_id_attribute_id != schema.universal_patient_id_id,
+                getattr(self.instance, "datetime_attribute_id", None)
+                and self.instance.datetime_attribute_id != schema.universal_datetime_id,
+                getattr(self.instance, "location_attribute_id", None)
+                and self.instance.location_attribute_id != schema.universal_location_id,
+            )
         )
         self.fields["role"].help_text = (
             "Value: Standard mapping to target variable | "
@@ -265,6 +284,7 @@ class MappingRuleForm(forms.ModelForm):
         # If variable marked as not mappable, do not enforce role/target
         if cleaned.get("not_mappable"):
             cleaned["role"] = cleaned.get("role") or "value"
+            cleaned["needs_review"] = False
             cleaned["relation_type"] = "self"
             cleaned["relation_instance"] = ""
             cleaned["create_relation_instance"] = ""

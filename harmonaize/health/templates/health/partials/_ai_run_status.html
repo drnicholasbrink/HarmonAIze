@@ -1,6 +1,9 @@
 <div id="ai-run-monitor"
   class="agent-progress-wrapper"
   data-run-status="{% if run %}{{ run.status }}{% endif %}"
+  data-run-id="{% if run %}{{ run.id }}{% endif %}"
+  data-processed-count="{% if run %}{{ run.processed_attributes_count }}{% else %}0{% endif %}"
+  data-failed-count="{% if run %}{{ run.failed_attributes_count }}{% else %}0{% endif %}"
   {% if run and run.status != 'completed' and run.status != 'failed' and run.status != 'cancelled' %}
   hx-get="{% url 'health:ai_harmonization_run_status_partial' run.id %}?live=1"
      hx-trigger="every 2s"

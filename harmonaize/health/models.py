@@ -348,6 +348,10 @@ class MappingRule(models.Model):
         default=False,
         help_text="Mark this variable as not mappable to any target variable"
     )
+    needs_review = models.BooleanField(
+        default=False,
+        help_text="Flag this mapping for human review before approval",
+    )
     target_attribute = models.ForeignKey(
         Attribute, on_delete=models.CASCADE, related_name="as_target_in_rules",
         help_text="Attribute from the target study",

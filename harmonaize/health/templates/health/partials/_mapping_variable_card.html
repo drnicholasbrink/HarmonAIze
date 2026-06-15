@@ -1,0 +1,511 @@
+{{ variable_form.form.media.css }}
+
+<form method="post"
+      class="mapping-variable-form"
+      id="mapping-form-{{ variable_form.attribute.id }}"
+      data-save-url="{% url 'health:save_mapping_variable' schema.id variable_form.attribute.id %}"
+      data-dirty="false">
+  {% csrf_token %}
+
+  <div class="expanded-variable-card variable-card {% if variable_form.instance.needs_review %}needs-review{% elif variable_form.instance.not_mappable %}not-mappable{% elif variable_form.is_complete %}complete{% else %}incomplete{% endif %}"
+       data-attribute-id="{{ variable_form.attribute.id }}"
+       data-variable-name="{{ variable_form.attribute.variable_name|lower }}"
+       data-completion="{% if variable_form.instance.needs_review %}needs-review{% elif variable_form.instance.not_mappable %}not-mappable{% elif variable_form.is_complete %}complete{% else %}incomplete{% endif %}">
+
+    <div class="variable-content">
+      <div class="expanded-card-controls">
+        <span class="card-save-status" id="save-status-{{ variable_form.attribute.id }}"></span>
+      </div>
+
+      <div class="mapping-form polished-mapping-form">
+        <section class="mapping-panel source-summary-panel">
+          <div class="mapping-accordion source-details-accordion">
+            <section class="mapping-accordion-section">
+              <button type="button"
+                      class="mapping-accordion-trigger"
+                      aria-expanded="false"
+                      aria-controls="mapping-source-{{ variable_form.attribute.id }}"
+                      onclick="toggleMappingAccordion(this)">
+                <span class="accordion-heading">
+                  <i class="fas fa-upload"></i>
+                  <span>
+                    <span class="accordion-title">Source attribute details</span>
+                    <span class="accordion-info" tabindex="0" role="button" title="Shows the original source variable metadata, description, type, unit, and codebook details." aria-label="Shows the original source variable metadata, description, type, unit, and codebook details.">
+                      <i class="fas fa-circle-info"></i>
+                    </span>
+                    <span class="accordion-summary">Open full metadata for {{ variable_form.attribute.display_name|default:variable_form.attribute.variable_name }}.</span>
+                  </span>
+                </span>
+                <i class="fas fa-chevron-down accordion-chevron"></i>
+              </button>
+              <div class="mapping-accordion-panel" id="mapping-source-{{ variable_form.attribute.id }}" aria-hidden="true">
+                <div class="mapping-accordion-content">
+                  <div class="attribute-info-grid clean-info-grid">
+                    <div class="info-item">
+                      <span class="info-label">Variable name</span>
+                      <span class="info-value">{{ variable_form.attribute.variable_name }}</span>
+                    </div>
+                    {% if variable_form.attribute.display_name %}
+                      <div class="info-item">
+                        <span class="info-label">Display name</span>
+                        <span class="info-value">{{ variable_form.attribute.display_name }}</span>
+                      </div>
+                    {% endif %}
+                    <div class="info-item">
+                      <span class="info-label">Data type</span>
+                      <span class="info-value">{{ variable_form.attribute.variable_type|default:"Unknown" }}</span>
+                    </div>
+                    {% if variable_form.attribute.unit %}
+                      <div class="info-item">
+                        <span class="info-label">Unit</span>
+                        <span class="info-value">{{ variable_form.attribute.unit }}</span>
+                      </div>
+                    {% endif %}
+                    {% if variable_form.attribute.ontology_code %}
+                      <div class="info-item">
+                        <span class="info-label">Ontology code</span>
+                        <span class="info-value">{{ variable_form.attribute.ontology_code }}</span>
+                      </div>
+                    {% endif %}
+                    {% if variable_form.attribute.description %}
+                      <div class="info-item full-width">
+                        <span class="info-label">Description</span>
+                        <span class="info-value description-clamp" data-long-text>{{ variable_form.attribute.description }}</span>
+                        <button type="button" class="text-link-button" onclick="toggleLongText(this)">Show more</button>
+                      </div>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <div class="primary-mapping-panel" style="{% if variable_form.instance.not_mappable %}display: none;{% endif %}">
+          <div class="primary-mapping-header">
+            <div>
+              <span class="primary-kicker">Primary mapping</span>
+              <h4>Choose the target and role</h4>
+              <p>Select the target attribute this source variable should become, then define how it should be used.</p>
+            </div>
+            <span class="accordion-info primary-info" tabindex="0" role="button" title="Target Variable chooses the harmonised destination. Mapping Role tells the system whether this field is a value, patient ID, date/time, or location." aria-label="Target Variable chooses the harmonised destination. Mapping Role tells the system whether this field is a value, patient ID, date/time, or location.">
+              <i class="fas fa-circle-info"></i>
+            </span>
+          </div>
+        <div class="mapping-fields primary-mapping-row">
+          <div class="form-group">
+            <label class="form-label">
+              <i class="fas fa-download"></i> Target Variable
+              <span class="confidence-indicator" id="confidence-{{ variable_form.attribute.id }}" style="display: none;"></span>
+            </label>
+            {{ variable_form.form.target_attribute }}
+            {% if variable_form.form.target_attribute.errors %}
+              <div class="error-message">
+                {% for error in variable_form.form.target_attribute.errors %}
+                  <span>{{ error }}</span>
+                {% endfor %}
+              </div>
+              {% endif %}
+          </div>
+
+          <div class="form-group">
+            <label class="form-label"><i class="fas fa-tag"></i> Mapping Role</label>
+            {{ variable_form.form.role }}
+            {% if variable_form.form.role.errors %}
+              <div class="error-message">
+                {% for error in variable_form.form.role.errors %}
+                  <span>{{ error }}</span>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+
+        </div>
+        </div>
+
+        <div class="not-mappable-inline not-mappable-visible">
+          <div class="checkbox-wrapper-horizontal">
+            {{ variable_form.form.not_mappable }}
+            <label for="{{ variable_form.form.not_mappable.id_for_label }}" class="checkbox-label-horizontal">
+              <i class="fas fa-ban"></i> Not mappable
+            </label>
+          </div>
+          <div class="checkbox-wrapper-horizontal">
+            {{ variable_form.form.needs_review }}
+            <label for="{{ variable_form.form.needs_review.id_for_label }}" class="checkbox-label-horizontal">
+              <i class="fas fa-flag"></i> Needs review
+            </label>
+          </div>
+        </div>
+
+        <section class="mapping-panel target-details-panel">
+          <div class="mapping-accordion">
+            <section class="mapping-accordion-section">
+              <button type="button"
+                      class="mapping-accordion-trigger"
+                      aria-expanded="false"
+                      aria-controls="mapping-target-details-{{ variable_form.attribute.id }}"
+                      onclick="toggleMappingAccordion(this)">
+                <span class="accordion-heading">
+                  <i class="fas fa-download"></i>
+                  <span>
+                    <span class="accordion-title">Target attribute details</span>
+                    <span class="accordion-info" tabindex="0" role="button" title="Shows the metadata for the selected target attribute so you can confirm the mapping before saving." aria-label="Shows the metadata for the selected target attribute so you can confirm the mapping before saving.">
+                      <i class="fas fa-circle-info"></i>
+                    </span>
+                    <span class="accordion-summary">{% if variable_form.instance.target_attribute %}{{ variable_form.instance.target_attribute.display_name|default:variable_form.instance.target_attribute.variable_name }}{% else %}Select a target variable to review its metadata.{% endif %}</span>
+                  </span>
+                </span>
+                <i class="fas fa-chevron-down accordion-chevron"></i>
+              </button>
+              <div class="mapping-accordion-panel" id="mapping-target-details-{{ variable_form.attribute.id }}" aria-hidden="true">
+                <div class="mapping-accordion-content">
+                  <div class="target-attribute-details clean-target-details" id="target-details-{{ variable_form.attribute.id }}" style="display: none;">
+                    <div class="target-info-grid">
+                      <div class="info-item">
+                        <span class="info-label">Variable name</span>
+                        <span class="info-value" id="target-name-{{ variable_form.attribute.id }}">-</span>
+                      </div>
+                      <div class="info-item">
+                        <span class="info-label">Display name</span>
+                        <span class="info-value" id="target-display-name-{{ variable_form.attribute.id }}">-</span>
+                      </div>
+                      <div class="info-item full-width">
+                        <span class="info-label">Description</span>
+                        <span class="info-value" id="target-description-{{ variable_form.attribute.id }}">-</span>
+                      </div>
+                      <div class="info-item">
+                        <span class="info-label">Data type</span>
+                        <span class="info-value" id="target-type-{{ variable_form.attribute.id }}">-</span>
+                      </div>
+                      <div class="info-item">
+                        <span class="info-label">Unit</span>
+                        <span class="info-value" id="target-unit-{{ variable_form.attribute.id }}">-</span>
+                      </div>
+                      <div class="info-item">
+                        <span class="info-label">Ontology code</span>
+                        <span class="info-value" id="target-ontology-{{ variable_form.attribute.id }}">-</span>
+                      </div>
+                      <div class="info-item">
+                        <span class="info-label">Values count</span>
+                        <span class="info-value" id="target-values-count-{{ variable_form.attribute.id }}">-</span>
+                      </div>
+                    </div>
+                  </div>
+                  <p class="mapping-panel-copy target-empty-copy" id="target-empty-{{ variable_form.attribute.id }}" {% if variable_form.instance.target_attribute %}style="display: none;"{% endif %}>
+                    Select a target variable above to see its metadata here.
+                  </p>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="mapping-panel suggestions-panel"
+                 data-load-on-open="suggestions"
+                 data-variable-id="{{ variable_form.attribute.id }}">
+          <div class="mapping-accordion">
+            <section class="mapping-accordion-section"
+                     data-load-on-open="suggestions"
+                     data-variable-id="{{ variable_form.attribute.id }}">
+              <button type="button"
+                      class="mapping-accordion-trigger"
+                      aria-expanded="false"
+                      aria-controls="mapping-suggestions-{{ variable_form.attribute.id }}"
+                      onclick="toggleMappingAccordion(this)">
+                <span class="accordion-heading">
+                  <i class="fas fa-lightbulb"></i>
+                  <span>
+                    <span class="accordion-title">Suggestions</span>
+                    <span class="accordion-info" tabindex="0" role="button" title="Loads likely target matches for this source variable. Choose one to fill the target field." aria-label="Loads likely target matches for this source variable. Choose one to fill the target field.">
+                      <i class="fas fa-circle-info"></i>
+                    </span>
+                    <span class="accordion-summary">AI suggestions.</span>
+                  </span>
+                </span>
+                <i class="fas fa-chevron-down accordion-chevron"></i>
+              </button>
+              <div class="mapping-accordion-panel" id="mapping-suggestions-{{ variable_form.attribute.id }}" aria-hidden="true">
+                <div class="mapping-accordion-content">
+                  <div class="suggestion-toolbar">
+                    <button type="button" class="btn btn-sm btn-outline" onclick="loadVariableSuggestions({{ variable_form.attribute.id }}, true)">
+                      <i class="fas fa-sync"></i> Refresh suggestions
+                    </button>
+                  </div>
+                  <div class="ai-suggestions-dropdown accordion-suggestions" id="ai-dropdown-{{ variable_form.attribute.id }}" style="display: block;">
+                    <div class="suggestions-loading" id="loading-{{ variable_form.attribute.id }}" style="display: none;">
+                      <div class="loading-spinner"></div>
+                      <span>Loading suggestions</span>
+                    </div>
+                    <div class="suggestions-list" id="suggestions-list-{{ variable_form.attribute.id }}"></div>
+                    <div class="dropdown-help">
+                      <i class="fas fa-lightbulb"></i>
+                      Select a suggestion to use it as the target variable.
+                      <span class="suggestions-count" id="count-{{ variable_form.attribute.id }}"></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="mapping-panel transform-panel"
+                 data-load-on-open="transform"
+                 data-variable-id="{{ variable_form.attribute.id }}">
+          <div class="mapping-accordion">
+            <section class="mapping-accordion-section"
+                     data-load-on-open="transform"
+                     data-variable-id="{{ variable_form.attribute.id }}">
+              <button type="button"
+                      class="mapping-accordion-trigger"
+                      aria-expanded="false"
+                      aria-controls="mapping-transform-{{ variable_form.attribute.id }}"
+                      onclick="toggleMappingAccordion(this)">
+                <span class="accordion-heading">
+                  <i class="fas fa-code"></i>
+                  <span>
+                    <span class="accordion-title">Transform code</span>
+                    <span class="accordion-info" tabindex="0" role="button" title="Optional Python used to convert source values into the target format during harmonisation." aria-label="Optional Python used to convert source values into the target format during harmonisation.">
+                      <i class="fas fa-circle-info"></i>
+                    </span>
+                    <span class="accordion-summary">Optional python script for value transformation</span>
+                  </span>
+                </span>
+                <i class="fas fa-chevron-down accordion-chevron"></i>
+              </button>
+              <div class="mapping-accordion-panel" id="mapping-transform-{{ variable_form.attribute.id }}" aria-hidden="true">
+                <div class="mapping-accordion-content">
+                  <div class="form-group full-width">
+                    <div class="code-header">
+                      <label class="form-label">Transform Code</label>
+                      <div class="code-buttons">
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="generateTransformationCode({{ variable_form.attribute.id }}, this)">
+                          <i class="fas fa-magic"></i> Generate Coding Instructions
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearCode({{ variable_form.attribute.id }})">
+                          <i class="fas fa-eraser"></i> Clear
+                        </button>
+                      </div>
+                    </div>
+                    {{ variable_form.form.transform_code }}
+                    {% if variable_form.form.transform_code.errors %}
+                      <div class="error-message">
+                        {% for error in variable_form.form.transform_code.errors %}
+                          <span>{{ error }}</span>
+                        {% endfor %}
+                      </div>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <div class="mapping-accordion" data-mapping-accordion>
+          <section class="mapping-accordion-section">
+            <button type="button"
+                    class="mapping-accordion-trigger"
+                    aria-expanded="false"
+                    aria-controls="mapping-relation-{{ variable_form.attribute.id }}"
+                    onclick="toggleMappingAccordion(this)">
+              <span class="accordion-heading">
+                <i class="fas fa-people-arrows"></i>
+                <span>
+                  <span class="accordion-title">Relation</span>
+                  <span class="accordion-info" tabindex="0" role="button" title="Defines whose record this value belongs to, such as the patient, child, parent, or spouse." aria-label="Defines whose record this value belongs to, such as the patient, child, parent, or spouse.">
+                    <i class="fas fa-circle-info"></i>
+                  </span>
+                  <span class="accordion-summary">
+                    {{ variable_form.instance.get_relation_type_display|default:schema.get_universal_relation_type_display|default:"Self" }}{% if variable_form.instance.relation_name %} · {{ variable_form.instance.relation_name }}{% endif %}
+                  </span>
+                </span>
+              </span>
+              <i class="fas fa-chevron-down accordion-chevron"></i>
+            </button>
+            <div class="mapping-accordion-panel" id="mapping-relation-{{ variable_form.attribute.id }}" aria-hidden="true">
+              <div class="mapping-accordion-content">
+                <div class="section-field-grid">
+                  <div class="form-group" id="relationship-{{ variable_form.attribute.id }}">
+                    <label class="form-label">Relation Type</label>
+                    {{ variable_form.form.relation_type }}
+                    {% if variable_form.form.relation_type.errors %}
+                      <div class="error-message">
+                        {% for error in variable_form.form.relation_type.errors %}
+                          <span>{{ error }}</span>
+                        {% endfor %}
+                      </div>
+                    {% endif %}
+                  </div>
+
+                  <div class="form-group relation-detail" data-relation-detail-for="{{ variable_form.attribute.id }}">
+                    <label class="form-label">Relation Instance</label>
+                    <div class="relation-instance-control">
+                      {{ variable_form.form.relation_instance }}
+                      <button type="button" class="btn btn-sm btn-outline-primary" onclick="openRelationInstanceModal({{ variable_form.attribute.id }})">
+                        <i class="fas fa-plus"></i> New
+                      </button>
+                    </div>
+                    {% if variable_form.form.relation_instance.errors %}
+                      <div class="error-message">
+                        {% for error in variable_form.form.relation_instance.errors %}
+                          <span>{{ error }}</span>
+                        {% endfor %}
+                      </div>
+                    {% endif %}
+                  </div>
+                </div>
+                {{ variable_form.form.create_relation_instance }}
+
+                {% if variable_form.instance.relation_name %}
+                  <div class="relation-instance-preview">
+                    Current: {{ variable_form.instance.relation_name }}
+                    {% if variable_form.instance.inverse_relation_type %}
+                      · Inverse: {{ variable_form.instance.inverse_relation_type }} / {{ variable_form.instance.inverse_relation_name }}
+                    {% endif %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </section>
+
+          <section class="mapping-accordion-section">
+            <button type="button"
+                    class="mapping-accordion-trigger"
+                    aria-expanded="false"
+                    aria-controls="mapping-overrides-{{ variable_form.attribute.id }}"
+                    onclick="toggleMappingAccordion(this)">
+              <span class="accordion-heading">
+                <i class="fas fa-cogs"></i>
+                <span>
+                  <span class="accordion-title">Record Context</span>
+                  <span class="accordion-info" tabindex="0" role="button" title="Overrides the schema defaults for patient ID, date/time, or location only for this variable." aria-label="Overrides the schema defaults for patient ID, date/time, or location only for this variable.">
+                    <i class="fas fa-circle-info"></i>
+                  </span>
+                  <span class="accordion-summary context-summary" data-context-summary-for="{{ variable_form.attribute.id }}">{{ variable_form.context_summary }}</span>
+                </span>
+              </span>
+              <i class="fas fa-chevron-down accordion-chevron"></i>
+            </button>
+            <div class="mapping-accordion-panel" id="mapping-overrides-{{ variable_form.attribute.id }}" aria-hidden="true">
+              <div class="mapping-accordion-content">
+                <div class="form-group">
+                  <div class="checkbox-wrapper">
+                    {{ variable_form.form.use_custom_settings }}
+                    <label for="{{ variable_form.form.use_custom_settings.id_for_label }}" class="checkbox-label-horizontal">
+                      Override context fields for this variable
+                    </label>
+                  </div>
+                  <small class="help-text">{{ variable_form.form.use_custom_settings.help_text }}</small>
+                </div>
+                <div class="section-field-grid" id="custom-settings-{{ variable_form.attribute.id }}" style="{% if not variable_form.form.use_custom_settings.value %}display: none;{% endif %}">
+                  <div class="form-group">
+                    <label class="form-label">Patient ID field</label>
+                    {{ variable_form.form.patient_id_attribute }}
+                    <small class="help-text">{{ variable_form.form.patient_id_attribute.help_text }}</small>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Date/time field</label>
+                    {{ variable_form.form.datetime_attribute }}
+                    <small class="help-text">{{ variable_form.form.datetime_attribute.help_text }}</small>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Location field</label>
+                    {{ variable_form.form.location_attribute }}
+                    <small class="help-text">{{ variable_form.form.location_attribute.help_text }}</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="mapping-accordion-section"
+                   data-load-on-open="eda"
+                   data-variable-id="{{ variable_form.attribute.id }}"
+                   data-eda-url="{% url 'health:mapping_variable_eda' schema.id variable_form.attribute.id %}">
+            <button type="button"
+                    class="mapping-accordion-trigger"
+                    aria-expanded="false"
+                    aria-controls="mapping-eda-{{ variable_form.attribute.id }}"
+                    onclick="toggleMappingAccordion(this)">
+              <span class="accordion-heading">
+                <i class="fas fa-chart-bar"></i>
+                <span>
+                  <span class="accordion-title">Source EDA</span>
+                  <span class="accordion-info" tabindex="0" role="button" title="Loads cached charts and summary statistics for this source variable when available." aria-label="Loads cached charts and summary statistics for this source variable when available.">
+                    <i class="fas fa-circle-info"></i>
+                  </span>
+                  <span class="accordion-summary">Loads cached figures when opened</span>
+                </span>
+              </span>
+              <i class="fas fa-chevron-down accordion-chevron"></i>
+            </button>
+            <div class="mapping-accordion-panel" id="mapping-eda-{{ variable_form.attribute.id }}" aria-hidden="true">
+              <div class="mapping-accordion-content">
+                <div class="eda-variable-slot">
+                  <div class="suggestions-loading">
+                    <div class="loading-spinner"></div>
+                    <span>Preparing variable details</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="mapping-accordion-section">
+            <button type="button"
+                    class="mapping-accordion-trigger"
+                    aria-expanded="false"
+                    aria-controls="mapping-comments-{{ variable_form.attribute.id }}"
+                    onclick="toggleMappingAccordion(this)">
+              <span class="accordion-heading">
+                <i class="fas fa-comment"></i>
+                <span>
+                  <span class="accordion-title">Comments</span>
+                  <span class="accordion-info" tabindex="0" role="button" title="Add reviewer notes or explanation for this mapping decision." aria-label="Add reviewer notes or explanation for this mapping decision.">
+                    <i class="fas fa-circle-info"></i>
+                  </span>
+                  <span class="accordion-summary comments-summary" data-comments-summary-for="{{ variable_form.attribute.id }}">{% if variable_form.has_comments %}Notes present{% else %}No notes yet{% endif %}</span>
+                </span>
+              </span>
+              <i class="fas fa-chevron-down accordion-chevron"></i>
+            </button>
+            <div class="mapping-accordion-panel" id="mapping-comments-{{ variable_form.attribute.id }}" aria-hidden="true">
+              <div class="mapping-accordion-content">
+                <div class="form-group full-width">
+                  {{ variable_form.form.comments }}
+                  {% if variable_form.form.comments.errors %}
+                    <div class="error-message">
+                      {% for error in variable_form.form.comments.errors %}
+                        <span>{{ error }}</span>
+                      {% endfor %}
+                    </div>
+                  {% endif %}
+                  <small class="help-text">Optional notes about this mapping</small>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <div class="variable-actions">
+        <button type="button" class="btn btn-outline-info btn-small" onclick="rerunAIForAttribute({{ variable_form.attribute.id }}, this)">
+          <i class="fas fa-robot"></i>
+          {% if variable_form.mapping_rule.ai_last_refreshed_at %}Rerun Agent{% else %}Run Agent{% endif %}
+        </button>
+        <button type="button" class="btn btn-warning btn-small" onclick="clearMapping({{ variable_form.attribute.id }})">
+          <i class="fas fa-times"></i>
+          Clear
+        </button>
+        <button type="button" class="btn btn-success btn-small" onclick="saveMapping({{ variable_form.attribute.id }})">
+          <i class="fas fa-save"></i>
+          Save
+        </button>
+      </div>
+    </div>
+  </div>
+</form>
+
+{{ variable_form.form.media.js }}

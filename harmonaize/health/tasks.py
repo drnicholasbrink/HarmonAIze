@@ -29,7 +29,6 @@ from core.models import Study, Attribute, Patient, Observation, TimeDimension, L
 
 logger = logging.getLogger(__name__)
 
-
 @shared_task(
     bind=True,
     max_retries=1,

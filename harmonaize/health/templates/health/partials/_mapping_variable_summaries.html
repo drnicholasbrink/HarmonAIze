@@ -1,0 +1,73 @@
+<div class="variable-list-meta"
+     data-page-size="{{ page_size }}"
+     data-current-page="{{ page_obj.number }}"
+     data-next-page="{% if has_next_page %}{{ next_page }}{% endif %}"
+     data-search="{{ search }}"
+     data-completion="{{ completion_filter }}"
+     data-total-filtered="{{ total_filtered_variables }}">
+  <div class="list-status-line">
+    Showing {{ variable_summaries|length }} of {{ total_filtered_variables }} variable{{ total_filtered_variables|pluralize }}
+  </div>
+</div>
+
+<div id="variable-summary-rows">
+  {% for summary in variable_summaries %}
+    <article class="variable-summary-card variable-card {{ summary.completion }}"
+             data-summary-row="true"
+             data-attribute-id="{{ summary.attribute.id }}"
+             data-variable-name="{{ summary.attribute.variable_name|lower }}"
+             data-completion="{{ summary.completion }}"
+             data-card-url="{% url 'health:mapping_variable_card' schema.id summary.attribute.id %}">
+      <button type="button"
+              class="variable-summary-main"
+              aria-expanded="false"
+              aria-controls="variable-card-slot-{{ summary.attribute.id }}"
+              onclick="toggleVariableCard({{ summary.attribute.id }}, this)">
+        <span class="variable-summary-title">
+          <span class="variable-name">{{ summary.attribute.display_name|default:summary.attribute.variable_name }}</span>
+          <span class="variable-meta">{{ summary.attribute.variable_name }} · {{ summary.attribute.variable_type|default:"Unknown" }}</span>
+        </span>
+        <span class="variable-summary-status">
+          <span class="completion-badge {% if summary.completion == 'needs-review' %}badge-needs-review{% elif summary.completion == 'not-mappable' %}badge-not-mappable{% elif summary.completion == 'complete' %}badge-complete{% else %}badge-incomplete{% endif %}">
+            {% if summary.completion == 'not-mappable' %}
+              <i class="fas fa-ban"></i> Not mappable
+            {% elif summary.completion == 'needs-review' %}
+              <i class="fas fa-flag"></i> Needs review
+            {% elif summary.completion == 'complete' %}
+              <i class="fas fa-check"></i> Successfully mapped
+            {% else %}
+              <i class="fas fa-exclamation-triangle"></i> Needs mapping
+            {% endif %}
+          </span>
+          <i class="fas fa-chevron-down summary-chevron" aria-hidden="true"></i>
+        </span>
+      </button>
+
+      <div class="variable-summary-details">
+        <span><strong>Target:</strong> {{ summary.target_label|default:"Not selected" }}</span>
+        <span><strong>Role:</strong> {{ summary.role_label }}</span>
+        <span><strong>Relation:</strong> {{ summary.relation_label }}{% if summary.relation_name %} · {{ summary.relation_name }}{% endif %}</span>
+        <span><strong>Context:</strong> {{ summary.context_summary }}</span>
+        <span><strong>EDA:</strong> {% if summary.eda_available %}Available{% else %}Not ready{% endif %}</span>
+      </div>
+
+      <div class="variable-card-slot" id="variable-card-slot-{{ summary.attribute.id }}"></div>
+    </article>
+  {% empty %}
+    <div class="empty-state-card">
+      <i class="fas fa-search"></i>
+      <p>No variables match the current filters.</p>
+    </div>
+  {% endfor %}
+</div>
+
+{% if has_next_page %}
+  <div class="variable-list-sentinel"
+       data-next-page="{{ next_page }}"
+       role="status">
+    <div class="loading-spinner"></div>
+    <span>Preparing the next variables</span>
+  </div>
+{% else %}
+  <div class="variable-list-end">End of variable list</div>
+{% endif %}

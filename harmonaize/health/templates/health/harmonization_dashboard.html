@@ -6,11 +6,6 @@
 {% block css %}
   {{ block.super }}
   
-  <!-- Include ACE Editor Media -->
-  {% for variable_form in variable_forms %}
-    {{ variable_form.form.media.css }}
-  {% endfor %}
-  
   <style>
     :root {
       --primary-color: #007AFF;
@@ -346,9 +341,13 @@
     }
 
     .variable-card.not-mappable {
-      border-left: 4px solid #ff9800;
+      border-left: 4px solid #dc3545;
       background: #f5f5f5;
       opacity: 0.7;
+    }
+
+    .variable-card.needs-review {
+      border-left: 4px solid #ff9800;
     }
 
     .variable-card.not-mappable .variable-content {
@@ -358,6 +357,683 @@
     .variable-card.not-mappable .source-attribute-details,
     .variable-card.not-mappable .mapping-form {
       filter: grayscale(50%);
+    }
+
+    .list-status-line,
+    .variable-list-end {
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      margin-bottom: 1rem;
+    }
+
+    .variable-summary-card {
+      margin-bottom: 1rem;
+      border: 1px solid rgba(198, 198, 200, 0.55);
+    }
+
+    .variable-summary-card.is-expanded .summary-chevron {
+      transform: rotate(180deg);
+    }
+
+    .variable-summary-card.is-expanded > .variable-summary-details {
+      display: none;
+    }
+
+    .variable-summary-card.is-expanded > .variable-summary-main {
+      background: #fff;
+      border-bottom: 1px solid rgba(198, 198, 200, 0.7);
+      padding-bottom: 0.85rem;
+    }
+
+    .variable-summary-card.is-expanded > .variable-summary-main .variable-meta,
+    .variable-summary-card.is-expanded > .variable-summary-main .completion-badge {
+      display: none;
+    }
+
+    .variable-summary-card.is-save-failed {
+      border-color: rgba(255, 59, 48, 0.85);
+      box-shadow: 0 8px 28px rgba(255, 59, 48, 0.12);
+    }
+
+    .variable-summary-main {
+      width: 100%;
+      border: 0;
+      background: linear-gradient(45deg, #f8f9fa 0%, #ffffff 100%);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 1rem 1.25rem;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .variable-summary-title,
+    .variable-summary-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.75rem;
+      min-width: 0;
+    }
+
+    .variable-summary-title {
+      flex-wrap: wrap;
+    }
+
+    .summary-chevron {
+      color: var(--text-secondary);
+      transition: transform 0.2s ease;
+    }
+
+    .variable-summary-details {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 1rem;
+      padding: 0 1.25rem 1rem;
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+    }
+
+    .variable-card-slot:not(:empty) {
+      padding: 0 1.25rem 1.25rem;
+    }
+
+    .expanded-variable-card {
+      margin-bottom: 0;
+      box-shadow: none;
+      border: 0;
+      border-left: 0 !important;
+      border-radius: 0;
+      background: transparent;
+      overflow: visible;
+    }
+
+    .expanded-variable-card:hover {
+      box-shadow: none;
+    }
+
+    .variable-card-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 0;
+      margin-left: auto;
+    }
+
+    .card-primary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+    }
+
+    .compact-variable-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1rem;
+      padding: 0.85rem 0 1rem;
+      background: transparent;
+      border-bottom: 1px solid rgba(198, 198, 200, 0.7);
+    }
+
+    .compact-variable-header .variable-title {
+      align-items: flex-start;
+      gap: 0.75rem;
+      margin-bottom: 0;
+      min-width: 0;
+      flex: 1;
+    }
+
+    .variable-title-copy {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+      min-width: 0;
+    }
+
+    .polished-mapping-form {
+      display: block;
+      padding-top: 0;
+    }
+
+    .primary-mapping-row {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.9rem;
+      align-items: stretch;
+      margin-bottom: 0;
+    }
+
+    .primary-mapping-panel {
+      margin: 0.9rem 0 0.75rem;
+      padding: 1rem;
+      border: 1px solid rgba(0, 122, 255, 0.2);
+      border-left: 4px solid var(--primary-color);
+      border-radius: 8px;
+      background: linear-gradient(180deg, rgba(0, 122, 255, 0.055) 0%, rgba(255, 255, 255, 0.92) 100%);
+    }
+
+    .primary-mapping-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 0.9rem;
+    }
+
+    .primary-kicker {
+      display: block;
+      margin-bottom: 0.2rem;
+      color: var(--primary-color);
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+
+    .primary-mapping-header h4 {
+      margin: 0 0 0.2rem;
+      color: var(--text-primary);
+      font-size: 1rem;
+      font-weight: 700;
+    }
+
+    .primary-mapping-header p {
+      margin: 0;
+      color: var(--text-secondary);
+      font-size: 0.84rem;
+      line-height: 1.4;
+    }
+
+    .primary-mapping-panel .form-label {
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .primary-mapping-panel select {
+      background-color: #fff;
+      border-color: rgba(0, 122, 255, 0.35);
+      min-height: 2.7rem;
+      font-size: 0.95rem;
+    }
+
+    .polished-mapping-form .form-group,
+    .polished-mapping-form .form-select,
+    .polished-mapping-form .form-input,
+    .polished-mapping-form textarea,
+    .polished-mapping-form select {
+      width: 100%;
+      max-width: 100%;
+    }
+
+    .not-mappable-inline {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.45rem;
+      padding: 0.7rem 0;
+      margin-bottom: 0.5rem;
+      border-top: 1px solid rgba(198, 198, 200, 0.55);
+      border-bottom: 1px solid rgba(198, 198, 200, 0.55);
+    }
+
+    .mapping-panel {
+      border-bottom: 0;
+      padding: 0;
+    }
+
+    .mapping-panel:first-child {
+      padding-top: 0;
+    }
+
+    .mapping-panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1rem;
+      margin-bottom: 0.85rem;
+    }
+
+    .mapping-panel-header h4 {
+      margin: 0 0 0.2rem;
+      font-size: 1rem;
+      font-weight: 650;
+      color: var(--text-primary);
+    }
+
+    .mapping-panel-header p,
+    .mapping-panel-copy {
+      margin: 0;
+      color: var(--text-secondary);
+      font-size: 0.88rem;
+      line-height: 1.45;
+    }
+
+    .source-detail-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 1rem;
+      margin-top: 0.75rem;
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+    }
+
+    .suggestions-panel .mapping-panel-header {
+      align-items: center;
+    }
+
+    .suggestion-toolbar {
+      margin-bottom: 0.75rem;
+    }
+
+    .transform-panel {
+      border-bottom: 0;
+    }
+
+    .mapping-accordion {
+      border-top: 0;
+      margin-top: 0;
+    }
+
+    .source-details-accordion {
+      border-top: 0;
+      margin-top: 0;
+      margin-bottom: 0;
+    }
+
+    .mapping-accordion-section {
+      border-bottom: 1px solid rgba(198, 198, 200, 0.7);
+    }
+
+    .mapping-accordion-trigger {
+      width: 100%;
+      border: 0;
+      background: transparent;
+      color: var(--text-primary);
+      padding: 0.95rem 0.15rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      cursor: pointer;
+      text-align: left;
+      transition: color 0.2s ease, background-color 0.2s ease;
+    }
+
+    .mapping-accordion-trigger:hover {
+      color: var(--primary-color);
+      background: rgba(0, 122, 255, 0.035);
+    }
+
+    .accordion-heading {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      min-width: 0;
+    }
+
+    .accordion-heading > i {
+      width: 1.2rem;
+      color: var(--primary-color);
+      text-align: center;
+      flex-shrink: 0;
+    }
+
+    .accordion-title,
+    .accordion-summary {
+      display: block;
+    }
+
+    .accordion-title {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-weight: 650;
+      font-size: 0.95rem;
+    }
+
+    .accordion-info {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1rem;
+      height: 1rem;
+      color: var(--text-secondary);
+      font-size: 0.78rem;
+      opacity: 0.78;
+      vertical-align: middle;
+      position: relative;
+      pointer-events: auto;
+    }
+
+    .accordion-info:hover,
+    .accordion-info:focus,
+    .accordion-info.is-tooltip-open,
+    .mapping-accordion-trigger:hover .accordion-info {
+      color: var(--primary-color);
+      opacity: 1;
+    }
+
+    .accordion-info::after {
+      content: attr(aria-label);
+      position: absolute;
+      left: 50%;
+      bottom: calc(100% + 0.55rem);
+      transform: translateX(-50%);
+      width: min(18rem, 70vw);
+      padding: 0.55rem 0.65rem;
+      border-radius: 6px;
+      background: rgba(28, 28, 30, 0.96);
+      color: #fff;
+      font-size: 0.76rem;
+      font-weight: 500;
+      line-height: 1.35;
+      text-transform: none;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      z-index: 20;
+      white-space: normal;
+    }
+
+    .accordion-info::before {
+      content: "";
+      position: absolute;
+      left: 50%;
+      bottom: calc(100% + 0.25rem);
+      transform: translateX(-50%) rotate(45deg);
+      width: 0.45rem;
+      height: 0.45rem;
+      background: rgba(28, 28, 30, 0.96);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      z-index: 19;
+    }
+
+    .accordion-info:hover::after,
+    .accordion-info:hover::before,
+    .accordion-info:focus::after,
+    .accordion-info:focus::before,
+    .accordion-info.is-tooltip-open::after,
+    .accordion-info.is-tooltip-open::before {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .primary-info {
+      flex-shrink: 0;
+      margin-top: 0.1rem;
+    }
+
+    .accordion-summary {
+      color: var(--text-secondary);
+      font-size: 0.82rem;
+      margin-top: 0.15rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 55ch;
+    }
+
+    .accordion-chevron {
+      display: none;
+    }
+
+    .mapping-accordion-trigger::after {
+      content: "";
+      width: 0.55rem;
+      height: 0.55rem;
+      border-right: 2px solid var(--text-secondary);
+      border-bottom: 2px solid var(--text-secondary);
+      transform: rotate(45deg);
+      transition: transform 0.2s ease, border-color 0.2s ease;
+      flex-shrink: 0;
+      margin-left: auto;
+    }
+
+    .mapping-accordion-trigger:hover::after {
+      border-color: var(--primary-color);
+    }
+
+    .mapping-accordion-trigger[aria-expanded="true"]::after {
+      transform: rotate(-135deg);
+    }
+
+    .mapping-accordion-panel {
+      display: grid;
+      grid-template-rows: 0fr;
+      opacity: 0;
+      transition: grid-template-rows 0.24s ease, opacity 0.2s ease;
+    }
+
+    .mapping-accordion-panel.is-open {
+      grid-template-rows: 1fr;
+      opacity: 1;
+    }
+
+    .mapping-accordion-content {
+      overflow: hidden;
+      padding: 0 0.15rem 1.1rem;
+    }
+
+    .clean-info-grid,
+    .section-field-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.85rem 1rem;
+    }
+
+    .clean-target-details,
+    .accordion-suggestions {
+      background: transparent;
+      border: 0;
+      border-radius: 0;
+      padding: 0;
+      margin: 0 0 1rem;
+    }
+
+    .accordion-suggestions {
+      border-top: 1px solid rgba(198, 198, 200, 0.55);
+      padding-top: 0.85rem;
+      overflow: visible;
+    }
+
+    .description-clamp {
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .description-clamp.is-expanded {
+      display: block;
+      -webkit-line-clamp: unset;
+    }
+
+    .text-link-button {
+      border: 0;
+      background: transparent;
+      color: var(--primary-color);
+      padding: 0.2rem 0 0;
+      font-weight: 600;
+      cursor: pointer;
+      align-self: flex-start;
+    }
+
+    .variable-card-skeleton {
+      padding: 1rem;
+      display: grid;
+      gap: 0.7rem;
+    }
+
+    .skeleton-line {
+      height: 0.85rem;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #f0f1f4 0%, #e3e5ea 45%, #f0f1f4 90%);
+      background-size: 200% 100%;
+      animation: shimmer 1.2s ease-in-out infinite;
+    }
+
+    .skeleton-line.short {
+      width: 38%;
+    }
+
+    .skeleton-line.medium {
+      width: 62%;
+    }
+
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    .variable-list-sentinel {
+      min-height: 4rem;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 0.75rem;
+      color: var(--text-secondary);
+    }
+
+    .empty-state-card,
+    .eda-not-ready-panel {
+      background: var(--card-background);
+      border: 1px solid rgba(198, 198, 200, 0.65);
+      border-radius: var(--border-radius);
+      padding: 1rem;
+      color: var(--text-secondary);
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      align-items: center;
+    }
+
+    .variable-eda-panel {
+      display: grid;
+      gap: 1rem;
+    }
+
+    .eda-panel-header {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .eda-panel-header h5 {
+      margin: 0;
+      font-weight: 600;
+    }
+
+    .eda-summary-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      margin-left: auto;
+    }
+
+    .eda-summary-tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.25rem 0.55rem;
+      border-radius: 999px;
+      background: rgba(0, 122, 255, 0.08);
+      color: var(--primary-color);
+      font-size: 0.75rem;
+      font-weight: 650;
+    }
+
+    .eda-variable-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 0.6rem;
+    }
+
+    .eda-stat {
+      border: 1px solid rgba(198, 198, 200, 0.65);
+      border-radius: 8px;
+      padding: 0.65rem;
+      background: rgba(248, 249, 250, 0.65);
+    }
+
+    .eda-stat.wide {
+      grid-column: 1 / -1;
+    }
+
+    .eda-stat span {
+      display: block;
+      color: var(--text-secondary);
+      font-size: 0.75rem;
+      margin-bottom: 0.15rem;
+    }
+
+    .eda-stat strong {
+      color: var(--text-primary);
+      font-size: 0.9rem;
+    }
+
+    .eda-panel-subheader {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      margin-top: 0.35rem;
+    }
+
+    .eda-panel-subheader h6 {
+      margin: 0;
+      font-size: 0.95rem;
+      font-weight: 650;
+    }
+
+    .variable-word-cloud {
+      border: 1px solid rgba(198, 198, 200, 0.65);
+      border-radius: 8px;
+      padding: 0.9rem;
+      background: rgba(248, 249, 250, 0.65);
+    }
+
+    .word-cloud-image {
+      max-width: 100%;
+      height: auto;
+      display: block;
+      margin: 0.75rem auto 0;
+      border-radius: 6px;
+    }
+
+    .variable-eda-dashboard {
+      max-width: 100%;
+      overflow-x: auto;
+      border: 1px solid rgba(198, 198, 200, 0.65);
+      border-radius: 8px;
+      padding: 0.5rem;
+      background: #fff;
+    }
+
+    .eda-variable-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 2500;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      background: rgba(0, 0, 0, 0.48);
+    }
+
+    .eda-variable-modal.is-open {
+      display: flex;
+    }
+
+    .eda-variable-modal-dialog {
+      width: min(1100px, 96vw);
+      max-height: 90vh;
+      overflow: auto;
+      background: var(--card-background);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
     }
 
     .variable-header {
@@ -397,6 +1073,11 @@
     }
 
     .badge-not-mappable {
+      background: #dc3545;
+      color: white;
+    }
+
+    .badge-needs-review {
       background: #ff9800;
       color: white;
     }
@@ -578,7 +1259,17 @@
       display: flex;
       align-items: center;
       gap: 0.75rem;
-      flex-wrap: wrap;
+      min-height: 1.75rem;
+      flex-wrap: nowrap;
+    }
+
+    .checkbox-wrapper-horizontal input[type="checkbox"] {
+      width: 1.15rem;
+      height: 1.15rem;
+      min-width: 1.15rem;
+      margin: 0;
+      accent-color: var(--primary-color);
+      cursor: pointer;
     }
     
     .checkbox-label-horizontal {
@@ -589,6 +1280,7 @@
       display: flex;
       align-items: center;
       gap: 0.5rem;
+      min-height: 1.75rem;
       white-space: nowrap;
     }
     
@@ -1678,6 +2370,70 @@
         color: #721c24;
         border: 1px solid #f1aeb5;
     }
+
+    .polished-mapping-form .attribute-info-grid.clean-info-grid,
+    .polished-mapping-form .target-info-grid,
+    .polished-mapping-form .section-field-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .polished-mapping-form .target-attribute-details,
+    .polished-mapping-form .source-attribute-details,
+    .polished-mapping-form .advanced-options {
+      background: transparent;
+      border: 0;
+      border-radius: 0;
+      padding: 0;
+      margin: 0;
+    }
+
+    .expanded-variable-card .variable-content {
+      padding: 0;
+    }
+
+    .expanded-card-controls {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 0.5rem;
+      min-height: 0;
+      margin-bottom: 0;
+    }
+
+    .expanded-card-controls:has(.card-save-status:empty) {
+      display: none;
+    }
+
+    .expanded-variable-card .mapping-form.polished-mapping-form {
+      display: block !important;
+      grid-template-columns: 1fr !important;
+      gap: 0 !important;
+      width: 100%;
+    }
+
+    .expanded-variable-card .primary-mapping-row,
+    .expanded-variable-card .section-field-grid,
+    .expanded-variable-card .attribute-info-grid.clean-info-grid,
+    .expanded-variable-card .target-info-grid {
+      display: grid !important;
+      grid-template-columns: 1fr !important;
+      width: 100%;
+    }
+
+    .expanded-variable-card .mapping-accordion {
+      display: block;
+      width: 100%;
+    }
+
+    .expanded-variable-card .form-group,
+    .expanded-variable-card select,
+    .expanded-variable-card textarea,
+    .expanded-variable-card .django-ace-widget,
+    .expanded-variable-card .ace_editor {
+      width: 100% !important;
+      max-width: 100% !important;
+      box-sizing: border-box;
+    }
   </style>
 {% endblock %}
 
@@ -1966,400 +2722,22 @@
       <h2 class="section-title">Variable Mappings</h2>
       <div class="filter-controls">
         <select class="filter-select" id="completion-filter">
-          <option value="all">All Variables</option>
-          <option value="complete">Mapped Only</option>
-          <option value="incomplete">Unmapped Only</option>
-          <option value="not-mappable">Not Mappable Only</option>
+          <option value="all">All variables</option>
+          <option value="complete">Successfully mapped</option>
+          <option value="incomplete">Needs mapping</option>
+          <option value="needs-review">Needs review</option>
+          <option value="not-mappable">Not mappable</option>
         </select>
         <input type="text" class="search-input" id="search-variables" placeholder="Search variables...">
       </div>
     </div>
 
-    <form method="post" id="mappings-form">
-      {% csrf_token %}
-      
-  {% for variable_form in variable_forms %}
-    <div class="variable-card {% if variable_form.instance.not_mappable %}not-mappable{% elif variable_form.is_complete %}complete{% else %}incomplete{% endif %}" 
-      data-attribute-id="{{ variable_form.attribute.id }}"
-       data-variable-name="{{ variable_form.attribute.variable_name|lower }}"
-       data-completion="{% if variable_form.instance.not_mappable %}not-mappable{% elif variable_form.is_complete %}complete{% else %}incomplete{% endif %}">
-        
-        <div class="variable-header">
-          <div class="variable-title">
-            <span class="variable-name">{{ variable_form.attribute.display_name|default:variable_form.attribute.variable_name }}</span>
-            <span class="completion-badge {% if variable_form.instance.not_mappable %}badge-not-mappable{% elif variable_form.is_complete %}badge-complete{% else %}badge-incomplete{% endif %}">
-              {% if variable_form.instance.not_mappable %}
-                <i class="fas fa-ban"></i> Not Mappable
-              {% elif variable_form.is_complete %}
-                <i class="fas fa-check"></i> Mapped
-              {% else %}
-                <i class="fas fa-exclamation-triangle"></i> Needs Mapping
-              {% endif %}
-            </span>
-          </div>
-        </div>
-
-        <!-- Source Attribute Details -->
-        <div class="source-attribute-details">
-          <h4 class="attribute-section-title">
-            <i class="fas fa-upload"></i> Source Attribute
-          </h4>
-          <div class="attribute-info-grid">
-            <div class="info-item">
-              <span class="info-label">Variable Name:</span>
-              <span class="info-value">{{ variable_form.attribute.variable_name }}</span>
-            </div>
-            {% if variable_form.attribute.display_name %}
-            <div class="info-item">
-              <span class="info-label">Display Name:</span>
-              <span class="info-value">{{ variable_form.attribute.display_name }}</span>
-            </div>
-            {% endif %}
-            {% if variable_form.attribute.description %}
-            <div class="info-item full-width">
-              <span class="info-label">Description:</span>
-              <span class="info-value">{{ variable_form.attribute.description }}</span>
-            </div>
-            {% endif %}
-            <div class="info-item">
-              <span class="info-label">Data Type:</span>
-              <span class="info-value">{{ variable_form.attribute.variable_type|default:"Unknown" }}</span>
-            </div>
-            {% if variable_form.attribute.unit %}
-            <div class="info-item">
-              <span class="info-label">Unit:</span>
-              <span class="info-value">{{ variable_form.attribute.unit }}</span>
-            </div>
-            {% endif %}
-            {% if variable_form.attribute.ontology_code %}
-            <div class="info-item">
-              <span class="info-label">Ontology Code:</span>
-              <span class="info-value">{{ variable_form.attribute.ontology_code }}</span>
-            </div>
-            {% endif %}
-            {% if variable_form.attribute.values_count %}
-            <div class="info-item">
-              <span class="info-label">Unique Values:</span>
-              <span class="info-value">{{ variable_form.attribute.values_count }}</span>
-            </div>
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="variable-content">
-          <div class="mapping-form">
-            <div class="mapping-fields" style="{% if variable_form.instance.not_mappable %}display: none;{% endif %}">
-              <!-- Target Attribute Selection -->
-              <div class="form-group">
-                <label class="form-label">
-                  <i class="fas fa-download"></i> Target Variable
-                  <span class="confidence-indicator" id="confidence-{{ variable_form.attribute.id }}" style="display: none;"></span>
-                </label>
-                {{ variable_form.form.target_attribute }}
-                {% if variable_form.form.target_attribute.errors %}
-                  <div class="error-message">
-                    {% for error in variable_form.form.target_attribute.errors %}
-                      <span>{{ error }}</span>
-                    {% endfor %}
-                  </div>
-                {% endif %}
-                <small class="help-text">Select the target variable this source variable maps to</small>
-              </div>
-              <!-- Target Attribute Details (populated via JavaScript) -->
-              <div class="target-attribute-details" id="target-details-{{ variable_form.attribute.id }}" style="display: none;">
-                <h5 class="target-section-title">
-                  <i class="fas fa-download"></i> Target Variable Details
-                </h5>
-                <div class="target-info-grid">
-                  <div class="info-item">
-                    <span class="info-label">Variable Name:</span>
-                    <span class="info-value" id="target-name-{{ variable_form.attribute.id }}">-</span>
-                  </div>
-                  <div class="info-item">
-                    <span class="info-label">Display Name:</span>
-                    <span class="info-value" id="target-display-name-{{ variable_form.attribute.id }}">-</span>
-                  </div>
-                  <div class="info-item full-width">
-                    <span class="info-label">Description:</span>
-                    <span class="info-value" id="target-description-{{ variable_form.attribute.id }}">-</span>
-                  </div>
-                  <div class="info-item">
-                    <span class="info-label">Data Type:</span>
-                    <span class="info-value" id="target-type-{{ variable_form.attribute.id }}">-</span>
-                  </div>
-                  <div class="info-item">
-                    <span class="info-label">Unit:</span>
-                    <span class="info-value" id="target-unit-{{ variable_form.attribute.id }}">-</span>
-                  </div>
-                  <div class="info-item">
-                    <span class="info-label">Ontology Code:</span>
-                    <span class="info-value" id="target-ontology-{{ variable_form.attribute.id }}">-</span>
-                  </div>
-                  <div class="info-item">
-                    <span class="info-label">Values Count:</span>
-                    <span class="info-value" id="target-values-count-{{ variable_form.attribute.id }}">-</span>
-                  </div>
-                </div>
-              </div>
-              <!-- Agent Suggestions Dropdown -->
-              <div class="ai-suggestions-dropdown" id="ai-dropdown-{{ variable_form.attribute.id }}" style="display: none;">
-                <div class="dropdown-header" onclick="toggleAISuggestions({{ variable_form.attribute.id }})">
-                  <div class="dropdown-title">
-                    <i class="fas fa-robot text-info"></i> Agent Suggestions
-                    <span class="suggestions-count" id="count-{{ variable_form.attribute.id }}"></span>
-                  </div>
-                  <i class="fas fa-chevron-down dropdown-arrow" id="arrow-{{ variable_form.attribute.id }}"></i>
-                </div>
-                <div class="dropdown-content" id="dropdown-content-{{ variable_form.attribute.id }}" style="display: none;">
-                  <div class="suggestions-loading" id="loading-{{ variable_form.attribute.id }}" style="display: none;">
-                    <div class="loading-spinner"></div>
-                    <span>Analyzing similarity...</span>
-                  </div>
-                  <div class="suggestions-list" id="suggestions-list-{{ variable_form.attribute.id }}">
-                    <!-- Agent suggestions will be populated here -->
-                  </div>
-                  <div class="dropdown-help">
-                    <i class="fas fa-lightbulb"></i>
-                    Click any suggestion to automatically apply it as the target variable
-                  </div>
-                  {% if variable_form.mapping_rule.ai_last_refreshed_at %}
-                  <div class="dropdown-help" id="ai-provenance-{{ variable_form.attribute.id }}">
-                    <i class="fas fa-history"></i>
-                    Agent refreshed {{ variable_form.mapping_rule.ai_last_refreshed_at|date:"M d, Y H:i" }}
-                    {% if variable_form.mapping_rule.ai_confidence_label %}
-                      ({{ variable_form.mapping_rule.ai_confidence_label }})
-                    {% endif %}
-                  </div>
-                  {% endif %}
-                </div>
-              </div>
-              
-              <!-- Role Selection -->
-              <div class="form-group">
-                <label class="form-label">
-                  <i class="fas fa-tag"></i> Mapping Role
-                </label>
-                {{ variable_form.form.role }}
-                {% if variable_form.form.role.errors %}
-                  <div class="error-message">
-                    {% for error in variable_form.form.role.errors %}
-                      <span>{{ error }}</span>
-                    {% endfor %}
-                  </div>
-                {% endif %}
-                <small class="help-text">
-                  <strong>Value:</strong> Map to target variable (most common) | 
-                  <strong>Patient ID:</strong> Use as patient identifier | 
-                  <strong>Date/Time:</strong> Use as timestamp | 
-                  <strong>Location:</strong> Use as location name
-                </small>
-              </div>
-
-              <!-- Custom Settings Checkbox -->
-              <div class="form-group">
-                <div class="checkbox-wrapper">
-                  {{ variable_form.form.use_custom_settings }}
-                  <label for="{{ variable_form.form.use_custom_settings.id_for_label }}" class="checkbox-label-horizontal">
-                    <i class="fas fa-cogs"></i> Use custom settings
-                  </label>
-                </div>
-                <small class="help-text">{{ variable_form.form.use_custom_settings.help_text }}</small>
-              </div>
-
-              <!-- Custom Settings (override universal settings) -->
-              <div class="advanced-options" id="custom-settings-{{ variable_form.attribute.id }}" style="{% if not variable_form.form.use_custom_settings.value %}display: none;{% endif %}">
-                <h5 class="advanced-title">
-                  <i class="fas fa-cog"></i> Custom Settings (Override Universal)
-                </h5>
-                
-                <div class="form-group">
-                  <label class="form-label">Custom Patient ID</label>
-                  {{ variable_form.form.patient_id_attribute }}
-                  {% if variable_form.form.patient_id_attribute.errors %}
-                    <div class="error-message">
-                      {% for error in variable_form.form.patient_id_attribute.errors %}
-                        <span>{{ error }}</span>
-                      {% endfor %}
-                    </div>
-                  {% endif %}
-                  <small class="help-text">Override universal patient ID setting for this specific mapping</small>
-                </div>
-                
-                <div class="form-group">
-                  <label class="form-label">Custom DateTime</label>
-                  {{ variable_form.form.datetime_attribute }}
-                  {% if variable_form.form.datetime_attribute.errors %}
-                    <div class="error-message">
-                      {% for error in variable_form.form.datetime_attribute.errors %}
-                        <span>{{ error }}</span>
-                      {% endfor %}
-                    </div>
-                  {% endif %}
-                  <small class="help-text">Override universal datetime setting for this specific mapping</small>
-                </div>
-                
-                <div class="form-group" id="relationship-{{ variable_form.attribute.id }}">
-                  <label class="form-label">Relation Type</label>
-                  {{ variable_form.form.relation_type }}
-                  {% if variable_form.form.relation_type.errors %}
-                    <div class="error-message">
-                      {% for error in variable_form.form.relation_type.errors %}
-                        <span>{{ error }}</span>
-                      {% endfor %}
-                    </div>
-                  {% endif %}
-                  <small class="help-text">Choose who this mapped value belongs to.</small>
-                </div>
-
-                <div class="form-group relation-detail" data-relation-detail-for="{{ variable_form.attribute.id }}">
-                  <label class="form-label">Relation Instance</label>
-                  <div class="relation-instance-control">
-                    {{ variable_form.form.relation_instance }}
-                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="openRelationInstanceModal({{ variable_form.attribute.id }})">
-                      <i class="fas fa-plus"></i> New
-                    </button>
-                  </div>
-                  {% if variable_form.form.relation_instance.errors %}
-                    <div class="error-message">
-                      {% for error in variable_form.form.relation_instance.errors %}
-                        <span>{{ error }}</span>
-                      {% endfor %}
-                    </div>
-                  {% endif %}
-                  <small class="help-text">Choose an existing relation or create the next inferred one.</small>
-                </div>
-                {{ variable_form.form.create_relation_instance }}
-              </div>
-              
-              <!-- Transform Code -->
-              <div class="form-group full-width">
-                <div class="code-header">
-                  <label class="form-label">
-                    <i class="fas fa-code"></i> Transform Code (Optional)
-                  </label>
-                  <div class="code-buttons">
-                    <button type="button" class="btn btn-sm btn-outline-info" onclick="rerunAIForAttribute({{ variable_form.attribute.id }}, this)">
-                      <i class="fas fa-robot"></i>
-                      {% if variable_form.mapping_rule.ai_last_refreshed_at %}Rerun Agent{% else %}Run Agent{% endif %}
-                    </button>
-                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="generateTransformationCode({{ variable_form.attribute.id }})">
-                      <i class="fas fa-magic"></i> Generate Coding Instructions
-                    </button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearCode({{ variable_form.attribute.id }})">
-                      <i class="fas fa-eraser"></i> Clear
-                    </button>
-                  </div>
-                </div>
-                
-                {{ variable_form.form.transform_code }}
-                {% if variable_form.form.transform_code.errors %}
-                  <div class="error-message">
-                    {% for error in variable_form.form.transform_code.errors %}
-                      <span>{{ error }}</span>
-                    {% endfor %}
-                  </div>
-                {% endif %}
-                
-                <div class="code-help">
-                  <details class="mt-2">
-                    <summary class="text-muted" style="cursor: pointer;">
-                      <small><i class="fas fa-info-circle"></i> Transform Code Documentation & Examples</small>
-                    </summary>
-                    <div class="mt-2 p-3 bg-light rounded">
-                      <!-- Quick Insert Examples -->
-                      <div class="example-section mb-3">
-                        <h6 class="mb-2"><i class="fas fa-magic"></i> Quick Insert Examples:</h6>
-                        <div class="example-buttons">
-                          <button type="button" class="btn btn-sm btn-outline-primary" onclick="insertExample({{ variable_form.attribute.id }}, 'uppercase')">
-                            <i class="fas fa-font"></i> Uppercase Text
-                          </button>
-                          <button type="button" class="btn btn-sm btn-outline-primary" onclick="insertExample({{ variable_form.attribute.id }}, 'split')">
-                            <i class="fas fa-cut"></i> Split & Extract
-                          </button>
-                          <button type="button" class="btn btn-sm btn-outline-primary" onclick="insertExample({{ variable_form.attribute.id }}, 'convert_units')">
-                            <i class="fas fa-calculator"></i> Convert Units
-                          </button>
-                          <button type="button" class="btn btn-sm btn-outline-primary" onclick="insertExample({{ variable_form.attribute.id }}, 'replace')">
-                            <i class="fas fa-exchange-alt"></i> Replace Values
-                          </button>
-                          <button type="button" class="btn btn-sm btn-outline-primary" onclick="insertExample({{ variable_form.attribute.id }}, 'conditional')">
-                            <i class="fas fa-question-circle"></i> Conditional Logic
-                          </button>
-                        </div>
-                      </div>
-                      
-                      <!-- Documentation -->
-                      <small class="help-text">
-                        <strong>Basic Examples:</strong><br>
-                        • Text cleanup: <code>lambda value: value.upper().strip() if value else ""</code><br>
-                        • Extract first part: <code>lambda value: value.split(',')[0] if value else None</code><br>
-                        • Unit conversion: <code>lambda value: float(value) * 2.54 if value else None</code><br>
-                        • Replace values: <code>lambda value: value.replace('old', 'new') if value else value</code><br>
-                        • Conditional mapping: <code>lambda value: 'Yes' if value == '1' else 'No' if value == '0' else value</code><br><br>
-                        
-                        <strong>Multi-line Functions:</strong><br>
-                        <pre><code>def transform(value):
-    if not value:
-        return None
-    # Clean and convert
-    cleaned = value.strip().upper()
-    return cleaned if cleaned != 'UNKNOWN' else None</code></pre><br>
-                        
-                        <strong>Safe Methods Available:</strong><br>
-                        String: <code>.upper()</code>, <code>.lower()</code>, <code>.strip()</code>, <code>.split()</code>, <code>.replace()</code>, <code>.join()</code>, <code>.startswith()</code>, <code>.endswith()</code><br>
-                        Numeric: <code>int()</code>, <code>float()</code>, <code>round()</code>, <code>abs()</code>, <code>min()</code>, <code>max()</code><br>
-                        Lists: <code>.append()</code>, <code>.extend()</code>, <code>.sort()</code>, <code>.reverse()</code>, <code>len()</code>, <code>sum()</code>
-                      </small>
-                    </div>
-                  </details>
-                </div>
-              </div>
-              
-              <!-- Comments -->
-              <div class="form-group full-width">
-                <label class="form-label">
-                  <i class="fas fa-comment"></i> Comments (Optional)
-                </label>
-                {{ variable_form.form.comments }}
-                {% if variable_form.form.comments.errors %}
-                  <div class="error-message">
-                    {% for error in variable_form.form.comments.errors %}
-                      <span>{{ error }}</span>
-                    {% endfor %}
-                  </div>
-                {% endif %}
-                <small class="help-text">Optional notes about this mapping</small>
-              </div>
-            </div>
-          </div>
-
-          <div class="variable-actions">
-            <button type="button" class="btn btn-warning btn-small" onclick="clearMapping({{ variable_form.attribute.id }})">
-              <i class="fas fa-times"></i>
-              Clear
-            </button>
-            <button type="button" class="btn btn-success btn-small" onclick="saveMapping({{ variable_form.attribute.id }})">
-              <i class="fas fa-save"></i>
-              Save
-            </button>
-          </div>
-
-          <!-- Not Mappable Option - Horizontal Layout at Bottom -->
-          <div class="not-mappable-section-bottom">
-            <div class="checkbox-wrapper-horizontal">
-              {{ variable_form.form.not_mappable }}
-              <label for="{{ variable_form.form.not_mappable.id_for_label }}" class="checkbox-label-horizontal">
-                <i class="fas fa-ban"></i> Mark as not mappable
-              </label>
-              <small class="help-text-inline">This variable cannot be mapped to any target variable</small>
-            </div>
-          </div>
-        </div>
-      </div>
-      {% endfor %}
-    </form>
+    <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+    <div id="variable-list"
+         data-list-url="{% url 'health:mapping_variable_summaries' schema.id %}">
+      {% include 'health/partials/_mapping_variable_summaries.html' %}
+    </div>
   </div>
-
   <!-- Sidebar -->
   <div class="sidebar">
     <!-- Progress Stats -->
@@ -2371,15 +2749,19 @@
           <span class="stat-value">{{ total_variables }}</span>
         </div>
         <div class="stat-item">
-          <span class="stat-label">Mapped</span>
+          <span class="stat-label">Successfully mapped</span>
           <span class="stat-value">{{ completed_rules|add:"-"|add:not_mappable_count }}</span>
         </div>
         <div class="stat-item">
-          <span class="stat-label">Not Mappable</span>
+          <span class="stat-label">Not mappable</span>
           <span class="stat-value">{{ not_mappable_count }}</span>
         </div>
         <div class="stat-item">
-          <span class="stat-label">Remaining</span>
+          <span class="stat-label">Needs review</span>
+          <span class="stat-value">{{ needs_review_count|default:0 }}</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Needs mapping</span>
           <span class="stat-value">{{ total_variables|add:"-"|add:completed_rules }}</span>
         </div>
         <div class="stat-item">
@@ -2607,11 +2989,6 @@
   </div>
 </div>
 
-<!-- Include ACE Editor JavaScript -->
-{% for variable_form in variable_forms %}
-  {{ variable_form.form.media.js }}
-{% endfor %}
-
 {{ relation_instance_previews|json_script:"relation-instance-previews-data" }}
 
 <script>
@@ -2620,29 +2997,804 @@ let relationInstancePreviews = JSON.parse(
 );
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize role-dependent sections
-    initializeRoleDependentSections();
-    initializeRelationInstanceControls();
-    
-    // Initialize filters
-    initializeFilters();
-    
-    // Initialize auto-save
-    initializeAutoSave();
-    
-    // Initialize target attribute change handlers
-    initializeTargetAttributeHandlers();
-    
-    // Initialize not mappable checkbox handlers
-    initializeNotMappableHandlers();
-    
-    // Load similarity suggestions
-    loadSimilaritySuggestions();
+    initializeDashboardList();
 });
 
-function initializeNotMappableHandlers() {
+let loadObserver = null;
+const LIST_BATCH_SIZE = 20;
+let activeAgentRunId = null;
+let lastAgentProcessedCount = null;
+let lastAgentFailedCount = null;
+let agentListRefreshTimer = null;
+let agentCompletionReloadScheduled = false;
+
+function initializeDashboardList() {
+    const completionFilter = document.getElementById('completion-filter');
+    const searchInput = document.getElementById('search-variables');
+
+    if (completionFilter) completionFilter.value = '{{ completion_filter }}';
+    if (searchInput) searchInput.value = '{{ search }}';
+
+    let searchTimer = null;
+    completionFilter?.addEventListener('change', () => reloadVariableList());
+    searchInput?.addEventListener('input', () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => reloadVariableList(), 300);
+    });
+
+    initializeListLoading();
+    initializeInfoTooltips();
+    initializeAgentRunRefreshHandlers();
+}
+
+function initializeInfoTooltips() {
+    if (document.body.dataset.infoTooltipsInitialized === 'true') return;
+    document.body.dataset.infoTooltipsInitialized = 'true';
+
+    document.addEventListener('click', event => {
+        const info = event.target.closest('.accordion-info');
+        document.querySelectorAll('.accordion-info.is-tooltip-open').forEach(openInfo => {
+            if (openInfo !== info) openInfo.classList.remove('is-tooltip-open');
+        });
+        if (!info) return;
+        event.preventDefault();
+        event.stopPropagation();
+        info.classList.toggle('is-tooltip-open');
+    });
+
+    document.addEventListener('keydown', event => {
+        const info = event.target.closest?.('.accordion-info');
+        if (!info) return;
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            event.stopPropagation();
+            info.click();
+        } else if (event.key === 'Escape') {
+            info.classList.remove('is-tooltip-open');
+        }
+    });
+}
+
+function initializeAgentRunRefreshHandlers() {
+    const monitor = document.getElementById('ai-run-monitor');
+    if (monitor && ['pending', 'running'].includes(monitor.dataset.runStatus)) {
+        activeAgentRunId = monitor.dataset.runId || activeAgentRunId;
+        handleAgentRunMonitorUpdate(monitor);
+    }
+
+    document.body.addEventListener('htmx:afterSwap', event => {
+        const monitor = event.detail?.target?.id === 'ai-run-monitor'
+            ? event.detail.target
+            : document.getElementById('ai-run-monitor');
+        if (monitor) {
+            handleAgentRunMonitorUpdate(monitor);
+        }
+    });
+}
+
+function handleAgentRunMonitorUpdate(monitor) {
+    const runId = monitor.dataset.runId;
+    const status = monitor.dataset.runStatus;
+    const processed = Number(monitor.dataset.processedCount || 0);
+    const failed = Number(monitor.dataset.failedCount || 0);
+
+    if (!runId) return;
+    if (['pending', 'running'].includes(status)) {
+        activeAgentRunId = runId;
+    }
+
+    const countChanged = (
+        lastAgentProcessedCount !== null
+        && (processed !== lastAgentProcessedCount || failed !== lastAgentFailedCount)
+    );
+    lastAgentProcessedCount = processed;
+    lastAgentFailedCount = failed;
+
+    if (countChanged && ['running', 'completed'].includes(status)) {
+        scheduleAgentDrivenListRefresh();
+    }
+
+    if (
+        activeAgentRunId === runId
+        && ['completed', 'failed', 'cancelled'].includes(status)
+        && !agentCompletionReloadScheduled
+    ) {
+        agentCompletionReloadScheduled = true;
+        scheduleAgentDrivenListRefresh(true);
+        setTimeout(() => window.location.reload(), status === 'completed' ? 1400 : 2200);
+    }
+}
+
+function scheduleAgentDrivenListRefresh(immediate = false) {
+    clearTimeout(agentListRefreshTimer);
+    agentListRefreshTimer = setTimeout(() => {
+        reloadVariableList();
+    }, immediate ? 0 : 700);
+}
+
+function variableListParams(page = 1) {
+    const completion = document.getElementById('completion-filter')?.value || 'all';
+    const search = document.getElementById('search-variables')?.value || '';
+    const params = new URLSearchParams({
+        page_size: String(LIST_BATCH_SIZE),
+        completion,
+        search,
+        page: String(page),
+    });
+    return params;
+}
+
+function reloadVariableList() {
+    const variableList = document.getElementById('variable-list');
+    if (!variableList) return;
+    saveDirtyExpandedCards()
+        .then(() => {
+            variableList.innerHTML = `
+              <div class="variable-list-sentinel">
+                <div class="loading-spinner"></div>
+                <span>Sorting the variable stack</span>
+              </div>
+            `;
+            return fetch(`${variableList.dataset.listUrl}?${variableListParams(1).toString()}`);
+        })
+        .then(response => response.text())
+        .then(html => {
+            variableList.innerHTML = html;
+            initializeListLoading();
+        })
+        .catch(error => showErrorNotification(error.message || 'Failed to load variables.'));
+}
+
+function saveDirtyExpandedCards() {
+    const saves = Array.from(document.querySelectorAll('.mapping-variable-form[data-dirty="true"]')).map(form => {
+        const match = form.id.match(/mapping-form-(\d+)/);
+        return match ? saveMapping(match[1], true).catch(() => null) : Promise.resolve(null);
+    });
+    return Promise.all(saves);
+}
+
+function disconnectObserver(observer) {
+    if (observer) observer.disconnect();
+}
+
+function initializeListLoading() {
+    disconnectObserver(loadObserver);
+    loadObserver = null;
+
+    const sentinel = document.querySelector('.variable-list-sentinel[data-next-page]');
+    if (sentinel) {
+        loadObserver = new IntersectionObserver(entries => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    loadNextVariablePage(entry.target);
+                }
+            });
+        }, { rootMargin: '1200px 0px', threshold: 0.01 });
+        loadObserver.observe(sentinel);
+    }
+}
+
+function loadNextVariablePage(sentinel) {
+    if (!sentinel || sentinel.dataset.loading === 'true') return;
+    const nextPage = sentinel.dataset.nextPage;
+    if (!nextPage) return;
+    sentinel.dataset.loading = 'true';
+    const variableList = document.getElementById('variable-list');
+    fetch(`${variableList.dataset.listUrl}?${variableListParams(nextPage).toString()}`)
+        .then(response => response.text())
+        .then(html => {
+            const temp = document.createElement('div');
+            temp.innerHTML = html;
+            const rowsContainer = document.getElementById('variable-summary-rows');
+            temp.querySelectorAll('[data-summary-row="true"]').forEach(row => {
+                rowsContainer.appendChild(row);
+            });
+            const newSentinel = temp.querySelector('.variable-list-sentinel, .variable-list-end');
+            if (newSentinel) {
+                sentinel.replaceWith(newSentinel);
+            } else {
+                sentinel.remove();
+            }
+            initializeListLoading();
+        })
+        .catch(error => {
+            sentinel.dataset.loading = 'false';
+            showErrorNotification(error.message || 'Failed to load more variables.');
+        });
+}
+
+function toggleVariableCard(variableId, button) {
+    const row = document.querySelector(`[data-summary-row="true"][data-attribute-id="${variableId}"]`);
+    if (!row) return;
+    const isExpanded = row.classList.contains('is-expanded');
+    if (isExpanded) collapseVariableCard(variableId);
+    else expandVariableCard(variableId);
+    if (button) {
+        button.setAttribute('aria-expanded', String(!isExpanded));
+    }
+}
+
+function expandVariableCard(variableId) {
+    const row = document.querySelector(`[data-summary-row="true"][data-attribute-id="${variableId}"]`);
+    if (!row || row.dataset.loadingCard === 'true') return;
+    if (row.classList.contains('is-expanded')) return;
+
+    const slot = document.getElementById(`variable-card-slot-${variableId}`);
+    if (!slot) return;
+    row.dataset.loadingCard = 'true';
+    row.classList.add('is-expanded');
+    const button = row.querySelector('.variable-summary-main');
+    if (button) button.setAttribute('aria-expanded', 'true');
+    slot.innerHTML = `
+      <div class="variable-card-skeleton" role="status" aria-live="polite">
+        <div class="skeleton-line short"></div>
+        <div class="skeleton-line medium"></div>
+        <div class="skeleton-line"></div>
+        <span class="sr-only">Preparing variable details</span>
+      </div>
+    `;
+    fetch(row.dataset.cardUrl)
+        .then(response => {
+            if (!response.ok) throw new Error('Failed to load variable card.');
+            return response.text();
+        })
+        .then(html => {
+            slot.innerHTML = html;
+            delete row.dataset.loadingCard;
+            return executeEmbeddedScripts(slot).then(() => {
+                const card = slot.querySelector('.expanded-variable-card');
+                if (card) initializeVariableCard(card);
+            });
+        })
+        .catch(error => {
+            delete row.dataset.loadingCard;
+            slot.innerHTML = '';
+            row.classList.remove('is-expanded');
+            const button = row.querySelector('.variable-summary-main');
+            if (button) button.setAttribute('aria-expanded', 'false');
+            showErrorNotification(error.message || 'Failed to load variable card.');
+        });
+}
+
+function refreshExpandedVariableCard(variableId) {
+    const row = document.querySelector(`[data-summary-row="true"][data-attribute-id="${variableId}"]`);
+    const slot = document.getElementById(`variable-card-slot-${variableId}`);
+    if (!row || !slot || !row.dataset.cardUrl) return Promise.resolve(null);
+
+    row.dataset.loadingCard = 'true';
+    row.classList.add('is-expanded');
+    slot.innerHTML = `
+      <div class="variable-card-skeleton" role="status" aria-live="polite">
+        <div class="skeleton-line short"></div>
+        <div class="skeleton-line medium"></div>
+        <div class="skeleton-line"></div>
+        <span class="sr-only">Refreshing variable details</span>
+      </div>
+    `;
+
+    return fetch(row.dataset.cardUrl)
+        .then(response => {
+            if (!response.ok) throw new Error('Failed to refresh variable card.');
+            return response.text();
+        })
+        .then(html => {
+            slot.innerHTML = html;
+            delete row.dataset.loadingCard;
+            return executeEmbeddedScripts(slot).then(() => {
+                const card = slot.querySelector('.expanded-variable-card');
+                if (card) initializeVariableCard(card);
+                return card;
+            });
+        })
+        .catch(error => {
+            delete row.dataset.loadingCard;
+            showErrorNotification(error.message || 'Failed to refresh variable card.');
+            throw error;
+        });
+}
+
+function collapseVariableCard(variableId, options = {}) {
+    const row = document.querySelector(`[data-summary-row="true"][data-attribute-id="${variableId}"]`);
+    if (!row || !row.classList.contains('is-expanded')) return;
+    const form = document.getElementById(`mapping-form-${variableId}`);
+    if (!options.skipSave && form && form.dataset.dirty === 'true') {
+        saveMapping(variableId, true)
+            .then(data => {
+                if (data && data.success) {
+                    collapseVariableCard(variableId, { ...options, skipSave: true });
+                }
+            })
+            .catch(() => {
+                row.classList.add('is-save-failed');
+            });
+        return;
+    }
+    const slot = document.getElementById(`variable-card-slot-${variableId}`);
+    if (slot) slot.innerHTML = '';
+    row.classList.remove('is-expanded', 'is-save-failed');
+    const button = row.querySelector('.variable-summary-main');
+    if (button) button.setAttribute('aria-expanded', 'false');
+}
+
+function initializeVariableCard(card) {
+    initializeRoleDependentSections(card);
+    initializeRelationInstanceControls(card);
+    initializeTargetAttributeHandlers(card);
+    initializeNotMappableHandlers(card);
+    initializeCustomSettingsHandlers(card);
+    initializeCardAutosave(card);
+    initializeAccordionSections(card);
+    ensureAceEditors(card);
+    setTimeout(() => ensureAceEditors(card), 75);
+}
+
+function initializeCustomSettingsHandlers(card) {
+    card.querySelectorAll('input[name*="use_custom_settings"], .custom-settings-checkbox').forEach(checkbox => {
+        updateContextSummary(checkbox);
+        checkbox.addEventListener('change', function() {
+            const variableCard = this.closest('.variable-card');
+            const customSettingsSection = variableCard.querySelector('[id^="custom-settings-"]');
+            if (!customSettingsSection) return;
+            customSettingsSection.style.display = this.checked ? 'block' : 'none';
+            if (!this.checked) {
+                customSettingsSection.querySelectorAll('select').forEach(select => {
+                    select.value = '';
+                });
+            }
+            updateContextSummary(this);
+        });
+    });
+    card.querySelectorAll('select[name*="patient_id_attribute"], select[name*="datetime_attribute"], select[name*="location_attribute"]').forEach(select => {
+        select.addEventListener('change', () => updateContextSummary(select));
+    });
+    card.querySelectorAll('textarea[name*="comments"]').forEach(textarea => {
+        updateCommentsSummary(textarea);
+        textarea.addEventListener('input', () => updateCommentsSummary(textarea));
+        textarea.addEventListener('change', () => updateCommentsSummary(textarea));
+    });
+}
+
+function selectedOptionText(select) {
+    if (!select || !select.value) return '';
+    return select.options[select.selectedIndex]?.text?.trim() || '';
+}
+
+function updateContextSummary(element) {
+    const variableCard = element.closest('.variable-card');
+    if (!variableCard) return;
+    const variableId = variableCard.dataset.attributeId;
+    const summary = variableCard.querySelector(`[data-context-summary-for="${variableId}"]`);
+    if (!summary) return;
+    const checkbox = variableCard.querySelector('input[name*="use_custom_settings"], .custom-settings-checkbox');
+    if (!checkbox?.checked) {
+        summary.textContent = 'Default schema context';
+        return;
+    }
+
+    const patient = selectedOptionText(variableCard.querySelector('select[name*="patient_id_attribute"]'));
+    const datetime = selectedOptionText(variableCard.querySelector('select[name*="datetime_attribute"]'));
+    const location = selectedOptionText(variableCard.querySelector('select[name*="location_attribute"]'));
+    const parts = [];
+    if (patient) parts.push(`Patient: ${patient}`);
+    if (datetime) parts.push(`Date/time: ${datetime}`);
+    if (location) parts.push(`Location: ${location}`);
+    summary.textContent = parts.length ? parts.join('; ') : 'Select patient, date/time, or location fields';
+}
+
+function updateCommentsSummary(textarea) {
+    const variableCard = textarea.closest('.variable-card');
+    if (!variableCard) return;
+    const variableId = variableCard.dataset.attributeId;
+    const summary = variableCard.querySelector(`[data-comments-summary-for="${variableId}"]`);
+    if (!summary) return;
+    summary.textContent = textarea.value.trim() ? 'Notes present' : 'No notes yet';
+}
+
+function initializeCardAutosave(card) {
+    const form = card.closest('form');
+    if (!form) return;
+    let autoSaveTimeout = null;
+    form.querySelectorAll('select, textarea, input').forEach(element => {
+        if (!element.name || !element.name.startsWith('variable_')) return;
+        element.addEventListener('change', function() {
+            form.dataset.dirty = 'true';
+            clearTimeout(autoSaveTimeout);
+            const variableId = element.name.match(/variable_(\d+)/)[1];
+            autoSaveTimeout = setTimeout(() => saveMapping(variableId, true), 1500);
+        });
+        element.addEventListener('input', function() {
+            form.dataset.dirty = 'true';
+        });
+    });
+}
+
+function initializeAccordionSections(card) {
+    card.querySelectorAll('.mapping-accordion-panel').forEach(panel => {
+        panel.classList.remove('is-open');
+        panel.setAttribute('aria-hidden', 'true');
+    });
+    card.querySelectorAll('.mapping-accordion-trigger').forEach(trigger => {
+        trigger.setAttribute('aria-expanded', 'false');
+    });
+}
+
+function toggleMappingAccordion(trigger) {
+    const section = trigger.closest('.mapping-accordion-section');
+    if (!section) return;
+    const panel = section.querySelector('.mapping-accordion-panel');
+    if (!panel) return;
+    const shouldOpen = trigger.getAttribute('aria-expanded') !== 'true';
+    trigger.setAttribute('aria-expanded', String(shouldOpen));
+    panel.classList.toggle('is-open', shouldOpen);
+    panel.setAttribute('aria-hidden', String(!shouldOpen));
+    if (shouldOpen) {
+        if (section.dataset.loadOnOpen === 'transform') {
+            ensureAceEditors(section);
+        }
+        handleLazyAccordionOpen(section);
+    }
+}
+
+function handleLazyAccordionOpen(section) {
+    if (section.dataset.loaded === 'true') return;
+    const variableId = section.dataset.variableId;
+    const card = section.closest('.expanded-variable-card');
+    if (section.dataset.loadOnOpen === 'eda') {
+        loadVariableEda(section);
+    }
+    if (section.dataset.loadOnOpen === 'suggestions') {
+        loadVariableSuggestions(variableId);
+        const targetSelect = card?.querySelector(`select[name="variable_${variableId}-target_attribute"]`);
+        if (targetSelect && targetSelect.value) {
+            fetchTargetAttributeDetails(variableId, targetSelect.value);
+        }
+    }
+    if (section.dataset.loadOnOpen === 'transform') {
+        ensureAceEditors(section);
+        section.dataset.loaded = 'true';
+    }
+}
+
+function toggleLongText(button) {
+    const text = button.parentElement?.querySelector('[data-long-text]');
+    if (!text) return;
+    const expanded = text.classList.toggle('is-expanded');
+    button.textContent = expanded ? 'Show less' : 'Show more';
+}
+
+function loadVariableEda(section) {
+    const slot = section.querySelector('.eda-variable-slot');
+    fetch(section.dataset.edaUrl)
+        .then(response => response.text())
+        .then(html => {
+            slot.innerHTML = html;
+            section.dataset.loaded = 'true';
+            return executeEmbeddedScripts(slot).then(() => initializeEdaInteractions(slot));
+        })
+        .catch(error => {
+            slot.innerHTML = `<div class="eda-not-ready-panel">${error.message || 'Failed to load EDA.'}</div>`;
+        });
+}
+
+function executeEmbeddedScripts(root) {
+    const scripts = Array.from(root.querySelectorAll('script'));
+    return scripts.reduce((chain, oldScript) => {
+        return chain.then(() => new Promise(resolve => {
+            const src = oldScript.getAttribute('src');
+            if (src && document.querySelector(`script[src="${src}"][data-dashboard-loaded="true"]`)) {
+                oldScript.remove();
+                resolve();
+                return;
+            }
+
+            const newScript = document.createElement('script');
+            Array.from(oldScript.attributes).forEach(attribute => {
+                newScript.setAttribute(attribute.name, attribute.value);
+            });
+            newScript.dataset.dashboardLoaded = 'true';
+            if (src) {
+                newScript.onload = resolve;
+                newScript.onerror = resolve;
+            } else {
+                newScript.textContent = oldScript.textContent;
+            }
+            oldScript.replaceWith(newScript);
+            if (!src) resolve();
+        }));
+    }, Promise.resolve());
+}
+
+function aceBoolean(value) {
+    return value === true || value === 'true' || value === '1' || value === 'True';
+}
+
+function aceNumber(value, fallback = null) {
+    if (value === undefined || value === null || value === '') return fallback;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function transformCodeCompletions() {
+    return [
+        {caption: 'lambda', snippet: 'lambda ${1:value}: ${2:value}', meta: 'keyword', score: 1000},
+        {caption: 'def transform', snippet: 'def transform(value):\n    ${1:return value}', meta: 'pattern', score: 980},
+        {caption: 'return', snippet: 'return ${1:value}', meta: 'keyword', score: 950},
+        {caption: 'value', value: 'value', meta: 'variable', score: 1000},
+        {caption: 'None', value: 'None', meta: 'constant', score: 900},
+        {caption: 'True', value: 'True', meta: 'constant', score: 900},
+        {caption: 'False', value: 'False', meta: 'constant', score: 900},
+        {caption: 'value.strip()', value: 'value.strip()', meta: 'method', score: 950},
+        {caption: 'value.upper()', value: 'value.upper()', meta: 'method', score: 940},
+        {caption: 'value.lower()', value: 'value.lower()', meta: 'method', score: 940},
+        {caption: 'value.title()', value: 'value.title()', meta: 'method', score: 900},
+        {caption: 'value.replace()', snippet: "value.replace('${1:old}', '${2:new}')", meta: 'method', score: 920},
+        {caption: 'float(value)', value: 'float(value)', meta: 'conversion', score: 930},
+        {caption: 'int(value)', value: 'int(value)', meta: 'conversion', score: 930},
+        {caption: 'str(value)', value: 'str(value)', meta: 'conversion', score: 920},
+        {caption: 'if value else', snippet: 'value if value else ${1:None}', meta: 'pattern', score: 900},
+        {caption: 'safe strip', snippet: 'value.strip() if value else ${1:None}', meta: 'pattern', score: 900},
+    ];
+}
+
+function buildTransformLintAnnotations(code) {
+    const annotations = [];
+    if (!code || !code.trim()) return annotations;
+    code.split('\n').forEach((line, index) => {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) return;
+        const leadingSpaces = (line.match(/^( *)/) || [''])[0].length;
+        if (leadingSpaces > 0 && leadingSpaces % 4 !== 0) {
+            annotations.push({
+                row: index,
+                column: 0,
+                text: `Use 4 spaces for indentation (found ${leadingSpaces}).`,
+                type: 'warning',
+            });
+        }
+        if (line.length > 88) {
+            annotations.push({
+                row: index,
+                column: 88,
+                text: `Line is longer than 88 characters (${line.length}).`,
+                type: 'info',
+            });
+        }
+        if (/\s+$/.test(line)) {
+            annotations.push({
+                row: index,
+                column: Math.max(0, line.length - 1),
+                text: 'Remove trailing whitespace.',
+                type: 'info',
+            });
+        }
+        if (/^(if|elif|for|while|def|class|try|except|with)\(/.test(trimmed)) {
+            annotations.push({
+                row: index,
+                column: line.indexOf(trimmed),
+                text: 'Add a space after the Python keyword.',
+                type: 'info',
+            });
+        }
+    });
+    return annotations;
+}
+
+function enhanceAceEditor(editor, textarea = null) {
+    if (!editor) return;
+    editor.setOptions({
+        enableBasicAutocompletion: true,
+        enableLiveAutocompletion: true,
+        enableSnippets: true,
+        highlightActiveLine: true,
+        showPrintMargin: true,
+        printMarginColumn: 88,
+        fontSize: '14px',
+        showGutter: true,
+        displayIndentGuides: true,
+        fadeFoldWidgets: false,
+        showFoldWidgets: true,
+        behavioursEnabled: true,
+        wrapBehavioursEnabled: true,
+        useSoftTabs: true,
+        showLineNumbers: true,
+        scrollPastEnd: 0.15,
+    });
+    editor.getSession().setOptions({
+        tabSize: 4,
+        useSoftTabs: true,
+        useWorker: true,
+        mode: 'ace/mode/python',
+        wrap: false,
+    });
+
+    if (editor.$harmonaizeEnhanced) {
+        editor.resize(true);
+        return;
+    }
+    editor.$harmonaizeEnhanced = true;
+
+    try {
+        ace.require('ace/ext/language_tools');
+    } catch (error) {
+        console.warn('ACE language tools are not available yet.', error);
+    }
+
+    const customCompleter = {
+        getCompletions: function(_editor, _session, _pos, prefix, callback) {
+            const completions = transformCodeCompletions();
+            const filtered = prefix
+                ? completions.filter(item => item.caption.toLowerCase().startsWith(prefix.toLowerCase()))
+                : completions;
+            callback(null, filtered);
+        }
+    };
+    if (!editor.completers?.some(completer => completer.$harmonaizeCompleter)) {
+        customCompleter.$harmonaizeCompleter = true;
+        editor.completers = editor.completers || [];
+        editor.completers.push(customCompleter);
+    }
+
+    let lintTimer = null;
+    const applyLint = () => {
+        window.clearTimeout(lintTimer);
+        lintTimer = window.setTimeout(() => {
+            editor.getSession().setAnnotations(buildTransformLintAnnotations(editor.getValue()));
+        }, 150);
+    };
+    editor.getSession().on('change', applyLint);
+    applyLint();
+
+    if (textarea) {
+        editor.getSession().on('change', () => {
+            textarea.value = editor.getValue();
+            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+    }
+
+    editor.commands.addCommand({
+        name: 'harmonaizeFormatTransformCode',
+        bindKey: {win: 'Ctrl-Shift-F', mac: 'Command-Shift-F'},
+        exec: function(activeEditor) {
+            const lines = activeEditor.getValue().split('\n');
+            let indentLevel = 0;
+            const formatted = lines.map(line => {
+                const trimmed = line.trim();
+                if (!trimmed) return '';
+                if (/^(elif|else|except|finally)\b/.test(trimmed)) {
+                    indentLevel = Math.max(0, indentLevel - 1);
+                }
+                const output = `${'    '.repeat(indentLevel)}${trimmed}`;
+                if (/^(def|class|if|elif|else|for|while|try|except|finally|with)\b.*:\s*$/.test(trimmed)) {
+                    indentLevel += 1;
+                }
+                return output;
+            });
+            activeEditor.setValue(formatted.join('\n'), -1);
+        }
+    });
+
+    editor.resize(true);
+}
+
+function initializeDjangoAceWidgets(root = document) {
+    if (typeof ace === 'undefined') return;
+    root.querySelectorAll('.django-ace-widget.loading').forEach(widget => {
+        if (widget.closest('.empty-form, .grp-empty-form')) return;
+        const editorHost = widget.firstElementChild;
+        const textarea = widget.nextElementSibling;
+        if (!editorHost || !textarea || textarea.tagName !== 'TEXTAREA') return;
+
+        widget.classList.remove('loading');
+        const editor = widget.editor = ace.edit(editorHost);
+        const session = editor.getSession();
+        session.setValue(textarea.value || '');
+        textarea.style.display = 'none';
+
+        if (widget.dataset.mode) {
+            session.setMode(`ace/mode/${widget.dataset.mode}`);
+        }
+        if (widget.dataset.theme) {
+            editor.setTheme(`ace/theme/${widget.dataset.theme}`);
+        }
+        session.setUseWrapMode(aceBoolean(widget.dataset.wordwrap));
+        session.setUseWorker(!widget.dataset.useworker || aceBoolean(widget.dataset.useworker));
+        session.setTabSize(aceNumber(widget.dataset.tabsize, 4));
+        session.setUseSoftTabs(!widget.dataset.usesofttabs || aceBoolean(widget.dataset.usesofttabs));
+
+        editor.setOptions({
+            readOnly: aceBoolean(widget.dataset.readonly),
+            showPrintMargin: aceBoolean(widget.dataset.showprintmargin),
+            showInvisibles: aceBoolean(widget.dataset.showinvisibles),
+            minLines: aceNumber(widget.dataset.minlines),
+            maxLines: aceNumber(widget.dataset.maxlines),
+            enableBasicAutocompletion: aceBoolean(widget.dataset.basicautocompletion),
+            enableLiveAutocompletion: aceBoolean(widget.dataset.liveautocompletion),
+        });
+        if (widget.dataset.fontsize) {
+            editor.setFontSize(widget.dataset.fontsize);
+        }
+        editor.renderer.setShowGutter(!widget.dataset.showgutter || aceBoolean(widget.dataset.showgutter));
+
+        const toolbar = widget.previousElementSibling;
+        const maxMinButton = toolbar?.querySelector('.django-ace-max_min');
+        if (maxMinButton && !maxMinButton.dataset.harmonaizeBound) {
+            maxMinButton.dataset.harmonaizeBound = 'true';
+            maxMinButton.addEventListener('click', event => {
+                event.preventDefault();
+                widget.classList.toggle('django-ace-fullscreen');
+                editor.resize(true);
+            });
+        }
+
+        enhanceAceEditor(editor, textarea);
+    });
+}
+
+function ensureAceEditors(root = document) {
+    if (typeof ace === 'undefined') return;
+    initializeDjangoAceWidgets(root);
+    root.querySelectorAll('.ace_editor').forEach(aceContainer => {
+        if (!aceContainer.env || !aceContainer.env.editor) return;
+        const textarea = aceContainer.closest('.django-ace-editor')?.querySelector('textarea[name*="transform_code"]');
+        enhanceAceEditor(aceContainer.env.editor, textarea);
+    });
+}
+
+function initializeEdaInteractions(root = document) {
+    root.querySelectorAll('[data-modal-open]').forEach(button => {
+        button.addEventListener('click', () => {
+            const modal = document.getElementById(button.dataset.modalOpen);
+            if (!modal) return;
+            modal.classList.add('is-open');
+            modal.setAttribute('aria-hidden', 'false');
+        });
+    });
+    root.querySelectorAll('[data-modal-close]').forEach(button => {
+        button.addEventListener('click', () => {
+            const modal = button.closest('.eda-variable-modal');
+            if (!modal) return;
+            modal.classList.remove('is-open');
+            modal.setAttribute('aria-hidden', 'true');
+        });
+    });
+}
+
+function loadVariableSuggestions(variableId, refresh = false) {
+    const loading = document.getElementById(`loading-${variableId}`);
+    const section = document.querySelector(`[data-load-on-open="suggestions"][data-variable-id="${variableId}"]`);
+    if (loading) loading.style.display = 'flex';
+    const url = new URL(`/health/mapping/{{ schema.id }}/variable/${variableId}/suggestions/`, window.location.origin);
+    if (refresh) url.searchParams.set('refresh', '1');
+    fetch(url)
+        .then(response => response.json().then(data => ({ ok: response.ok, statusCode: response.status, data })))
+        .then(({ ok, data }) => {
+            if (!ok || data.success === false) {
+                throw new Error(data.error || 'Failed to load suggestions.');
+            }
+            return data;
+        })
+        .then(data => {
+            similaritySuggestions = similaritySuggestions || {};
+            const suggestions = normalizeSuggestions(data.suggestions || []);
+            similaritySuggestions[String(variableId)] = suggestions;
+            renderDropdownSuggestions(variableId, suggestions);
+            if (section) section.dataset.loaded = 'true';
+        })
+        .catch(error => {
+            const list = document.getElementById(`suggestions-list-${variableId}`);
+            if (list) {
+                list.innerHTML = `<div class="suggestions-error"><i class="fas fa-exclamation-triangle"></i> ${error.message || 'Failed to load suggestions.'}</div>`;
+            }
+            showErrorNotification(error.message || 'Failed to load suggestions.');
+        })
+        .finally(() => {
+            if (loading) loading.style.display = 'none';
+        });
+}
+
+function initializeNotMappableHandlers(root = document) {
     // Initialize target details for existing selections
-    document.querySelectorAll('select[name*="target_attribute"]').forEach(targetSelect => {
+    root.querySelectorAll('select[name*="target_attribute"]').forEach(targetSelect => {
         if (targetSelect.value) {
             // Trigger change event to populate details for existing selections
             targetSelect.dispatchEvent(new Event('change'));
@@ -2650,22 +3802,28 @@ function initializeNotMappableHandlers() {
     });
     
     // Add event listeners for not mappable checkboxes
-    document.querySelectorAll('.not-mappable-checkbox').forEach(checkbox => {
+    root.querySelectorAll('.not-mappable-checkbox').forEach(checkbox => {
         checkbox.addEventListener('change', function() {
             const variableCard = this.closest('.variable-card');
-            const mappingFields = variableCard.querySelector('.mapping-fields');
+            const mappingFields = variableCard.querySelector('.primary-mapping-panel') || variableCard.querySelector('.mapping-fields');
             
             if (this.checked) {
+                const needsReviewCheckbox = variableCard.querySelector('.needs-review-checkbox');
+                if (needsReviewCheckbox) {
+                    needsReviewCheckbox.checked = false;
+                }
                 // Hide mapping fields and grey out card when not mappable is checked
-                mappingFields.style.display = 'none';
-                variableCard.classList.remove('complete', 'incomplete');
+                if (mappingFields) mappingFields.style.display = 'none';
+                variableCard.classList.remove('complete', 'incomplete', 'needs-review');
                 variableCard.classList.add('not-mappable');
                 variableCard.dataset.completion = 'not-mappable';
                 
                 // Update badge
                 const badge = variableCard.querySelector('.completion-badge');
-                badge.className = 'completion-badge badge-not-mappable';
-                badge.innerHTML = '<i class="fas fa-ban"></i> Not Mappable';
+                if (badge) {
+                    badge.className = 'completion-badge badge-not-mappable';
+                    badge.innerHTML = '<i class="fas fa-ban"></i> Not mappable';
+                }
                 
                 // Clear target attribute selection and hide details
                 const targetSelect = variableCard.querySelector('select[name*="target_attribute"]');
@@ -2678,26 +3836,28 @@ function initializeNotMappableHandlers() {
                 }
             } else {
                 // Show mapping fields when not mappable is unchecked
-                mappingFields.style.display = 'block';
+                if (mappingFields) mappingFields.style.display = 'block';
                 variableCard.classList.remove('not-mappable');
                 variableCard.classList.add('incomplete');
                 variableCard.dataset.completion = 'incomplete';
                 
                 // Update badge
                 const badge = variableCard.querySelector('.completion-badge');
-                badge.className = 'completion-badge badge-incomplete';
-                badge.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Needs Mapping';
+                if (badge) {
+                    badge.className = 'completion-badge badge-incomplete';
+                    badge.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Needs mapping';
+                }
             }
         });
     });
 }
 
-function initializeRoleDependentSections() {
-    document.querySelectorAll('select[name$="-relation_type"]').forEach(select => {
+function initializeRoleDependentSections(root = document) {
+    root.querySelectorAll('select[name$="-relation_type"]').forEach(select => {
         const match = select.name.match(/variable_(\d+)-relation_type/);
         if (!match) return;
         const variableId = match[1];
-        const relationDetails = document.querySelectorAll(`[data-relation-detail-for="${variableId}"]`);
+        const relationDetails = root.querySelectorAll(`[data-relation-detail-for="${variableId}"]`);
 
         function toggleRelationDetails() {
             relationDetails.forEach(section => {
@@ -2712,8 +3872,11 @@ function initializeRoleDependentSections() {
 
 let pendingRelationInstanceVariableId = null;
 
-function initializeRelationInstanceControls() {
-    document.querySelectorAll('.variable-card').forEach(card => {
+function initializeRelationInstanceControls(root = document) {
+    const cards = root.matches && root.matches('.variable-card')
+        ? [root]
+        : Array.from(root.querySelectorAll('.variable-card'));
+    cards.forEach(card => {
         const relationTypeSelect = card.querySelector('select[name$="-relation_type"]');
         const relationInstanceSelect = card.querySelector('select[name$="-relation_instance"]');
         if (!relationTypeSelect || !relationInstanceSelect) return;
@@ -2811,7 +3974,16 @@ function confirmRelationInstanceCreate() {
         createRelationInput.value = relationType;
     }
     closeRelationInstanceModal();
-    saveMapping(variableId);
+    saveMapping(variableId)
+        .then(data => {
+            if (data && data.success) {
+                return refreshExpandedVariableCard(variableId);
+            }
+            return null;
+        })
+        .catch(error => {
+            showErrorNotification(error.message || 'Failed to clear mapping.');
+        });
 }
 
 function refreshRelationInstancePreviews(previews) {
@@ -2900,9 +4072,9 @@ function initializeAutoSave() {
     });
 }
 
-function initializeTargetAttributeHandlers() {
+function initializeTargetAttributeHandlers(root = document) {
     // Add change event listeners to all target attribute dropdowns
-    document.querySelectorAll('select[name$="-target_attribute"]').forEach(select => {
+    root.querySelectorAll('select[name$="-target_attribute"]').forEach(select => {
         const variableId = select.name.match(/variable_(\d+)-target_attribute/)[1];
         
         select.addEventListener('change', function() {
@@ -2914,6 +4086,10 @@ function initializeTargetAttributeHandlers() {
                 const detailsDiv = document.getElementById(`target-details-${variableId}`);
                 if (detailsDiv) {
                     detailsDiv.style.display = 'none';
+                }
+                const emptyCopy = document.getElementById(`target-empty-${variableId}`);
+                if (emptyCopy) {
+                    emptyCopy.style.display = 'block';
                 }
             }
         });
@@ -2978,6 +4154,45 @@ function fetchTargetAttributeDetails(variableId, targetAttributeId) {
         });
 }
 
+function getVariableForm(variableId) {
+    return document.getElementById(`mapping-form-${variableId}`);
+}
+
+function getVariableTransformTextarea(variableId) {
+    const form = getVariableForm(variableId);
+    if (!form) return null;
+    return form.querySelector(`textarea[name="variable_${variableId}-transform_code"]`);
+}
+
+function getAceEditorForTextarea(textarea) {
+    if (!textarea || typeof ace === 'undefined') return null;
+    const aceContainer = textarea.parentElement?.querySelector('.ace_editor') || textarea.nextElementSibling;
+    if (aceContainer && aceContainer.classList?.contains('ace_editor') && aceContainer.env?.editor) {
+        return aceContainer.env.editor;
+    }
+    if (textarea.id) {
+        try {
+            const editor = ace.edit(textarea.id);
+            return editor?.container?.classList?.contains('ace_editor') ? editor : null;
+        } catch (error) {
+            return null;
+        }
+    }
+    return null;
+}
+
+function markTransformCodeChanged(variableId) {
+    const textarea = getVariableTransformTextarea(variableId);
+    const form = getVariableForm(variableId);
+    if (form) {
+        form.dataset.dirty = 'true';
+    }
+    if (textarea) {
+        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+        textarea.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+}
+
 function toggleSettingsForm() {
     const form = document.getElementById('universal-settings-form');
     const display = document.getElementById('settings-display');
@@ -2998,7 +4213,9 @@ function toggleSettingsForm() {
 
     const aceEditors = document.querySelectorAll('.ace_editor');
     aceEditors.forEach(aceContainer => {
-      const textareaElement = aceContainer.previousElementSibling;
+      const textareaElement = aceContainer.previousElementSibling?.tagName === 'TEXTAREA'
+        ? aceContainer.previousElementSibling
+        : aceContainer.parentElement?.querySelector('textarea[name*="transform_code"]');
       if (!textareaElement || textareaElement.tagName !== 'TEXTAREA' || !textareaElement.name) {
         return;
       }
@@ -3019,13 +4236,13 @@ function toggleSettingsForm() {
 
 function saveMapping(variableId, isAutoSave = false) {
     syncTransformCodeEditors(variableId);
-    const form = document.getElementById('mappings-form');
+    const form = document.getElementById(`mapping-form-${variableId}`);
+    if (!form) {
+        return Promise.resolve(null);
+    }
     const formData = new FormData(form);
-    
-    // Only include data for this specific variable
     const newFormData = new FormData();
-    newFormData.append('csrfmiddlewaretoken', formData.get('csrfmiddlewaretoken'));
-    
+    newFormData.append('csrfmiddlewaretoken', formData.get('csrfmiddlewaretoken') || document.querySelector('[name=csrfmiddlewaretoken]').value);
     for (const [key, value] of formData.entries()) {
         if (key.startsWith(`variable_${variableId}-`)) {
             newFormData.append(key, value);
@@ -3041,7 +4258,7 @@ function saveMapping(variableId, isAutoSave = false) {
         document.getElementById('auto-save-indicator').classList.add('show');
     }
     
-    fetch(window.location.href, {
+    return fetch(form.dataset.saveUrl || window.location.href, {
         method: 'POST',
         body: newFormData,
         headers: {
@@ -3051,6 +4268,8 @@ function saveMapping(variableId, isAutoSave = false) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
+            form.dataset.dirty = 'false';
+            document.querySelector(`[data-summary-row="true"][data-attribute-id="${variableId}"]`)?.classList.remove('is-save-failed');
             refreshRelationInstancePreviews(data.relation_instance_previews);
             refreshRelationInstanceChoices(data.relation_instance_choices);
             if (data.saved_relation_instance && data.saved_relation_instance.value) {
@@ -3068,19 +4287,11 @@ function saveMapping(variableId, isAutoSave = false) {
                 }, 2000);
             }
             
-            // Update completion status
-            const card = document.querySelector(`[data-variable-name="${data.variable_name.toLowerCase()}"]`);
-            if (card && data.is_complete) {
-                card.classList.remove('incomplete');
-                card.classList.add('complete');
-                card.dataset.completion = 'complete';
-                
-                const badge = card.querySelector('.completion-badge');
-                badge.className = 'completion-badge badge-complete';
-                badge.innerHTML = '<i class="fas fa-check"></i> Mapped';
-            }
+            updateVariableSummaryAfterSave(variableId, data);
+            return data;
         } else {
             console.error('Save failed:', data.errors);
+            document.querySelector(`[data-summary-row="true"][data-attribute-id="${variableId}"]`)?.classList.add('is-save-failed');
             
             // Show specific errors to the user
             if (data.errors && Array.isArray(data.errors)) {
@@ -3092,10 +4303,12 @@ function saveMapping(variableId, isAutoSave = false) {
             } else {
                 showErrorNotification('Save failed: Unknown error occurred');
             }
+            return data;
         }
     })
     .catch(error => {
         console.error('Error:', error);
+        document.querySelector(`[data-summary-row="true"][data-attribute-id="${variableId}"]`)?.classList.add('is-save-failed');
         if (!isAutoSave) {
             // Show more detailed error message
             const errorMsg = error.message || 'Network error occurred';
@@ -3109,7 +4322,47 @@ function saveMapping(variableId, isAutoSave = false) {
         
         // Also show a notification at the top of the page
         showErrorNotification(`Save failed: ${error.message || 'Network error'}`);
+        throw error;
     });
+}
+
+function updateVariableSummaryAfterSave(variableId, data) {
+    const row = document.querySelector(`[data-summary-row="true"][data-attribute-id="${variableId}"]`);
+    const card = document.querySelector(`.expanded-variable-card[data-attribute-id="${variableId}"]`);
+    if (!row) return;
+    const completion = data.completion || (data.is_complete ? 'complete' : 'incomplete');
+    row.dataset.completion = completion;
+    row.classList.remove('complete', 'incomplete', 'not-mappable', 'needs-review');
+    row.classList.add(completion);
+    if (card) {
+        card.dataset.completion = completion;
+        card.classList.remove('complete', 'incomplete', 'not-mappable', 'needs-review');
+        card.classList.add(completion);
+    }
+
+    const badgeClass = completion === 'needs-review'
+        ? 'badge-needs-review'
+        : completion === 'not-mappable'
+        ? 'badge-not-mappable'
+        : completion === 'complete'
+            ? 'badge-complete'
+            : 'badge-incomplete';
+    const badgeText = completion === 'needs-review'
+        ? '<i class="fas fa-flag"></i> Needs review'
+        : completion === 'not-mappable'
+        ? '<i class="fas fa-ban"></i> Not mappable'
+        : completion === 'complete'
+            ? '<i class="fas fa-check"></i> Successfully mapped'
+            : '<i class="fas fa-exclamation-triangle"></i> Needs mapping';
+    row.querySelectorAll('.completion-badge').forEach(badge => {
+        badge.className = `completion-badge ${badgeClass}`;
+        badge.innerHTML = badgeText;
+    });
+    const status = document.getElementById(`save-status-${variableId}`);
+    if (status) {
+        status.textContent = 'Saved';
+        setTimeout(() => { status.textContent = ''; }, 2000);
+    }
 }
 
 function saveAllMappings() {
@@ -3678,11 +4931,7 @@ function insertExample(variableId, exampleType) {
             editor.clearSelection();
             editor.focus();
         syncTransformCodeEditors(variableId);
-            
-            // Trigger change event for auto-save
-            setTimeout(() => {
-                triggerAutoSave(variableId);
-            }, 100);
+            markTransformCodeChanged(variableId);
             
             console.log('Successfully inserted example using ACE editor');
             return;
@@ -3754,95 +5003,32 @@ function insertExampleFallback(variableId, exampleType) {
 }
 
 function clearCode(variableId) {
-    // Try multiple methods to find the ACE editor for this variable
-    let editor = null;
-    
-    // Method 1: Try to find by variable-specific textarea name
-    const textareaName = `variable_${variableId}-transform_code`;
-    const textarea = document.querySelector(`textarea[name="${textareaName}"]`);
-    
-    if (textarea && typeof ace !== 'undefined') {
-        // Check if this textarea has been converted to ACE editor
-        const aceContainer = textarea.parentNode.querySelector('.ace_editor');
-        if (aceContainer && aceContainer.env && aceContainer.env.editor) {
-            editor = aceContainer.env.editor;
-        } else {
-            // Try to get ACE editor by textarea ID
-            try {
-                editor = ace.edit(textarea.id);
-            } catch (e) {
-                console.log('Could not get ACE editor by textarea ID:', e);
-            }
-        }
-    }
-    
-    // Method 2: Search for ACE editor containers and match by field name
-    if (!editor) {
-        const aceEditors = document.querySelectorAll('.ace_editor');
-        for (let aceContainer of aceEditors) {
-            const textareaElement = aceContainer.previousElementSibling;
-            if (textareaElement && textareaElement.name && textareaElement.name.includes(`variable_${variableId}-transform_code`)) {
-                if (aceContainer.env && aceContainer.env.editor) {
-                    editor = aceContainer.env.editor;
-                    break;
-                }
-            }
-        }
-    }
-    
+    const textarea = getVariableTransformTextarea(variableId);
+    const editor = getAceEditorForTextarea(textarea);
     if (editor) {
         try {
-            // Clear the editor content
             editor.setValue('');
             editor.clearSelection();
             editor.focus();
-        syncTransformCodeEditors(variableId);
-            
-            // Trigger change event for auto-save
-            setTimeout(() => {
-                triggerAutoSave(variableId);
-            }, 100);
-            
-            console.log('Successfully cleared code using ACE editor');
+            syncTransformCodeEditors(variableId);
+            markTransformCodeChanged(variableId);
             return;
         } catch (e) {
             console.warn('ACE editor error, using fallback method:', e);
         }
     }
-    
-    // Fallback method if ACE editor not found
-    console.log('ACE editor not found, using fallback method');
     clearCodeFallback(variableId);
 }
 
 function clearCodeFallback(variableId) {
-    // Find any textarea with transform_code in the name within the variable card
-    const variableCard = document.querySelector(`[data-variable-id="${variableId}"]`) || 
-                        document.querySelector(`[data-attribute-id="${variableId}"]`);
-    
-    if (variableCard) {
-        const textareaElement = variableCard.querySelector('textarea[name*="transform_code"]');
-        if (textareaElement) {
-            textareaElement.value = '';
-            textareaElement.focus();
-            
-            // Trigger change event for auto-save
-            const event = new Event('change', { bubbles: true });
-            textareaElement.dispatchEvent(event);
-            return;
-        }
-    }
-    
-    // Final fallback: find any transform_code textarea
-    const allTextareas = document.querySelectorAll('textarea[name*="transform_code"]');
-    if (allTextareas.length > 0) {
-        // If we can't identify the specific one, at least clear the first one as feedback
-        allTextareas[0].value = '';
-        allTextareas[0].focus();
-    }
+    const textareaElement = getVariableTransformTextarea(variableId);
+    if (!textareaElement) return;
+    textareaElement.value = '';
+    textareaElement.focus();
+    markTransformCodeChanged(variableId);
 }
 
-function generateTransformationCode(variableId) {
+function generateTransformationCode(variableId, button = null) {
     // Find the source attribute ID from the variable card
     const sourceAttributeId = variableId;
     
@@ -3855,10 +5041,19 @@ function generateTransformationCode(variableId) {
     
     const targetAttributeId = targetSelect.value;
     const includeSummaryData = document.getElementById('ai-include-summary-data');
+    const variableForm = document.getElementById(`mapping-form-${variableId}`);
+    const mappingContext = variableForm ? {
+        role: variableForm.querySelector(`select[name="variable_${variableId}-role"]`)?.value || '',
+        relation_type: variableForm.querySelector(`select[name="variable_${variableId}-relation_type"]`)?.value || '',
+        relation_name: variableForm.querySelector(`select[name="variable_${variableId}-relation_instance"]`)?.selectedOptions?.[0]?.textContent?.trim() || '',
+        patient_id_attribute: variableForm.querySelector(`select[name="variable_${variableId}-patient_id_attribute"]`)?.selectedOptions?.[0]?.textContent?.trim() || '',
+        datetime_attribute: variableForm.querySelector(`select[name="variable_${variableId}-datetime_attribute"]`)?.selectedOptions?.[0]?.textContent?.trim() || '',
+        location_attribute: variableForm.querySelector(`select[name="variable_${variableId}-location_attribute"]`)?.selectedOptions?.[0]?.textContent?.trim() || '',
+        comments: variableForm.querySelector(`textarea[name="variable_${variableId}-comments"]`)?.value || '',
+    } : {};
     
     // Find the transformation code textarea/editor
-    const textareaName = `variable_${variableId}-transform_code`;
-    const textarea = document.querySelector(`textarea[name="${textareaName}"]`);
+    const textarea = getVariableTransformTextarea(variableId);
     
     if (!textarea) {
         showNotification('Could not find transformation code field.', 'error');
@@ -3866,10 +5061,12 @@ function generateTransformationCode(variableId) {
     }
     
     // Show loading state
-    const button = event.target.closest('button');
-    const originalText = button.innerHTML;
-    button.disabled = true;
-    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+    const actionButton = button;
+    const originalText = actionButton ? actionButton.innerHTML : '';
+    if (actionButton) {
+        actionButton.disabled = true;
+        actionButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+    }
     
     // Make API call to generate transformation code
     fetch('/health/api/transformation-suggestion/', {
@@ -3882,6 +5079,7 @@ function generateTransformationCode(variableId) {
             source_attribute_id: sourceAttributeId,
             target_attribute_id: targetAttributeId,
           schema_id: {{ schema.id }},
+          mapping_context: mappingContext,
           include_deidentified_summary_stats: Boolean(includeSummaryData && includeSummaryData.checked),
         }),
     })
@@ -3907,45 +5105,23 @@ function generateTransformationCode(variableId) {
     })
     .finally(() => {
         // Restore button state
-        button.disabled = false;
-        button.innerHTML = originalText;
+        if (actionButton) {
+            actionButton.disabled = false;
+            actionButton.innerHTML = originalText;
+        }
     });
 }
 
 function setTransformationCode(variableId, code) {
-    // Try to set the code using ACE editor first, then fallback to textarea
-    let editor = null;
-    
-    // Try to find ACE editor
-    const textareaName = `variable_${variableId}-transform_code`;
-    const textarea = document.querySelector(`textarea[name="${textareaName}"]`);
-    
-    if (textarea && typeof ace !== 'undefined') {
-        // Check if this textarea has been converted to ACE editor
-        const aceContainer = textarea.parentNode.querySelector('.ace_editor');
-        if (aceContainer && aceContainer.env && aceContainer.env.editor) {
-            editor = aceContainer.env.editor;
-        } else {
-            // Try to get ACE editor by textarea ID
-            try {
-                editor = ace.edit(textarea.id);
-            } catch (e) {
-                console.log('Could not get ACE editor by textarea ID:', e);
-            }
-        }
-    }
-    
+    const textarea = getVariableTransformTextarea(variableId);
+    const editor = getAceEditorForTextarea(textarea);
     if (editor) {
         try {
             // Set the editor content
             editor.setValue(code);
             editor.clearSelection();
-        syncTransformCodeEditors(variableId);
-            
-            // Trigger change event for auto-save
-            setTimeout(() => {
-                triggerAutoSave(variableId);
-            }, 100);
+            syncTransformCodeEditors(variableId);
+            markTransformCodeChanged(variableId);
             
             return;
         } catch (e) {
@@ -3956,10 +5132,7 @@ function setTransformationCode(variableId, code) {
     // Fallback to textarea
     if (textarea) {
         textarea.value = code;
-        
-        // Trigger change event for auto-save
-        const event = new Event('change', { bubbles: true });
-        textarea.dispatchEvent(event);
+        markTransformCodeChanged(variableId);
     }
 }
 
@@ -3994,19 +5167,25 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.not-mappable-checkbox').forEach(checkbox => {
         checkbox.addEventListener('change', function() {
             const variableCard = this.closest('.variable-card');
-            const mappingFields = variableCard.querySelector('.mapping-fields');
+            const mappingFields = variableCard.querySelector('.primary-mapping-panel') || variableCard.querySelector('.mapping-fields');
             
             if (this.checked) {
+                const needsReviewCheckbox = variableCard.querySelector('.needs-review-checkbox');
+                if (needsReviewCheckbox) {
+                    needsReviewCheckbox.checked = false;
+                }
                 // Hide mapping fields and grey out card when not mappable is checked
-                mappingFields.style.display = 'none';
-                variableCard.classList.remove('complete', 'incomplete');
+                if (mappingFields) mappingFields.style.display = 'none';
+                variableCard.classList.remove('complete', 'incomplete', 'needs-review');
                 variableCard.classList.add('not-mappable');
                 variableCard.dataset.completion = 'not-mappable';
                 
                 // Update badge
                 const badge = variableCard.querySelector('.completion-badge');
-                badge.className = 'completion-badge badge-not-mappable';
-                badge.innerHTML = '<i class="fas fa-ban"></i> Not Mappable';
+                if (badge) {
+                    badge.className = 'completion-badge badge-not-mappable';
+                    badge.innerHTML = '<i class="fas fa-ban"></i> Not mappable';
+                }
                 
                 // Clear target attribute selection
                 const targetSelect = variableCard.querySelector('select[name*="target_attribute"]');
@@ -4014,15 +5193,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 
             } else {
                 // Show mapping fields and remove grey-out when not mappable is unchecked
-                mappingFields.style.display = 'block';
+                if (mappingFields) mappingFields.style.display = 'block';
                 variableCard.classList.remove('not-mappable');
                 variableCard.classList.add('incomplete');
                 variableCard.dataset.completion = 'incomplete';
                 
                 // Update badge
                 const badge = variableCard.querySelector('.completion-badge');
-                badge.className = 'completion-badge badge-incomplete';
-                badge.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Needs Mapping';
+                if (badge) {
+                    badge.className = 'completion-badge badge-incomplete';
+                    badge.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Needs mapping';
+                }
             }
         });
     });
@@ -4098,53 +5279,93 @@ function updateVariableCompletionStatus(variableCard) {
         variableCard.classList.add('complete');
   variableCard.dataset.completion = 'complete';
         badge.className = 'completion-badge badge-complete';
-        badge.innerHTML = '<i class="fas fa-check"></i> Mapped';
+        badge.innerHTML = '<i class="fas fa-check"></i> Successfully mapped';
     } else {
         // Variable needs mapping
         variableCard.classList.remove('complete', 'not-mappable');
         variableCard.classList.add('incomplete');
   variableCard.dataset.completion = 'incomplete';
         badge.className = 'completion-badge badge-incomplete';
-        badge.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Needs Mapping';
+        badge.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Needs mapping';
     }
 }
 
-// Enhanced clear mapping function
 function clearMapping(variableId) {
-    if (confirm('Are you sure you want to clear this mapping?')) {
-        // Clear form fields for this variable
-        const variableCard = document.querySelector(`[data-variable-name*="${variableId}"]`).closest('.variable-card');
-        
-        // Clear all form inputs
-        variableCard.querySelectorAll('select, textarea, input[type="text"]').forEach(field => {
-            if (field.type === 'select-one') {
-                field.selectedIndex = 0;
-            } else if (field.type === 'checkbox') {
-                field.checked = false;
-            } else {
-                field.value = '';
-            }
-        });
-        
-        // Hide custom settings and relationship sections when cleared
-        const customSettingsSection = variableCard.querySelector('[id^="custom-settings-"]');
-        const relationshipSection = variableCard.querySelector('[id^="relationship-"]');
-        const mappingFields = variableCard.querySelector('.mapping-fields');
-        
-        if (customSettingsSection) customSettingsSection.style.display = 'none';
-        if (relationshipSection) relationshipSection.style.display = 'none';
-        if (mappingFields) mappingFields.style.display = 'block';
-        
-        // Hide target details
-        const targetDetails = variableCard.querySelector('.target-attribute-details');
-        if (targetDetails) targetDetails.style.display = 'none';
-        
-        // Update completion status
-        updateVariableCompletionStatus(variableCard);
-        
-        // Save the cleared mapping
-        saveMapping(variableId);
+    if (!confirm('Clear this variable mapping? This removes the target, flags, relation, context overrides, transform code, and notes for this variable.')) {
+        return;
     }
+
+    const form = document.getElementById(`mapping-form-${variableId}`);
+    const variableCard = form?.querySelector('.expanded-variable-card');
+    if (!form || !variableCard) {
+        showErrorNotification('Could not find this variable card to clear.');
+        return;
+    }
+
+    const setSelectValue = (nameSuffix, value) => {
+        const field = form.querySelector(`select[name="variable_${variableId}-${nameSuffix}"]`);
+        if (field) {
+            field.value = value;
+            field.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+    };
+    const setCheckboxValue = (nameSuffix, checked) => {
+        const field = form.querySelector(`input[name="variable_${variableId}-${nameSuffix}"]`);
+        if (field) {
+            field.checked = checked;
+            field.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+    };
+
+    setSelectValue('target_attribute', '');
+    setSelectValue('role', 'value');
+    setSelectValue('relation_type', 'self');
+    setSelectValue('relation_instance', '');
+    setSelectValue('patient_id_attribute', '');
+    setSelectValue('datetime_attribute', '');
+    setSelectValue('location_attribute', '');
+    setCheckboxValue('not_mappable', false);
+    setCheckboxValue('needs_review', false);
+    setCheckboxValue('use_custom_settings', false);
+
+    const createRelationInput = form.querySelector(`input[name="variable_${variableId}-create_relation_instance"]`);
+    if (createRelationInput) createRelationInput.value = '';
+
+    const comments = form.querySelector(`textarea[name="variable_${variableId}-comments"]`);
+    if (comments) {
+        comments.value = '';
+        comments.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    const transformTextarea = getVariableTransformTextarea(variableId);
+    const editor = getAceEditorForTextarea(transformTextarea);
+    if (editor) {
+        editor.setValue('', -1);
+    }
+    if (transformTextarea) {
+        transformTextarea.value = '';
+        transformTextarea.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    const primaryPanel = variableCard.querySelector('.primary-mapping-panel');
+    if (primaryPanel) primaryPanel.style.display = 'block';
+    const customSettingsSection = variableCard.querySelector(`[id="custom-settings-${variableId}"]`);
+    if (customSettingsSection) customSettingsSection.style.display = 'none';
+    const targetDetails = variableCard.querySelector('.target-attribute-details');
+    if (targetDetails) targetDetails.style.display = 'none';
+    const targetEmpty = document.getElementById(`target-empty-${variableId}`);
+    if (targetEmpty) targetEmpty.style.display = '';
+    const commentsSummary = variableCard.querySelector(`[data-comments-summary-for="${variableId}"]`);
+    if (commentsSummary) commentsSummary.textContent = 'No notes yet';
+    const customSettingsToggle = form.querySelector(`input[name="variable_${variableId}-use_custom_settings"]`);
+    if (customSettingsToggle) updateContextSummary(customSettingsToggle);
+
+    variableCard.classList.remove('complete', 'not-mappable', 'needs-review');
+    variableCard.classList.add('incomplete');
+    variableCard.dataset.completion = 'incomplete';
+    form.dataset.dirty = 'true';
+
+    saveMapping(variableId);
 }
 
 // Similarity Suggestions Functionality
@@ -4164,7 +5385,10 @@ function loadSimilaritySuggestions() {
             return response.json();
         })
         .then(data => {
-            similaritySuggestions = data.suggestions;
+            similaritySuggestions = {};
+            Object.entries(data.suggestions || {}).forEach(([variableId, suggestions]) => {
+                similaritySuggestions[String(variableId)] = normalizeSuggestions(suggestions);
+            });
             suggestionsLoaded = true;
             populateAllSuggestions();
         })
@@ -4427,6 +5651,10 @@ function processAllVariablesWithAI() {
       if (!data.success) {
         throw new Error(data.error || 'Failed to start agent harmonisation');
       }
+      activeAgentRunId = String(data.run_id);
+      agentCompletionReloadScheduled = false;
+      lastAgentProcessedCount = 0;
+      lastAgentFailedCount = 0;
       refreshAgentRunMonitor(data.run_id);
     })
     .catch(error => {
@@ -4467,6 +5695,10 @@ function restartAgentHarmonisation() {
         throw new Error(data.error || 'Failed to restart agent harmonisation');
       }
       showNotification('Agent harmonisation restarted.', 'info');
+      activeAgentRunId = String(data.run_id);
+      agentCompletionReloadScheduled = false;
+      lastAgentProcessedCount = 0;
+      lastAgentFailedCount = 0;
       refreshAgentRunMonitor(data.run_id);
     })
     .catch(error => {
@@ -4496,6 +5728,10 @@ function restartAgentHarmonisation() {
         if (window.htmx) {
           window.htmx.process(monitorShell);
         }
+        const monitor = monitorShell.querySelector('#ai-run-monitor');
+        if (monitor) {
+          handleAgentRunMonitorUpdate(monitor);
+        }
       })
       .catch(error => {
         showNotification(error.message || 'Failed to load agent monitor.', 'error');
@@ -4504,15 +5740,32 @@ function restartAgentHarmonisation() {
 
 function approveEmbeddingThreshold() {
     const threshold = parseFloat(document.getElementById('embedding-approval-threshold').value);
-    if (threshold >= 0.85) {
-        approveExcellentMatches();
-        return;
-    }
-    if (threshold >= 0.70) {
-        approveGoodPlusMatches();
-        return;
-    }
-    approveFairPlusMatches();
+    const approveBtn = document.querySelector('button[onclick="approveEmbeddingThreshold()"]');
+    const originalText = approveBtn.innerHTML;
+    approveBtn.disabled = true;
+    approveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Approving...';
+
+    fetch(`/health/mapping/{{ schema.id }}/approve-similarity-threshold/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+      },
+      body: JSON.stringify({ threshold }),
+    })
+    .then(response => response.json().then(data => ({ ok: response.ok, data })))
+    .then(({ ok, data }) => {
+      if (!ok || !data.success) {
+        throw new Error(data.error || 'Similarity suggestions are not ready yet.');
+      }
+      showNotification(`Approved ${data.approved_count} embedding match${data.approved_count === 1 ? '' : 'es'}.`, 'success');
+      reloadVariableList();
+    })
+    .catch(error => showNotification(error.message || 'Threshold approval failed.', 'error'))
+    .finally(() => {
+      approveBtn.disabled = false;
+      approveBtn.innerHTML = originalText;
+    });
 }
 
 function rerunAIForAttribute(variableId, buttonElement) {
@@ -4609,27 +5862,39 @@ function processVariablesSequentially(variableCards, index, total, progressCallb
 }
 
 function clearAllMappings() {
-    if (!confirm('Are you sure you want to clear all variable mappings? This action cannot be undone.')) {
+    if (!confirm('Clear all mappings for this schema? This removes every saved variable mapping and resets approval status. This cannot be undone.')) {
         return;
     }
-    
-    const targetSelects = document.querySelectorAll('select[name*="target_attribute"]');
-    targetSelects.forEach(select => {
-        select.value = '';
-        select.dispatchEvent(new Event('change'));
+
+    const button = document.querySelector('button[onclick="clearAllMappings()"]');
+    const originalText = button ? button.innerHTML : '';
+    if (button) {
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Clearing...';
+    }
+
+    fetch("{% url 'health:clear_mapping_rules' schema.id %}", {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            'X-Requested-With': 'XMLHttpRequest',
+        },
+    })
+    .then(response => response.json().then(data => ({ ok: response.ok, data })))
+    .then(({ ok, data }) => {
+        if (!ok || !data.success) {
+            throw new Error(data.error || 'Failed to clear mappings.');
+        }
+        showNotification(`Cleared ${data.deleted_count} mapping${data.deleted_count === 1 ? '' : 's'}. Reloading...`, 'success');
+        window.location.reload();
+    })
+    .catch(error => {
+        showErrorNotification(error.message || 'Failed to clear mappings.');
+        if (button) {
+            button.disabled = false;
+            button.innerHTML = originalText;
+        }
     });
-    
-    // Clear all confidence indicators
-    document.querySelectorAll('.confidence-indicator').forEach(indicator => {
-        indicator.style.display = 'none';
-    });
-    
-    // Hide all target details
-    document.querySelectorAll('.target-variable-details').forEach(details => {
-        details.style.display = 'none';
-    });
-    
-    showNotification('All variable mappings cleared', 'info');
 }
 
 function showAIDropdownForVariable(variableId) {
@@ -4647,6 +5912,7 @@ function toggleAISuggestions(variableId) {
     const header = document.querySelector(`#ai-dropdown-${variableId} .dropdown-header`);
     const content = document.getElementById(`dropdown-content-${variableId}`);
     const arrow = document.getElementById(`arrow-${variableId}`);
+    if (!content || !header || !arrow) return;
     
     if (content.classList.contains('expanded')) {
         content.classList.remove('expanded');
@@ -4666,6 +5932,9 @@ function renderDropdownSuggestions(variableId, suggestions) {
     const countElement = document.getElementById(`count-${variableId}`);
     
     if (!suggestionsList) return;
+    suggestions = normalizeSuggestions(suggestions);
+    similaritySuggestions = similaritySuggestions || {};
+    similaritySuggestions[String(variableId)] = suggestions;
     
     if (!suggestions || suggestions.length === 0) {
         suggestionsList.innerHTML = `
@@ -4677,22 +5946,22 @@ function renderDropdownSuggestions(variableId, suggestions) {
         return;
     }
     
-    const suggestionsHtml = suggestions.map(suggestion => `
-        <div class="suggestion-item" onclick="applySuggestionFromDropdown('${variableId}', ${JSON.stringify(suggestion).replace(/"/g, '&quot;')})">
+    const suggestionsHtml = suggestions.map((suggestion, index) => `
+        <div class="suggestion-item" onclick="applySuggestionFromDropdown('${variableId}', similaritySuggestions['${variableId}'][${index}])">
             <div class="suggestion-main">
                 <div class="suggestion-name">${suggestion.display_name || suggestion.variable_name}</div>
                 <div class="suggestion-description">${suggestion.description || 'No description available'}</div>
                 <div class="suggestion-scores">
                     <div class="score-detail">
-                        <i class="fas fa-tag"></i> Name: <strong>${(suggestion.name_similarity * 100).toFixed(1)}%</strong>
+                        <i class="fas fa-tag"></i> Name: <strong>${formatSuggestionScore(suggestion.name_similarity)}</strong>
                     </div>
                     ${suggestion.description_similarity !== null ? `
                         <div class="score-detail">
-                            <i class="fas fa-file-text"></i> Description: <strong>${(suggestion.description_similarity * 100).toFixed(1)}%</strong>
+                            <i class="fas fa-file-text"></i> Description: <strong>${formatSuggestionScore(suggestion.description_similarity)}</strong>
                         </div>
                     ` : ''}
                     <div class="score-detail combined-score">
-                        <i class="fas fa-chart-line"></i> Combined: <strong>${(suggestion.combined_similarity * 100).toFixed(1)}%</strong>
+                        <i class="fas fa-chart-line"></i> Combined: <strong>${formatSuggestionScore(suggestion.combined_similarity)}</strong>
                     </div>
                 </div>
             </div>
@@ -4715,11 +5984,13 @@ function renderDropdownSuggestions(variableId, suggestions) {
 function applySuggestionFromDropdown(variableId, suggestionData) {
     applyAISuggestion(variableId, suggestionData);
     
-    // Collapse the dropdown after selection
-    toggleAISuggestions(variableId);
+    if (document.getElementById(`dropdown-content-${variableId}`)) {
+        toggleAISuggestions(variableId);
+    }
 }
 
 function applyAISuggestion(variableId, suggestion) {
+    suggestion = normalizeSuggestion(suggestion || {});
     // Find the target attribute select for this variable
     const targetSelect = document.querySelector(`select[name="variable_${variableId}-target_attribute"]`);
     
@@ -4747,11 +6018,41 @@ function applyAISuggestion(variableId, suggestion) {
 }
 
 function getConfidenceColorClass(confidenceLabel) {
-    const label = confidenceLabel.toLowerCase();
+    const label = String(confidenceLabel || '').toLowerCase();
     if (label.includes('excellent')) return 'success';
     if (label.includes('good')) return 'info';
     if (label.includes('fair')) return 'warning';
     return 'danger';
+}
+
+function normalizeScore(value) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatSuggestionScore(value) {
+    return `${(normalizeScore(value) * 100).toFixed(1)}%`;
+}
+
+function normalizeSuggestion(suggestion) {
+    const attributeId = suggestion.attribute_id || suggestion.target_attribute_id || suggestion.id;
+    const confidenceLabel = suggestion.confidence_label || suggestion.confidence || suggestion.confidence_grade || 'Unknown';
+    return {
+        ...suggestion,
+        attribute_id: attributeId,
+        target_attribute_id: attributeId,
+        variable_name: suggestion.variable_name || suggestion.name || suggestion.target_variable_name || '',
+        display_name: suggestion.display_name || suggestion.label || suggestion.variable_name || suggestion.name || 'Unnamed target',
+        description: suggestion.description || '',
+        combined_similarity: normalizeScore(suggestion.combined_similarity ?? suggestion.similarity ?? suggestion.score),
+        name_similarity: normalizeScore(suggestion.name_similarity),
+        description_similarity: suggestion.description_similarity === undefined ? null : suggestion.description_similarity,
+        confidence_label: confidenceLabel,
+    };
+}
+
+function normalizeSuggestions(suggestions) {
+    return (suggestions || []).map(normalizeSuggestion).filter(suggestion => suggestion.attribute_id);
 }
 
 function selectSuggestion(variableId, targetAttributeId, targetName, suggestionData = null) {
@@ -4795,6 +6096,7 @@ function showSuggestionsForVariable(variableId) {
 
 function renderSuggestions(variableId, suggestions) {
     const container = document.querySelector(`#suggestions-${variableId} .suggestions-container`);
+    suggestions = normalizeSuggestions(suggestions);
     
     if (!suggestions || suggestions.length === 0) {
         container.innerHTML = `
@@ -4810,7 +6112,7 @@ function renderSuggestions(variableId, suggestions) {
         <div class="suggestion-item" onclick="selectSuggestion('${variableId}', ${suggestion.attribute_id}, '${suggestion.variable_name}', ${JSON.stringify(suggestion).replace(/"/g, '&quot;')})">
             <div class="suggestion-header">
                 <div class="suggestion-name">${suggestion.display_name || suggestion.variable_name}</div>
-                <span class="confidence-badge ${suggestion.confidence_color}">
+                <span class="confidence-badge ${suggestion.confidence_color || getConfidenceColorClass(suggestion.confidence_label)}">
                     ${suggestion.confidence_label}
                 </span>
             </div>
@@ -4819,17 +6121,17 @@ function renderSuggestions(variableId, suggestions) {
                 <div class="suggestion-scores">
                     <div class="score-item">
                         <i class="fas fa-tag"></i>
-                        <span>Name: <span class="score-value">${(suggestion.name_similarity * 100).toFixed(1)}%</span></span>
+                        <span>Name: <span class="score-value">${formatSuggestionScore(suggestion.name_similarity)}</span></span>
                     </div>
                     ${suggestion.description_similarity !== null ? `
                         <div class="score-item">
                             <i class="fas fa-file-text"></i>
-                            <span>Description: <span class="score-value">${(suggestion.description_similarity * 100).toFixed(1)}%</span></span>
+                            <span>Description: <span class="score-value">${formatSuggestionScore(suggestion.description_similarity)}</span></span>
                         </div>
                     ` : ''}
                     <div class="score-item">
                         <i class="fas fa-chart-line"></i>
-                        <span>Combined: <span class="score-value">${(suggestion.combined_similarity * 100).toFixed(1)}%</span></span>
+                        <span>Combined: <span class="score-value">${formatSuggestionScore(suggestion.combined_similarity)}</span></span>
                     </div>
                 </div>
             </div>
@@ -4845,8 +6147,8 @@ function addAIMatchingScores(variableId, targetAttributeId, detailsDiv) {
     if (!sourceVariable) return;
     
     // Look for an existing AI suggestion for this source variable
-    const suggestion = window.currentAISuggestions && window.currentAISuggestions[variableId];
-    if (!suggestion || suggestion.target_attribute_id !== targetAttributeId) {
+    const suggestion = normalizeSuggestion((window.currentAISuggestions && window.currentAISuggestions[variableId]) || {});
+    if (!suggestion.attribute_id || String(suggestion.target_attribute_id) !== String(targetAttributeId)) {
         // No AI matching data available for this target
         removeAIMatchingScores(variableId);
         return;
@@ -4868,15 +6170,15 @@ function addAIMatchingScores(variableId, targetAttributeId, detailsDiv) {
         <div class="row">
             <div class="col-md-4">
                 <small class="text-muted">Name Similarity</small>
-                <div class="fw-bold">${(suggestion.name_similarity * 100).toFixed(1)}%</div>
+                <div class="fw-bold">${formatSuggestionScore(suggestion.name_similarity)}</div>
             </div>
             <div class="col-md-4">
                 <small class="text-muted">Description Similarity</small>
-                <div class="fw-bold">${(suggestion.description_similarity * 100).toFixed(1)}%</div>
+                <div class="fw-bold">${formatSuggestionScore(suggestion.description_similarity)}</div>
             </div>
             <div class="col-md-4">
                 <small class="text-muted">Combined Score</small>
-                <div class="fw-bold text-primary">${(suggestion.combined_similarity * 100).toFixed(1)}%</div>
+                <div class="fw-bold text-primary">${formatSuggestionScore(suggestion.combined_similarity)}</div>
             </div>
         </div>
         <div class="mt-2">
@@ -4894,7 +6196,7 @@ function removeAIMatchingScores(variableId) {
 }
 
 function getConfidenceBadgeColor(confidenceLabel) {
-    const confidence = confidenceLabel.toLowerCase();
+    const confidence = String(confidenceLabel || '').toLowerCase();
     if (confidence.includes('excellent')) return 'success';
     if (confidence.includes('good')) return 'info';
     if (confidence.includes('fair')) return 'warning';
@@ -4927,6 +6229,10 @@ function showTargetVariableDetails(variableId, targetData, matchingScores = null
     
     // Show the details section
     detailsDiv.style.display = 'block';
+    const emptyCopy = document.getElementById(`target-empty-${variableId}`);
+    if (emptyCopy) {
+        emptyCopy.style.display = 'none';
+    }
 }
 
 function selectSuggestion(variableId, targetAttributeId, targetName, suggestionData = null) {
@@ -4938,9 +6244,10 @@ function selectSuggestion(variableId, targetAttributeId, targetName, suggestionD
 }
 
 function showConfidenceIndicator(variableId, suggestion) {
+    suggestion = normalizeSuggestion(suggestion || {});
     const indicator = document.getElementById(`confidence-${variableId}`);
     if (indicator) {
-        const confidence = suggestion.confidence_label.toLowerCase();
+        const confidence = String(suggestion.confidence_label || '').toLowerCase();
         // Map confidence labels to CSS classes properly
         let confidenceClass = 'confidence-poor'; // default
         if (confidence.includes('excellent')) confidenceClass = 'confidence-excellent';
@@ -4948,7 +6255,7 @@ function showConfidenceIndicator(variableId, suggestion) {
         else if (confidence.includes('fair')) confidenceClass = 'confidence-fair';
         
         indicator.className = `confidence-indicator ${confidenceClass}`;
-        indicator.textContent = `${suggestion.confidence_label} Match (${(suggestion.combined_similarity * 100).toFixed(1)}%)`;
+        indicator.textContent = `${suggestion.confidence_label} Match (${formatSuggestionScore(suggestion.combined_similarity)})`;
         indicator.style.display = 'inline-block';
     }
 }

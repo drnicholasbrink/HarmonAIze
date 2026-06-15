@@ -3,9 +3,11 @@ import io
 import json
 import logging
 import hashlib
+from collections.abc import Mapping
 from datetime import datetime, timedelta
 import pandas as pd
 from django.conf import settings
+from django.core.paginator import EmptyPage, Paginator
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import (
     FileResponse,
@@ -53,8 +55,21 @@ from .utils import (
     analyze_raw_data_columns,
     suggest_column_mappings,
 )
-from .tasks import ingest_raw_data_file, run_harmonization_ai_refresh
+from .tasks import (
+    ingest_raw_data_file,
+    run_harmonization_ai_refresh,
+)
 from .eda_service import generate_eda_summary
+from .summary_stats_context import get_latest_cached_summary_file, normalize_column_name
+from .similarity_cache import (
+    get_similarity_payload,
+    get_variable_similarity_suggestions,
+)
+from .dashboard_fragment_cache import (
+    bump_schema_dashboard_cache_version,
+    render_cached_card_fragment,
+    render_cached_eda_fragment,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +104,324 @@ def _parse_json_body(request) -> dict:
     except json.JSONDecodeError:
         return {}
     return payload if isinstance(payload, dict) else {}
+
+
+MAPPING_LIST_DEFAULT_PAGE_SIZE = 20
+MAPPING_LIST_MAX_PAGE_SIZE = 50
+
+
+def _mapping_source_attributes(schema):
+    return schema.source_study.variables.order_by("variable_name")
+
+
+def _source_study_eda_variable_names(schema) -> set[str]:
+    raw_data_file = get_latest_cached_summary_file(schema.source_study)
+    cache = raw_data_file.eda_cache_source if raw_data_file else None
+    if not isinstance(cache, Mapping):
+        return set()
+    names: set[str] = set()
+    for group_name in ("numeric_columns", "categorical_columns", "string_columns"):
+        for column in cache.get(group_name, []) or []:
+            if isinstance(column, Mapping):
+                names.add(normalize_column_name(column.get("name")))
+    return names
+
+
+def _rule_defaults_for_attribute(schema, attribute) -> dict:
+    role = "value"
+    if schema.auto_populate_enabled:
+        if schema.universal_patient_id_id == attribute.id:
+            role = "patient_id"
+        elif schema.universal_datetime_id == attribute.id:
+            role = "datetime"
+        elif schema.universal_location_id == attribute.id:
+            role = "location"
+    return {
+        "schema": schema,
+        "source_attribute": attribute,
+        "role": role,
+        "relation_type": schema.universal_relation_type or "self",
+        "patient_id_attribute": schema.universal_patient_id,
+        "datetime_attribute": schema.universal_datetime,
+        "location_attribute": schema.universal_location,
+    }
+
+
+def _mapping_rule_or_unsaved(schema, attribute) -> MappingRule:
+    rule = (
+        MappingRule.objects.filter(schema=schema, source_attribute=attribute)
+        .select_related(
+            "target_attribute",
+            "patient_id_attribute",
+            "datetime_attribute",
+            "location_attribute",
+        )
+        .first()
+    )
+    if rule:
+        return rule
+    return MappingRule(**_rule_defaults_for_attribute(schema, attribute))
+
+
+def _build_variable_form_context(schema, attribute, *, data=None) -> dict:
+    rule = _mapping_rule_or_unsaved(schema, attribute)
+    form = MappingRuleForm(
+        data,
+        instance=rule,
+        schema=schema,
+        prefix=f"variable_{attribute.id}",
+    )
+    is_complete = bool(rule.pk and not rule.needs_review and (rule.target_attribute_id or rule.not_mappable))
+    return {
+        "attribute": attribute,
+        "form": form,
+        "mapping_rule": rule,
+        "is_complete": is_complete,
+        "instance": rule,
+        "context_summary": _mapping_context_summary(schema, rule),
+        "has_comments": bool((rule.comments or "").strip()),
+    }
+
+
+def _mapping_completion(rule: MappingRule | None) -> str:
+    if not rule:
+        return "incomplete"
+    if rule.needs_review:
+        return "needs-review"
+    if rule.not_mappable:
+        return "not-mappable"
+    if rule.target_attribute_id:
+        return "complete"
+    return "incomplete"
+
+
+def _rule_label_from_choices(choices, value: str) -> str:
+    for choice_value, choice_label in choices:
+        if choice_value == value:
+            return choice_label
+    return value or "Value"
+
+
+def _mapping_context_summary(schema, rule) -> str:
+    context_parts = []
+    if rule:
+        if rule.patient_id_attribute_id and rule.patient_id_attribute_id != schema.universal_patient_id_id:
+            context_parts.append(f"Patient: {rule.patient_id_attribute}")
+        if rule.datetime_attribute_id and rule.datetime_attribute_id != schema.universal_datetime_id:
+            context_parts.append(f"Date/time: {rule.datetime_attribute}")
+        if rule.location_attribute_id and rule.location_attribute_id != schema.universal_location_id:
+            context_parts.append(f"Location: {rule.location_attribute}")
+    return "; ".join(context_parts) if context_parts else "Default schema context"
+
+
+def _build_variable_summary(attribute, rule, *, eda_names: set[str], schema) -> dict:
+    completion = _mapping_completion(rule)
+    relation_type = (rule.relation_type if rule else None) or schema.universal_relation_type or "self"
+    target = rule.target_attribute if rule and rule.target_attribute_id else None
+    return {
+        "attribute": attribute,
+        "completion": completion,
+        "is_complete": completion in {"complete", "not-mappable"},
+        "target_label": str(target) if target else "",
+        "role": (rule.role if rule else _rule_defaults_for_attribute(schema, attribute)["role"]) or "value",
+        "role_label": _rule_label_from_choices(MappingRule.ROLE_CHOICES, (rule.role if rule else "value") or "value"),
+        "not_mappable": bool(rule and rule.not_mappable),
+        "needs_review": bool(rule and rule.needs_review),
+        "relation_type": relation_type,
+        "relation_label": _rule_label_from_choices(MappingSchema.RELATION_CHOICES, relation_type),
+        "relation_name": rule.relation_name if rule else "",
+        "has_patient_override": bool(rule and rule.patient_id_attribute_id),
+        "has_datetime_override": bool(rule and rule.datetime_attribute_id),
+        "has_location_override": bool(rule and rule.location_attribute_id),
+        "context_summary": _mapping_context_summary(schema, rule),
+        "eda_available": normalize_column_name(attribute.variable_name) in eda_names,
+        "suggestion_status": "pending",
+    }
+
+
+def _build_variable_summaries_page(request, schema):
+    page_size_value = request.GET.get("page_size") or str(MAPPING_LIST_DEFAULT_PAGE_SIZE)
+    page_number = _coerce_positive_int(request.GET.get("page"), 1)
+    search = (request.GET.get("search") or "").strip()
+    completion_filter = request.GET.get("completion") or "all"
+
+    attributes_qs = _mapping_source_attributes(schema)
+    if search:
+        attributes_qs = attributes_qs.filter(
+            Q(variable_name__icontains=search)
+            | Q(display_name__icontains=search)
+            | Q(description__icontains=search)
+        )
+
+    schema_rules = MappingRule.objects.filter(schema=schema)
+    if completion_filter == "complete":
+        attributes_qs = attributes_qs.filter(
+            id__in=schema_rules.filter(
+                needs_review=False,
+                not_mappable=False,
+                target_attribute__isnull=False,
+            ).values("source_attribute_id"),
+        )
+    elif completion_filter == "needs-review":
+        attributes_qs = attributes_qs.filter(
+            id__in=schema_rules.filter(needs_review=True).values("source_attribute_id"),
+        )
+    elif completion_filter == "not-mappable":
+        attributes_qs = attributes_qs.filter(
+            id__in=schema_rules.filter(needs_review=False, not_mappable=True).values("source_attribute_id"),
+        )
+    elif completion_filter == "incomplete":
+        completed_or_skipped_ids = schema_rules.filter(
+            Q(target_attribute__isnull=False) | Q(not_mappable=True),
+            needs_review=False,
+        ).values("source_attribute_id")
+        attributes_qs = attributes_qs.exclude(id__in=completed_or_skipped_ids)
+
+    total_filtered_variables = attributes_qs.count()
+
+    if page_size_value == "all":
+        page_size = max(total_filtered_variables, 1)
+    else:
+        page_size = _coerce_positive_int(page_size_value, MAPPING_LIST_DEFAULT_PAGE_SIZE)
+        page_size = min(page_size, MAPPING_LIST_MAX_PAGE_SIZE)
+
+    paginator = Paginator(attributes_qs, page_size)
+    try:
+        page_obj = paginator.page(page_number)
+    except EmptyPage:
+        page_obj = paginator.page(paginator.num_pages)
+
+    attributes = list(page_obj.object_list)
+    rule_map = {
+        rule.source_attribute_id: rule
+        for rule in schema_rules.filter(
+            source_attribute_id__in=[attribute.id for attribute in attributes],
+        ).select_related(
+            "target_attribute",
+            "patient_id_attribute",
+            "datetime_attribute",
+            "location_attribute",
+        )
+    }
+    eda_names = _source_study_eda_variable_names(schema)
+    summaries = [
+        _build_variable_summary(
+            attribute,
+            rule_map.get(attribute.id),
+            eda_names=eda_names,
+            schema=schema,
+        )
+        for attribute in attributes
+    ]
+
+    return {
+        "variable_summaries": summaries,
+        "page_obj": page_obj,
+        "page_size": page_size_value if page_size_value == "all" else page_size,
+        "search": search,
+        "completion_filter": completion_filter,
+        "has_next_page": page_obj.has_next(),
+        "next_page": page_obj.next_page_number() if page_obj.has_next() else None,
+        "total_filtered_variables": total_filtered_variables,
+    }
+
+
+def _mapping_progress_context(schema, source_count: int) -> dict:
+    rules = MappingRule.objects.filter(schema=schema)
+    completed_rules = rules.filter(needs_review=False).filter(Q(target_attribute__isnull=False) | Q(not_mappable=True)).count()
+    not_mappable_count = rules.filter(needs_review=False, not_mappable=True).count()
+    needs_review_count = rules.filter(needs_review=True).count()
+    return {
+        "total_variables": source_count,
+        "completed_rules": completed_rules,
+        "not_mappable_count": not_mappable_count,
+        "needs_review_count": needs_review_count,
+        "progress_percent": int((completed_rules / source_count) * 100) if source_count else 0,
+    }
+
+
+def _extract_variable_eda(cache: Mapping[str, object], variable_name: str) -> tuple[str, dict] | tuple[None, None]:
+    normalized = normalize_column_name(variable_name)
+    for column_type, group_name in (
+        ("numeric", "numeric_columns"),
+        ("categorical", "categorical_columns"),
+        ("text", "string_columns"),
+    ):
+        for column in cache.get(group_name, []) or []:
+            if isinstance(column, Mapping) and normalize_column_name(column.get("name")) == normalized:
+                return column_type, dict(column)
+    return None, None
+
+
+def _compact_variable_eda_summary(column_type: str | None, variable_eda: Mapping[str, object] | None) -> dict:
+    if not variable_eda:
+        return {}
+    allowed_keys = (
+        "name",
+        "count",
+        "missing",
+        "missing_percentage",
+        "mean",
+        "median",
+        "std",
+        "min",
+        "max",
+        "q1",
+        "q3",
+        "unique",
+        "unique_count",
+        "high_cardinality",
+        "top_values",
+        "most_common",
+        "value_counts",
+        "examples",
+    )
+    summary = {
+        key: variable_eda.get(key)
+        for key in allowed_keys
+        if key in variable_eda and variable_eda.get(key) not in (None, "")
+    }
+    if column_type:
+        summary["column_type"] = column_type
+
+    for list_key in ("top_values", "most_common", "value_counts", "examples"):
+        value = summary.get(list_key)
+        if isinstance(value, list):
+            summary[list_key] = value[:12]
+
+    return summary
+
+
+def _mapping_rule_transform_context(rule: MappingRule | None, posted_context: Mapping[str, object] | None = None) -> dict:
+    context = {}
+    if rule:
+        context.update({
+            "role": rule.role or "value",
+            "relation_type": rule.relation_type or "self",
+            "relation_name": rule.relation_name or "",
+            "target_attribute": str(rule.target_attribute) if rule.target_attribute_id else "",
+            "patient_id_attribute": str(rule.patient_id_attribute) if rule.patient_id_attribute_id else "",
+            "datetime_attribute": str(rule.datetime_attribute) if rule.datetime_attribute_id else "",
+            "location_attribute": str(rule.location_attribute) if rule.location_attribute_id else "",
+            "needs_review": rule.needs_review,
+            "not_mappable": rule.not_mappable,
+            "comments": rule.comments or "",
+            "ai_reasoning_summary": rule.ai_reasoning_summary or "",
+            "ai_confidence_label": rule.ai_confidence_label or "",
+        })
+    if isinstance(posted_context, Mapping):
+        for key in (
+            "role",
+            "relation_type",
+            "relation_name",
+            "patient_id_attribute",
+            "datetime_attribute",
+            "location_attribute",
+            "comments",
+        ):
+            if posted_context.get(key) not in (None, ""):
+                context[key] = posted_context.get(key)
+    return context
 
 
 def _create_harmonization_ai_run(schema, user, payload: dict, *, trigger_mode: str, attribute_ids=None):
@@ -680,9 +1013,15 @@ def approve_mapping(request, schema_id):
         messages.info(request, 'Mapping schema already approved.')
         return redirect('health:harmonization_dashboard', schema_id=schema.id)
 
+    needs_review_count = MappingRule.objects.filter(schema=schema, needs_review=True).count()
+    if needs_review_count:
+        messages.error(request, f'Cannot approve schema while {needs_review_count} mapping rule(s) need review.')
+        return redirect('health:harmonization_dashboard', schema_id=schema.id)
+
     # Ensure at least one complete rule
     complete_rules_qs = MappingRule.objects.filter(
         schema=schema,
+        needs_review=False,
         not_mappable=False,
         target_attribute__isnull=False,
     )
@@ -815,6 +1154,7 @@ def rerun_harmonisation_transformations(request, schema_id):
 def _apply_universal_mappings(schema):
     """Helper function to apply universal mappings to schema rules"""
     mapping_rules = MappingRule.objects.filter(schema=schema)
+    changed = False
 
     # Apply universal patient_id mapping
     if schema.universal_patient_id:
@@ -829,6 +1169,7 @@ def _apply_universal_mappings(schema):
                 if patient_id_attr:
                     rule.target_attribute = patient_id_attr
                     rule.save()
+                    changed = True
 
     # Apply universal datetime mapping
     if schema.universal_datetime:
@@ -843,6 +1184,10 @@ def _apply_universal_mappings(schema):
                 if datetime_attr:
                     rule.target_attribute = datetime_attr
                     rule.save()
+                    changed = True
+
+    if changed:
+        bump_schema_dashboard_cache_version(schema.id)
 
 
 @login_required
@@ -1094,7 +1439,7 @@ def reset_variables(request, study_id):
 def harmonization_dashboard(request, schema_id):
     """Unified harmonization dashboard for mapping all variables."""
     schema = get_object_or_404(MappingSchema, id=schema_id)
-    source_attrs = list(schema.source_study.variables.order_by("variable_name"))
+    source_attrs = list(_mapping_source_attributes(schema))
     
     if not source_attrs:
         messages.error(request, "No variables found for this schema.")
@@ -1112,6 +1457,7 @@ def harmonization_dashboard(request, schema_id):
             schema = universal_form.save(commit=False)
             schema.auto_populate_enabled = True  # Always enable auto-population
             schema.save()
+            bump_schema_dashboard_cache_version(schema.id)
             messages.success(request, "Universal settings updated successfully.")
             
             # Apply universal settings to existing rules if requested
@@ -1176,6 +1522,7 @@ def harmonization_dashboard(request, schema_id):
                     rule.source_attribute = attr
                     rule.schema = schema
                     rule.save()
+                    bump_schema_dashboard_cache_version(schema.id)
                     updated_count += 1
                     is_complete = rule.target_attribute is not None
                     if rule.relation_type and rule.relation_type != "self" and rule.relation_name:
@@ -1224,9 +1571,6 @@ def harmonization_dashboard(request, schema_id):
                 })
             return redirect("health:harmonization_dashboard", schema_id=schema_id)
     
-    # Initialize forms for all variables
-    variable_forms = []
-    
     # Only create universal form with POST data if we're updating universal settings
     if request.method == 'POST' and 'update_universal_settings' in request.POST:
         universal_form = MappingSchemaForm(
@@ -1246,65 +1590,9 @@ def harmonization_dashboard(request, schema_id):
             source_study=schema.source_study, 
             user=request.user,
         )
-    
-    for attr in source_attrs:
-        # Get or create mapping rule
-        mapping_rule, created = MappingRule.objects.get_or_create(
-            schema=schema,
-            source_attribute=attr,
-            defaults={
-                "role": "value",
-                "relation_type": schema.universal_relation_type or "self",
-                "patient_id_attribute": schema.universal_patient_id,
-                "datetime_attribute": schema.universal_datetime,
-                "location_attribute": schema.universal_location,
-            },
-        )
-        
-        # Auto-populate role from universal settings if enabled and rule is new
-        if created and schema.auto_populate_enabled:
-            if schema.universal_patient_id == attr:
-                mapping_rule.role = "patient_id"
-            elif schema.universal_datetime == attr:
-                mapping_rule.role = "datetime"
-            elif schema.universal_location == attr:
-                mapping_rule.role = "location"
-            mapping_rule.save()
-        
-        # Pre-populate form fields with universal settings if they're not already set
-        if schema.auto_populate_enabled:
-            if not mapping_rule.patient_id_attribute and schema.universal_patient_id:
-                mapping_rule.patient_id_attribute = schema.universal_patient_id
-            if not mapping_rule.datetime_attribute and schema.universal_datetime:
-                mapping_rule.datetime_attribute = schema.universal_datetime
-            if not mapping_rule.relation_type and schema.universal_relation_type:
-                mapping_rule.relation_type = schema.universal_relation_type
-            if not mapping_rule.location_attribute and schema.universal_location:
-                mapping_rule.location_attribute = schema.universal_location
-            # Save only if we made changes and the rule already exists
-            if not created:
-                mapping_rule.save()
-        
-        # Create form with prefix for this variable
-        form = MappingRuleForm(
-            instance=mapping_rule, 
-            schema=schema,
-            prefix=f"variable_{attr.id}",
-        )
-        
-        variable_forms.append({
-            'attribute': attr,
-            'form': form,
-            'mapping_rule': mapping_rule,
-            'is_complete': mapping_rule.target_attribute is not None or mapping_rule.not_mappable,
-            'instance': mapping_rule,  # Add instance for template access
-        })
-    
-    # Progress tracking - count mapped variables and not mappable variables as "complete"
-    completed_rules = sum(1 for vf in variable_forms if vf['is_complete'])
-    not_mappable_count = sum(1 for vf in variable_forms if vf['mapping_rule'].not_mappable)
-    mappable_variables = len(source_attrs) - not_mappable_count
-    progress_percent = int((completed_rules / len(source_attrs)) * 100) if source_attrs else 0
+
+    progress_context = _mapping_progress_context(schema, len(source_attrs))
+    summaries_context = _build_variable_summaries_page(request, schema)
     
     # Get raw data files for the source study
     raw_data_files = RawDataFile.objects.filter(study=schema.source_study).order_by('-uploaded_at')
@@ -1313,11 +1601,8 @@ def harmonization_dashboard(request, schema_id):
     context = {
         "schema": schema,
         "universal_form": universal_form,
-        "variable_forms": variable_forms,
-        "total_variables": len(source_attrs),
-        "completed_rules": completed_rules,
-        "not_mappable_count": not_mappable_count,
-        "progress_percent": progress_percent,
+        **progress_context,
+        **summaries_context,
         "raw_data_files": raw_data_files,
         "has_raw_data": has_raw_data,
         "latest_ai_run": schema.ai_runs.first(),
@@ -1326,6 +1611,264 @@ def harmonization_dashboard(request, schema_id):
     }
     
     return render(request, 'health/harmonization_dashboard.html', context)
+
+
+@login_required
+@require_http_methods(["GET"])
+def mapping_variable_summaries(request, schema_id):
+    schema = get_object_or_404(MappingSchema, id=schema_id)
+    context = {
+        "schema": schema,
+        **_build_variable_summaries_page(request, schema),
+    }
+    return render(
+        request,
+        "health/partials/_mapping_variable_summaries.html",
+        context,
+    )
+
+
+@login_required
+@require_http_methods(["GET"])
+def mapping_variable_card(request, schema_id, attribute_id):
+    schema = get_object_or_404(MappingSchema, id=schema_id)
+    attribute = get_object_or_404(
+        _mapping_source_attributes(schema),
+        id=attribute_id,
+    )
+    context = {
+        "schema": schema,
+        "variable_form": _build_variable_form_context(schema, attribute),
+        "relation_instance_previews": relation_instance_previews(schema),
+    }
+    html = render_cached_card_fragment(
+        request,
+        schema_id=schema.id,
+        attribute_id=attribute.id,
+        template_name="health/partials/_mapping_variable_card.html",
+        context=context,
+    )
+    return HttpResponse(html)
+
+
+@login_required
+@require_http_methods(["POST"])
+def save_mapping_variable(request, schema_id, attribute_id):
+    schema = get_object_or_404(MappingSchema, id=schema_id)
+    attribute = get_object_or_404(
+        _mapping_source_attributes(schema),
+        id=attribute_id,
+    )
+    variable_form = _build_variable_form_context(
+        schema,
+        attribute,
+        data=request.POST,
+    )
+    form = variable_form["form"]
+    saved_relation_instance = None
+
+    if not form.is_valid():
+        errors = [
+            f"{field}: {', '.join(error_list)}"
+            for field, error_list in form.errors.items()
+        ]
+        return JsonResponse({"success": False, "errors": errors}, status=400)
+
+    rule = form.save(commit=False)
+    rule.schema = schema
+    rule.source_attribute = attribute
+    rule.save()
+    bump_schema_dashboard_cache_version(schema.id)
+    if rule.relation_type and rule.relation_type != "self" and rule.relation_name:
+        saved_relation_instance = {
+            "relation_type": rule.relation_type,
+            "relation_name": rule.relation_name,
+            "value": f"existing:{rule.relation_type}:{rule.relation_name}",
+            "label": f"Use existing {rule.relation_name} ({rule.relation_type})",
+        }
+
+    summary = _build_variable_summary(
+        attribute,
+        rule,
+        eda_names=_source_study_eda_variable_names(schema),
+        schema=schema,
+    )
+    progress_context = _mapping_progress_context(
+        schema,
+        _mapping_source_attributes(schema).count(),
+    )
+    return JsonResponse({
+        "success": True,
+        "message": "Variable mapping saved.",
+        "variable_name": attribute.variable_name,
+        "attribute_id": attribute.id,
+        "is_complete": summary["is_complete"],
+        "completion": summary["completion"],
+        "target_label": summary["target_label"],
+        "role_label": summary["role_label"],
+        "relation_label": summary["relation_label"],
+        "relation_name": summary["relation_name"],
+        "saved_relation_instance": saved_relation_instance,
+        "relation_instance_choices": [
+            {"value": value, "label": label}
+            for value, label in relation_instance_choices(schema)
+        ],
+        "relation_instance_previews": relation_instance_previews(schema),
+        **progress_context,
+    })
+
+
+@login_required
+@require_http_methods(["GET"])
+def mapping_variable_eda(request, schema_id, attribute_id):
+    schema = get_object_or_404(MappingSchema, id=schema_id)
+    attribute = get_object_or_404(
+        _mapping_source_attributes(schema),
+        id=attribute_id,
+    )
+    raw_data_file = get_latest_cached_summary_file(schema.source_study)
+    cache = raw_data_file.eda_cache_source if raw_data_file else None
+    column_type = None
+    variable_eda = None
+    if isinstance(cache, Mapping):
+        column_type, variable_eda = _extract_variable_eda(
+            cache,
+            attribute.variable_name,
+        )
+    context = {
+        "schema": schema,
+        "attribute": attribute,
+        "raw_data_file": raw_data_file,
+        "column_type": column_type,
+        "variable_eda": variable_eda,
+    }
+    html = render_cached_eda_fragment(
+        request=request,
+        schema_id=schema.id,
+        attribute_id=attribute.id,
+        variable_name=attribute.variable_name,
+        raw_data_file=raw_data_file,
+        column_type=column_type,
+        template_name="health/partials/_mapping_variable_eda.html",
+        context=context,
+    )
+    return HttpResponse(html)
+
+
+@login_required
+@require_http_methods(["GET"])
+def mapping_variable_suggestions(request, schema_id, attribute_id):
+    schema = get_object_or_404(MappingSchema, id=schema_id)
+    attribute = get_object_or_404(_mapping_source_attributes(schema), id=attribute_id)
+    refresh = _coerce_bool(request.GET.get("refresh"), default=False)
+    try:
+        suggestions = get_variable_similarity_suggestions(
+            schema,
+            attribute,
+            refresh=refresh,
+        )
+    except Exception as exc:
+        logger.exception(
+            "Failed to load similarity suggestions schema=%s attribute=%s",
+            schema.id,
+            attribute.id,
+        )
+        return JsonResponse({
+            "success": False,
+            "status": "error",
+            "error": str(exc) or "Failed to load similarity suggestions.",
+            "suggestions": [],
+        }, status=500)
+    return JsonResponse({
+        "success": True,
+        "status": "ready",
+        "suggestions": suggestions,
+    })
+
+
+@login_required
+@require_http_methods(["POST"])
+def approve_similarity_threshold(request, schema_id):
+    schema = get_object_or_404(MappingSchema, id=schema_id)
+    payload = _parse_json_body(request)
+    threshold = float(payload.get("threshold") or 0)
+    try:
+        suggestions_payload = get_similarity_payload(schema)
+    except Exception as exc:
+        logger.exception("Failed to compute threshold similarity suggestions for schema %s", schema.id)
+        return JsonResponse({
+            "success": False,
+            "error": str(exc) or "Failed to compute similarity suggestions.",
+        }, status=500)
+
+    source_ids = set(_mapping_source_attributes(schema).values_list("id", flat=True))
+    approved_count = 0
+    for source_attr_id, matches in (suggestions_payload.get("suggestions") or {}).items():
+        try:
+            source_attr_id_int = int(source_attr_id)
+        except (TypeError, ValueError):
+            continue
+        if source_attr_id_int not in source_ids or not matches:
+            continue
+        best_match = matches[0]
+        if float(best_match.get("combined_similarity") or 0) < threshold:
+            continue
+        rule, _created = MappingRule.objects.get_or_create(
+            schema=schema,
+            source_attribute_id=source_attr_id_int,
+            defaults={
+                "role": "value",
+                "relation_type": schema.universal_relation_type or "self",
+                "patient_id_attribute": schema.universal_patient_id,
+                "datetime_attribute": schema.universal_datetime,
+                "location_attribute": schema.universal_location,
+            },
+        )
+        if rule.not_mappable:
+            continue
+        rule.target_attribute_id = best_match["attribute_id"]
+        rule.needs_review = False
+        if not rule.role:
+            rule.role = "value"
+        if not rule.relation_type:
+            rule.relation_type = schema.universal_relation_type or "self"
+        rule.save()
+        approved_count += 1
+
+    if approved_count:
+        bump_schema_dashboard_cache_version(schema.id)
+
+    return JsonResponse({
+        "success": True,
+        "approved_count": approved_count,
+        **_mapping_progress_context(schema, len(source_ids)),
+    })
+
+
+@login_required
+@require_POST
+def clear_mapping_rules(request, schema_id):
+    schema = get_object_or_404(MappingSchema, id=schema_id)
+    if not _check_study_management_permission(request.user, schema.source_study):
+        return HttpResponseForbidden("You do not have permission to clear this mapping.")
+
+    with transaction.atomic():
+        deleted_count, _deleted_by_model = MappingRule.objects.filter(schema=schema).delete()
+        schema.status = "provisional"
+        schema.approved_by = None
+        schema.approved_at = None
+        schema.save(update_fields=["status", "approved_by", "approved_at"])
+        cache_version = bump_schema_dashboard_cache_version(schema.id)
+
+    return JsonResponse({
+        "success": True,
+        "deleted_count": deleted_count,
+        "cache_version": cache_version,
+        **_mapping_progress_context(
+            schema,
+            _mapping_source_attributes(schema).count(),
+        ),
+    })
 
 
 @login_required
@@ -2417,58 +2960,21 @@ def similarity_suggestions_api(request, schema_id):
     API endpoint to get similarity-based mapping suggestions for a schema.
     Returns JSON with similarity suggestions for all source attributes.
     """
-    from django.http import JsonResponse
-    from django.conf import settings
-    from core.similarity_service import similarity_service
-    
     try:
-        # Check if OpenAI API key is configured
-        if not settings.OPENAI_API_KEY:
-            return JsonResponse({
-                'error': 'OpenAI API key is not configured. Please set the OPENAI_API_KEY environment variable to enable AI-powered similarity suggestions.',
-                'api_key_missing': True
-            }, status=503)
-        
         schema = get_object_or_404(MappingSchema, id=schema_id)
         
         # Check permission - user must have access to the source study
         if not schema.source_study.project.members.filter(id=request.user.id).exists():
             return JsonResponse({'error': 'Permission denied'}, status=403)
-        
-        # Get similarity suggestions
-        suggestions = similarity_service.get_mapping_suggestions(
-            source_study_id=schema.source_study.id,
-            target_study_id=schema.target_study.id,
-            limit_per_source=5,  # Return top 5 suggestions per variable
-        )
-        
-        # Format suggestions for JSON response
-        formatted_suggestions = {}
-        for source_attr_id, matches in suggestions.items():
-            formatted_suggestions[str(source_attr_id)] = [
-                {
-                    'attribute_id': match['attribute_id'],
-                    'variable_name': match['variable_name'],
-                    'display_name': match['display_name'],
-                    'description': match['description'],
-                    'variable_type': match['variable_type'],
-                    'unit': match['unit'],
-                    'combined_similarity': match['combined_similarity'],
-                    'name_similarity': match['name_similarity'],
-                    'description_similarity': match['description_similarity'],
-                    'confidence_grade': match['confidence_grade'],
-                    'confidence_label': match['confidence_label'],
-                    'confidence_color': match['confidence_color'],
-                    'has_description_match': match['has_description_match'],
-                }
-                for match in matches
-            ]
+
+        payload = get_similarity_payload(schema)
         
         return JsonResponse({
-            'suggestions': formatted_suggestions,
+            'suggestions': payload.get('suggestions') or {},
             'schema_id': schema_id,
             'source_study_name': schema.source_study.name,
             'target_study_name': schema.target_study.name,
+            'generated_at': payload.get('generated_at'),
         })
         
     except MappingSchema.DoesNotExist:
@@ -2699,6 +3205,7 @@ def transformation_suggestion_api(request):
         source_attribute_id = data.get("source_attribute_id")
         target_attribute_id = data.get("target_attribute_id")
         schema_id = data.get("schema_id")
+        posted_mapping_context = data.get("mapping_context")
         include_deidentified_summary_stats = _coerce_bool(
             data.get("include_deidentified_summary_stats"),
             False,
@@ -2740,6 +3247,27 @@ def transformation_suggestion_api(request):
                 return JsonResponse({"error": "Source attribute is not part of this mapping schema"}, status=400)
             if not schema.target_study.variables.filter(id=target_attribute.id).exists():
                 return JsonResponse({"error": "Target attribute is not part of this mapping schema"}, status=400)
+
+        mapping_rule = None
+        source_eda_summary = {}
+        if schema is not None:
+            mapping_rule = MappingRule.objects.filter(
+                schema=schema,
+                source_attribute=source_attribute,
+            ).select_related(
+                "target_attribute",
+                "patient_id_attribute",
+                "datetime_attribute",
+                "location_attribute",
+            ).first()
+            raw_data_file = get_latest_cached_summary_file(schema.source_study)
+            cache = raw_data_file.eda_cache_source if raw_data_file else None
+            if isinstance(cache, Mapping):
+                column_type, variable_eda = _extract_variable_eda(
+                    cache,
+                    source_attribute.variable_name,
+                )
+                source_eda_summary = _compact_variable_eda_summary(column_type, variable_eda)
         
         # Generate transformation suggestion
         transformation_code = transformation_suggestion_service.suggest_transformation_code(
@@ -2747,6 +3275,8 @@ def transformation_suggestion_api(request):
             target_attribute,
             source_study=schema.source_study if schema is not None else None,
             include_deidentified_summary_stats=include_deidentified_summary_stats,
+            mapping_context=_mapping_rule_transform_context(mapping_rule, posted_mapping_context),
+            source_eda_summary=source_eda_summary,
         )
         
         # Handle different response cases

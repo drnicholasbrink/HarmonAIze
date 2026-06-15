@@ -18,6 +18,7 @@ from core.models import Attribute, StudyDocument
 from core.similarity_service import similarity_service
 
 from .models import HarmonizationAIRun, MappingRule
+from .dashboard_fragment_cache import bump_schema_dashboard_cache_version
 from .relationship_system import (
     REPEATABLE_RELATION_TYPES,
     infer_inverse_relation,
@@ -531,6 +532,7 @@ class AIHarmonizationService:
                     "source_attribute": self._attribute_payload(rule.source_attribute),
                     "target_attribute": self._attribute_payload(rule.target_attribute),
                     "not_mappable": rule.not_mappable,
+                    "needs_review": rule.needs_review,
                     "role": rule.role,
                     "patient_id_attribute": self._attribute_payload(rule.patient_id_attribute),
                     "datetime_attribute": self._attribute_payload(rule.datetime_attribute),
@@ -555,6 +557,15 @@ class AIHarmonizationService:
             "universal_defaults": self._schema_defaults_payload(run),
             "relation_policy": {
                 "allowed_relation_types": [choice[0] for choice in run.schema.RELATION_CHOICES],
+                "instruction": (
+                    "Decide the record owner independently from the target variable. "
+                    "Do not reject a target solely because it is generic and does not repeat the source variable's relation wording; map the clinical concept to the best target and express ownership through relation_type. "
+                    "Use relation_type='self' only when the source variable describes the primary participant. "
+                    "When the source variable name, display name, description, category, retrieved documentation, or codebook context clearly describes another person/entity, choose the matching non-self relation_type. "
+                    "Treat words indicating related entities, offspring, parents, partners, siblings, household members, or other linked people as ownership signals unless the codebook says they are only descriptive labels. "
+                    "For child-owned variables, set relation_type='child' and provide relation_instance_order when the source explicitly identifies an order; otherwise leave the order null and let the application choose the next stable child instance. "
+                    "Set uses_custom_relation=true whenever relation_type is not the schema default."
+                ),
                 "repeatable_relation_types": sorted(REPEATABLE_RELATION_TYPES),
                 "repeatable_names": "Use relation_instance_order only; the application constructs names as <relation_type>_<order>.",
                 "non_repeatable_names": "For mother, father, parent, and spouse, leave relation_instance_order null.",
@@ -568,6 +579,17 @@ class AIHarmonizationService:
                 "mode": "soft_avoid",
                 "occupied_target_attribute_ids": self._occupied_target_attribute_ids(run),
                 "instruction": "Avoid exact duplicate value mappings. If the best target is already occupied by another value rule, return duplicate_conflict=true and decision='needs_review'.",
+                "review_policy": "Use decision='needs_review' for uncertainty or duplicate conflicts. Use decision='not_mappable' when the source variable confidently has no appropriate target in the target catalog or retrieved codebook context.",
+            },
+            "decision_policy": {
+                "map": "Use decision='map' when the source and target represent the same core measurement, observation, identifier, date/time, or category, even if the target is more generic and relation/context must carry ownership.",
+                "not_mappable": "Use decision='not_mappable' only after checking candidates, target catalog, retrieved codebook context, and existing mapping patterns and finding no target that represents the source concept.",
+                "needs_review": "Use decision='needs_review' for genuine ambiguity: multiple plausible targets, broad-vs-narrow mismatch that changes meaning, conflicting documentation, missing required relation/context evidence, duplicate target conflict, or unsafe transform uncertainty.",
+                "anti_patterns": [
+                    "Do not reject a strong concept match just because candidates are incomplete.",
+                    "Do not choose a target based only on superficial name overlap when the clinical/statistical concept differs.",
+                    "Do not map broad-to-narrow or narrow-to-broad if that changes what the value means.",
+                ],
             },
         }
 
@@ -687,6 +709,7 @@ class AIHarmonizationService:
                     "Use the vector store files as the durable context for subsequent variable-level calls.",
                     "Pay special attention to existing_mapping_rules.json because it contains human corrections and patterns.",
                     "Pay special attention to mapping_policy.json because it defines duplicate handling and custom patient/date/location/relation defaults.",
+                    "Keep target concept matching separate from relation ownership: a generic target can still be correct when relation_type captures who the value belongs to.",
                     "Later calls will provide one source variable and top embedding candidates; use this bootstrap context when candidates are weak or missing.",
                 ],
             },
@@ -1002,6 +1025,8 @@ class AIHarmonizationService:
         mapping_payload = result.get("mapping_rule", {}) or {}
         target_id = result.get("recommended_target_attribute_id")
         decision = result.get("decision") or "map"
+        if decision not in {"map", "not_mappable", "needs_review"}:
+            decision = "needs_review"
 
         target_attribute = None
         if target_id:
@@ -1013,7 +1038,13 @@ class AIHarmonizationService:
 
         transform_warning = None
         duplicate_conflict = False
-        if target_id and target_attribute is None:
+        if decision == "map" and not target_id:
+            decision = "needs_review"
+            transform_warning = (
+                f"{rule.source_attribute.variable_name}: AI returned decision='map' without a target attribute. "
+                "Mapping was left for review."
+            )
+        elif target_id and target_attribute is None:
             transform_warning = (
                 f"{rule.source_attribute.variable_name}: AI recommended target attribute {target_id}, "
                 "but it is not part of the target study."
@@ -1030,9 +1061,13 @@ class AIHarmonizationService:
                 "but that target is already mapped by another source variable. Existing mapping was preserved."
             )
 
+        is_not_mappable = decision == "not_mappable" or bool(mapping_payload.get("not_mappable"))
+        if is_not_mappable:
+            target_attribute = None
         if not duplicate_conflict:
             rule.target_attribute = target_attribute
-        rule.not_mappable = bool(mapping_payload.get("not_mappable", decision == "not_mappable"))
+        rule.not_mappable = is_not_mappable
+        rule.needs_review = (decision == "needs_review" and not is_not_mappable) or duplicate_conflict
         rule.role = role
         rule.patient_id_attribute = self._get_source_attribute(run, mapping_payload.get("patient_id_attribute_id"))
         rule.datetime_attribute = self._get_source_attribute(run, mapping_payload.get("datetime_attribute_id"))
@@ -1095,6 +1130,7 @@ class AIHarmonizationService:
                 part for part in [rule.ai_reasoning_summary, metadata_summary] if part
             ).strip()
         if transform_warning:
+            rule.needs_review = True
             rule.ai_reasoning_summary = " ".join(
                 part for part in [rule.ai_reasoning_summary, transform_warning] if part
             ).strip()
@@ -1115,9 +1151,11 @@ class AIHarmonizationService:
                 rule.ai_reasoning_summary = " ".join(
                     part for part in [rule.ai_reasoning_summary, transform_warning] if part
                 ).strip()
+            rule.needs_review = True
             rule.full_clean()
 
         rule.save()
+        bump_schema_dashboard_cache_version(run.schema_id)
         logger.info(
             "AI harmonization mapping rule saved run_id=%s schema_id=%s rule_id=%s created=%s source=(%s) target=(%s) not_mappable=%s role=%s relation=%s relation_name=%s confidence=%s transform_chars=%s",
             run.id,
@@ -1210,8 +1248,30 @@ class AIHarmonizationService:
                     "run_below_confidence_grade": run.run_below_confidence_grade,
                     "top_candidates_per_variable": run.top_candidates_per_variable,
                     "include_deidentified_summary_stats": bool(summary_stats_context),
-                    "candidate_policy": "Prefer candidate_targets. If none fit, use the target catalog and retrieved codebook context from the bootstrap/vector store.",
+                    "candidate_policy": (
+                        "Treat candidate_targets as search hints, not as authoritative recommendations. "
+                        "Choose the best target for the source variable's core clinical/statistical concept, granularity, type, and unit. "
+                        "Do not require the target name or description to repeat source-side relation wording; relation_type and record context carry who the value belongs to. "
+                        "Make a judgement call when the concept match is strong, even if the candidate set or retrieved context is incomplete. "
+                        "If candidates are related but do not clearly fit the core concept, inspect the target catalog and retrieved codebook context for a better target. "
+                        "If the wider check shows the source variable confidently has no appropriate target, return decision='not_mappable'. "
+                        "Return decision='needs_review' only when the mapping is uncertain, evidence conflicts, or duplicate_policy requires review."
+                    ),
+                    "decision_policy": (
+                        "Prefer decision='map' when there is a strong same-concept target after considering candidates, catalog, retrieved context, and existing mapping patterns. "
+                        "Use decision='not_mappable' only when no target represents the source concept after that wider search. "
+                        "Use decision='needs_review' for true ambiguity, conflicting evidence, broad/narrow mismatches that alter meaning, duplicate conflicts, or unsafe transform uncertainty. "
+                        "Do not map based only on superficial name overlap when the concept differs, and do not reject a strong concept match just because relation ownership must be represented separately."
+                    ),
                     "duplicate_policy": "Avoid exact duplicate value mappings. If a recommended value target is already occupied by another source variable, set duplicate_conflict=true and decision='needs_review'.",
+                    "relation_policy": (
+                        "Decide who the source variable is about before setting relation_type. "
+                        "Use self only for primary participant variables. "
+                        "Do not use relation ownership as a reason to reject an otherwise correct concept target. "
+                        "If the source metadata or retrieved context clearly says the value belongs to another entity, choose the matching non-self relation_type and set uses_custom_relation=true. "
+                        "Treat related-entity wording as an ownership signal unless the codebook says it is only descriptive. "
+                        "For child-owned variables, use relation_type='child'; provide relation_instance_order only when the source explicitly identifies an order."
+                    ),
                 },
                 "schema_defaults": self._schema_defaults_payload(run),
                 "reserved_target_attribute_ids": self._occupied_target_attribute_ids(
@@ -1236,6 +1296,7 @@ class AIHarmonizationService:
             "rule_id": rule.id,
             "target_attribute": self._attribute_payload(rule.target_attribute),
             "not_mappable": rule.not_mappable,
+            "needs_review": rule.needs_review,
             "role": rule.role,
             "patient_id_attribute": self._attribute_payload(rule.patient_id_attribute),
             "datetime_attribute": self._attribute_payload(rule.datetime_attribute),
@@ -1275,10 +1336,21 @@ class AIHarmonizationService:
             "candidate target attributes, prior bootstrap response, retrieved study documentation, target variable catalog, existing mapping rules, "
             "and any explicitly provided de-identified summary statistics to refresh exactly one mapping rule. "
             "Only use summary statistics when they are supplied in the prompt. Never infer or request row-level data, example records, or potentially identifiable values. "
-            "Prefer target attributes from candidate_targets. If none are appropriate, use the target_variable_catalog and retrieved codebook context and set target_source accordingly. "
+            "Follow this sequence for each source variable. First identify the source variable's core concept, expected value type, unit, granularity, and record owner. "
+            "Then search candidate_targets, the target_variable_catalog, retrieved codebook context, and existing mapping patterns for the best same-concept target. "
+            "Treat candidate target attributes as search hints rather than decisions. Make a practical judgement call when the concept match is strong, even if the candidate set or retrieved context is incomplete. "
+            "Do not require the target name or description to repeat source-side relation wording; relation_type and record context carry who the value belongs to. "
+            "Use decision='map' when the best target represents the same core measurement, observation, identifier, date/time, or category. "
+            "Use decision='not_mappable' only after checking candidates, catalog, retrieved context, and existing mappings and finding no target representing the source concept. "
+            "Use decision='needs_review' only for genuine ambiguity: multiple plausible targets, conflicting evidence, duplicate conflicts, unsafe transform uncertainty, or broad/narrow mismatches that would change the value meaning. "
+            "Do not map based only on superficial name overlap when the clinical/statistical concept differs. "
             "Avoid exact duplicate value mappings. If a value target is already reserved by another source variable, set duplicate_conflict=true and decision='needs_review'. "
             "Return all mapping settings for the source variable, including patient ID, datetime, location, relation, transform, and comments. "
-            "Use relation_type='self' unless the source variable clearly describes another entity, such as a child, parent, spouse, sibling, mother, or father. "
+            "When the mapping likely needs value conversion, category standardisation, unit conversion, or special handling based on source/target metadata, include concise context in mapping_rule.comments so the transform-code generator can use it. "
+            "Decide relation ownership independently from the target variable choice. Use relation_type='self' only when the source variable describes the primary participant. "
+            "Do not reject an otherwise correct concept target solely because the target is generic and does not encode relation ownership. "
+            "If the source variable name, display name, description, category, retrieved documentation, or codebook context clearly describes another person/entity, choose the matching non-self relation_type instead of self. "
+            "Treat related-entity wording as an ownership signal unless the codebook says it is only descriptive. "
             "If patient/date/location/relation settings differ from the schema defaults supplied in the prompt, set the corresponding uses_custom_* boolean to true and provide the explicit attribute ID or relation setting. "
             "Do not map source variables directly to relationship-system target attributes. "
             "For non-self repeatable mappings, provide relation_instance_order only when the source variable clearly encodes the instance order, such as child 1 or sibling 2. "

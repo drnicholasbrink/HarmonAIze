@@ -52,6 +52,8 @@ class TransformationSuggestionService:
         *,
         source_study: Study | None = None,
         include_deidentified_summary_stats: bool = False,
+        mapping_context: Mapping[str, Any] | None = None,
+        source_eda_summary: Mapping[str, Any] | None = None,
     ) -> str | None:
         """Generate transformation code suggestion for a source/target pair."""
         result: str | None = None
@@ -62,6 +64,8 @@ class TransformationSuggestionService:
                 target_attribute,
                 source_study=source_study,
                 include_deidentified_summary_stats=include_deidentified_summary_stats,
+                mapping_context=mapping_context,
+                source_eda_summary=source_eda_summary,
             )
 
             # Skip call for obvious no-op mappings
@@ -222,6 +226,8 @@ class TransformationSuggestionService:
         *,
         source_study: Study | None = None,
         include_deidentified_summary_stats: bool = False,
+        mapping_context: Mapping[str, Any] | None = None,
+        source_eda_summary: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Build comprehensive context about the attributes for transformation."""
         context = {
@@ -242,6 +248,12 @@ class TransformationSuggestionService:
                 "ontology_code": target_attr.ontology_code or "",
             },
         }
+
+        if mapping_context:
+            context["mapping_context"] = dict(mapping_context)
+
+        if source_eda_summary:
+            context["source_eda_summary"] = dict(source_eda_summary)
 
         if include_deidentified_summary_stats and source_study is not None:
             context["deidentified_summary_stats_context"] = build_deidentified_summary_stats_context(
@@ -357,6 +369,8 @@ class TransformationSuggestionService:
         """Create a detailed prompt for transformation code generation."""
         source = context["source"]
         target = context["target"]
+        mapping_context = context.get("mapping_context") or {}
+        source_eda_summary = context.get("source_eda_summary") or {}
         summary_stats_context = context.get("deidentified_summary_stats_context") or {}
         retry_guidance = ""
         if validation_error:
@@ -369,6 +383,24 @@ PREVIOUS DRAFT REJECTED:
 """
 
         summary_context_block = ""
+        mapping_context_block = ""
+        source_eda_block = ""
+        if mapping_context:
+            mapping_context_block = f"""
+
+CURRENT MAPPING CONTEXT:
+{json.dumps(mapping_context, indent=2, default=str)}
+
+Use this to understand the intended mapping, relation ownership, role, and any AI/human notes. Do not change the target or relation here; only generate value-level transform code when needed.
+"""
+        if source_eda_summary:
+            source_eda_block = f"""
+
+SOURCE VARIABLE EDA SUMMARY:
+{json.dumps(source_eda_summary, indent=2, default=str)}
+
+Use this aggregate EDA to infer observed encodings, ranges, missingness, high-cardinality behaviour, and whether category/type conversion is likely needed. Do not infer row-level values or identifiable data from it.
+"""
         if summary_stats_context:
             summary_context_block = f"""
 
@@ -400,10 +432,14 @@ TARGET VARIABLE:
 - Type: {target['variable_type']}
 - Unit: {target['unit']}
 - Ontology Code: {target['ontology_code']}
+{mapping_context_block}
+{source_eda_block}
 {summary_context_block}
 
 TASK:
 1. Determine if a transformation is needed to map from source to target.
+   Use the source EDA summary when available to understand observed encodings,
+   ranges, missingness, and category values.
 2. If no transformation is needed (variables already compatible), set
    transformation_needed to false.
 3. If transformation is needed, generate safe Python code following these
@@ -485,8 +521,10 @@ CORE PRINCIPLES:
 1. Safety first — only suggest transformations using whitelisted safe
    functions.
 2. Handle edge cases — always check for None/empty values.
-3. Be conservative — if unsure whether transformation is needed, return
-   transformation_needed: false.
+3. Use the mapping context and EDA summary to make a practical judgement about
+   observed encodings, units, ranges, and category values. If the EDA shows a
+   clear encoding or unit mismatch, generate a transform instead of returning a
+   no-op.
 4. Prefer simple, readable code over complex transformations.
 5. Always return valid JSON in the exact format requested.
 6. Stay inside the validator whitelist: safe built-ins, safe string/list/dict
@@ -495,6 +533,8 @@ CORE PRINCIPLES:
    lambda or in def transform(value).
 8. Only use de-identified summary statistics when they are explicitly provided.
     Never request, infer, or rely on row-level or identifiable data.
+9. Treat relation ownership and mapping role as context for interpreting the
+   value, not as instructions to change the target mapping.
 
 WHEN NO TRANSFORMATION IS NEEDED:
 - Variables have identical names, types, units, and encodings.
