@@ -1,6 +1,9 @@
 armadillo:
   docker-management-enabled: false
   docker-run-in-container: true
+  # Required by Armadillo 3.1.x (AuthConfig.JwtConfig). false = Armadillo manages project
+  # permissions internally; OIDC (Keycloak) is still used for authentication.
+  oidc-permission-enabled: false
   profiles:
     - name: default
       image: datashield/rock-base:6.2-R4.3

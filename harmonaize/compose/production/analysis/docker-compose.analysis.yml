@@ -1,8 +1,7 @@
-version: '3.8'
-
 services:
   armadillo:
-    image: molgenis/molgenis-armadillo:3.2.0
+    # 3.2.0 was never published; 3.1.0 is the latest 3.x (matches the 3.x config in this dir).
+    image: molgenis/molgenis-armadillo:3.1.0
     environment:
       LOGGING_CONFIG: 'classpath:logback-file.xml'
       AUDIT_LOG_PATH: '/logs/audit.log'
@@ -41,6 +40,8 @@ services:
     image: quay.io/keycloak/keycloak:25.0.2
     command:
       - start
+      # Internal-only stack served over HTTP; Keycloak 25 'start' otherwise demands TLS key material.
+      - "--http-enabled=true"
       - "--features=scripts"
       - "--health-enabled=true"
       - "--http-port=8080"
@@ -61,12 +62,14 @@ services:
       - ./keycloak/realms:/opt/keycloak/data/import
     networks:
       - armadillo-net
+    # The Keycloak image has no curl/wget and serves health on the management port (9000), not 8080.
+    # Use the in-image JDK (single-file source launcher) to probe http://localhost:9000/health/ready.
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health/ready"]
-      interval: 20s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
+      test: ["CMD-SHELL", "printf 'public class hc{public static void main(String[] a) throws Exception{System.exit(((java.net.HttpURLConnection)new java.net.URL(a[0]).openConnection()).getResponseCode()==200?0:1);}}' > /tmp/hc.java && java /tmp/hc.java http://localhost:9000/health/ready"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
     depends_on:
       keycloak-db:
         condition: service_healthy
