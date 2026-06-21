@@ -13,7 +13,7 @@ top to bottom. Companion docs:
 
 | Tier | Resources |
 | :--- | :--- |
-| **Core (always)** | Resource group, VNet + subnets + NSGs + private DNS zones, Key Vault (private), PostgreSQL Flexible Server 16 (private, pgvector, optional HA), Azure Cache for Redis (private), Storage account + `media` container (private), ACR, Log Analytics, Container Apps environment + **web / worker / beat / flower** apps and a **migrate** job |
+| **Core (always)** | Resource group, VNet + subnets + NSGs + private DNS zones, Key Vault (private), PostgreSQL Flexible Server 16 (private, pgvector, optional HA), Azure Managed Redis (private, provisioned via the azapi provider), Storage account + `media` container (private), ACR, Log Analytics, Container Apps environment + **web / worker / beat / flower** apps and a **migrate** job |
 | **Public edge (opt-in)** | `deploy_frontdoor = true` → Azure **Front Door Standard + WAF**; flips the Container Apps environment to public and fronts the web app |
 | **Federated analysis (opt-in)** | `deploy_analysis_stack = true` → Armadillo / DataSHIELD / Keycloak VM tier in a dedicated `analysis` subnet |
 
@@ -46,9 +46,9 @@ inside the VNet.
 ## 1. Tooling and Azure auth
 
 ```powershell
-terraform version      # >= 1.5
-az version
-docker version
+terraform version      # >= 1.5  (init installs azurerm + azapi + tls + random + time)
+az version             # 2.60+
+docker version         # optional — only for the local-Docker image path (Phase B); az acr build needs no Docker
 
 az login
 az account set --subscription "<SUBSCRIPTION_ID>"
@@ -184,25 +184,42 @@ $ACR
 
 ## 6. Phase B — build and push the image
 
-Run Docker from the **repo root** (the build context is `harmonaize`).
+The build context is the `harmonaize` dir. The Front Door origin-lockdown middleware
+(`config/middleware.py`, wired in `production.py` with `USE_X_FORWARDED_HOST`) is already in the app, so
+the image is Front-Door-ready — no pre-build change needed.
 
-> **If you set `deploy_frontdoor = true`:** add the `FrontDoorIDMiddleware` to the app *before* building,
-> so the image is ready to lock the origin to Front Door. The exact middleware + settings are in
-> [`modules/frontdoor/README.md`](./modules/frontdoor/README.md) §"Required Django change". Without it,
-> Front Door + WAF still front the app, but the origin FQDN remains reachable directly.
+**Recommended — `az acr build` (builds in the cloud; no local Docker):**
 
 ```powershell
-cd ..                                   # repo root
+$REG = $ACR.Split('.')[0]
+cd harmonaize    # az acr build resolves --file relative to the build context (cwd)
+az acr build --registry $REG --image harmonaize_production_django:latest --file compose/production/django/Dockerfile .
+cd ..
+```
+
+> **Windows gotcha:** `az acr build`'s live log stream can crash the CLI with a `cp1252`
+> `UnicodeEncodeError` (the `--%` / `PYTHONUTF8=1` workarounds don't reliably help). The **build keeps
+> running server-side** — do **not** rebuild. Watch it instead:
+> `az acr task list-runs -r $REG -o table`, then `az acr task show-run --run-id <id> -r $REG --query status -o tsv`
+> until `Succeeded`.
+
+**Alternative — local Docker (from the repo root):**
+
+```powershell
 $REG = $ACR.Split('.')[0]
 az acr login --name $REG
 docker build -f harmonaize/compose/production/django/Dockerfile -t "$ACR/harmonaize_production_django:latest" harmonaize
 docker push "$ACR/harmonaize_production_django:latest"
 ```
 
-Set the pushed reference in `terraform/terraform.tfvars`:
+Pin the **digest** (not `:latest`) in `terraform/terraform.tfvars` — `:latest` is mutable, so a new
+revision may not re-pull a fresh push, and you can accidentally deploy a stale digest:
 
+```powershell
+az acr repository show -n $REG --image harmonaize_production_django:latest --query digest -o tsv   # sha256:...
+```
 ```hcl
-container_app_image = "<acr_login_server>/harmonaize_production_django:latest"
+container_app_image = "<acr_login_server>/harmonaize_production_django@sha256:<digest>"
 ```
 
 ---
@@ -254,8 +271,11 @@ az containerapp job start -n $JOB -g $RG
 az containerapp job execution list -n $JOB -g $RG -o table   # wait for Succeeded
 ```
 
-The Job runs `manage.py migrate --noinput && manage.py init_climate_services`. On the very first deploy
-the web app errors until this completes — expected.
+The Job first creates the pgvector extension (`CREATE EXTENSION IF NOT EXISTS vector`), then runs
+`manage.py migrate --noinput && manage.py init_climate_services`. On the very first deploy the web app
+errors until this completes — expected. If it ends **Failed**, read the logs from Log Analytics; the
+`az containerapp job logs` command needs the `log-analytics` CLI extension, so if that extension is
+broken, query `ContainerAppConsoleLogs_CL` directly (e.g. via `az rest` against the workspace).
 
 ---
 
@@ -298,8 +318,14 @@ terraform apply
 az containerapp update -n harmonaize-prod-web -g $RG --revision-suffix "r$(Get-Date -UFormat %s)"
 ```
 
-After this, the `FrontDoorIDMiddleware` (built into the image in Phase B) rejects any request that didn't
-come through Front Door, closing the direct-to-origin path.
+After this, the `FrontDoorIDMiddleware` (already in the image) rejects any request that didn't come
+through Front Door, closing the direct-to-origin path.
+
+> **Give it time.** Front Door route/origin changes take several minutes (+ a health-probe cycle) to
+> propagate globally — the endpoint can return **404/503** until then (not an error; re-test). With **no
+> custom domain**, the Front Door module forwards the Container Apps FQDN as the origin host header (ACA
+> ingress 404s any other Host) and the app reads the real public host from `X-Forwarded-Host`; the compute
+> module auto-adds `.azurefd.net` to `ALLOWED_HOSTS`. With a **custom domain**, ensure it is in `allowed_hosts`.
 
 **Custom domain** (if `frontdoor_custom_domain` is set): create the DNS records to validate and route —
 
@@ -340,10 +366,19 @@ The Armadillo / DataSHIELD / Keycloak VM tier is created by Phase D when the fla
 `analyst_source_cidrs` to the IP ranges of the analysts who need to reach Armadillo/Keycloak. Then:
 
 ```powershell
-# the VM brings the stack up from cloud-init; confirm via JIT/Bastion:
-az vm start -n harmonaize-prod-analysis-vm -g $RG    # if deallocated for cost
-# (in a JIT session on the VM):  docker compose -f docker-compose.analysis.yml ps   → all healthy
+az vm start -n harmonaize-prod-analysis-vm -g $RG    # only if deallocated for cost
+
+# The VM brings the stack up automatically from cloud-init. Verify over the control plane
+# (no inbound SSH needed):
+az vm run-command invoke -g $RG -n harmonaize-prod-analysis-vm --command-id RunShellScript `
+  --scripts "cd /app && docker compose -f docker-compose.analysis.yml ps" --query "value[0].message" -o tsv
+# Expect: armadillo + rserver Up; keycloak + keycloak-db Up (healthy). Armadillo serves on :8080, Keycloak on :8081.
 ```
+
+> If cloud-init failed, read `/var/log/cloud-init-output.log` via the same `run-command`. For an
+> interactive shell set `deploy_bastion = true` and connect using the key in Key Vault
+> (`analysis-vm-ssh-private-key`). After editing any analysis config, re-apply (the blobs now carry
+> `content_md5`, so changes re-upload) and recreate the stack. See [`ARMADILLO_PLAN.md`](./ARMADILLO_PLAN.md).
 
 End-to-end check: trigger a project export from the app → confirm the object appears in Armadillo →
 have an analyst run a DataSHIELD call. Architecture, the §0.1 decisions, and the backup/deallocate model
@@ -355,15 +390,14 @@ are documented in [`ARMADILLO_PLAN.md`](./ARMADILLO_PLAN.md).
 
 **Ship a new image version:**
 ```powershell
-docker build -f harmonaize/compose/production/django/Dockerfile -t "$ACR/harmonaize_production_django:<tag>" harmonaize
-docker push "$ACR/harmonaize_production_django:<tag>"
-# update container_app_image in tfvars, then:
+az acr build --registry $REG --image harmonaize_production_django:<tag> --file compose/production/django/Dockerfile harmonaize
+# pin the new digest in container_app_image (tfvars), then:
 terraform apply
 az containerapp job start -n "$(terraform output -raw migrate_job_name)" -g $RG   # run migrations
 ```
 
 **Tune autoscaling / sizing:** change `worker_target_queue_length`, `max_replicas`, `db_sku_name`,
-`redis_capacity`, etc., then `terraform apply`.
+`redis_sku_name` (Azure Managed Redis SKU, e.g. `Balanced_B0`), etc., then `terraform apply`.
 
 **Teardown:**
 ```powershell
@@ -380,9 +414,13 @@ Storage/ACR names carry a random suffix, so re-applies get fresh names automatic
 | :--- | :--- | :--- |
 | Apply fails writing KV secrets / `media` container | Private KV/Storage, runner outside the VNet | Phase C (jumpbox or temporary public access) |
 | `web_app_fqdn` not reachable from the internet | `deploy_frontdoor = false` → environment is internal | Use Front Door (Phase G), or reach it from inside the VNet |
-| Front Door up, but the origin FQDN is still reachable directly | `FrontDoorIDMiddleware` missing from the image, or `frontdoor_id` not set | Add the middleware (Phase B) and complete the second apply (Phase G) |
+| Front Door up, but the origin FQDN is still reachable directly | `frontdoor_id` not set (Phase G pass 2 skipped) | Set `frontdoor_id` in tfvars, re-apply, roll a web revision |
 | All Front Door traffic returns 403 | `frontdoor_id` mismatch (stale GUID) | Re-read `terraform output -raw frontdoor_id`, update tfvars, re-apply, roll a revision |
+| Front Door returns 404/503 right after Phase G | route/origin still propagating | Wait ~10 min; it self-resolves once the health probe passes |
+| `az acr build` exits with a `cp1252` `UnicodeEncodeError` | Windows console can't encode the streamed build log | Cosmetic — the build runs server-side; poll `az acr task show-run` (Phase B) |
+| migrate Job fails `type "vector" does not exist` | pgvector extension not created | Handled by the Job command + the `VectorExtension()` migration; rerun the Job |
 | Registration POST returns CSRF 403 | Public domain not trusted | Ensure your domain is in `allowed_hosts`; `CSRF_TRUSTED_ORIGINS` defaults to `https://harmonaize.org` (override via `DJANGO_CSRF_TRUSTED_ORIGINS`) |
 | Custom domain stuck "Pending validation" | DNS not in place | Add the TXT + CNAME records (Phase G); allow time to propagate |
-| Analysis VM containers not healthy | cloud-init / image pull / secret fetch | JIT onto the VM, check `docker compose ps` and `cloud-init` logs; see [`ARMADILLO_PLAN.md`](./ARMADILLO_PLAN.md) |
+| Analysis VM containers not healthy | cloud-init / image pull / secret fetch | `az vm run-command invoke` → `docker compose ps` + `/var/log/cloud-init-output.log`; see [`ARMADILLO_PLAN.md`](./ARMADILLO_PLAN.md) |
+| Keycloak container unhealthy / Armadillo won't start | (regression) Keycloak health on port 9000 or `--http-enabled`/`oidc-permission-enabled` missing | Verify against the committed `docker-compose.analysis.yml` / `application.yml` |
 | web returns errors right after first apply | migrations not yet run | Run the migration Job (Phase E) and wait for **Succeeded** |
