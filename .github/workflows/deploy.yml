@@ -1,0 +1,120 @@
+name: Deploy to Azure Container Apps
+
+# Builds the Django image, pushes it to ACR, runs DB migrations as a Job, then rolls
+# the new image out to the web / worker / beat / flower Container Apps.
+#
+# Prerequisites (one-time): the Azure infra must already exist (terraform apply) and a
+# GitHub OIDC deploy identity must be configured. See .github/workflows/README.md and
+# scripts/setup-github-oidc.sh.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "harmonaize/**"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to deploy (defaults to the commit SHA)"
+        required: false
+
+# OIDC federated login needs an ID token; no long-lived Azure secret is stored.
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # Container App / Job names are "<APP_PREFIX>-web|worker|beat|flower|migrate".
+  # Change only if you set a non-default prefix/environment in Terraform.
+  APP_PREFIX: harmonaize-prod
+  IMAGE_REPO: harmonaize_production_django
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve image tag and registry
+        id: vars
+        run: |
+          set -euo pipefail
+          echo "tag=${{ github.event.inputs.image_tag || github.sha }}" >> "$GITHUB_OUTPUT"
+          # az acr login wants the registry name, not the full login server.
+          echo "registry=${ACR_LOGIN_SERVER%%.*}" >> "$GITHUB_OUTPUT"
+        env:
+          ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: ACR login
+        run: az acr login --name "${{ steps.vars.outputs.registry }}"
+
+      - name: Build and push image
+        env:
+          ACR: ${{ vars.ACR_LOGIN_SERVER }}
+          TAG: ${{ steps.vars.outputs.tag }}
+        run: |
+          set -euo pipefail
+          # Build context is the `harmonaize` dir (the Dockerfile COPYs ./requirements, ./compose, .).
+          docker build \
+            -f harmonaize/compose/production/django/Dockerfile \
+            -t "$ACR/$IMAGE_REPO:$TAG" \
+            -t "$ACR/$IMAGE_REPO:latest" \
+            harmonaize
+          docker push "$ACR/$IMAGE_REPO:$TAG"
+          docker push "$ACR/$IMAGE_REPO:latest"
+
+      - name: Run database migrations (Job) and wait
+        env:
+          RG: ${{ vars.RESOURCE_GROUP }}
+          ACR: ${{ vars.ACR_LOGIN_SERVER }}
+          TAG: ${{ steps.vars.outputs.tag }}
+        run: |
+          set -euo pipefail
+          JOB="${APP_PREFIX}-migrate"
+          IMAGE="$ACR/$IMAGE_REPO:$TAG"
+
+          # Point the migrate Job at the freshly-built image, then start one execution.
+          az containerapp job update -n "$JOB" -g "$RG" --image "$IMAGE" -o none
+          EXEC=$(az containerapp job start -n "$JOB" -g "$RG" --query name -o tsv)
+          echo "Started migration execution: $EXEC"
+
+          # Poll up to ~30 min (matches the Job's replica_timeout of 1800s).
+          for i in $(seq 1 120); do
+            STATUS=$(az containerapp job execution show -n "$JOB" -g "$RG" \
+              --job-execution-name "$EXEC" --query 'properties.status' -o tsv 2>/dev/null || echo Unknown)
+            echo "[$i] migration status: $STATUS"
+            case "$STATUS" in
+              Succeeded) echo "Migrations succeeded."; exit 0 ;;
+              Failed|Stopped|Cancelled|Degraded) echo "::error::Migration job ended: $STATUS"; exit 1 ;;
+            esac
+            sleep 15
+          done
+          echo "::error::Migration job timed out after ~30 min"
+          exit 1
+
+      - name: Roll out new image to Container Apps
+        env:
+          RG: ${{ vars.RESOURCE_GROUP }}
+          ACR: ${{ vars.ACR_LOGIN_SERVER }}
+          TAG: ${{ steps.vars.outputs.tag }}
+        run: |
+          set -euo pipefail
+          IMAGE="$ACR/$IMAGE_REPO:$TAG"
+          for app in web worker beat flower; do
+            echo "Updating ${APP_PREFIX}-${app} -> $IMAGE"
+            az containerapp update -n "${APP_PREFIX}-${app}" -g "$RG" --image "$IMAGE" -o none
+          done
+          echo "Rollout complete: $IMAGE"
