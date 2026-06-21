@@ -10,3 +10,14 @@
 venv
 .git
 .envs/
+# Vendored Armadillo (Java) service source — runs on the analysis VM, not in the
+# Django image. Excluding it keeps the image lean and speeds up the build context.
+vendor/
+# Federated-analysis compose/config — deployed to the analysis VM via Terraform, not the app image.
+compose/production/analysis/
+# Python/build cruft
+**/__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
