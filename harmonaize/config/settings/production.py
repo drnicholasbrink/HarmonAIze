@@ -10,6 +10,7 @@ from sentry_sdk.integrations.redis import RedisIntegration
 from .base import *  # noqa: F403
 from .base import DATABASES
 from .base import INSTALLED_APPS
+from .base import MIDDLEWARE
 from .base import REDIS_URL
 from .base import SPECTACULAR_SETTINGS
 from .base import env
@@ -72,6 +73,18 @@ SECURE_CONTENT_TYPE_NOSNIFF = env.bool(
 )
 # https://docs.djangoproject.com/en/dev/ref/settings/#csrf-trusted-origins
 CSRF_TRUSTED_ORIGINS = env.list("DJANGO_CSRF_TRUSTED_ORIGINS", default=["https://harmonaize.org"])
+
+# AZURE FRONT DOOR
+# ------------------------------------------------------------------------------
+# Origin lockdown: reject any request that did not arrive through Front Door. The value is injected
+# by Terraform (var.frontdoor_id -> FRONTDOOR_ID); empty disables the check (see config/middleware.py).
+FRONTDOOR_ID = env("FRONTDOOR_ID", default="")
+# Run the check first so bypass attempts are rejected before any heavier processing.
+MIDDLEWARE = ["config.middleware.FrontDoorIDMiddleware", *MIDDLEWARE]
+# Front Door forwards the Container Apps FQDN as the Host (ACA ingress requires it) and the real
+# public host in X-Forwarded-Host; trust it so Django builds correct absolute URLs (emails, redirects).
+# https://docs.djangoproject.com/en/dev/ref/settings/#use-x-forwarded-host
+USE_X_FORWARDED_HOST = True
 
 AZURE_ACCOUNT_KEY = env("DJANGO_AZURE_ACCOUNT_KEY")
 AZURE_ACCOUNT_NAME = env("DJANGO_AZURE_ACCOUNT_NAME")
