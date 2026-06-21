@@ -18,6 +18,11 @@ variable "resource_group_name" {
   description = "Name of the resource group"
 }
 
+variable "resource_group_id" {
+  type        = string
+  description = "Resource ID of the resource group (azapi parent_id for the Managed Redis cluster)."
+}
+
 variable "tags" {
   type        = map(string)
   description = "Resource tags"
@@ -25,12 +30,7 @@ variable "tags" {
 
 variable "sku_name" {
   type        = string
-  description = "SKU name for Redis (Basic/Standard/Premium)"
-}
-
-variable "capacity" {
-  type        = number
-  description = "Redis capacity (0-6)"
+  description = "Azure Managed Redis SKU, e.g. Balanced_B0 (smallest), Balanced_B1, MemoryOptimized_M10."
 }
 
 variable "subnet_id" {

@@ -71,14 +71,8 @@ variable "db_storage_mb" {
 
 variable "redis_sku_name" {
   type        = string
-  description = "The SKU tier of Redis to deploy (Basic/Standard/Premium)."
-  default     = "Standard"
-}
-
-variable "redis_capacity" {
-  type        = number
-  description = "The capacity of Redis to deploy (0-6)."
-  default     = 1
+  description = "Azure Managed Redis SKU, e.g. Balanced_B0 (smallest). Classic Basic/Standard/Premium and Redis Enterprise are retired/blocked for new creation."
+  default     = "Balanced_B0"
 }
 
 variable "openai_base_url" {

@@ -126,7 +126,7 @@ module "cache" {
   tags                = var.tags
 
   sku_name            = var.redis_sku_name
-  capacity            = var.redis_capacity
+  resource_group_id   = azurerm_resource_group.rg.id
   subnet_id           = module.networking.endpoints_subnet_id
   private_dns_zone_id = module.networking.redis_dns_zone_id
   suffix              = random_string.suffix.result
@@ -240,6 +240,10 @@ resource "azurerm_role_assignment" "cicd_rg_contributor" {
 module "analysis_vm" {
   count  = var.deploy_analysis_stack ? 1 : 0
   source = "./modules/analysis_vm"
+
+  # Wait for the security module's Key Vault RBAC propagation (time_sleep.wait_for_kv_rbac)
+  # before this module writes the VM's SSH key secret, otherwise the data-plane write can 403.
+  depends_on = [module.security]
 
   prefix              = var.prefix
   environment         = var.environment

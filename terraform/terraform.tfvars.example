@@ -50,8 +50,7 @@ mapbox_access_token      = ""   # geolocation; optional
 # max_replicas               = 5
 # enable_postgres_ha         = true    # Zone-Redundant HA (raises cost)
 # db_sku_name                = "GP_Standard_D2s_v3"
-# redis_sku_name             = "Standard"
-# redis_capacity             = 1
+# redis_sku_name             = "Balanced_B0"   # Azure Managed Redis SKU (classic tiers are retired)
 # storage_replication_type   = "GRS"
 
 # --- Worker autoscaling (KEDA Redis scaler) ---

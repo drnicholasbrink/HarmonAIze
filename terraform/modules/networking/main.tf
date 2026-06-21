@@ -97,7 +97,9 @@ resource "azurerm_private_dns_zone_virtual_network_link" "keyvault" {
 }
 
 resource "azurerm_private_dns_zone" "redis" {
-  name                = "privatelink.redis.cache.windows.net"
+  # Azure Managed Redis / Redis Enterprise uses its own private-link zone (not the classic
+  # privatelink.redis.cache.windows.net).
+  name                = "privatelink.redisenterprise.cache.azure.net"
   resource_group_name = var.resource_group_name
   tags                = var.tags
 }

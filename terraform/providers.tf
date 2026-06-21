@@ -6,6 +6,12 @@ terraform {
       source  = "hashicorp/azurerm"
       version = "~> 3.100"
     }
+    # Used to provision Azure Managed Redis (Microsoft.Cache/redisEnterprise with the new
+    # Balanced_* SKUs), which the pinned azurerm 3.x provider does not yet support.
+    azapi = {
+      source  = "Azure/azapi"
+      version = "~> 2.0"
+    }
     random = {
       source  = "hashicorp/random"
       version = "~> 3.5"
@@ -36,3 +42,5 @@ provider "azurerm" {
 }
 
 provider "random" {}
+
+provider "azapi" {}

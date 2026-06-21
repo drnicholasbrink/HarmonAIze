@@ -142,8 +142,7 @@ enable_postgres_ha = false                 # no standby replica — the single b
 db_sku_name        = "B_Standard_B1ms"     # Burstable 1 vCore / 2 GiB (vs GP 2 vCore). Burstable does
 db_storage_mb      = 32768                 #   not support HA, so HA must be off (above). 32 GB = minimum.
 
-redis_sku_name = "Basic"                   # single node, no replica
-redis_capacity = 0                         # C0 = 250 MB (smallest)
+redis_sku_name = "Balanced_B0"             # smallest Azure Managed Redis (classic Basic/Standard/Enterprise are retired)
 
 acr_sku                  = "Basic"         # ~$5/mo vs ~$20/mo Standard
 storage_replication_type = "LRS"           # local redundancy (vs GRS)
