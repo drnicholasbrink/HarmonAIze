@@ -95,9 +95,10 @@ systemctl start docker
 echo "Installing Azure CLI..."
 curl -sL https://aka.ms/InstallAzureCLIDeb | bash
 
-# Log in with VM's managed identity (retry: MSI/RBAC may not be ready immediately)
+# Log in with VM's managed identity (retry: MSI/RBAC may not be ready immediately).
+# Newer az CLI requires --client-id for a user-assigned identity (--username was removed).
 echo "Logging in to Azure..."
-retry az login --identity --username "${user_assigned_client_id}"
+retry az login --identity --client-id "${user_assigned_client_id}"
 
 # Fetch config files from Storage Account (retry: Storage Blob Data Reader RBAC propagation)
 echo "Downloading configurations from Azure Storage..."
