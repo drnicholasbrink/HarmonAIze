@@ -1,0 +1,92 @@
+version: '3.8'
+
+services:
+  armadillo:
+    image: molgenis/molgenis-armadillo:3.2.0
+    environment:
+      LOGGING_CONFIG: 'classpath:logback-file.xml'
+      AUDIT_LOG_PATH: '/logs/audit.log'
+      SPRING_SECURITY_USER_PASSWORD: '${ARMADILLO_ADMIN_PASSWORD}'
+      SPRING_RSERVER_URL: 'http://rserver:8085'
+      SPRING_CONFIG_LOCATION: 'file:/config/application.yml'
+      ARMADILLO_ADMIN_PASSWORD: '${ARMADILLO_ADMIN_PASSWORD}'
+      ARMADILLO_OIDC_CLIENT_SECRET: '${ARMADILLO_OIDC_CLIENT_SECRET}'
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./logs:/logs
+      - ./data/armadillo:/data
+      - ./config:/config
+    networks:
+      - armadillo-net
+    depends_on:
+      keycloak:
+        condition: service_healthy
+
+  rserver:
+    image: datashield/rock-base:6.2-R4.3
+    environment:
+      ROCK_ADMINISTRATOR_NAME: "administrator"
+      ROCK_ADMINISTRATOR_PASSWORD: "${ROCK_ADMIN_PASSWORD}"
+      ROCK_MANAGER_NAME: "manager"
+      ROCK_MANAGER_PASSWORD: "${ROCK_USER_PASSWORD}"
+      ROCK_USER_NAME: "user"
+      ROCK_USER_PASSWORD: "${ROCK_USER_PASSWORD}"
+    ports:
+      - "8085:8085"
+    networks:
+      - armadillo-net
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:25.0.2
+    command:
+      - start
+      - "--features=scripts"
+      - "--health-enabled=true"
+      - "--http-port=8080"
+      - "--hostname=http://armadillo.harmonaize.internal:8081"
+      - "--hostname-strict=false"
+      - "--hostname-backchannel-dynamic=true"
+      - "--import-realm"
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: "${KEYCLOAK_ADMIN_PASSWORD}"
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: "${KEYCLOAK_DB_PASSWORD}"
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./keycloak/realms:/opt/keycloak/data/import
+    networks:
+      - armadillo-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health/ready"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+
+  keycloak-db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: "${KEYCLOAK_DB_PASSWORD}"
+    volumes:
+      - ./data/keycloak-db:/var/lib/postgresql/data
+    networks:
+      - armadillo-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  armadillo-net:
+    driver: bridge

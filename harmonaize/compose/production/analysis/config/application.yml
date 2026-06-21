@@ -1,0 +1,62 @@
+armadillo:
+  docker-management-enabled: false
+  docker-run-in-container: true
+  profiles:
+    - name: default
+      image: datashield/rock-base:6.2-R4.3
+      port: 8085
+      host: rserver
+      package-whitelist:
+        - dsBase
+      function-blacklist: [ ]
+      options:
+        datashield:
+          seed: 342325352
+
+# required settings:
+spring:
+  security:
+    user:
+      password: ${ARMADILLO_ADMIN_PASSWORD}
+    oauth2:
+      client:
+        provider:
+          molgenis:
+            authorization-uri: 'http://armadillo.harmonaize.internal:8081/realms/Armadillo/protocol/openid-connect/auth'
+            token-uri: 'http://keycloak:8080/realms/Armadillo/protocol/openid-connect/token'
+            user-info-uri: 'http://keycloak:8080/realms/Armadillo/protocol/openid-connect/userinfo'
+            jwk-set-uri: 'http://keycloak:8080/realms/Armadillo/protocol/openid-connect/certs'
+            user-name-attribute: 'preferred_username'
+        registration:
+          molgenis:
+            client-id: 'Armadillo'
+            client-secret: ${ARMADILLO_OIDC_CLIENT_SECRET}
+            authorization-grant-type: authorization_code
+            redirect-uri: '{baseUrl}/login/oauth2/code/{registrationId}'
+            scope:
+              - openid
+              - profile
+              - email
+      resourceserver:
+        jwt:
+          issuer-uri: 'http://armadillo.harmonaize.internal:8081/realms/Armadillo'
+          jwk-set-uri: 'http://keycloak:8080/realms/Armadillo/protocol/openid-connect/certs'
+        opaquetoken:
+          client-id: 'Armadillo-DeviceLogin'
+
+  servlet:
+    multipart:
+      max-file-size: 1000MB
+      max-request-size: 1000MB
+
+storage:
+  root-dir: /data
+
+audit.log.path: '/logs/audit.log'
+stdout.log.path: '/logs/armadillo.log'
+
+logging:
+  level:
+    root: INFO
+    org.molgenis: DEBUG
+    org.apache.coyote.http11.Http11InputBuffer: INFO

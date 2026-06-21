@@ -1,0 +1,1 @@
+{"profiles":{"default":{"name":"default","image":"datashield/rock-base:6.2-R4.3","autoUpdate":false,"host":"rserver","port":8085,"packageWhitelist":["dsBase"],"functionBlacklist":[],"options":{"datashield.seed":"342325352"}}}}
