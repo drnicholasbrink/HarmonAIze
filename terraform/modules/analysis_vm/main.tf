@@ -87,7 +87,7 @@ resource "azurerm_storage_blob" "armadillo_json" {
   storage_account_name   = var.storage_account_name
   storage_container_name = azurerm_storage_container.analysis_config.name
   type                   = "Block"
-  source                 = "${path.module}/../../harmonaize/compose/production/analysis/keycloak/realms/Armadillo.json"
+  source                 = "${path.module}/../../../harmonaize/compose/production/analysis/keycloak/realms/Armadillo.json"
 }
 
 resource "azurerm_storage_blob" "application_yml" {
@@ -95,7 +95,7 @@ resource "azurerm_storage_blob" "application_yml" {
   storage_account_name   = var.storage_account_name
   storage_container_name = azurerm_storage_container.analysis_config.name
   type                   = "Block"
-  source                 = "${path.module}/../../harmonaize/compose/production/analysis/config/application.yml"
+  source                 = "${path.module}/../../../harmonaize/compose/production/analysis/config/application.yml"
 }
 
 resource "azurerm_storage_blob" "profiles_json" {
@@ -103,7 +103,7 @@ resource "azurerm_storage_blob" "profiles_json" {
   storage_account_name   = var.storage_account_name
   storage_container_name = azurerm_storage_container.analysis_config.name
   type                   = "Block"
-  source                 = "${path.module}/../../harmonaize/compose/production/analysis/data/system/profiles.json"
+  source                 = "${path.module}/../../../harmonaize/compose/production/analysis/data/system/profiles.json"
 }
 
 resource "azurerm_storage_blob" "docker_compose" {
@@ -111,7 +111,7 @@ resource "azurerm_storage_blob" "docker_compose" {
   storage_account_name   = var.storage_account_name
   storage_container_name = azurerm_storage_container.analysis_config.name
   type                   = "Block"
-  source                 = "${path.module}/../../harmonaize/compose/production/analysis/docker-compose.analysis.yml"
+  source                 = "${path.module}/../../../harmonaize/compose/production/analysis/docker-compose.analysis.yml"
 }
 
 resource "azurerm_linux_virtual_machine" "vm" {

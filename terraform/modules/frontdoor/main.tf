@@ -60,8 +60,10 @@ resource "azurerm_cdn_frontdoor_origin" "web" {
   host_name  = var.web_origin_host
   http_port  = 80
   https_port = 443
-  # Host header forwarded to the app = the public host (so Django sees the real domain, not the ACA FQDN).
-  origin_host_header             = local.public_host
+  # Host header MUST be the Container Apps FQDN: ACA ingress routes by Host and returns 404 for any
+  # other value, so forwarding the public host here breaks routing. The app should set
+  # USE_X_FORWARDED_HOST=True to recover the public hostname from the X-Forwarded-Host header.
+  origin_host_header             = var.web_origin_host
   certificate_name_check_enabled = true
   priority                       = 1
   weight                         = 1000

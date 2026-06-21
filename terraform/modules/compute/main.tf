@@ -43,7 +43,9 @@ locals {
   # environment domain, so the app also answers on its ACA ingress FQDN (and health checks).
   plain_env = concat([
     { name = "DJANGO_SETTINGS_MODULE", value = "config.settings.production" },
-    { name = "DJANGO_ALLOWED_HOSTS", value = "${var.allowed_hosts},.${azurerm_container_app_environment.env.default_domain}" },
+    # With Front Door (external ingress) the app trusts X-Forwarded-Host, so the public *.azurefd.net
+    # hostname must be allow-listed too (Front Door endpoint host has an unguessable per-profile suffix).
+    { name = "DJANGO_ALLOWED_HOSTS", value = "${var.allowed_hosts},.${azurerm_container_app_environment.env.default_domain}${var.enable_external_ingress ? ",.azurefd.net" : ""}" },
     { name = "DJANGO_AZURE_ACCOUNT_NAME", value = var.storage_account_name },
     { name = "DJANGO_AZURE_CONTAINER_NAME", value = "media" },
     { name = "OPENAI_BASE_URL", value = var.openai_base_url },
@@ -121,6 +123,13 @@ resource "azurerm_container_app_environment" "env" {
   workload_profile {
     name                  = "Consumption"
     workload_profile_type = "Consumption"
+  }
+
+  # Azure auto-generates the managed infrastructure resource group name ("ME_..."). It is not
+  # set in config, so without this the provider sees a perpetual "ME_... -> null" diff and
+  # force-replaces the whole environment (and every Container App) on each apply.
+  lifecycle {
+    ignore_changes = [infrastructure_resource_group_name]
   }
 }
 
@@ -471,11 +480,14 @@ resource "azurerm_container_app_job" "migrate" {
 
   template {
     container {
-      name    = "migrate"
-      image   = var.container_image
-      cpu     = 0.5
-      memory  = "1Gi"
-      command = ["/bin/bash", "-c", "python /app/manage.py migrate --noinput && python /app/manage.py init_climate_services"]
+      name   = "migrate"
+      image  = var.container_image
+      cpu    = 0.5
+      memory = "1Gi"
+      # Ensure the pgvector extension exists before migrations create VectorField columns.
+      # (azure.extensions=VECTOR allowlists it; this creates it. Idempotent and also covered
+      # by the VectorExtension() migration operation for fresh image builds.)
+      command = ["/bin/bash", "-c", "python /app/manage.py shell -c \"from django.db import connection; connection.cursor().execute('CREATE EXTENSION IF NOT EXISTS vector')\" && python /app/manage.py migrate --noinput && python /app/manage.py init_climate_services"]
 
       dynamic "env" {
         for_each = local.plain_env
