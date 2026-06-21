@@ -33,11 +33,7 @@ CACHES = {
         "LOCATION": REDIS_URL,
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
-<<<<<<< HEAD
             # Mimicking memcache behaviour.
-=======
-            # Mimicking memcache behavior.
->>>>>>> fb1bc08 (Initial cookiecutter commit)
             # https://github.com/jazzband/django-redis#memcached-exceptions-behavior
             "IGNORE_EXCEPTIONS": True,
         },
@@ -74,11 +70,14 @@ SECURE_CONTENT_TYPE_NOSNIFF = env.bool(
     "DJANGO_SECURE_CONTENT_TYPE_NOSNIFF",
     default=True,
 )
-
+# https://docs.djangoproject.com/en/dev/ref/settings/#csrf-trusted-origins
+CSRF_TRUSTED_ORIGINS = env.list("DJANGO_CSRF_TRUSTED_ORIGINS", default=["https://harmonaize.org"])
 
 AZURE_ACCOUNT_KEY = env("DJANGO_AZURE_ACCOUNT_KEY")
 AZURE_ACCOUNT_NAME = env("DJANGO_AZURE_ACCOUNT_NAME")
 AZURE_CONTAINER = env("DJANGO_AZURE_CONTAINER_NAME")
+AZURE_URL_EXPIRATION_SECS = env.int("AZURE_URL_EXPIRATION_SECS", default=3600)
+
 # STATIC & MEDIA
 # ------------------------
 STORAGES = {
@@ -87,13 +86,13 @@ STORAGES = {
         "OPTIONS": {
             "location": "media",
             "overwrite_files": False,
+            "expiration_secs": AZURE_URL_EXPIRATION_SECS,
         },
     },
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
 }
-MEDIA_URL = f"https://{AZURE_ACCOUNT_NAME}.blob.core.windows.net/media/"
 
 # EMAIL
 # ------------------------------------------------------------------------------
@@ -125,7 +124,7 @@ INSTALLED_APPS += ["anymail"]
 # https://anymail.readthedocs.io/en/stable/esps/sendgrid/
 EMAIL_BACKEND = "anymail.backends.sendgrid.EmailBackend"
 ANYMAIL = {
-    "SENDGRID_API_KEY": env("SENDGRID_API_KEY"),
+    "SENDGRID_API_KEY": env("SENDGRID_API_KEY", default=""),
     "SENDGRID_API_URL": env("SENDGRID_API_URL", default="https://api.sendgrid.com/v3/"),
 }
 
@@ -170,25 +169,26 @@ LOGGING = {
 
 # Sentry
 # ------------------------------------------------------------------------------
-SENTRY_DSN = env("SENTRY_DSN")
+SENTRY_DSN = env("SENTRY_DSN", default="")
 SENTRY_LOG_LEVEL = env.int("DJANGO_SENTRY_LOG_LEVEL", logging.INFO)
 
-sentry_logging = LoggingIntegration(
-    level=SENTRY_LOG_LEVEL,  # Capture info and above as breadcrumbs
-    event_level=logging.ERROR,  # Send errors as events
-)
-integrations = [
-    sentry_logging,
-    DjangoIntegration(),
-    CeleryIntegration(),
-    RedisIntegration(),
-]
-sentry_sdk.init(
-    dsn=SENTRY_DSN,
-    integrations=integrations,
-    environment=env("SENTRY_ENVIRONMENT", default="production"),
-    traces_sample_rate=env.float("SENTRY_TRACES_SAMPLE_RATE", default=0.0),
-)
+if SENTRY_DSN and SENTRY_DSN.startswith("http"):
+    sentry_logging = LoggingIntegration(
+        level=SENTRY_LOG_LEVEL,  # Capture info and above as breadcrumbs
+        event_level=logging.ERROR,  # Send errors as events
+    )
+    integrations = [
+        sentry_logging,
+        DjangoIntegration(),
+        CeleryIntegration(),
+        RedisIntegration(),
+    ]
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=integrations,
+        environment=env("SENTRY_ENVIRONMENT", default="production"),
+        traces_sample_rate=env.float("SENTRY_TRACES_SAMPLE_RATE", default=0.0),
+    )
 
 # django-rest-framework
 # -------------------------------------------------------------------------------
@@ -200,7 +200,7 @@ SPECTACULAR_SETTINGS["SERVERS"] = [
 # OpenAI API Configuration
 # ------------------------------------------------------------------------------
 # Production OpenAI API key - required for embedding functionality
-OPENAI_API_KEY = env("OPENAI_API_KEY")
+OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
 
 # Your stuff...
 # ------------------------------------------------------------------------------

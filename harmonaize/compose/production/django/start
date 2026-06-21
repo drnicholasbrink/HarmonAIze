@@ -6,8 +6,15 @@ set -o nounset
 
 
 python /app/manage.py collectstatic --noinput
-python /app/manage.py migrate --noinput
-# Initialize climate data services with credentials and default query parameters
-python /app/manage.py init_climate_services
+
+# Migrations and one-time data init run via a dedicated step (an Azure Container Apps Job)
+# so that scaling or rolling multiple web replicas never runs migrations concurrently.
+# Default is to run them inline (preserves local/compose behaviour); set RUN_MIGRATIONS=false
+# in environments where a separate migration job handles this.
+if [ "${RUN_MIGRATIONS:-true}" != "false" ]; then
+    python /app/manage.py migrate --noinput
+    # Initialize climate data services with credentials and default query parameters
+    python /app/manage.py init_climate_services
+fi
 
 exec /usr/local/bin/gunicorn config.asgi --bind 0.0.0.0:5000 --chdir=/app -k uvicorn_worker.UvicornWorker
