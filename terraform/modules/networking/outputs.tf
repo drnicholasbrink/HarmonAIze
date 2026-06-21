@@ -8,15 +8,6 @@ output "vnet_name" {
   description = "The name of the VNet."
 }
 
-output "aks_subnet_id" {
-  value       = azurerm_subnet.aks.id
-  description = "The ID of the AKS Subnet."
-}
-
-output "appgw_subnet_id" {
-  value       = azurerm_subnet.appgw.id
-  description = "The ID of the App Gateway Subnet."
-}
 
 output "db_subnet_id" {
   value       = azurerm_subnet.db.id
@@ -66,4 +57,19 @@ output "openai_dns_zone_id" {
 output "containerapps_subnet_id" {
   value       = azurerm_subnet.containerapps.id
   description = "The ID of the Container Apps Subnet."
+}
+
+output "analysis_subnet_id" {
+  value       = var.deploy_analysis_stack ? azurerm_subnet.analysis[0].id : null
+  description = "The ID of the Analysis Subnet."
+}
+
+output "internal_dns_zone_name" {
+  value       = var.deploy_analysis_stack ? azurerm_private_dns_zone.internal[0].name : null
+  description = "The name of the internal Private DNS Zone."
+}
+
+output "bastion_host_name" {
+  value       = var.deploy_bastion ? azurerm_bastion_host.bastion[0].name : null
+  description = "The name of the Azure Bastion host (null unless deploy_bastion = true)."
 }

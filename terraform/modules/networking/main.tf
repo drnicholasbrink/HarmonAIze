@@ -6,20 +6,6 @@ resource "azurerm_virtual_network" "vnet" {
   tags                = var.tags
 }
 
-resource "azurerm_subnet" "aks" {
-  name                 = "aks-subnet"
-  resource_group_name  = var.resource_group_name
-  virtual_network_name = azurerm_virtual_network.vnet.name
-  address_prefixes     = [var.subnet_prefixes["aks"]]
-}
-
-resource "azurerm_subnet" "appgw" {
-  name                 = "appgw-subnet"
-  resource_group_name  = var.resource_group_name
-  virtual_network_name = azurerm_virtual_network.vnet.name
-  address_prefixes     = [var.subnet_prefixes["appgw"]]
-}
-
 resource "azurerm_subnet" "db" {
   name                 = "db-subnet"
   resource_group_name  = var.resource_group_name
@@ -58,18 +44,6 @@ resource "azurerm_subnet" "containerapps" {
 
 # Network Security Groups
 
-resource "azurerm_network_security_group" "aks_nsg" {
-  name                = "${var.prefix}-${var.environment}-aks-nsg"
-  location            = var.location
-  resource_group_name = var.resource_group_name
-  tags                = var.tags
-}
-
-resource "azurerm_subnet_network_security_group_association" "aks" {
-  subnet_id                 = azurerm_subnet.aks.id
-  network_security_group_id = azurerm_network_security_group.aks_nsg.id
-}
-
 resource "azurerm_network_security_group" "db_nsg" {
   name                = "${var.prefix}-${var.environment}-db-nsg"
   location            = var.location
@@ -77,14 +51,14 @@ resource "azurerm_network_security_group" "db_nsg" {
   tags                = var.tags
 
   security_rule {
-    name                       = "Allow-AKS-Postgres"
+    name                       = "Allow-ContainerApps-Postgres"
     priority                   = 100
     direction                  = "Inbound"
     access                     = "Allow"
     protocol                   = "Tcp"
     source_port_range          = "*"
     destination_port_range     = "5432"
-    source_address_prefix      = var.subnet_prefixes["aks"]
+    source_address_prefix      = var.subnet_prefixes["containerapps"]
     destination_address_prefix = var.subnet_prefixes["db"]
   }
 }
@@ -172,4 +146,152 @@ resource "azurerm_private_dns_zone_virtual_network_link" "openai" {
   resource_group_name   = var.resource_group_name
   private_dns_zone_name = azurerm_private_dns_zone.openai.name
   virtual_network_id    = azurerm_virtual_network.vnet.id
+}
+
+# --- Analysis Stack Networking ---
+
+resource "azurerm_subnet" "analysis" {
+  count                = var.deploy_analysis_stack ? 1 : 0
+  name                 = "analysis-subnet"
+  resource_group_name  = var.resource_group_name
+  virtual_network_name = azurerm_virtual_network.vnet.name
+  address_prefixes     = [var.subnet_prefixes["analysis"]]
+}
+
+resource "azurerm_network_security_group" "analysis_nsg" {
+  count               = var.deploy_analysis_stack ? 1 : 0
+  name                = "${var.prefix}-${var.environment}-analysis-nsg"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  tags                = var.tags
+
+  security_rule {
+    name                       = "Allow-ContainerApps-Inbound"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_ranges    = ["8080", "8081"]
+    source_address_prefix      = var.subnet_prefixes["containerapps"]
+    destination_address_prefix = var.subnet_prefixes["analysis"]
+  }
+
+  dynamic "security_rule" {
+    for_each = length(var.analyst_source_cidrs) > 0 ? [1] : []
+    content {
+      name                       = "Allow-Analysts-Inbound"
+      priority                   = 110
+      direction                  = "Inbound"
+      access                     = "Allow"
+      protocol                   = "Tcp"
+      source_port_range          = "*"
+      destination_port_ranges    = ["8080", "8081"]
+      source_address_prefixes    = var.analyst_source_cidrs
+      destination_address_prefix = var.subnet_prefixes["analysis"]
+    }
+  }
+
+  # SSH from Azure Bastion only (no public IP on the VM, no SSH from anywhere else).
+  dynamic "security_rule" {
+    for_each = var.deploy_bastion ? [1] : []
+    content {
+      name                       = "Allow-Bastion-SSH"
+      priority                   = 120
+      direction                  = "Inbound"
+      access                     = "Allow"
+      protocol                   = "Tcp"
+      source_port_range          = "*"
+      destination_port_range     = "22"
+      source_address_prefix      = var.subnet_prefixes["bastion"]
+      destination_address_prefix = var.subnet_prefixes["analysis"]
+    }
+  }
+}
+
+resource "azurerm_subnet_network_security_group_association" "analysis" {
+  count                     = var.deploy_analysis_stack ? 1 : 0
+  subnet_id                 = azurerm_subnet.analysis[0].id
+  network_security_group_id = azurerm_network_security_group.analysis_nsg[0].id
+}
+
+resource "azurerm_public_ip" "nat_gw" {
+  count               = var.deploy_analysis_stack ? 1 : 0
+  name                = "${var.prefix}-${var.environment}-natgw-ip"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  allocation_method   = "Static"
+  sku                 = "Standard"
+  tags                = var.tags
+}
+
+resource "azurerm_nat_gateway" "nat_gw" {
+  count               = var.deploy_analysis_stack ? 1 : 0
+  name                = "${var.prefix}-${var.environment}-natgw"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  sku_name            = "Standard"
+  tags                = var.tags
+}
+
+resource "azurerm_nat_gateway_public_ip_association" "nat_gw" {
+  count                = var.deploy_analysis_stack ? 1 : 0
+  nat_gateway_id       = azurerm_nat_gateway.nat_gw[0].id
+  public_ip_address_id = azurerm_public_ip.nat_gw[0].id
+}
+
+resource "azurerm_subnet_nat_gateway_association" "analysis" {
+  count          = var.deploy_analysis_stack ? 1 : 0
+  subnet_id      = azurerm_subnet.analysis[0].id
+  nat_gateway_id = azurerm_nat_gateway.nat_gw[0].id
+}
+
+resource "azurerm_private_dns_zone" "internal" {
+  count               = var.deploy_analysis_stack ? 1 : 0
+  name                = "harmonaize.internal"
+  resource_group_name = var.resource_group_name
+  tags                = var.tags
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "internal" {
+  count                 = var.deploy_analysis_stack ? 1 : 0
+  name                  = "internal-vnet-link"
+  resource_group_name   = var.resource_group_name
+  private_dns_zone_name = azurerm_private_dns_zone.internal[0].name
+  virtual_network_id    = azurerm_virtual_network.vnet.id
+}
+
+# --- Azure Bastion (opt-in) — interactive SSH to the analysis VM without a public IP ---
+
+resource "azurerm_subnet" "bastion" {
+  count                = var.deploy_bastion ? 1 : 0
+  name                 = "AzureBastionSubnet" # name is mandated by Azure; do not change
+  resource_group_name  = var.resource_group_name
+  virtual_network_name = azurerm_virtual_network.vnet.name
+  address_prefixes     = [var.subnet_prefixes["bastion"]]
+}
+
+resource "azurerm_public_ip" "bastion" {
+  count               = var.deploy_bastion ? 1 : 0
+  name                = "${var.prefix}-${var.environment}-bastion-ip"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  allocation_method   = "Static"
+  sku                 = "Standard"
+  tags                = var.tags
+}
+
+resource "azurerm_bastion_host" "bastion" {
+  count               = var.deploy_bastion ? 1 : 0
+  name                = "${var.prefix}-${var.environment}-bastion"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  sku                 = var.bastion_sku
+  tags                = var.tags
+
+  ip_configuration {
+    name                 = "configuration"
+    subnet_id            = azurerm_subnet.bastion[0].id
+    public_ip_address_id = azurerm_public_ip.bastion[0].id
+  }
 }

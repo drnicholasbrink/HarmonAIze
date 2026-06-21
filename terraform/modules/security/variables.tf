@@ -48,6 +48,19 @@ variable "suffix" {
   description = "Random suffix for globally unique names"
 }
 
+# --- Bootstrap data-plane access ---
+# The Key Vault is private by default (reachable only via its private endpoint inside the
+# VNet). Terraform must, however, write ~20 secrets over the data plane on the first apply.
+# When the machine running Terraform is OUTSIDE the VNet (e.g. a laptop / CI runner using the
+# logged-in az account), set kv_bootstrap_allowed_ip to that machine's public IP: this opens
+# the vault's public endpoint but firewalls it (default-Deny network ACL) to just that IP.
+# Leave blank to keep the vault fully private (then run the apply from a jumpbox in the VNet).
+variable "kv_bootstrap_allowed_ip" {
+  type        = string
+  default     = ""
+  description = "Public IP (no CIDR suffix) allowed to reach the Key Vault data plane for first-apply secret writes. Blank = fully private (no public access)."
+}
+
 # --- Generated / infrastructure secret material (Terraform-owned) ---
 variable "postgres_user" {
   type        = string
@@ -152,4 +165,16 @@ variable "analysis_deidentification_salt" {
   type        = string
   sensitive   = true
   description = "Value for ANALYSIS_DEIDENTIFICATION_SALT (federated-analysis de-identification salt)."
+}
+
+variable "flower_password" {
+  type        = string
+  sensitive   = true
+  description = "Flower HTTP basic auth password"
+}
+
+variable "deploy_analysis_stack" {
+  type        = bool
+  default     = false
+  description = "Deploy Armadillo analysis VM stack"
 }

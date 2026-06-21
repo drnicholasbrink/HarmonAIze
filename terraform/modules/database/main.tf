@@ -7,7 +7,7 @@ resource "azurerm_postgresql_flexible_server" "pg" {
   private_dns_zone_id           = var.private_dns_zone_id
   administrator_login           = var.admin_username
   administrator_password        = var.admin_password
-  zone                          = "1"
+  zone                          = var.enable_ha ? "1" : null
   storage_mb                    = var.storage_mb
   sku_name                      = var.sku_name
   public_network_access_enabled = false

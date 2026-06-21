@@ -68,6 +68,12 @@ variable "openai_base_url" {
   description = "Base URL for the OpenAI-compatible API (public OpenAI or any 3rd-party endpoint)"
 }
 
+variable "analysis_enabled" {
+  type        = string
+  default     = "false"
+  description = "Value for ANALYSIS_ENABLED. Keep 'false' until the Armadillo/DataSHIELD stack is deployed."
+}
+
 variable "storage_account_name" {
   type        = string
   description = "Storage account name (non-secret env value)"
@@ -160,4 +166,40 @@ variable "mapbox_access_token_secret_id" {
 variable "analysis_deidentification_salt_secret_id" {
   type        = string
   description = "KV secret ID for ANALYSIS_DEIDENTIFICATION_SALT"
+}
+
+variable "flower_password_secret_id" {
+  type        = string
+  description = "KV secret ID for FLOWER_PASSWORD"
+}
+
+variable "deploy_analysis_stack" {
+  type        = bool
+  default     = false
+  description = "Whether the analysis stack is deployed"
+}
+
+variable "armadillo_admin_password_secret_id" {
+  type        = string
+  default     = null
+  description = "KV secret ID for Armadillo admin password"
+}
+
+variable "keycloak_admin_password_secret_id" {
+  type        = string
+  default     = null
+  description = "KV secret ID for Keycloak admin password"
+}
+
+# --- Public ingress / Front Door integration ---
+variable "enable_external_ingress" {
+  type        = bool
+  default     = false
+  description = "Expose the Container Apps environment via a PUBLIC load balancer (required when fronting with Front Door). Default false = internal/private VIP. NOTE: changing this on an existing environment forces its recreation."
+}
+
+variable "frontdoor_id" {
+  type        = string
+  default     = ""
+  description = "Front Door ID (X-Azure-FDID). When set, injected as FRONTDOOR_ID so the app can reject traffic that did not arrive through Front Door. Blank disables the check."
 }

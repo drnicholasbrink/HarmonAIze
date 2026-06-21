@@ -47,3 +47,28 @@ output "acr_login_server" {
   value       = module.compute.acr_login_server
   description = "The login server of the Azure Container Registry."
 }
+
+output "migrate_job_name" {
+  value       = module.compute.migrate_job_name
+  description = "Name of the database migration Container Apps Job."
+}
+
+output "frontdoor_endpoint_hostname" {
+  value       = var.deploy_frontdoor ? module.frontdoor[0].endpoint_hostname : null
+  description = "The *.azurefd.net hostname of the Front Door endpoint (public entry point)."
+}
+
+output "frontdoor_id" {
+  value       = var.deploy_frontdoor ? module.frontdoor[0].frontdoor_id : null
+  description = "Front Door ID (X-Azure-FDID). Set this as var.frontdoor_id (second apply) to lock the origin to Front Door."
+}
+
+output "bastion_host_name" {
+  value       = module.networking.bastion_host_name
+  description = "Azure Bastion host name for SSH onto the analysis VM (null unless deploy_bastion = true)."
+}
+
+output "analysis_vm_name" {
+  value       = var.deploy_analysis_stack ? "${var.prefix}-${var.environment}-analysis-vm" : null
+  description = "Name of the analysis VM (null unless deploy_analysis_stack = true)."
+}

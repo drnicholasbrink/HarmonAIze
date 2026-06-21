@@ -6,13 +6,19 @@ terraform {
       source  = "hashicorp/azurerm"
       version = "~> 3.100"
     }
-    azuread = {
-      source  = "hashicorp/azuread"
-      version = "~> 2.40"
-    }
     random = {
       source  = "hashicorp/random"
       version = "~> 3.5"
+    }
+    time = {
+      source  = "hashicorp/time"
+      version = "~> 0.11"
+    }
+    # Used by modules/analysis_vm to generate the VM's SSH key pair. Declared
+    # explicitly so the version is constrained rather than silently auto-installed.
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
     }
   }
 }
@@ -28,7 +34,5 @@ provider "azurerm" {
     }
   }
 }
-
-provider "azuread" {}
 
 provider "random" {}

@@ -18,6 +18,19 @@
 # --- Hostnames ---
 # allowed_hosts = "harmonaize.org"   # comma-separated; set to your real domain(s), avoid "*"
 
+# --- Bootstrap access to the private Key Vault (DEPLOY_RUNBOOK.md Phase C) ---
+# The Key Vault is private by default. If you run `terraform apply` from OUTSIDE the VNet
+# (a laptop / CI runner), set this to that machine's public IP so the first-apply secret
+# writes succeed; the vault's public endpoint is then firewalled to just this IP. Leave
+# blank to keep the vault fully private (deploy from a jumpbox in the VNet instead).
+# kv_bootstrap_allowed_ip = "203.0.113.7"
+
+# --- CI/CD deploy identity (GitHub Actions) ---
+# Object ID of the deploy service principal (run scripts/setup-github-oidc.sh to create it).
+# When set, Terraform grants it AcrPush + Contributor so the pipeline can push images and
+# roll out the Container Apps. Leave blank if you let the setup script assign the roles instead.
+# cicd_principal_id = "00000000-0000-0000-0000-000000000000"
+
 # --- Application secrets ---
 # ALL of these are stored in Key Vault and consumed by the Container Apps via managed-identity
 # references. Leave blank ("") to seed empty secrets and set real values in Key Vault later
@@ -44,3 +57,10 @@ mapbox_access_token      = ""   # geolocation; optional
 # --- Worker autoscaling (KEDA Redis scaler) ---
 # celery_queue_name          = "celery"
 # worker_target_queue_length = 5
+
+# --- Federated analysis stack (Armadillo / DataSHIELD / Keycloak VM) ---
+# See terraform/ARMADILLO_PLAN.md for the post-deploy checklist.
+# deploy_analysis_stack = false                      # true to deploy the analysis VM
+# analyst_source_cidrs  = ["203.0.113.0/24"]         # IPs allowed to reach Armadillo/Keycloak (8080/8081)
+# deploy_bastion        = false                      # true for interactive SSH onto the VM (no public IP on the VM)
+# bastion_sku           = "Basic"                    # Basic (portal connect) or Standard

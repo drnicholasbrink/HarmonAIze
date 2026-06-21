@@ -9,7 +9,7 @@ resource "random_string" "suffix" {
 resource "random_password" "postgres" {
   length           = 24
   special          = true
-  override_special = "!#$%*-_=+"
+  override_special = "!*-_=+"
 }
 
 resource "random_password" "django_secret" {
@@ -24,6 +24,19 @@ resource "random_password" "deid_salt" {
   special = false
 }
 
+resource "random_password" "flower" {
+  length  = 24
+  special = false
+}
+
+# Random, unguessable admin path used when django_admin_url is not supplied. An empty
+# DJANGO_ADMIN_URL would collide with the home route (path("", ...)) and break the admin.
+resource "random_string" "admin_path" {
+  length  = 12
+  special = false
+  upper   = false
+}
+
 resource "azurerm_resource_group" "rg" {
   name     = "${var.prefix}-${var.environment}-rg"
   location = var.location
@@ -33,28 +46,33 @@ resource "azurerm_resource_group" "rg" {
 module "networking" {
   source = "./modules/networking"
 
-  prefix              = var.prefix
-  environment         = var.environment
-  location            = var.location
-  resource_group_name = azurerm_resource_group.rg.name
-  vnet_address_space  = var.vnet_address_space
-  subnet_prefixes     = var.subnet_prefixes
-  tags                = var.tags
+  prefix                = var.prefix
+  environment           = var.environment
+  location              = var.location
+  resource_group_name   = azurerm_resource_group.rg.name
+  vnet_address_space    = var.vnet_address_space
+  subnet_prefixes       = var.subnet_prefixes
+  tags                  = var.tags
+  deploy_analysis_stack = var.deploy_analysis_stack
+  analyst_source_cidrs  = var.analyst_source_cidrs
+  deploy_bastion        = var.deploy_bastion
+  bastion_sku           = var.bastion_sku
 }
 
 module "security" {
   source = "./modules/security"
 
-  prefix              = var.prefix
-  environment         = var.environment
-  location            = var.location
-  resource_group_name = azurerm_resource_group.rg.name
-  tags                = var.tags
-  tenant_id           = data.azurerm_client_config.current.tenant_id
-  deployer_object_id  = data.azurerm_client_config.current.object_id
-  subnet_id           = module.networking.endpoints_subnet_id
-  private_dns_zone_id = module.networking.keyvault_dns_zone_id
-  suffix              = random_string.suffix.result
+  prefix                  = var.prefix
+  environment             = var.environment
+  location                = var.location
+  resource_group_name     = azurerm_resource_group.rg.name
+  tags                    = var.tags
+  tenant_id               = data.azurerm_client_config.current.tenant_id
+  deployer_object_id      = data.azurerm_client_config.current.object_id
+  subnet_id               = module.networking.endpoints_subnet_id
+  private_dns_zone_id     = module.networking.keyvault_dns_zone_id
+  suffix                  = random_string.suffix.result
+  kv_bootstrap_allowed_ip = var.kv_bootstrap_allowed_ip
 
   # Generated / infrastructure secret material composed into Key Vault.
   postgres_user            = var.postgres_admin_username
@@ -66,9 +84,10 @@ module "security" {
   redis_primary_access_key = module.cache.redis_primary_access_key
   storage_account_key      = module.storage.primary_access_key
   django_secret            = random_password.django_secret.result
+  flower_password          = random_password.flower.result
 
   # Externally-supplied application secrets.
-  django_admin_url               = var.django_admin_url
+  django_admin_url               = var.django_admin_url != "" ? var.django_admin_url : "manage-${random_string.admin_path.result}/"
   sendgrid_api_key               = var.sendgrid_api_key
   sentry_dsn                     = var.sentry_dsn
   openai_api_key                 = var.openai_api_key
@@ -76,6 +95,7 @@ module "security" {
   gemini_api_key                 = var.gemini_api_key
   mapbox_access_token            = var.mapbox_access_token
   analysis_deidentification_salt = var.analysis_deidentification_salt != "" ? var.analysis_deidentification_salt : random_password.deid_salt.result
+  deploy_analysis_stack          = var.deploy_analysis_stack
 }
 
 module "database" {
@@ -161,12 +181,17 @@ module "compute" {
   key_vault_id               = module.security.key_vault_id
   suffix                     = random_string.suffix.result
   allowed_hosts              = var.allowed_hosts
+  analysis_enabled           = var.analysis_enabled
   openai_base_url            = var.openai_base_url
   storage_account_name       = module.storage.storage_account_name
   redis_hostname             = module.cache.redis_hostname
   redis_ssl_port             = module.cache.redis_ssl_port
   celery_queue_name          = var.celery_queue_name
   worker_target_queue_length = var.worker_target_queue_length
+
+  # Public ingress + Front Door origin lockdown.
+  enable_external_ingress = var.deploy_frontdoor
+  frontdoor_id            = var.frontdoor_id
 
   # All application secrets are referenced from Key Vault.
   django_secret_key_secret_id              = module.security.django_secret_key_secret_id
@@ -182,4 +207,71 @@ module "compute" {
   gemini_api_key_secret_id                 = module.security.gemini_api_key_secret_id
   mapbox_access_token_secret_id            = module.security.mapbox_access_token_secret_id
   analysis_deidentification_salt_secret_id = module.security.analysis_deidentification_salt_secret_id
+  flower_password_secret_id                = module.security.flower_password_secret_id
+  deploy_analysis_stack                    = var.deploy_analysis_stack
+  armadillo_admin_password_secret_id       = module.security.armadillo_admin_password_secret_id
+  keycloak_admin_password_secret_id        = module.security.keycloak_admin_password_secret_id
+}
+
+# ---------------------------------------------------------------------------
+# CI/CD (GitHub Actions) deploy identity — opt-in via var.cicd_principal_id.
+# Grants the pipeline's service principal just enough to push images and roll
+# out the Container Apps + run the migrate Job. It does NOT get Key Vault access:
+# the apps read their secrets via their own managed identity at runtime.
+# Alternative to running scripts/setup-github-oidc.sh with role assignment — use
+# one or the other, not both (a duplicate (principal, role, scope) errors out).
+# ---------------------------------------------------------------------------
+resource "azurerm_role_assignment" "cicd_acr_push" {
+  count                = var.cicd_principal_id != "" ? 1 : 0
+  scope                = module.compute.acr_id
+  role_definition_name = "AcrPush"
+  principal_id         = var.cicd_principal_id
+  principal_type       = "ServicePrincipal"
+}
+
+resource "azurerm_role_assignment" "cicd_rg_contributor" {
+  count                = var.cicd_principal_id != "" ? 1 : 0
+  scope                = azurerm_resource_group.rg.id
+  role_definition_name = "Contributor"
+  principal_id         = var.cicd_principal_id
+  principal_type       = "ServicePrincipal"
+}
+
+module "analysis_vm" {
+  count  = var.deploy_analysis_stack ? 1 : 0
+  source = "./modules/analysis_vm"
+
+  prefix              = var.prefix
+  environment         = var.environment
+  location            = var.location
+  resource_group_name = azurerm_resource_group.rg.name
+  tags                = var.tags
+
+  subnet_id             = module.networking.analysis_subnet_id
+  key_vault_id          = module.security.key_vault_id
+  key_vault_name        = module.security.key_vault_name
+  private_dns_zone_name = module.networking.internal_dns_zone_name
+  storage_account_name  = module.storage.storage_account_name
+  storage_account_id    = module.storage.storage_account_id
+
+  # Pass generated secret IDs to enforce Terraform dependencies
+  armadillo_admin_password_secret_id     = module.security.armadillo_admin_password_secret_id
+  keycloak_admin_password_secret_id      = module.security.keycloak_admin_password_secret_id
+  keycloak_db_password_secret_id         = module.security.keycloak_db_password_secret_id
+  rock_admin_password_secret_id          = module.security.rock_admin_password_secret_id
+  rock_user_password_secret_id           = module.security.rock_user_password_secret_id
+  armadillo_oidc_client_secret_secret_id = module.security.armadillo_oidc_client_secret_secret_id
+}
+
+module "frontdoor" {
+  source = "./modules/frontdoor"
+  count  = var.deploy_frontdoor ? 1 : 0
+
+  prefix              = var.prefix
+  environment         = var.environment
+  resource_group_name = azurerm_resource_group.rg.name
+  tags                = var.tags
+
+  web_origin_host    = module.compute.web_fqdn
+  custom_domain_host = var.frontdoor_custom_domain
 }

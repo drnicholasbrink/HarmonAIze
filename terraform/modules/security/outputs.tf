@@ -8,6 +8,11 @@ output "key_vault_uri" {
   description = "The URI of the Key Vault."
 }
 
+output "key_vault_name" {
+  value       = azurerm_key_vault.kv.name
+  description = "The name of the Key Vault."
+}
+
 # Versionless secret IDs (consumed by the Container Apps as managed-identity references).
 output "django_secret_key_secret_id" {
   value       = azurerm_key_vault_secret.django_secret_key.versionless_id
@@ -72,4 +77,39 @@ output "mapbox_access_token_secret_id" {
 output "analysis_deidentification_salt_secret_id" {
   value       = azurerm_key_vault_secret.analysis_deidentification_salt.versionless_id
   description = "KV secret ID for ANALYSIS_DEIDENTIFICATION_SALT."
+}
+
+output "flower_password_secret_id" {
+  value       = azurerm_key_vault_secret.flower_password.versionless_id
+  description = "KV secret ID for FLOWER_PASSWORD."
+}
+
+output "armadillo_admin_password_secret_id" {
+  value       = var.deploy_analysis_stack ? azurerm_key_vault_secret.armadillo_admin_password[0].versionless_id : null
+  description = "KV secret ID for armadillo-admin-password."
+}
+
+output "keycloak_admin_password_secret_id" {
+  value       = var.deploy_analysis_stack ? azurerm_key_vault_secret.keycloak_admin_password[0].versionless_id : null
+  description = "KV secret ID for keycloak-admin-password."
+}
+
+output "keycloak_db_password_secret_id" {
+  value       = var.deploy_analysis_stack ? azurerm_key_vault_secret.keycloak_db_password[0].versionless_id : null
+  description = "KV secret ID for keycloak-db-password."
+}
+
+output "rock_admin_password_secret_id" {
+  value       = var.deploy_analysis_stack ? azurerm_key_vault_secret.rock_admin_password[0].versionless_id : null
+  description = "KV secret ID for rock-admin-password."
+}
+
+output "rock_user_password_secret_id" {
+  value       = var.deploy_analysis_stack ? azurerm_key_vault_secret.rock_user_password[0].versionless_id : null
+  description = "KV secret ID for rock-user-password."
+}
+
+output "armadillo_oidc_client_secret_secret_id" {
+  value       = var.deploy_analysis_stack ? azurerm_key_vault_secret.armadillo_oidc_client_secret[0].versionless_id : null
+  description = "KV secret ID for armadillo-oidc-client-secret."
 }

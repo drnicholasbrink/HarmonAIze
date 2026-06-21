@@ -37,6 +37,11 @@ variable "subnet_prefixes" {
     db            = "10.0.3.0/24"
     endpoints     = "10.0.4.0/24"
     containerapps = "10.0.6.0/23"
+    # Used only when deploy_analysis_stack = true. Must be 10.0.8.0/24 to match the
+    # analysis VM's hardcoded private IP (10.0.8.4) in modules/analysis_vm/main.tf.
+    analysis = "10.0.8.0/24"
+    # Used only when deploy_bastion = true. AzureBastionSubnet requires at least a /26.
+    bastion = "10.0.9.0/26"
   }
 }
 
@@ -223,7 +228,25 @@ variable "analysis_deidentification_salt" {
 variable "allowed_hosts" {
   type        = string
   default     = "harmonaize.org"
-  description = "Comma-separated DJANGO_ALLOWED_HOSTS. Set to your real domain(s); avoid '*' in production."
+  description = "Comma-separated DJANGO_ALLOWED_HOSTS. The Container Apps environment domain is appended automatically. Set to your real domain(s); avoid '*' in production."
+}
+
+variable "kv_bootstrap_allowed_ip" {
+  type        = string
+  default     = ""
+  description = "Public IP of the machine running Terraform, allowed to write Key Vault secrets on the first apply when deploying from outside the VNet. Opens the KV public endpoint but firewalls it to this single IP. Blank = fully private (run the apply from a jumpbox/peered network instead). See DEPLOY_RUNBOOK.md Phase C."
+}
+
+variable "cicd_principal_id" {
+  type        = string
+  default     = ""
+  description = "Object ID of the GitHub Actions deploy service principal (the Entra app's SP object ID, NOT the client/app ID). When set, grants it AcrPush on the registry and Contributor on the resource group so the pipeline can push images and roll out Container Apps + run the migrate job. Blank = no CI/CD role assignments. See .github/workflows/README.md."
+}
+
+variable "analysis_enabled" {
+  type        = string
+  default     = "false"
+  description = "Value for ANALYSIS_ENABLED. Keep 'false' until the Armadillo/DataSHIELD federated stack is deployed (otherwise Django targets an unreachable Armadillo)."
 }
 
 # Worker autoscaling (KEDA Redis-list scaler)
@@ -237,4 +260,47 @@ variable "worker_target_queue_length" {
   type        = number
   default     = 5
   description = "Target Celery queue length per worker replica before KEDA scales out."
+}
+
+variable "deploy_analysis_stack" {
+  type        = bool
+  default     = false
+  description = "Deploy the optional Armadillo/DataSHIELD analysis stack VM."
+}
+
+variable "analyst_source_cidrs" {
+  type        = list(string)
+  default     = []
+  description = "List of public/private IP ranges of the analysts allowed to reach Armadillo and Keycloak."
+}
+
+variable "deploy_bastion" {
+  type        = bool
+  default     = false
+  description = "Deploy Azure Bastion to allow interactive SSH onto the analysis VM (which has no public IP). Adds an AzureBastionSubnet, a Standard public IP, and the Bastion host, plus an NSG rule allowing SSH from Bastion to the analysis subnet. Pairs with deploy_analysis_stack. See terraform/ARMADILLO_PLAN.md."
+}
+
+variable "bastion_sku" {
+  type        = string
+  default     = "Basic"
+  description = "Azure Bastion SKU: Basic (portal connect, cheapest) or Standard (native client / IP-based connect)."
+}
+
+# --- Front Door (public edge + WAF) ---
+variable "deploy_frontdoor" {
+  type        = bool
+  default     = false
+  description = "Deploy Azure Front Door Standard + WAF in front of the web app. Sets the Container Apps environment to PUBLIC ingress. Requires the Django X-Azure-FDID change (see modules/frontdoor/README.md) for true origin lockdown."
+}
+
+variable "frontdoor_custom_domain" {
+  type        = string
+  default     = ""
+  description = "Optional custom domain for Front Door (e.g. harmonaize.org). Blank = serve on the generated *.azurefd.net hostname only."
+}
+
+variable "frontdoor_id" {
+  type        = string
+  default     = ""
+  description = "Front Door ID (X-Azure-FDID) injected to the app as FRONTDOOR_ID for origin lockdown. Two-pass: leave blank on the first apply, then set it from the 'frontdoor_id' output and re-apply."
 }
