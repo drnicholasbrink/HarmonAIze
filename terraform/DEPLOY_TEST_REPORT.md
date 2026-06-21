@@ -52,6 +52,26 @@ Validated earlier and still holding: the `kv_bootstrap_allowed_ip` fix (all ~20 
   and `USE_X_FORWARDED_HOST = True`; allow-listed `.azurefd.net`; ran the `frontdoor_id` second pass.
 - **Verified:** direct ACA origin `GET /` → **403** (rejected); Front Door `GET /` → **200**.
 
+## Federated analysis stack (Armadillo / Keycloak / Rock) — deployed
+
+The VM tier was created earlier but cloud-init had silently failed; bringing the Docker Compose stack
+up surfaced a chain of issues. **Verified:** all 4 containers up — Keycloak healthy (realm `Armadillo`
+imported), Rock + Postgres healthy, **Armadillo `GET /` → 200**.
+
+| # | Severity | Issue | Fix |
+| :-- | :-- | :-- | :-- |
+| 12 | **blocking** | cloud-init used `az login --identity --username <id>` — removed in current az CLI; retried 30× then aborted, so the **whole stack never started** | `--client-id` (`cloud-init.sh`) |
+| 13 | **blocking** | `molgenis/molgenis-armadillo:3.2.0` was never published (tags are 3.0.x/3.1.0 then 4.x/5.x) | pin `3.1.0` (latest 3.x, matches the 3.x config); also dropped obsolete `version:` |
+| 14 | **blocking** | Keycloak 25 `start` refuses HTTP-only without TLS key material | add `--http-enabled=true` |
+| 15 | **blocking** | Keycloak healthcheck used `curl` (absent from the image) on `8080`; KC 25 serves health on the **management port 9000** | in-image JDK probe against `http://localhost:9000/health/ready` |
+| 16 | **blocking** | Armadillo 3.1.x requires `armadillo.oidc-permission-enabled` (absent → Spring placeholder crash) | add it (`false`) to `application.yml` |
+| 17 | high | `azurerm_storage_blob` with only `source` doesn't track file-content changes, so edited config never re-uploads on `terraform apply` | `content_md5 = filemd5(...)` on all analysis blobs |
+| 18 | cosmetic | matplotlib/fontconfig warning from the `django` user's non-writable `/nonexistent` home (Celery apps) | set `MPLCONFIGDIR`/`HOME` (not yet applied; non-fatal) |
+
+> The blobs were hot-fixed in storage (direct `az storage blob upload`) to bring the running VM up
+> without recreating it; #12–#16 are also corrected in the repo compose/cloud-init and #17 makes future
+> `terraform apply`s propagate those files.
+
 ## Known gaps (by design)
 - **Azure OpenAI** left off (opt-in; needs separate access approval).
 - **WAF managed rules** require the Premium SKU (Standard ships the custom rate-limit rule only).
