@@ -5,6 +5,7 @@ import django.db.models.deletion
 import pgvector.django.vector
 from django.conf import settings
 from django.db import migrations, models
+from pgvector.django import VectorExtension
 
 
 class Migration(migrations.Migration):
@@ -16,6 +17,9 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        # Create the pgvector extension before any VectorField column is created.
+        # (azure.extensions=VECTOR allowlists it on the Flexible Server; this creates it.)
+        VectorExtension(),
         migrations.CreateModel(
             name='Attribute',
             fields=[
