@@ -399,6 +399,18 @@ az containerapp job start -n "$(terraform output -raw migrate_job_name)" -g $RG 
 **Tune autoscaling / sizing:** change `worker_target_queue_length`, `max_replicas`, `db_sku_name`,
 `redis_sku_name` (Azure Managed Redis SKU, e.g. `Balanced_B0`), etc., then `terraform apply`.
 
+**Change the OpenAI endpoint / models (no re-apply):** the endpoint and model names are Key Vault
+secrets, so edit them in place and roll a revision — no `terraform apply`:
+```powershell
+$KV = ((terraform output -raw key_vault_uri) -replace 'https://','').Split('.')[0]
+az keyvault secret set --vault-name $KV --name openai-base-url             --value "https://my-provider.example/v1"
+az keyvault secret set --vault-name $KV --name openai-transformation-model --value "gpt-4o"
+az keyvault secret set --vault-name $KV --name openai-embedding-model      --value "text-embedding-3-large"
+foreach ($a in "web","worker","beat","flower") { az containerapp update -n "harmonaize-prod-$a" -g $RG --revision-suffix "r$(Get-Date -UFormat %s)" }
+```
+Run from the allow-listed IP (Phase C). Terraform `ignore_changes` keeps these KV edits — re-applying
+won't overwrite them. ⚠️ A non-3072-dim embedding model also needs the pgvector columns migrated.
+
 **Teardown:**
 ```powershell
 terraform destroy
