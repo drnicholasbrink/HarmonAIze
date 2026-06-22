@@ -63,11 +63,6 @@ variable "allowed_hosts" {
   description = "Comma-separated value for DJANGO_ALLOWED_HOSTS"
 }
 
-variable "openai_base_url" {
-  type        = string
-  description = "Base URL for the OpenAI-compatible API (public OpenAI or any 3rd-party endpoint)"
-}
-
 variable "analysis_enabled" {
   type        = string
   default     = "false"
@@ -146,6 +141,21 @@ variable "sentry_dsn_secret_id" {
 variable "openai_api_key_secret_id" {
   type        = string
   description = "KV secret ID for OPENAI_API_KEY"
+}
+
+variable "openai_base_url_secret_id" {
+  type        = string
+  description = "KV secret ID for OPENAI_BASE_URL"
+}
+
+variable "openai_embedding_model_secret_id" {
+  type        = string
+  description = "KV secret ID for OPENAI_EMBEDDING_MODEL"
+}
+
+variable "openai_transformation_model_secret_id" {
+  type        = string
+  description = "KV secret ID for OPENAI_TRANSFORMATION_MODEL"
 }
 
 variable "google_geocoding_api_key_secret_id" {

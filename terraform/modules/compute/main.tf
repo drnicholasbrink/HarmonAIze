@@ -16,6 +16,9 @@ locals {
     { name = "sendgrid-api-key", id = var.sendgrid_api_key_secret_id },
     { name = "sentry-dsn", id = var.sentry_dsn_secret_id },
     { name = "openai-api-key", id = var.openai_api_key_secret_id },
+    { name = "openai-base-url", id = var.openai_base_url_secret_id },
+    { name = "openai-embedding-model", id = var.openai_embedding_model_secret_id },
+    { name = "openai-transformation-model", id = var.openai_transformation_model_secret_id },
     { name = "google-geocoding-api-key", id = var.google_geocoding_api_key_secret_id },
     { name = "gemini-api-key", id = var.gemini_api_key_secret_id },
     { name = "mapbox-access-token", id = var.mapbox_access_token_secret_id },
@@ -48,7 +51,7 @@ locals {
     { name = "DJANGO_ALLOWED_HOSTS", value = "${var.allowed_hosts},.${azurerm_container_app_environment.env.default_domain}${var.enable_external_ingress ? ",.azurefd.net" : ""}" },
     { name = "DJANGO_AZURE_ACCOUNT_NAME", value = var.storage_account_name },
     { name = "DJANGO_AZURE_CONTAINER_NAME", value = "media" },
-    { name = "OPENAI_BASE_URL", value = var.openai_base_url },
+    # OPENAI_BASE_URL + model names come from Key Vault (see secret_env) so they're changeable without redeploy.
     # FRONTDOOR_ID is injected only when set, so the app can reject non-Front-Door traffic (origin lockdown).
   ], local.analysis_plain_env, var.frontdoor_id != "" ? [{ name = "FRONTDOOR_ID", value = var.frontdoor_id }] : [])
 
@@ -67,6 +70,9 @@ locals {
     { name = "SENDGRID_API_KEY", secret_name = "sendgrid-api-key" },
     { name = "SENTRY_DSN", secret_name = "sentry-dsn" },
     { name = "OPENAI_API_KEY", secret_name = "openai-api-key" },
+    { name = "OPENAI_BASE_URL", secret_name = "openai-base-url" },
+    { name = "OPENAI_EMBEDDING_MODEL", secret_name = "openai-embedding-model" },
+    { name = "OPENAI_TRANSFORMATION_MODEL", secret_name = "openai-transformation-model" },
     { name = "GOOGLE_GEOCODING_API_KEY", secret_name = "google-geocoding-api-key" },
     { name = "GEMINI_API_KEY", secret_name = "gemini-api-key" },
     { name = "MAPBOX_ACCESS_TOKEN", secret_name = "mapbox-access-token" },

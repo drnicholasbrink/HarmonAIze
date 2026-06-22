@@ -91,6 +91,9 @@ module "security" {
   sendgrid_api_key               = var.sendgrid_api_key
   sentry_dsn                     = var.sentry_dsn
   openai_api_key                 = var.openai_api_key
+  openai_base_url                = var.openai_base_url
+  openai_embedding_model         = var.openai_embedding_model
+  openai_transformation_model    = var.openai_transformation_model
   google_geocoding_api_key       = var.google_geocoding_api_key
   gemini_api_key                 = var.gemini_api_key
   mapbox_access_token            = var.mapbox_access_token
@@ -182,7 +185,6 @@ module "compute" {
   suffix                     = random_string.suffix.result
   allowed_hosts              = var.allowed_hosts
   analysis_enabled           = var.analysis_enabled
-  openai_base_url            = var.openai_base_url
   storage_account_name       = module.storage.storage_account_name
   redis_hostname             = module.cache.redis_hostname
   redis_ssl_port             = module.cache.redis_ssl_port
@@ -203,6 +205,9 @@ module "compute" {
   sendgrid_api_key_secret_id               = module.security.sendgrid_api_key_secret_id
   sentry_dsn_secret_id                     = module.security.sentry_dsn_secret_id
   openai_api_key_secret_id                 = module.security.openai_api_key_secret_id
+  openai_base_url_secret_id                = module.security.openai_base_url_secret_id
+  openai_embedding_model_secret_id         = module.security.openai_embedding_model_secret_id
+  openai_transformation_model_secret_id    = module.security.openai_transformation_model_secret_id
   google_geocoding_api_key_secret_id       = module.security.google_geocoding_api_key_secret_id
   gemini_api_key_secret_id                 = module.security.gemini_api_key_secret_id
   mapbox_access_token_secret_id            = module.security.mapbox_access_token_secret_id

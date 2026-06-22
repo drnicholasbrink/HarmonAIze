@@ -140,6 +140,24 @@ variable "openai_api_key" {
   description = "Value for OPENAI_API_KEY."
 }
 
+variable "openai_base_url" {
+  type        = string
+  default     = "https://api.openai.com/v1"
+  description = "Seed for the OPENAI_BASE_URL secret (OpenAI-compatible API endpoint). Change in Key Vault to switch providers."
+}
+
+variable "openai_embedding_model" {
+  type        = string
+  default     = "text-embedding-3-large"
+  description = "Seed for the OPENAI_EMBEDDING_MODEL secret. Keep a 3072-dim model unless you also migrate the vector columns."
+}
+
+variable "openai_transformation_model" {
+  type        = string
+  default     = "gpt-5"
+  description = "Seed for the OPENAI_TRANSFORMATION_MODEL secret (chat/transform model)."
+}
+
 variable "google_geocoding_api_key" {
   type        = string
   sensitive   = true

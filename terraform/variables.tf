@@ -77,8 +77,20 @@ variable "redis_sku_name" {
 
 variable "openai_base_url" {
   type        = string
-  description = "Base URL for the OpenAI-compatible API consumed by the app's public OpenAI SDK. Set to any 3rd-party OpenAI-compatible endpoint."
+  description = "Seed for the OPENAI_BASE_URL Key Vault secret (the OpenAI-compatible API endpoint). After deploy, change it directly in Key Vault and roll a revision — no re-apply needed."
   default     = "https://api.openai.com/v1"
+}
+
+variable "openai_embedding_model" {
+  type        = string
+  description = "Seed for the OPENAI_EMBEDDING_MODEL Key Vault secret. Keep a 3072-dim model (e.g. text-embedding-3-large) unless you also migrate the pgvector columns."
+  default     = "text-embedding-3-large"
+}
+
+variable "openai_transformation_model" {
+  type        = string
+  description = "Seed for the OPENAI_TRANSFORMATION_MODEL Key Vault secret (the chat/transform model)."
+  default     = "gpt-5"
 }
 
 variable "deploy_azure_openai" {

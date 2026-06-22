@@ -59,6 +59,21 @@ output "openai_api_key_secret_id" {
   description = "KV secret ID for OPENAI_API_KEY."
 }
 
+output "openai_base_url_secret_id" {
+  value       = azurerm_key_vault_secret.openai_base_url.versionless_id
+  description = "KV secret ID for OPENAI_BASE_URL."
+}
+
+output "openai_embedding_model_secret_id" {
+  value       = azurerm_key_vault_secret.openai_embedding_model.versionless_id
+  description = "KV secret ID for OPENAI_EMBEDDING_MODEL."
+}
+
+output "openai_transformation_model_secret_id" {
+  value       = azurerm_key_vault_secret.openai_transformation_model.versionless_id
+  description = "KV secret ID for OPENAI_TRANSFORMATION_MODEL."
+}
+
 output "google_geocoding_api_key_secret_id" {
   value       = azurerm_key_vault_secret.google_geocoding_api_key.versionless_id
   description = "KV secret ID for GOOGLE_GEOCODING_API_KEY."

@@ -11,9 +11,13 @@
 
 # --- OpenAI-compatible API ---
 # The app uses the public OpenAI SDK, so it works with OpenAI or any 3rd-party
-# OpenAI-compatible endpoint. Set the base URL and the matching key (openai_api_key below).
-# openai_base_url     = "https://api.openai.com/v1"   # or e.g. a 3rd-party provider's /v1 URL
-# deploy_azure_openai = false                          # leave off unless you specifically want Azure OpenAI
+# OpenAI-compatible endpoint. The endpoint + model names are stored as Key Vault secrets
+# (openai-base-url / openai-embedding-model / openai-transformation-model) and these tfvars only
+# SEED them — after deploy, change them directly in Key Vault and roll a revision (no re-apply).
+# openai_base_url             = "https://api.openai.com/v1"   # or a 3rd-party provider's /v1 URL
+# openai_embedding_model      = "text-embedding-3-large"      # keep 3072 dims unless you migrate the vector columns
+# openai_transformation_model = "gpt-5"
+# deploy_azure_openai         = false                         # leave off unless you specifically want Azure OpenAI
 
 # --- Hostnames ---
 # allowed_hosts = "harmonaize.org"   # comma-separated; set to your real domain(s), avoid "*"

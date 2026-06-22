@@ -142,6 +142,38 @@ resource "azurerm_key_vault_secret" "openai_api_key" {
   }
 }
 
+# OpenAI endpoint + model names live in Key Vault so they can be changed without a redeploy
+# (edit the secret value, then roll a Container App revision). Seeded once; KV is authoritative.
+resource "azurerm_key_vault_secret" "openai_base_url" {
+  depends_on   = [time_sleep.wait_for_kv_rbac]
+  name         = "openai-base-url"
+  value        = var.openai_base_url
+  key_vault_id = azurerm_key_vault.kv.id
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
+resource "azurerm_key_vault_secret" "openai_embedding_model" {
+  depends_on   = [time_sleep.wait_for_kv_rbac]
+  name         = "openai-embedding-model"
+  value        = var.openai_embedding_model
+  key_vault_id = azurerm_key_vault.kv.id
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
+resource "azurerm_key_vault_secret" "openai_transformation_model" {
+  depends_on   = [time_sleep.wait_for_kv_rbac]
+  name         = "openai-transformation-model"
+  value        = var.openai_transformation_model
+  key_vault_id = azurerm_key_vault.kv.id
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
 resource "azurerm_key_vault_secret" "google_geocoding_api_key" {
   depends_on   = [time_sleep.wait_for_kv_rbac]
   name         = "google-geocoding-api-key"
