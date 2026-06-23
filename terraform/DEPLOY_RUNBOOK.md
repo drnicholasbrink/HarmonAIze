@@ -9,6 +9,23 @@ top to bottom. Companion docs:
 
 ---
 
+## Quick start (automated)
+
+[`scripts/deploy.ps1`](../scripts/deploy.ps1) runs Phases A–I end to end (idempotent — safe to re-run):
+
+```powershell
+az login
+Copy-Item terraform/terraform.tfvars.example terraform/terraform.tfvars   # then edit your options
+pwsh ./scripts/deploy.ps1            # add -Force to skip the prompt, -SkipImageBuild to reuse the image
+```
+
+It creates the ACR, builds the image (`az acr build`), allow-lists your IP on the Key Vault, applies,
+runs migrations, does the Front Door second pass, and verifies. Tear down with
+[`scripts/destroy.ps1`](../scripts/destroy.ps1). The phases below are the reference for what the script
+does (and the manual path if you prefer step-by-step). Still set real app secrets afterward — Phase F.
+
+---
+
 ## What gets deployed
 
 | Tier | Resources |
