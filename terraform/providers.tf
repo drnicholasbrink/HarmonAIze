@@ -32,7 +32,10 @@ terraform {
 provider "azurerm" {
   features {
     key_vault {
-      purge_soft_delete_on_destroy    = true
+      # false: a prod Key Vault has purge protection enabled, which makes an automatic purge-on-destroy
+      # fail and abort `terraform destroy`. We soft-delete instead (it auto-purges after the retention
+      # window; the random name suffix means re-deploys are unaffected). For dev, purge manually if reusing a name.
+      purge_soft_delete_on_destroy    = false
       recover_soft_deleted_key_vaults = true
     }
     resource_group {
