@@ -9,6 +9,7 @@ resource "azurerm_postgresql_flexible_server" "pg" {
   administrator_password        = var.admin_password
   zone                          = var.enable_ha ? "1" : null
   storage_mb                    = var.storage_mb
+  auto_grow_enabled             = var.auto_grow_enabled
   sku_name                      = var.sku_name
   public_network_access_enabled = false
   tags                          = var.tags

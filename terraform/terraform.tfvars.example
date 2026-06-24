@@ -52,10 +52,16 @@ mapbox_access_token      = ""   # geolocation; optional
 # --- Sizing / behaviour (defaults shown) ---
 # min_replicas               = 0       # web floors to 1 internally
 # max_replicas               = 5
-# enable_postgres_ha         = true    # Zone-Redundant HA (raises cost)
-# db_sku_name                = "GP_Standard_D2s_v3"
+# db_sku_name                = "B_Standard_B2ms"   # Burstable 2 vCore / 8 GiB — cost-effective default
+# db_storage_mb              = 65536               # 64 GB starting size (grows via db_auto_grow_enabled)
+# db_auto_grow_enabled       = true                # auto-grow storage as data accumulates
+# enable_postgres_ha         = false               # Zone-Redundant HA off (needs a GP SKU; ~2x DB cost)
 # redis_sku_name             = "Balanced_B0"   # Azure Managed Redis SKU (classic tiers are retired)
 # storage_replication_type   = "GRS"
+#
+# For production with an uptime SLA, opt into HA on a General Purpose SKU:
+# db_sku_name        = "GP_Standard_D2s_v3"
+# enable_postgres_ha = true
 
 # --- Worker autoscaling (KEDA Redis scaler) ---
 # celery_queue_name          = "celery"

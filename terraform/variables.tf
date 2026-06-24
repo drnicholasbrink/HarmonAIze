@@ -59,14 +59,20 @@ variable "aks_node_size" {
 
 variable "db_sku_name" {
   type        = string
-  description = "The SKU for the PostgreSQL Flexible Server database."
-  default     = "GP_Standard_D2s_v3"
+  description = "The SKU for the PostgreSQL Flexible Server. Default is the Burstable B_Standard_B2ms (2 vCore / 8 GiB) — cost-effective for the app's bursty research workload. For sustained load or to enable HA, move to General Purpose (e.g. GP_Standard_D2s_v3); Burstable SKUs cannot run high availability."
+  default     = "B_Standard_B2ms"
 }
 
 variable "db_storage_mb" {
   type        = number
-  description = "The storage size of the database in MB."
-  default     = 131072 # 128 GB
+  description = "The starting storage size of the database in MB. Starts lean; with db_auto_grow_enabled it grows automatically as data accumulates. Note Flexible Server storage can only grow, never shrink."
+  default     = 65536 # 64 GB
+}
+
+variable "db_auto_grow_enabled" {
+  type        = bool
+  description = "Automatically grow PostgreSQL storage as it nears capacity. Recommended on so the lean default storage scales up under data growth without manual intervention or downtime."
+  default     = true
 }
 
 variable "redis_sku_name" {
@@ -152,8 +158,8 @@ variable "postgres_admin_username" {
 
 variable "enable_postgres_ha" {
   type        = bool
-  description = "Enable high availability for PostgreSQL."
-  default     = true
+  description = "Enable Zone-Redundant high availability for PostgreSQL. Off by default: HA provisions a full standby replica (~2x compute + storage cost) and requires a General Purpose or Memory Optimized SKU (the default Burstable SKU does not support it). For production with an uptime SLA, set a GP SKU in db_sku_name and turn this on."
+  default     = false
 }
 
 variable "storage_replication_type" {

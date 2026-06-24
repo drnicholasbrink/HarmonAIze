@@ -54,6 +54,11 @@ variable "storage_mb" {
   description = "Storage size in MB"
 }
 
+variable "auto_grow_enabled" {
+  type        = bool
+  description = "Enable automatic storage growth for PostgreSQL"
+}
+
 variable "enable_ha" {
   type        = bool
   description = "Enable high availability for PostgreSQL"

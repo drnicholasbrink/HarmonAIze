@@ -116,6 +116,7 @@ module "database" {
   admin_password      = random_password.postgres.result
   sku_name            = var.db_sku_name
   storage_mb          = var.db_storage_mb
+  auto_grow_enabled   = var.db_auto_grow_enabled
   enable_ha           = var.enable_postgres_ha
 }
 

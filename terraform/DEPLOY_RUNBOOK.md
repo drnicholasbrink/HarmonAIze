@@ -149,15 +149,15 @@ deploy_analysis_stack = false                  # true to deploy the Armadillo/Da
 
 ### Cost-optimized profile for a short evaluation run
 
-For a throwaway 2-day evaluation (then `terraform destroy`), the overrides below cut the core cost to
-roughly **$8–12 for 48 h** instead of ~$30. **Not for production** — no DB HA, single-node cache,
-local-only storage redundancy.
+The database now defaults to a cost-effective Burstable SKU (`B_Standard_B2ms`, 64 GB, **HA off**), so the
+core stack is already lean. For a throwaway 2-day evaluation (then `terraform destroy`), the overrides
+below trim it further to roughly **$8–12 for 48 h**. **Not for production** — minimal DB, single-node
+cache, local-only storage redundancy.
 
 ```hcl
 # --- Cheap test profile: replace the sizing block in terraform.tfvars ---
-enable_postgres_ha = false                 # no standby replica — the single biggest saving (~$10)
-db_sku_name        = "B_Standard_B1ms"     # Burstable 1 vCore / 2 GiB (vs GP 2 vCore). Burstable does
-db_storage_mb      = 32768                 #   not support HA, so HA must be off (above). 32 GB = minimum.
+db_sku_name   = "B_Standard_B1ms"     # shrink from the default B2ms to Burstable 1 vCore / 2 GiB
+db_storage_mb = 32768                 # 32 GB = the minimum (default is 64 GB). HA is already off by default.
 
 redis_sku_name = "Balanced_B0"             # smallest Azure Managed Redis (classic Basic/Standard/Enterprise are retired)
 
@@ -167,6 +167,9 @@ storage_replication_type = "LRS"           # local redundancy (vs GRS)
 deploy_frontdoor      = false              # stay private; reach the app from inside the VNet
 deploy_analysis_stack = false              # skip the priciest add-on
 ```
+
+> **For production**, opt back into HA on a General Purpose SKU — set `db_sku_name = "GP_Standard_D2s_v3"`
+> and `enable_postgres_ha = true` (Burstable SKUs can't run HA).
 
 > For **repeated** test cycles, also set `environment = "dev"` — this turns Key Vault purge protection
 > **off**, so `az keyvault purge` works immediately after destroy and names are reusable without the
