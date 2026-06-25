@@ -10,7 +10,7 @@ terraform {
 }
 
 locals {
-  redis_name = "${var.prefix}-${var.environment}-redis"
+  redis_name = "${var.prefix}-${var.environment}-redis-${var.suffix}"
 }
 
 # Azure Managed Redis (AMR). Both classic "Azure Cache for Redis" (azurerm_redis_cache) and

@@ -63,3 +63,8 @@ variable "enable_ha" {
   type        = bool
   description = "Enable high availability for PostgreSQL"
 }
+
+variable "suffix" {
+  type        = string
+  description = "Random suffix appended to the globally-unique PostgreSQL server name (its FQDN is *.postgres.database.azure.com, so the name must be unique across Azure and survive deploy/destroy cycles)."
+}

@@ -118,6 +118,7 @@ module "database" {
   storage_mb          = var.db_storage_mb
   auto_grow_enabled   = var.db_auto_grow_enabled
   enable_ha           = var.enable_postgres_ha
+  suffix              = random_string.suffix.result
 }
 
 module "cache" {
