@@ -8,10 +8,31 @@ python_files = [
 ]
 
 # ==== Coverage ====
+# IMPORTANT: the Django apps (health, climate, core, geolocation, analysis) live
+# at the project root (harmonaize/<app>/), NOT inside the inner project package
+# (harmonaize/harmonaize/). The previous glob `harmonaize/**` resolved against
+# the package dir and silently measured almost none of the app code. These globs
+# are evaluated relative to the pyproject.toml location (the harmonaize/ dir),
+# so they correctly target the apps at the repo level.
 [tool.coverage.run]
-include = ["harmonaize/**"]
-omit = ["*/migrations/*", "*/tests/*"]
+source = ["health", "climate", "core", "geolocation", "analysis", "users"]
+omit = [
+    "*/migrations/*",
+    "*/tests/*",
+    "*/management/commands/*",
+    "*/test_*.py",
+    "*/tests.py",
+]
 plugins = ["django_coverage_plugin"]
+branch = true
+
+[tool.coverage.report]
+# Coverage floor enforced by CI (see .github/workflows/ci.yml). Start low —
+# geolocation/core/analysis are near-zero today (CODE_REVIEW.md §3) — and
+# ratchet upward as tests are added.
+fail_under = 20
+show_missing = true
+skip_covered = true
 
 # ==== mypy ====
 [tool.mypy]

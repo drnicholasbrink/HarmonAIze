@@ -1,0 +1,122 @@
+name: ci
+
+# Continuous-integration quality gate for pull requests and main.
+# Enforces the project conventions: ruff (lint + format), djLint (Django templates),
+# mypy (types), and pytest (tests + coverage threshold).
+#
+# NOTE: the deploy workflow (deploy.yml) runs separately on main; this gate
+# must pass before any PR can merge into main (enforce via branch protection).
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Cancel superseded runs on the same ref to save CI minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: harmonaize
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: harmonaize/requirements/local.txt
+      - run: python -m pip install --upgrade pip
+      - run: pip install -r requirements/local.txt
+      # Ruff lint (E/F/I/UP/B/SIM as configured in pyproject.toml).
+      - name: Ruff check
+        run: ruff check .
+      # Ruff formatting must be applied (no diff allowed).
+      - name: Ruff format --check
+        run: ruff format --check .
+      # djLint lint + format check on Django templates.
+      - name: djLint
+        run: djlint . --lint --check
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: harmonaize/requirements/local.txt
+      - run: python -m pip install --upgrade pip
+      - run: pip install -r requirements/local.txt
+      - name: mypy
+        run: mypy .
+
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: harmonaize
+        ports:
+          - 5432:5432
+        # Wait until postgres is accepting connections.
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://postgres:ci@localhost:5432/harmonaize
+      REDIS_URL: redis://localhost:6379/1
+      DJANGO_SETTINGS_MODULE: config.settings.test
+      # Keep CI deterministic: no real third-party API calls from tests.
+      USE_DOCKER: "yes"
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: harmonaize/requirements/local.txt
+      - run: python -m pip install --upgrade pip
+      - run: pip install -r requirements/local.txt
+
+      # System checks (models, admin, etc.). --deploy surfaces security
+      # warnings; we don't fail on those yet (see CODE_REVIEW.md §1.5) but
+      # capture them so they are visible on every PR.
+      - name: Django system checks
+        run: python manage.py check
+      - name: Django deploy checks (informational)
+        run: python manage.py check --deploy || true
+
+      - name: pytest
+        run: pytest --cov --cov-report=term-missing --cov-report=xml
+
+      # Upload the coverage report for browsing, regardless of pass/fail.
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ github.run_id }}
+          path: harmonaize/coverage.xml

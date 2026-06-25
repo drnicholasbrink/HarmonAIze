@@ -21,7 +21,10 @@
 [CmdletBinding()]
 param([switch]$Force, [string]$SubscriptionId)
 
-$ErrorActionPreference = 'Stop'
+# 'Continue' (not 'Stop'): under Windows PowerShell 5.1 a native command writing to stderr becomes a
+# terminating error when EAP=Stop, which would abort terraform destroy mid-run on benign stderr. Real
+# failures are still caught explicitly (the $LASTEXITCODE check after destroy; throws on login/az errors).
+$ErrorActionPreference = 'Continue'
 Set-StrictMode -Version Latest
 
 $RepoRoot = Split-Path $PSScriptRoot -Parent
