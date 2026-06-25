@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Tear down the HarmonAIze stack (terraform destroy) — companion to deploy.ps1.
+    Tear down the HarmonAIze stack (terraform destroy) - companion to deploy.ps1.
 
 .DESCRIPTION
     Adds this machine's public IP to the (private) Key Vault firewall first, so Terraform can delete
