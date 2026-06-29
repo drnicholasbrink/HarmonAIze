@@ -19,7 +19,8 @@ Copy-Item terraform/terraform.tfvars.example terraform/terraform.tfvars   # then
 pwsh ./scripts/deploy.ps1            # add -Force to skip the prompt, -SkipImageBuild to reuse the image
 ```
 
-It creates the ACR, builds the image (`az acr build`), allow-lists your IP on the Key Vault, applies,
+On the first run it provisions the remote state backend (via `scripts/bootstrap-tfstate.ps1`), then
+creates the ACR, builds the image (`az acr build`), allow-lists your IP on the Key Vault, applies,
 runs migrations, does the Front Door second pass, and verifies. Tear down with
 [`scripts/destroy.ps1`](../scripts/destroy.ps1). The phases below are the reference for what the script
 does (and the manual path if you prefer step-by-step). Still set real app secrets afterward — Phase F.
@@ -94,26 +95,53 @@ only if `deploy_azure_openai = true`.)
 
 State holds generated secrets — keep it off your laptop and out of git.
 
+> **`deploy.ps1` runs this for you.** On the first deploy it detects the unprovisioned backend
+> (`terraform/backend.tf` still holds the placeholder) and runs the bootstrap automatically, then
+> `init`s with state migration. Do the manual steps below only if you want to provision the backend
+> separately (e.g. to grant a CI principal with `-CicdPrincipalId`, or from a different machine).
+
+[`scripts/bootstrap-tfstate.ps1`](../scripts/bootstrap-tfstate.ps1) provisions a hardened, dedicated
+backend and fills in the generated account name in `terraform/backend.tf` for you (idempotent):
+
 ```powershell
-az group create --name harmonaize-tfstate-rg --location southafricanorth
-$STATE = "harmonaizetfstate$(Get-Random -Maximum 99999)"
-az storage account create --name $STATE --resource-group harmonaize-tfstate-rg --sku Standard_LRS --encryption-services blob
-az storage container create --name tfstate --account-name $STATE
-$STATE   # note this name
+pwsh ./scripts/bootstrap-tfstate.ps1        # add -Force to skip the prompt
 ```
 
-Create `terraform/backend.tf`:
+It creates a **separate** `harmonaize-tfstate-rg` (kept apart from the app RG so `terraform destroy` can
+never take the state with it), a StorageV2 account with TLS 1.2, blob **versioning + 30-day soft-delete**,
+a private `tfstate` container and a `CanNotDelete` lock, **firewalls the public endpoint to your IP**
+(`deploy.ps1` re-asserts it each run; `-OpenNetwork` opts out), grants you **Storage Blob Data Contributor**,
+then disables shared-key access so Terraform authenticates with your Azure AD identity (`use_azuread_auth`)
+and caches no storage key locally.
+
+`terraform/backend.tf` is committed with a placeholder; the script fills in `storage_account_name`:
 
 ```hcl
 terraform {
   backend "azurerm" {
     resource_group_name  = "harmonaize-tfstate-rg"
-    storage_account_name = "<STATE_ACCOUNT_NAME>"
+    storage_account_name = "harmonaizetfstate…"   # set by scripts/bootstrap-tfstate.ps1
     container_name       = "tfstate"
     key                  = "harmonaize.prod.tfstate"
+    use_azuread_auth     = true
   }
 }
 ```
+
+> Running Terraform from CI? Also grant the CI service principal the data role:
+> `pwsh ./scripts/bootstrap-tfstate.ps1 -CicdPrincipalId <sp-object-id>`. (The GitHub **deploy** workflow
+> doesn't run Terraform, so this is usually unnecessary.)
+
+Then initialise. On this first run the local state is empty (the estate was destroyed), so there's nothing
+to migrate — clear it and point Terraform at the backend:
+
+```powershell
+cd terraform
+Remove-Item terraform.tfstate, terraform.tfstate.backup -ErrorAction SilentlyContinue
+terraform init      # a one-off 403 = AAD role propagation still settling; retry in a few minutes
+```
+
+Commit the filled-in `terraform/backend.tf` so the whole team shares this backend.
 
 ---
 

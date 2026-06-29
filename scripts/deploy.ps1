@@ -64,6 +64,7 @@ $RepoRoot       = Split-Path $PSScriptRoot -Parent
 $TfDir          = Join-Path $RepoRoot 'terraform'
 $HarmonaizeDir  = Join-Path $RepoRoot 'harmonaize'
 $TfVarsPath     = Join-Path $TfDir 'terraform.tfvars'
+$BackendTfPath  = Join-Path $TfDir 'backend.tf'
 $ImageRepo      = 'harmonaize_production_django'
 $DockerfileRel  = 'compose/production/django/Dockerfile'
 
@@ -165,6 +166,48 @@ if (-not (Test-Path $TfVarsPath)) {
     throw "terraform.tfvars not found. Copy terraform.tfvars.example to terraform.tfvars and set your options first."
 }
 
+# Remote state backend: auto-provision it if it isn't set up yet, so we never apply against LOCAL state
+# (secrets on disk, no locking, no sharing). "Not set up" = backend.tf still holds the placeholder.
+# backend.tf ships with the repo; scripts/bootstrap-tfstate.ps1 creates the backend and patches the name.
+Write-Phase 'Preflight - remote state backend'
+$BackendJustConfigured = $false
+if (-not (Test-Path $BackendTfPath)) {
+    throw "terraform/backend.tf is missing (it ships with the repo). Restore it: git checkout terraform/backend.tf"
+}
+if ((Get-Content $BackendTfPath -Raw) -match 'REPLACE_VIA_BOOTSTRAP') {
+    Write-Info 'Remote state backend not provisioned yet - running scripts/bootstrap-tfstate.ps1 ...'
+    $bootstrap = Join-Path $PSScriptRoot 'bootstrap-tfstate.ps1'
+    if (-not (Test-Path $bootstrap)) { throw "Backend not set up and bootstrap script not found at $bootstrap." }
+    $bootArgs = @{ Force = [bool]$Force }
+    if ($SubscriptionId) { $bootArgs['SubscriptionId'] = $SubscriptionId }
+    & $bootstrap @bootArgs
+    # Don't trust $LASTEXITCODE across a .ps1 call - confirm by re-reading backend.tf (placeholder gone = OK).
+    if ((Get-Content $BackendTfPath -Raw) -match 'REPLACE_VIA_BOOTSTRAP') {
+        throw 'Remote state backend was not provisioned (backend.tf still has the placeholder). Aborting.'
+    }
+    $BackendJustConfigured = $true
+    Write-Info 'Remote state backend provisioned.'
+} else {
+    Write-Info 'Remote state backend: backend.tf already configured.'
+}
+
+# Re-assert this machine's public IP on the (firewalled) state account so `terraform init` can reach it
+# from a new IP/machine. Best-effort: -InVnet skips it; a real block shows up clearly at init time.
+if (-not $InVnet) {
+    $beRaw     = Get-Content $BackendTfPath -Raw
+    $stateAcct = ([regex]::Match($beRaw, 'storage_account_name\s*=\s*"([^"]+)"')).Groups[1].Value
+    $stateRg   = ([regex]::Match($beRaw, 'resource_group_name\s*=\s*"([^"]+)"')).Groups[1].Value
+    if ($stateAcct -and $stateAcct -ne 'REPLACE_VIA_BOOTSTRAP' -and $stateRg) {
+        try {
+            $stateIp = if ($KvBootstrapIp) { $KvBootstrapIp } else { Get-PublicIp }
+            az storage account network-rule add -g $stateRg --account-name $stateAcct --ip-address $stateIp -o none 2>$null | Out-Null
+            Write-Info "State account firewall: allow-listed $stateIp."
+        } catch {
+            Write-Host "    WARNING: could not allow-list your IP on the state account ($($_.Exception.Message)). If terraform init 403s, add it manually." -ForegroundColor Yellow
+        }
+    }
+}
+
 Write-Phase 'Preflight - extensions & permissions'
 # Ensure the 'containerapp' az extension is installed (the script uses 'az containerapp job ...').
 # Silence dynamic-install prompts, then add/upgrade idempotently. Using 'extension add --upgrade'
@@ -241,7 +284,18 @@ Push-Location $TfDir
 try {
     # ----------------------------------------------------------- init -------
     Write-Phase 'terraform init'
-    Invoke-Native { terraform init -input=false } 'terraform init'
+    if ($BackendJustConfigured) {
+        # Backend was just provisioned this run: migrate the existing local state (empty for a destroyed
+        # estate) up to the remote backend non-interactively, then continue on remote state.
+        Invoke-Native { terraform init -input=false -migrate-state -force-copy } 'terraform init (migrate state -> remote backend)'
+        # State now lives in the remote backend - remove the local plaintext copies (they hold secrets).
+        foreach ($f in 'terraform.tfstate', 'terraform.tfstate.backup') {
+            $lp = Join-Path $TfDir $f
+            if (Test-Path $lp) { Remove-Item $lp -Force -ErrorAction SilentlyContinue; Write-Info "Removed local state file: $f (now in the remote backend)." }
+        }
+    } else {
+        Invoke-Native { terraform init -input=false } 'terraform init'
+    }
 
     # ----------------------------------------------------------- Phase A ----
     Write-Phase 'Phase A - create the ACR'
