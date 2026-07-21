@@ -1115,13 +1115,15 @@ class SmartGeocodingValidator:
         return validation_result
 
 
-def run_smart_validation(limit: int = None) -> Dict[str, int]:
+def run_smart_validation(limit: int = None, user=None) -> Dict[str, int]:
     """Run smart validation on pending geocoding results."""
     validator = SmartGeocodingValidator()
     
     pending_results = GeocodingResult.objects.filter(
         validation__isnull=True
     ).exclude(validation_status='rejected')
+    if user:
+        pending_results = pending_results.filter(created_by=user)
     
     if limit:
         pending_results = pending_results[:limit]

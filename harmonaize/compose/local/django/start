@@ -14,4 +14,4 @@ python manage.py init_climate_services
 (python manage.py load_hdx_data || true) &
 (python manage.py load_validation_data || true) &
 
-exec uvicorn config.asgi:application --host 0.0.0.0 --reload --reload-include '*.html'
+exec uvicorn config.asgi:application --host 0.0.0.0 --reload --reload-include '*.html' "$@"

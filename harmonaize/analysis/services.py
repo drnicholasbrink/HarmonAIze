@@ -440,7 +440,15 @@ class AnalysisExportService:
             f"{target_slug}/{dataset_slug}",
             dataset_slug,
         ]
-        return [name for name in legacy_candidates if name != current_object_name]
+        return [
+            name
+            for name in legacy_candidates
+            if name != current_object_name
+            # A prior flat object can share the new directory's name. Once the
+            # current layout exists, deleting that name asks Armadillo to delete
+            # the non-empty parent directory of the current object.
+            and not current_object_name.startswith(f"{name}/")
+        ]
 
     def get_template_object_binding(self, template: AnalysisDatasetTemplate) -> dict[str, str]:
         project_name = self._armadillo_project_name(template.project)
