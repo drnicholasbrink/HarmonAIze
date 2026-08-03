@@ -8,6 +8,9 @@ set -o nounset
 python /app/manage.py collectstatic --noinput
 python /app/manage.py migrate --noinput
 
+# Initialize climate data services with credentials and default query parameters
+python /app/manage.py init_climate_services
+
 # Auto-load geolocation reference data in background (don't block server startup)
 (python /app/manage.py load_hdx_data || true) &
 (python /app/manage.py load_validation_data || true) &

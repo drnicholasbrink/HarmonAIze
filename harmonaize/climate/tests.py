@@ -4,6 +4,7 @@ Tests for the climate module.
 import json
 from datetime import date, datetime, timedelta
 from decimal import Decimal
+from unittest.mock import patch
 from django.test import TestCase, Client
 from django.contrib.auth import get_user_model
 from django.urls import reverse
@@ -22,6 +23,38 @@ from .models import (
 from .services import ClimateDataProcessor, EarthEngineDataService, SpatioTemporalMatcher
 
 User = get_user_model()
+
+
+class FakeClimateService:
+    """Deterministic service used in tests to avoid external API calls."""
+
+    def __init__(self, data_source):
+        self.data_source = data_source
+
+    def fetch_data(self, variable, location, start_date, end_date, **kwargs):
+        data = []
+        current_date = start_date
+        value = 0.0
+        while current_date <= end_date:
+            data.append({
+                'date': current_date.date(),
+                'value': value,
+                'quality_flag': 'good',
+                'source': 'test-service',
+            })
+            current_date += timedelta(days=1)
+            value += 1.0
+        return data
+
+
+class FakeEmptyClimateService:
+    """Service that returns no data, used to test failure handling."""
+
+    def __init__(self, data_source):
+        self.data_source = data_source
+
+    def fetch_data(self, variable, location, start_date, end_date, **kwargs):
+        return []
 
 
 class ClimateModelsTestCase(TestCase):
@@ -191,6 +224,10 @@ class ClimateServicesTestCase(TestCase):
     """Test climate data services."""
     
     def setUp(self):
+        self.ee_init_patcher = patch.object(EarthEngineDataService, "_initialize_earth_engine", return_value=None)
+        self.ee_init_patcher.start()
+        self.addCleanup(self.ee_init_patcher.stop)
+
         self.user = User.objects.create_user(
             email='test@example.com',
             password='testpass123'
@@ -263,22 +300,27 @@ class ClimateServicesTestCase(TestCase):
         self.assertFalse(service.validate_date_range(end_date, start_date))
     
     def test_gee_data_service_fetch_data(self):
-        """Test fetching data from Earth Engine service (mock implementation)."""
-        service = EarthEngineDataService(self.source)
-        
-        start_date = datetime(2023, 6, 1)
-        end_date = datetime(2023, 6, 3)
-        
-        data = service.fetch_data(
-            variable=self.variable,
-            location=self.location,
-            start_date=start_date,
-            end_date=end_date
-        )
-        
-        self.assertIsInstance(data, list)
-        self.assertEqual(len(data), 3)  # 3 days of data
-        
+        """Test fetching data from Earth Engine service using a stubbed fetcher."""
+        sample_data = [
+            {'date': date(2023, 6, 1), 'value': 1.0, 'quality_flag': 'good', 'source': 'Earth Engine'},
+            {'date': date(2023, 6, 2), 'value': 2.0, 'quality_flag': 'good', 'source': 'Earth Engine'},
+            {'date': date(2023, 6, 3), 'value': 3.0, 'quality_flag': 'good', 'source': 'Earth Engine'},
+        ]
+
+        with patch.object(EarthEngineDataService, "_fetch_gee_data", return_value=sample_data) as fetch_gee_data:
+            service = EarthEngineDataService(self.source)
+            start_date = datetime(2023, 6, 1)
+            end_date = datetime(2023, 6, 3)
+
+            data = service.fetch_data(
+                variable=self.variable,
+                location=self.location,
+                start_date=start_date,
+                end_date=end_date
+            )
+
+        fetch_gee_data.assert_called_once()
+        self.assertEqual(data, sample_data)
         for item in data:
             self.assertIn('date', item)
             self.assertIn('value', item)
@@ -311,10 +353,31 @@ class ClimateServicesTestCase(TestCase):
         )
         request.variables.add(self.variable)
         request.locations.add(self.location)
+
+        # Create study observations to define target dates
+        health_attribute = Attribute.objects.create(
+            variable_name='test_health_var',
+            display_name='Test Health Variable',
+            variable_type='float',
+            category='health',
+        )
+        health_attribute.studies.add(self.study)
+
+        for day in range(1, 4):
+            time_dim = TimeDimension.objects.create(
+                timestamp=timezone.make_aware(datetime(2023, 6, day))
+            )
+            Observation.objects.create(
+                location=self.location,
+                attribute=health_attribute,
+                time=time_dim,
+                float_value=1.0,
+            )
         
         # Process the request
         processor = ClimateDataProcessor(request)
-        result = processor.process_request()
+        with patch.object(ClimateDataProcessor, "_get_data_service", return_value=FakeClimateService(self.source)):
+            result = processor.process_request()
         
         # Check results
         self.assertEqual(result['status'], 'success')
@@ -324,6 +387,47 @@ class ClimateServicesTestCase(TestCase):
         request.refresh_from_db()
         self.assertEqual(request.status, 'completed')
         self.assertEqual(request.processed_locations, 1)
+
+    def test_climate_data_processor_marks_failed_when_no_data(self):
+        """Ensure requests fail when the API returns no climate data."""
+        request = ClimateDataRequest.objects.create(
+            study=self.study,
+            data_source=self.source,
+            start_date=date(2023, 6, 1),
+            end_date=date(2023, 6, 3),
+            temporal_aggregation='none',
+            total_locations=1
+        )
+        request.variables.add(self.variable)
+        request.locations.add(self.location)
+
+        health_attribute = Attribute.objects.create(
+            variable_name='test_health_var_empty',
+            display_name='Test Health Variable (Empty)',
+            variable_type='float',
+            category='health',
+        )
+        health_attribute.studies.add(self.study)
+
+        time_dim = TimeDimension.objects.create(
+            timestamp=timezone.make_aware(datetime(2023, 6, 1))
+        )
+        Observation.objects.create(
+            location=self.location,
+            attribute=health_attribute,
+            time=time_dim,
+            float_value=1.0,
+        )
+
+        processor = ClimateDataProcessor(request)
+        with patch.object(ClimateDataProcessor, "_get_data_service", return_value=FakeEmptyClimateService(self.source)):
+            result = processor.process_request()
+
+        self.assertEqual(result['status'], 'failed')
+
+        request.refresh_from_db()
+        self.assertEqual(request.status, 'failed')
+        self.assertIn('Failed to retrieve report', request.error_message)
 
 
 class ClimateViewsTestCase(TestCase):
@@ -781,7 +885,8 @@ class ClimateIntegrationTestCase(TestCase):
         
         # Step 2: Process the request
         processor = ClimateDataProcessor(request)
-        result = processor.process_request()
+        with patch.object(ClimateDataProcessor, "_get_data_service", return_value=FakeClimateService(self.source)):
+            result = processor.process_request()
         
         # Step 3: Verify results
         self.assertEqual(result['status'], 'success')
@@ -822,7 +927,8 @@ class ClimateIntegrationTestCase(TestCase):
         request1.locations.set([self.locations[0]])
         
         processor1 = ClimateDataProcessor(request1)
-        result1 = processor1.process_request()
+        with patch.object(ClimateDataProcessor, "_get_data_service", return_value=FakeClimateService(self.source)):
+            result1 = processor1.process_request()
         
         # Verify cache entries were created
         cache_count_after_first = ClimateDataCache.objects.count()
@@ -839,7 +945,8 @@ class ClimateIntegrationTestCase(TestCase):
         request2.locations.set([self.locations[0]])
         
         processor2 = ClimateDataProcessor(request2)
-        result2 = processor2.process_request()
+        with patch.object(ClimateDataProcessor, "_get_data_service", return_value=FakeClimateService(self.source)):
+            result2 = processor2.process_request()
         
         # Cache count should be the same (reused existing entries)
         cache_count_after_second = ClimateDataCache.objects.count()

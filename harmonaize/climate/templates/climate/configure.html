@@ -27,12 +27,16 @@
           <h4 class="mb-0">Climate Data Configuration</h4>
         </div>
         <div class="card-body">
-          <div class="row mb-4">
-            <div class="col-md-12">
-              <div class="alert alert-info">
-                <strong>Study Information:</strong> {{ study.name }} has {{ location_count }} location{{ location_count|pluralize }} available for climate data linkage.
-              </div>
+          <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+            <div class="alert alert-info mb-0 flex-grow-1">
+              <strong>Study Information:</strong> {{ study.name }} has {{ location_count }} location{{ location_count|pluralize }} available for climate data linkage.
             </div>
+            <form method="post" action="{% url 'climate:delete_climate_data' study.id %}" onsubmit="return confirm('Delete all climate observations for this study?');">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-outline-danger">
+                Delete Climate Data
+              </button>
+            </form>
           </div>
 
           <form method="post" class="needs-validation" novalidate>
@@ -71,43 +75,53 @@
                     <h5 class="mb-0">Temporal Settings</h5>
                   </div>
                   <div class="card-body">
+                    <div class="mb-3">
+                      <div class="alert alert-light mb-2">
+                        <div><strong>Observation window:</strong> {{ observation_min_date|default:"-" }} to {{ observation_max_date|default:"-" }}</div>
+                        <div id="requested-range"><strong>Requested range:</strong> {{ form.start_date.value|default:form.start_date.initial }} to {{ form.end_date.value|default:form.end_date.initial }}</div>
+                      </div>
+                    </div>
                     <div class="row">
                       <div class="col-md-6">
-                        {{ form.start_date|as_crispy_field }}
+                        {{ form.lag_value|as_crispy_field }}
                       </div>
                       <div class="col-md-6">
-                        {{ form.end_date|as_crispy_field }}
+                        {{ form.lag_unit|as_crispy_field }}
                       </div>
                     </div>
                     {{ form.temporal_aggregation|as_crispy_field }}
+
+                    {{ form.start_date }}
+                    {{ form.end_date }}
                   </div>
                 </div>
               </div>
             </div>
 
-            <!-- Climate Variables Selection -->
-            <div class="card mb-4">
-              <div class="card-header">
-                <h5 class="mb-0">Climate Variables</h5>
-              </div>
-              <div class="card-body">
-                <p class="text-muted">Select the climate variables you want to retrieve for your study locations.</p>
 
-                <!-- Dynamic variable list - loaded via HTMX based on data source -->
-                <div id="variable-list-container"
-                     hx-get="{% url 'climate:variable_list_partial' %}"
-                     hx-trigger="load, dataSourceChanged from:body"
-                     hx-swap="innerHTML"
-                     hx-indicator=".htmx-indicator">
-                  <!-- Loading indicator -->
-                  <div class="text-center py-4">
-                    <div class="spinner-border text-primary htmx-indicator" role="status">
-                      <span class="visually-hidden">Loading variables...</span>
-                    </div>
+          <!-- Climate Variables Selection -->
+          <div class="card mb-4">
+            <div class="card-header">
+              <h5 class="mb-0">Climate Variables</h5>
+            </div>
+            <div class="card-body">
+              <p class="text-muted">Select the climate variables you want to retrieve for your study locations.</p>
+
+              <!-- Dynamic variable list - loaded via HTMX based on data source -->
+              <div id="variable-list-container"
+                   hx-get="{% url 'climate:variable_list_partial' %}"
+                   hx-trigger="load, dataSourceChanged from:body"
+                   hx-swap="innerHTML"
+                   hx-indicator=".htmx-indicator">
+                <!-- Loading indicator -->
+                <div class="text-center py-4">
+                  <div class="spinner-border text-primary htmx-indicator" role="status">
+                    <span class="visually-hidden">Loading variables...</span>
                   </div>
                 </div>
               </div>
             </div>
+          </div>
 
             <!-- Spatial Configuration -->
             <div class="card mb-4">
@@ -207,6 +221,47 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     }
   });
+
+  // Update requested date range preview when lag changes
+  const lagValueInput = document.getElementById('id_lag_value');
+  const lagUnitSelect = document.getElementById('id_lag_unit');
+  const requestedRange = document.getElementById('requested-range');
+  const hiddenStart = document.getElementById('id_start_date');
+  const hiddenEnd = document.getElementById('id_end_date');
+  const observationMax = '{{ observation_max_date|default:"" }}';
+
+  function recomputeRange() {
+    if (!observationMax || !lagValueInput || !lagUnitSelect) {
+      return;
+    }
+    const endDate = new Date(observationMax);
+    const lagVal = parseInt(lagValueInput.value, 10) || 0;
+    const unit = lagUnitSelect.value;
+    const startDate = new Date(endDate.getTime());
+
+    if (unit === 'weeks') {
+      startDate.setDate(startDate.getDate() - lagVal * 7);
+    } else if (unit === 'months') {
+      startDate.setDate(startDate.getDate() - lagVal * 30);
+    } else if (unit === 'years') {
+      startDate.setDate(startDate.getDate() - lagVal * 365);
+    } else {
+      startDate.setDate(startDate.getDate() - lagVal);
+    }
+
+    const startIso = startDate.toISOString().slice(0, 10);
+    const endIso = endDate.toISOString().slice(0, 10);
+
+    if (hiddenStart) hiddenStart.value = startIso;
+    if (hiddenEnd) hiddenEnd.value = endIso;
+    if (requestedRange) requestedRange.innerHTML = `<strong>Requested range:</strong> ${startIso} to ${endIso}`;
+  }
+
+  if (lagValueInput && lagUnitSelect && observationMax) {
+    recomputeRange();
+    lagValueInput.addEventListener('input', recomputeRange);
+    lagUnitSelect.addEventListener('change', recomputeRange);
+  }
 });
 </script>
 {% endblock %}

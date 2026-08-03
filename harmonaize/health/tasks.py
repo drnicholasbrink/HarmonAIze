@@ -16,9 +16,49 @@ from celery.exceptions import Retry
 from dateutil.parser import ParserError
 
 from .models import RawDataFile, RawDataColumn
-from core.models import Study, Attribute, Patient, Observation, TimeDimension
+from core.models import Study, Attribute, Patient, Observation, TimeDimension, Location
 
 logger = logging.getLogger(__name__)
+
+#patch, re=imported from views.py to resolve import error. 
+def _serialize_observation_value(observation: Observation) -> str:
+    """Serialize observation value respecting attribute type."""
+    attribute = observation.attribute
+    attr_type = getattr(attribute, "variable_type", None)
+    preferred_candidates = []
+    if attr_type == "float":
+        preferred_candidates.append(observation.float_value)
+    elif attr_type == "int":
+        preferred_candidates.append(observation.int_value)
+    elif attr_type in {"string", "categorical"}:
+        preferred_candidates.append(observation.text_value)
+    elif attr_type == "boolean":
+        preferred_candidates.append(observation.boolean_value)
+    elif attr_type == "datetime":
+        preferred_candidates.append(observation.datetime_value)
+
+    fallback_candidates = (
+        observation.float_value,
+        observation.int_value,
+        observation.text_value,
+        observation.boolean_value,
+        observation.datetime_value,
+    )
+
+    value = next(
+        (
+            candidate
+            for candidate in preferred_candidates + list(fallback_candidates)
+            if candidate is not None and candidate != ""
+        ),
+        None,
+    )
+
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if value is None:
+        return ""
+    return str(value)
 
 
 @shared_task(bind=True, max_retries=1, default_retry_delay=30)
@@ -331,6 +371,20 @@ def _validate_file_for_ingestion(raw_data_file: RawDataFile) -> dict[str, Any]:
                     f'"{raw_data_file.date_column}" is not mapped to any file column.'
                 ),
             }
+
+    # Validate location column mapping if provided (location_column stores variable name)
+    if raw_data_file.location_column:
+        location_mapping = raw_data_file.columns.filter(
+            mapped_variable__variable_name=raw_data_file.location_column,
+        ).first()
+        if not location_mapping:
+            return {
+                "valid": False,
+                "message": (
+                    "Selected location variable "
+                    f'"{raw_data_file.location_column}" is not mapped to any file column.'
+                ),
+            }
     
     return {"valid": True, "message": "File validation passed"}
 
@@ -430,6 +484,15 @@ def _process_data_chunk(
         ).first()
         if date_mapping:
             date_column_name = date_mapping.column_name
+
+    # Resolve location column name from selected variable (stored on RawDataFile)
+    location_column_name = None
+    if raw_data_file.location_column:
+        location_mapping = raw_data_file.columns.filter(
+            mapped_variable__variable_name=raw_data_file.location_column,
+        ).first()
+        if location_mapping:
+            location_column_name = location_mapping.column_name
     
     # Process each row in the chunk
     for idx, row in chunk_df.iterrows():
@@ -465,6 +528,14 @@ def _process_data_chunk(
                         except (ValueError, TypeError, OverflowError, ParserError):
                             time_dimension = None
                 
+                # Resolve location for the row (name-based)
+                location_obj = None
+                if location_column_name and location_column_name in row:
+                    loc_val = row[location_column_name]
+                    if pd.notna(loc_val) and str(loc_val).strip() != "":
+                        loc_name = str(loc_val).strip()
+                        location_obj, _ = Location.objects.get_or_create(name=loc_name)
+
                 # Process each mapped column
                 row_observations = 0
                 for column_name, variable in column_mappings.items():
@@ -487,6 +558,7 @@ def _process_data_chunk(
 
                         obs_result = _create_observation(
                             patient=patient,
+                            location=location_obj,
                             attribute=variable,
                             value=value,
                             time_dimension=time_dimension,
@@ -516,14 +588,15 @@ def _process_data_chunk(
             )
     
     return {
-    "processed_rows": processed_rows,
-    "created_observations": created_observations,
-    "errors": errors,
+        "processed_rows": processed_rows,
+        "created_observations": created_observations,
+        "errors": errors,
     }
 
 
 def _create_observation(
     patient: Patient | None,
+    location: Location | None,
     attribute: Attribute,
     value: Any,
     time_dimension: TimeDimension | None,
@@ -535,6 +608,7 @@ def _create_observation(
         # Prepare observation data; ingest raw values, try type when safe, fallback to text
         obs_data = {
             "patient": patient,
+            "location": location,
             "attribute": attribute,
             "time": time_dimension,
         }
@@ -909,15 +983,10 @@ def transform_observations_for_schema(
         except Exception:
             logger.debug("Unable to mark raw files as in_progress for schema %s", schema_id)
 
-        # Determine time window: transform observations created after schema creation
-        window_start = schema.created_at
-
         for rule in rules:
             transform_func = _compile_transform_callable(rule.transform_code or "")
             # Source observations for this attribute
             qs = Observation.objects.filter(attribute=rule.source_attribute)
-            if window_start:
-                qs = qs.filter(created_at__gte=window_start)
 
             for src_obs in qs.iterator():
                 try:
@@ -937,7 +1006,35 @@ def transform_observations_for_schema(
                         continue
 
                     # Prepare defaults according to target attribute type
-                    defaults: dict[str, Any] = {"patient": src_obs.patient, "location": src_obs.location, "time": src_obs.time}
+                    target_location = src_obs.location
+
+                    # Use mapped location attribute (rule-level or universal) when source obs has no location
+                    if target_location is None:
+                        location_attr = rule.location_attribute or rule.schema.universal_location
+                        if location_attr:
+                            loc_src = Observation.objects.filter(
+                                attribute=location_attr,
+                                patient=src_obs.patient,
+                                time=src_obs.time,
+                            ).first()
+                            if loc_src:
+                                loc_name = _serialize_observation_value(loc_src).strip()
+                                if loc_name:
+                                    location_obj, _ = Location.objects.get_or_create(name=loc_name)
+                                    target_location = location_obj
+
+                    # Location-role mapping: only create/attach Location when the rule is explicitly marked as location
+                    if rule.role == "location":
+                        loc_name = str(value).strip()
+                        if loc_name:
+                            location_obj, _ = Location.objects.get_or_create(name=loc_name)
+                            target_location = location_obj
+
+                    defaults: dict[str, Any] = {
+                        "patient": src_obs.patient,
+                        "location": target_location,
+                        "time": src_obs.time,
+                    }
                     tgt_type = rule.target_attribute.variable_type
                     try:
                         if tgt_type == "float":
@@ -964,7 +1061,7 @@ def transform_observations_for_schema(
                     # Upsert target observation
                     obj, created = Observation.objects.get_or_create(
                         patient=src_obs.patient,
-                        location=src_obs.location,
+                        location=target_location,
                         attribute=rule.target_attribute,
                         time=src_obs.time,
                         defaults=defaults,
@@ -1157,7 +1254,7 @@ def delete_duplicates_task(self, raw_data_file_id: int) -> dict[str, Any]:
         # Find ALL duplicate groups (no limit) using direct database query
         # Note: Observations are linked to raw data files through attribute->study relationship
         duplicate_groups = (
-            Observation.objects.filter(attribute__studies=raw_data_file.study)
+            Observation.objects.filter(attribute__study=raw_data_file.study)
             .values('patient_id', 'attribute_id', 'time_id', 'location_id',
                    'float_value', 'int_value', 'text_value', 'boolean_value', 'datetime_value')
             .annotate(

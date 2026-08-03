@@ -3,5 +3,5 @@
 POSTGRES_HOST=postgres
 POSTGRES_PORT=5432
 POSTGRES_DB=harmonaize
-POSTGRES_USER=VyEeAsAhLQRemlTBkLvZEOFiVOAtvIHf
-POSTGRES_PASSWORD=DA3372kNwHHhsmhr5cS5ucomOjsY9hs0UiNzxlfOITRM4ZwjW1nTYXSPz1zWousV
+POSTGRES_USER=replace-with-local-postgres-user
+POSTGRES_PASSWORD=replace-with-local-postgres-password

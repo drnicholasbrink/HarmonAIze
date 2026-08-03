@@ -4,6 +4,7 @@ volumes:
   production_traefik: {}
   
   production_redis_data: {}
+  production_armadillo_postgres_data: {}
   
 
 
@@ -20,6 +21,8 @@ services:
     env_file:
       - ./.envs/.production/.django
       - ./.envs/.production/.postgres
+    environment:
+      ANALYSIS_EXPORT_DATABASE_URL: ${ANALYSIS_EXPORT_DATABASE_URL:-postgres://debug:debug@armadillo_postgres:5432/armadillo_snapshot}
     command: /start
 
   postgres:
@@ -68,3 +71,23 @@ services:
     <<: *django
     image: harmonaize_production_flower
     command: /start-flower
+
+  armadillo_postgres:
+    image: postgres:16
+    profiles: ["analysis"]
+    environment:
+      POSTGRES_DB: armadillo_snapshot
+      POSTGRES_USER: debug
+      POSTGRES_PASSWORD: debug
+    volumes:
+      - production_armadillo_postgres_data:/var/lib/postgresql/data
+
+  armadillo:
+    image: molgenis/molgenis-armadillo-snapshot:latest
+    profiles: ["analysis"]
+    depends_on:
+      - armadillo_postgres
+    environment:
+      SPRING_SECURITY_USER_PASSWORD: ${ARMADILLO_ADMIN_PASSWORD:-admin}
+      LOGGING_CONFIG: classpath:logback-file.xml
+      AUDIT_LOG_PATH: /app/logs/audit.log

@@ -23,6 +23,7 @@ django-extensions==3.2.3  # https://github.com/django-extensions/django-extensio
 # Django REST Framework
 djangorestframework==3.15.2  # https://github.com/encode/django-rest-framework
 django-cors-headers==4.7.0  # https://github.com/adamchainz/django-cors-headers
+django-htmx==1.27.0  # https://github.com/adamchainz/django-htmx
 # DRF-spectacular for api documentation
 drf-spectacular==0.28.0  # https://github.com/tfranzel/drf-spectacular
 # ACE for code editor
@@ -33,6 +34,7 @@ pygraphviz==1.7  # https://pygraphviz.github.io/
 
 # Data processing and ML
 pandas==2.2.3  # https://github.com/pandas-dev/pandas
+pyarrow==18.1.0  # https://github.com/apache/arrow
 openpyxl==3.1.5  # https://openpyxl.readthedocs.io/
 geopandas==1.0.1  # https://github.com/geopandas/geopandas - Shapefile and geospatial data export
 shapely==2.0.6  # https://github.com/shapely/shapely - point-in-polygon boundary validation
@@ -55,3 +57,9 @@ google-generativeai==0.8.3  # https://github.com/google/generative-ai-python
 anthropic==0.52.0  # https://github.com/anthropics/anthropic-sdk-python
 fuzzywuzzy==0.18.0  # https://github.com/seatgeek/fuzzywuzzy
 python-Levenshtein==0.27.1  # https://github.com/maxbachmann/Levenshtein (speedup for fuzzywuzzy)
+
+#climate data
+earthengine-api==1.7.4
+google-auth==2.41.0
+google-auth-oauthlib==1.2.3
+google-auth-httplib2==0.2.1

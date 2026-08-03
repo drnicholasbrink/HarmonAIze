@@ -1,0 +1,108 @@
+<div id="analysis-status-panel"
+     hx-get="{% url 'analysis:status_partial' %}"
+  hx-trigger="every 3s, analysis-template-saved from:body, analysis-template-deleted from:body"
+     hx-swap="outerHTML">
+  <div class="stat-grid">
+    <div class="stat-card">
+      <div class="stat-value">{{ recent_runs|length }}</div>
+      <p class="stat-label">Recent runs shown</p>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{ latest_run.processed_target_studies|default:0 }}</div>
+      <p class="stat-label">Latest target studies</p>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{ latest_run.generated_parquet_files|default:0 }}</div>
+      <p class="stat-label">Latest Parquet files</p>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{ latest_run.uploaded_objects_count|default:0 }}</div>
+      <p class="stat-label">Latest uploaded objects</p>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-xl-4">
+      <div class="card-panel mb-0 h-100">
+        <div class="section-kicker">Run health</div>
+        <h2 class="card-title">Latest run details</h2>
+        {% if latest_run %}
+          <dl class="row mb-0">
+            <dt class="col-5">Status</dt>
+            <dd class="col-7">
+              <span class="status-badge status-{{ latest_run.status }}">{{ latest_run.get_status_display }}</span>
+            </dd>
+            <dt class="col-5">Trigger</dt>
+            <dd class="col-7">{{ latest_run.get_trigger_mode_display }}</dd>
+            <dt class="col-5">Project</dt>
+            <dd class="col-7">{{ latest_run.project.name|default:"-" }}</dd>
+            <dt class="col-5">Target studies</dt>
+            <dd class="col-7">{{ latest_run.processed_target_studies }}</dd>
+            <dt class="col-5">Attributes</dt>
+            <dd class="col-7">{{ latest_run.processed_attributes }}</dd>
+            <dt class="col-5">Parquet files</dt>
+            <dd class="col-7">{{ latest_run.generated_parquet_files }}</dd>
+            <dt class="col-5">Uploaded objects</dt>
+            <dd class="col-7">{{ latest_run.uploaded_objects_count }}</dd>
+            <dt class="col-5">Completed</dt>
+            <dd class="col-7">{{ latest_run.completed_at|default:"-" }}</dd>
+            {% if latest_table_path %}
+              <dt class="col-12 mt-3">Latest DataSHIELD table</dt>
+              <dd class="col-12 small mb-0"><code>{{ latest_table_path }}</code></dd>
+            {% endif %}
+            {% if latest_object_path %}
+              <dt class="col-12 mt-3">Latest parquet object</dt>
+              <dd class="col-12 small mb-0"><code>{{ latest_object_path }}</code></dd>
+            {% endif %}
+            {% if latest_run.error_message %}
+              <dt class="col-12 text-danger mt-2">Latest error</dt>
+              <dd class="col-12 text-danger small mb-0">{{ latest_run.error_message }}</dd>
+            {% endif %}
+          </dl>
+        {% else %}
+          <p class="text-muted mb-0">No export run has been started yet.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="col-xl-8">
+      <div class="card-panel mb-0 h-100">
+        <div class="section-kicker">Audit</div>
+        <h2 class="card-title">Export audit</h2>
+        <div class="small text-muted mb-3">Recent sync artefacts with their uploaded object paths for audit and troubleshooting.</div>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead>
+              <tr>
+                <th>Run</th>
+                <th>Status</th>
+                <th>Template</th>
+                <th>Rows</th>
+                <th>DataSHIELD table</th>
+                <th>Parquet object</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for entry in export_audit_entries %}
+                <tr>
+                  <td>#{{ entry.run.id }}</td>
+                  <td><span class="status-badge status-{{ entry.run.status }}">{{ entry.run.get_status_display }}</span></td>
+                  <td>{{ entry.artifact.template_name|default:"-" }}</td>
+                  <td>{{ entry.artifact.rows|default:0 }}</td>
+                  <td><code>{{ entry.table_path }}</code></td>
+                  <td><code>{{ entry.object_path }}</code></td>
+                  <td>{{ entry.run.created_at|date:"Y-m-d H:i" }}</td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="7" class="text-muted">No exported artefacts available yet.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

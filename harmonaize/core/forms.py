@@ -1,7 +1,16 @@
 from django import forms
 from django.core.exceptions import ValidationError
-from .models import Study, Attribute, Project
+from .models import Study, Attribute, Project, ProjectMembership, ProjectInvitation
 
+class ProjectInvitationForm(forms.Form):
+    email = forms.EmailField(
+        label="Email Address",
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter email address'})
+    )
+    role = forms.ChoiceField(
+        choices=ProjectMembership.ROLE_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
 
 class StudyCreationForm(forms.ModelForm):
     """
@@ -33,7 +42,6 @@ class StudyCreationForm(forms.ModelForm):
             'needs_climate_linkage',
             'codebook',
             'protocol_file',
-            'additional_files',
             'sample_size',
             'study_period_start',
             'study_period_end',
@@ -88,9 +96,6 @@ class StudyCreationForm(forms.ModelForm):
                 'class': 'form-control',
                 'accept': '.pdf,.doc,.docx,.txt,.md'
             }),
-            'additional_files': forms.FileInput(attrs={
-                'class': 'form-control'
-            }),
             # Boolean fields with custom styling
             'has_ethical_approval': forms.CheckboxInput(attrs={
                 'class': 'form-check-input'
@@ -121,7 +126,6 @@ class StudyCreationForm(forms.ModelForm):
             'needs_climate_linkage': 'Do you want to link your health data with climate variables?',
             'codebook': 'Upload your codebook in any supported format (CSV, Excel, SPSS, Stata, JSON, DB, etc.)',
             'protocol_file': 'Upload your study protocol or documentation (optional)',
-            'additional_files': 'Upload any additional study files (optional)',
         }
 
     def __init__(self, *args, **kwargs):
@@ -130,7 +134,7 @@ class StudyCreationForm(forms.ModelForm):
         
         # Filter projects by user
         if self.user:
-            self.fields['project'].queryset = Project.objects.filter(created_by=self.user)
+            self.fields['project'].queryset = Project.objects.filter(members=self.user)
         
         # Make data use permissions field render properly
         if 'data_use_permissions' in self.initial and self.initial['data_use_permissions']:

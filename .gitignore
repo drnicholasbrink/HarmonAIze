@@ -110,6 +110,8 @@ venv.bak/
 *.env
 .env.*
 harmonaize/.envs
+harmonaize/.envs/.local/.django
+harmonaize/.envs/.local/.postgres
 
 # Spyder project settings
 .spyderproject

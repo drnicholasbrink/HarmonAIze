@@ -1,4 +1,5 @@
 
+{% load django_htmx %}
 {% load static i18n %}<!DOCTYPE html>
 {% get_current_language as LANGUAGE_CODE %}
 <html lang="{{ LANGUAGE_CODE }}">
@@ -36,6 +37,8 @@
 {# Placed at the top of the document so pages load faster with defer #}
 {% block javascript %}
 
+{% htmx_script %}
+
 
 <!-- Bootstrap JS -->
 <script defer
@@ -54,7 +57,8 @@
 
 {% endblock javascript %}
 </head>
-<body class="{% block bodyclass %}{% endblock bodyclass %}">
+<body class="{% block bodyclass %}{% endblock bodyclass %}"
+  hx-headers='{"x-csrftoken": "{{ csrf_token }}"}'>
   {% block body %}
   <div class="mb-1">
     <nav class="navbar navbar-expand-md navbar-light bg-light">
@@ -90,6 +94,9 @@
                   {% include 'components/svg_icon.html' with icon='map-pin' size='16' class='inline-icon' %} Geolocation
                 </a>
               </li>
+              <li class="nav-item">
+                <a class="nav-link" href="{% url 'analysis:dashboard' %}">Analysis</a>
+              </li>
               {% comment %}
               <li class="nav-item">
                 <a class="nav-link" href="{% url 'climate:dashboard' %}">Climate</a>
@@ -120,7 +127,8 @@
       </div>
     </nav>
   </div>
-  <div class="container">
+  <div class="{% block container_class %}container-fluid{% endblock container_class %}">
+    {# Override container_class with 'container' for fixed width or empty string for custom layout #}
     {% if messages %}
       <div id="notification-container" class="notification-container">
         {% for message in messages %}

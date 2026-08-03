@@ -442,6 +442,26 @@
       border: 1px solid var(--border-color);
     }
 
+    .btn-edit-variable {
+      background: var(--background-color);
+      color: var(--text-secondary);
+      border: 1px solid var(--border-color);
+      padding: 0.35rem 0.5rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .btn-edit-variable:hover {
+      background: var(--primary-color);
+      color: white;
+      border-color: var(--primary-color);
+    }
+
     .variable-description {
       color: var(--text-secondary);
       margin: 0.5rem 0;
@@ -681,6 +701,779 @@
         margin: 2% auto;
       }
     }
+
+    /* Editable Field Styles */
+    .editable-field {
+      position: relative;
+      cursor: pointer;
+      padding: 0.25rem 0.5rem;
+      margin: -0.25rem -0.5rem;
+      border-radius: 4px;
+      transition: background-color 0.2s ease;
+    }
+
+    .editable-field:hover {
+      background-color: rgba(0, 122, 255, 0.1);
+    }
+
+    .editable-field:hover::after {
+      content: '✎';
+      position: absolute;
+      right: 0.5rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--primary-color);
+      font-size: 0.8rem;
+    }
+
+    .editable-field.editing {
+      background-color: transparent;
+      cursor: default;
+    }
+
+    .editable-field.editing:hover::after {
+      display: none;
+    }
+
+    .editable-input {
+      width: 100%;
+      padding: 0.5rem;
+      border: 2px solid var(--primary-color);
+      border-radius: 4px;
+      font-size: inherit;
+      font-family: inherit;
+      background: white;
+    }
+
+    .editable-input:focus {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.2);
+    }
+
+    .editable-textarea {
+      min-height: 80px;
+      resize: vertical;
+    }
+
+    .edit-actions {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+      justify-content: flex-end;
+    }
+
+    .edit-btn {
+      padding: 0.35rem 0.75rem;
+      border: none;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .edit-btn-save {
+      background: var(--primary-color);
+      color: white;
+    }
+
+    .edit-btn-save:hover {
+      background: #0056b3;
+    }
+
+    .edit-btn-cancel {
+      background: var(--border-color);
+      color: var(--text-primary);
+    }
+
+    .edit-btn-cancel:hover {
+      background: #a0a0a5;
+    }
+
+    .editable-checkbox-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      padding: 0.75rem;
+      background: var(--background-color);
+      border-radius: 8px;
+      margin-top: 0.5rem;
+    }
+
+    .editable-checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .editable-checkbox-item input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+
+    .editable-checkbox-item label {
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+
+    .card-edit-toggle {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--primary-color);
+      font-size: 0.85rem;
+      cursor: pointer;
+      padding: 0.35rem 0.75rem;
+      border: 1px solid var(--primary-color);
+      border-radius: 6px;
+      background: transparent;
+      transition: all 0.2s ease;
+    }
+
+    .card-edit-toggle:hover {
+      background: var(--primary-color);
+      color: white;
+    }
+
+    .card-header-with-edit {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+    }
+
+    .card-header-with-edit .card-title {
+      margin-bottom: 0;
+    }
+
+    .saving-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+    }
+
+    .saving-indicator .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid var(--border-color);
+      border-top-color: var(--primary-color);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .save-success {
+      color: var(--accent-color);
+    }
+
+    .save-error {
+      color: #dc3545;
+    }
+
+    /* File Details Styles */
+    .file-details-section {
+      margin-bottom: 2rem;
+    }
+
+    .section-subtitle {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .section-subtitle i {
+      color: var(--primary-color);
+    }
+
+    .file-details-card {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem;
+      background: var(--background-color);
+      border-radius: 10px;
+      border: 1px solid var(--border-color);
+    }
+
+    .file-icon-wrapper {
+      flex-shrink: 0;
+    }
+
+    .file-icon {
+      width: 50px;
+      height: 50px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      color: white;
+    }
+
+    .file-icon-csv { background: linear-gradient(135deg, #28a745, #20c997); }
+    .file-icon-xlsx, .file-icon-xls { background: linear-gradient(135deg, #217346, #33a867); }
+    .file-icon-json { background: linear-gradient(135deg, #ffc107, #ff9800); }
+    .file-icon-spss, .file-icon-stata { background: linear-gradient(135deg, #6f42c1, #9b59b6); }
+    .file-icon-unknown { background: linear-gradient(135deg, #6c757d, #adb5bd); }
+
+    .file-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .file-name {
+      font-weight: 600;
+      font-size: 1rem;
+      margin-bottom: 0.25rem;
+      word-break: break-word;
+    }
+
+    .file-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .file-meta-item {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .file-meta-item i {
+      font-size: 0.75rem;
+    }
+
+    .file-actions {
+      display: flex;
+      gap: 0.5rem;
+      flex-shrink: 0;
+    }
+
+    .btn-sm {
+      padding: 0.5rem 0.75rem;
+      font-size: 0.85rem;
+    }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+    }
+
+    .btn-outline:hover {
+      background: var(--background-color);
+      border-color: var(--primary-color);
+      color: var(--primary-color);
+    }
+
+    .stat-item {
+      text-align: center;
+      padding: 0.5rem;
+    }
+
+    .stat-value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--primary-color);
+      margin-bottom: 0.25rem;
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .codebook-stats {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+      margin-top: 1.5rem;
+      padding: 1rem;
+      background: linear-gradient(135deg, rgba(0, 122, 255, 0.05), rgba(90, 200, 250, 0.05));
+      border-radius: 10px;
+      border: 1px solid rgba(0, 122, 255, 0.1);
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.35rem 0.75rem;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .status-pill i {
+      font-size: 0.7rem;
+    }
+
+    .status-created {
+      background: rgba(108, 117, 125, 0.15);
+      color: #6c757d;
+    }
+
+    .status-codebook_uploaded {
+      background: rgba(0, 122, 255, 0.15);
+      color: var(--primary-color);
+    }
+
+    .status-variables_extracted {
+      background: rgba(52, 199, 89, 0.15);
+      color: #28a745;
+    }
+
+    .status-variables_mapped {
+      background: rgba(52, 199, 89, 0.2);
+      color: #28a745;
+    }
+
+    .status-harmonised {
+      background: rgba(90, 200, 250, 0.2);
+      color: #17a2b8;
+    }
+
+    .status-completed {
+      background: rgba(52, 199, 89, 0.25);
+      color: #155724;
+    }
+
+    .codebook-quick-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-top: 1.5rem;
+    }
+
+    .quick-action-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.6rem 1.25rem;
+      background: var(--card-background);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-size: 0.9rem;
+      font-weight: 500;
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .quick-action-btn:hover {
+      border-color: var(--primary-color);
+      color: var(--primary-color);
+      text-decoration: none;
+      transform: translateY(-1px);
+      box-shadow: 0 2px 8px rgba(0, 122, 255, 0.15);
+    }
+
+    .quick-action-btn i {
+      font-size: 0.85rem;
+    }
+
+    .quick-action-primary {
+      background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+      color: white;
+      border: none;
+      box-shadow: 0 2px 8px rgba(0, 122, 255, 0.25);
+    }
+
+    .quick-action-primary:hover {
+      color: white;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 122, 255, 0.35);
+    }
+
+    .btn-icon-action {
+      width: 36px;
+      height: 36px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--card-background);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-secondary);
+      transition: all 0.2s ease;
+    }
+
+    .btn-file-action {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.5rem 0.85rem;
+      background: var(--card-background);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-size: 0.85rem;
+      font-weight: 500;
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-file-action:hover {
+      border-color: var(--primary-color);
+      color: var(--primary-color);
+      background: rgba(0, 122, 255, 0.05);
+      text-decoration: none;
+    }
+
+    .btn-file-action i {
+      font-size: 0.8rem;
+    }
+
+    .btn-file-action.btn-danger-subtle {
+      color: #dc3545;
+    }
+
+    .btn-file-action.btn-danger-subtle:hover {
+      border-color: #dc3545;
+      background: rgba(220, 53, 69, 0.08);
+      color: #dc3545;
+    }
+
+    .documents-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .documents-list .document-item {
+      padding: 0.75rem 1rem;
+    }
+
+    .documents-list .file-actions {
+      gap: 0.25rem;
+    }
+
+    .documents-list .file-actions .btn-file-action {
+      padding: 0.35rem 0.6rem;
+    }
+
+    .badge-info {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--primary-color);
+      color: white;
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 0.2rem 0.5rem;
+      border-radius: 10px;
+      margin-left: 0.5rem;
+    }
+
+    .add-document-action {
+      text-align: left;
+    }
+
+    .empty-codebook-section {
+      text-align: center;
+      padding: 3rem 2rem;
+      background: linear-gradient(135deg, rgba(0, 122, 255, 0.03), rgba(90, 200, 250, 0.03));
+      border-radius: 12px;
+      border: 2px dashed var(--border-color);
+    }
+
+    .empty-codebook-section .empty-icon {
+      font-size: 4rem;
+      color: var(--text-secondary);
+      margin-bottom: 1.5rem;
+    }
+
+    .empty-codebook-section h3 {
+      font-size: 1.3rem;
+      color: var(--text-primary);
+      margin-bottom: 0.5rem;
+    }
+
+    .empty-codebook-section p {
+      color: var(--text-secondary);
+      max-width: 400px;
+      margin: 0 auto 1rem;
+    }
+
+    .supported-formats {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      margin-bottom: 1.5rem !important;
+    }
+
+    .btn-lg {
+      padding: 1rem 2rem;
+      font-size: 1.1rem;
+    }
+
+    .other-files-section {
+      margin-top: 2rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .files-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .file-list-item {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.75rem 1rem;
+      background: var(--background-color);
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+    }
+
+    .file-list-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 1rem;
+      flex-shrink: 0;
+    }
+
+    .file-list-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .file-list-name {
+      font-weight: 500;
+      font-size: 0.95rem;
+      color: var(--text-primary);
+      word-break: break-word;
+    }
+
+    .file-list-type {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      display: block;
+    }
+
+    .document-upload-section {
+      margin-top: 1.5rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .document-upload-section:first-of-type {
+      margin-top: 2rem;
+    }
+
+    .document-upload-empty {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem;
+      background: var(--background-color);
+      border-radius: 10px;
+      border: 1px dashed var(--border-color);
+    }
+
+    .upload-prompt {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+    }
+
+    .upload-prompt i {
+      font-size: 1.25rem;
+      opacity: 0.7;
+    }
+
+    .file-icon-document {
+      background: linear-gradient(135deg, #dc3545, #fd7e14);
+    }
+
+    /* Document Upload Modal */
+    .document-upload-modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .document-upload-modal.active {
+      display: flex;
+    }
+
+    .document-modal-content {
+      background: var(--card-background);
+      border-radius: var(--border-radius);
+      padding: 2rem;
+      max-width: 500px;
+      width: 90%;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    }
+
+    .document-modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+    }
+
+    .document-modal-header h3 {
+      margin: 0;
+      font-size: 1.25rem;
+      color: var(--text-primary);
+    }
+
+    .document-modal-close {
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      color: var(--text-secondary);
+      cursor: pointer;
+      padding: 0;
+      line-height: 1;
+    }
+
+    .document-modal-close:hover {
+      color: var(--text-primary);
+    }
+
+    .document-upload-dropzone {
+      border: 2px dashed var(--border-color);
+      border-radius: 10px;
+      padding: 2rem;
+      text-align: center;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+
+    .document-upload-dropzone:hover,
+    .document-upload-dropzone.dragover {
+      border-color: var(--primary-color);
+      background: rgba(0, 122, 255, 0.05);
+    }
+
+    .document-upload-dropzone i {
+      font-size: 2.5rem;
+      color: var(--text-secondary);
+      margin-bottom: 1rem;
+    }
+
+    .document-upload-dropzone p {
+      margin: 0;
+      color: var(--text-secondary);
+    }
+
+    .document-upload-dropzone .supported {
+      font-size: 0.85rem;
+      margin-top: 0.5rem;
+    }
+
+    .document-file-input {
+      display: none;
+    }
+
+    .selected-file-info {
+      display: none;
+      margin-top: 1rem;
+      padding: 0.75rem 1rem;
+      background: rgba(52, 199, 89, 0.1);
+      border-radius: 8px;
+      color: var(--text-primary);
+    }
+
+    .selected-file-info.active {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .selected-file-info i {
+      color: var(--accent-color);
+    }
+
+    .selected-file-info .file-name {
+      flex: 1;
+      font-weight: 500;
+    }
+
+    .selected-file-info .remove-file {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      padding: 0;
+    }
+
+    .selected-file-info .remove-file:hover {
+      color: #dc3545;
+    }
+
+    .document-modal-actions {
+      display: flex;
+      gap: 0.75rem;
+      margin-top: 1.5rem;
+      justify-content: flex-end;
+    }
+
+    @media (max-width: 768px) {
+      .file-details-card {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      
+      .file-actions {
+        width: 100%;
+        justify-content: flex-start;
+      }
+      
+      .codebook-stats {
+        grid-template-columns: 1fr;
+      }
+      
+      .codebook-quick-actions {
+        flex-direction: column;
+      }
+      
+      .quick-action-btn {
+        justify-content: center;
+      }
+
+      .document-upload-empty {
+        flex-direction: column;
+        gap: 1rem;
+        text-align: center;
+      }
+    }
   </style>
 {% endblock css %}
 
@@ -691,7 +1484,7 @@
     <div class="study-header">
       <h1 class="study-title">{{ study.name }}</h1>
       <div class="study-meta">
-        Created by {{ study.created_by.name|default:study.created_by.email }} on {{ study.created_at|date:"F j, Y" }}
+        Created on {{ study.created_at|date:"F j, Y" }}
       </div>
     </div>
   </div>
@@ -710,15 +1503,29 @@
   <div class="content-wrapper">
     
     <!-- Study Overview -->
-    <div class="info-card">
-      <h2 class="card-title">
-        {% if study.study_purpose == 'target' %}
-          Target Study Overview
-        {% else %}
-          Source Study Overview
-        {% endif %}
-      </h2>
-      <div class="info-grid">
+    <div class="info-card" id="overview-card">
+      <div class="card-header-with-edit">
+        <h2 class="card-title">
+          {% if study.study_purpose == 'target' %}
+            Target Study Overview
+          {% else %}
+            Source Study Overview
+          {% endif %}
+        </h2>
+        <button class="card-edit-toggle" onclick="toggleEditMode('overview')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+          </svg>
+          Edit
+        </button>
+      </div>
+      
+      <!-- View Mode -->
+      <div id="overview-view" class="info-grid">
+        <div class="info-item">
+          <div class="info-label">Study Name</div>
+          <div class="info-value">{{ study.name }}</div>
+        </div>
         <div class="info-item">
           <div class="info-label">Study Purpose</div>
           <div class="info-value">
@@ -747,76 +1554,223 @@
           <div class="info-label">Sample Size</div>
           <div class="info-value">{{ study.sample_size|default:"Not specified" }}</div>
         </div>
-      </div>
-      
-      {% if study.description %}
-        <div style="margin-top: 1.5rem;">
-          <div class="info-label">Description</div>
-          <div class="info-value">{{ study.description }}</div>
-        </div>
-      {% endif %}
-    </div>
-
-    <!-- Study Characteristics -->
-    <div class="info-card">
-      <h2 class="card-title">Study Characteristics</h2>
-      <div class="characteristics-list">
-        {% if study.has_dates %}
-          <span class="characteristic-tag">Date/Time Variables</span>
-        {% endif %}
-        {% if study.has_locations %}
-          <span class="characteristic-tag">Location Data</span>
-        {% endif %}
-        {% if study.needs_geolocation %}
-          <span class="characteristic-tag">Geolocation Required</span>
-        {% endif %}
-        {% if study.needs_climate_linkage %}
-          <span class="characteristic-tag">Climate Linkage</span>
-        {% endif %}
-        {% if not study.has_dates and not study.has_locations and not study.needs_geolocation and not study.needs_climate_linkage %}
-          <div class="empty-state">No specific characteristics selected</div>
-        {% endif %}
-      </div>
-    </div>
-
-    <!-- Legal & Ethical Information -->
-    <div class="info-card">
-      <h2 class="card-title">Legal & Ethical Approval</h2>
-      <div class="info-grid">
         <div class="info-item">
-          <div class="info-label">Ethical Approval</div>
+          <div class="info-label">Study Period</div>
           <div class="info-value">
-            {% if study.has_ethical_approval %}
-              Approved
+            {% if study.study_period_start or study.study_period_end %}
+              {{ study.study_period_start|date:"M d, Y"|default:"?" }} - {{ study.study_period_end|date:"M d, Y"|default:"?" }}
             {% else %}
-              Not approved
+              Not specified
             {% endif %}
           </div>
         </div>
-        {% if study.ethics_approval_number %}
-          <div class="info-item">
-            <div class="info-label">Approval Number</div>
-            <div class="info-value">{{ study.ethics_approval_number }}</div>
-          </div>
-        {% endif %}
-        {% if study.geographic_scope %}
-          <div class="info-item">
-            <div class="info-label">Geographic Scope</div>
-            <div class="info-value">{{ study.geographic_scope }}</div>
-          </div>
-        {% endif %}
+        <div class="info-item">
+          <div class="info-label">Geographic Scope</div>
+          <div class="info-value">{{ study.geographic_scope|default:"Not specified" }}</div>
+        </div>
       </div>
       
-      {% if study.data_use_permissions.count > 0 %}
+      {% if study.description %}
+        <div style="margin-top: 1.5rem;" id="overview-description-view">
+          <div class="info-label">Description</div>
+          <div class="info-value">{{ study.description }}</div>
+        </div>
+      {% else %}
+        <div style="margin-top: 1.5rem;" id="overview-description-view">
+          <div class="info-label">Description</div>
+          <div class="info-value" style="color: var(--text-secondary); font-style: italic;">No description provided</div>
+        </div>
+      {% endif %}
+      
+      <!-- Edit Mode -->
+      <form id="overview-edit" style="display: none;" onsubmit="return false;">
+        <div class="info-grid">
+          <div class="info-item">
+            <div class="info-label">Study Name</div>
+            <input type="text" class="editable-input" name="name" value="{{ study.name }}" required>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Study Type</div>
+            <select class="editable-input" name="study_type">
+              {% for value, label in study.RESEARCH_TYPE_CHOICES %}
+                <option value="{{ value }}" {% if study.study_type == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Principal Investigator</div>
+            <input type="text" class="editable-input" name="principal_investigator" value="{{ study.principal_investigator|default:'' }}" placeholder="Principal investigator name">
+          </div>
+          <div class="info-item">
+            <div class="info-label">Sample Size</div>
+            <input type="number" class="editable-input" name="sample_size" value="{{ study.sample_size|default:'' }}" placeholder="Number of participants">
+          </div>
+          <div class="info-item">
+            <div class="info-label">Study Start Date</div>
+            <input type="date" class="editable-input" name="study_period_start" value="{% if study.study_period_start %}{{ study.study_period_start|date:'Y-m-d' }}{% endif %}">
+          </div>
+          <div class="info-item">
+            <div class="info-label">Study End Date</div>
+            <input type="date" class="editable-input" name="study_period_end" value="{% if study.study_period_end %}{{ study.study_period_end|date:'Y-m-d' }}{% endif %}">
+          </div>
+          <div class="info-item" style="grid-column: 1 / -1;">
+            <div class="info-label">Geographic Scope</div>
+            <input type="text" class="editable-input" name="geographic_scope" value="{{ study.geographic_scope|default:'' }}" placeholder="e.g., Global, USA, Sub-Saharan Africa">
+          </div>
+        </div>
+        <div style="margin-top: 1.5rem;">
+          <div class="info-label">Description</div>
+          <textarea class="editable-input editable-textarea" name="description" placeholder="Brief description of the study">{{ study.description|default:'' }}</textarea>
+        </div>
+        <div class="edit-actions">
+          <span id="overview-status" class="saving-indicator" style="display: none;"></span>
+          <button type="button" class="edit-btn edit-btn-cancel" onclick="cancelEditMode('overview')">Cancel</button>
+          <button type="button" class="edit-btn edit-btn-save" onclick="saveOverview()">Save Changes</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Study Characteristics -->
+    <div class="info-card" id="characteristics-card">
+      <div class="card-header-with-edit">
+        <h2 class="card-title">Study Characteristics</h2>
+        <button class="card-edit-toggle" onclick="toggleEditMode('characteristics')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+          </svg>
+          Edit
+        </button>
+      </div>
+      
+      <!-- View Mode -->
+      <div id="characteristics-view">
+        <div class="characteristics-list">
+          {% if study.has_dates %}
+            <span class="characteristic-tag">Date/Time Variables</span>
+          {% endif %}
+          {% if study.has_locations %}
+            <span class="characteristic-tag">Location Data</span>
+          {% endif %}
+          {% if study.needs_geolocation %}
+            <span class="characteristic-tag">Geolocation Required</span>
+          {% endif %}
+          {% if study.needs_climate_linkage %}
+            <span class="characteristic-tag">Climate Linkage</span>
+          {% endif %}
+          {% if not study.has_dates and not study.has_locations and not study.needs_geolocation and not study.needs_climate_linkage %}
+            <div class="empty-state">No specific characteristics selected</div>
+          {% endif %}
+        </div>
+      </div>
+      
+      <!-- Edit Mode -->
+      <form id="characteristics-edit" style="display: none;" onsubmit="return false;">
+        <div class="editable-checkbox-group">
+          <div class="editable-checkbox-item">
+            <input type="checkbox" id="edit-has_dates" name="has_dates" {% if study.has_dates %}checked{% endif %}>
+            <label for="edit-has_dates">Date/Time Variables</label>
+          </div>
+          <div class="editable-checkbox-item">
+            <input type="checkbox" id="edit-has_locations" name="has_locations" {% if study.has_locations %}checked{% endif %}>
+            <label for="edit-has_locations">Location Data</label>
+          </div>
+          <div class="editable-checkbox-item">
+            <input type="checkbox" id="edit-needs_geolocation" name="needs_geolocation" {% if study.needs_geolocation %}checked{% endif %}>
+            <label for="edit-needs_geolocation">Geolocation Required</label>
+          </div>
+          <div class="editable-checkbox-item">
+            <input type="checkbox" id="edit-needs_climate_linkage" name="needs_climate_linkage" {% if study.needs_climate_linkage %}checked{% endif %}>
+            <label for="edit-needs_climate_linkage">Climate Linkage</label>
+          </div>
+        </div>
+        <div class="edit-actions">
+          <span id="characteristics-status" class="saving-indicator" style="display: none;"></span>
+          <button type="button" class="edit-btn edit-btn-cancel" onclick="cancelEditMode('characteristics')">Cancel</button>
+          <button type="button" class="edit-btn edit-btn-save" onclick="saveCharacteristics()">Save Changes</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Legal & Ethical Information -->
+    <div class="info-card" id="legal-card">
+      <div class="card-header-with-edit">
+        <h2 class="card-title">Legal & Ethical Approval</h2>
+        <button class="card-edit-toggle" onclick="toggleEditMode('legal')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+          </svg>
+          Edit
+        </button>
+      </div>
+      
+      <!-- View Mode -->
+      <div id="legal-view">
+        <div class="info-grid">
+          <div class="info-item">
+            <div class="info-label">Ethical Approval</div>
+            <div class="info-value">
+              {% if study.has_ethical_approval %}
+                <span style="color: var(--accent-color);">✓ Approved</span>
+              {% else %}
+                <span style="color: var(--text-secondary);">Not approved</span>
+              {% endif %}
+            </div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Approval Number</div>
+            <div class="info-value">{{ study.ethics_approval_number|default:"Not specified" }}</div>
+          </div>
+        </div>
+        
         <div style="margin-top: 1.5rem;">
           <div class="info-label">Data Use Permissions</div>
           <div class="characteristics-list">
-            {% for permission in study.data_use_permissions.all %}
-              <span class="characteristic-tag">{{ permission }}</span>
+            {% if study.data_use_permissions %}
+              {% for perm in study.data_use_permissions %}
+                <span class="characteristic-tag">{{ perm }}</span>
+              {% endfor %}
+            {% else %}
+              <span style="color: var(--text-secondary); font-style: italic;">No permissions specified</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      
+      <!-- Edit Mode -->
+      <form id="legal-edit" style="display: none;" onsubmit="return false;">
+        <div class="info-grid">
+          <div class="info-item">
+            <div class="info-label">Ethical Approval</div>
+            <div class="editable-checkbox-item" style="margin-top: 0.5rem;">
+              <input type="checkbox" id="edit-has_ethical_approval" name="has_ethical_approval" {% if study.has_ethical_approval %}checked{% endif %}>
+              <label for="edit-has_ethical_approval">Study has ethical/IRB approval</label>
+            </div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Approval Number</div>
+            <input type="text" class="editable-input" name="ethics_approval_number" value="{{ study.ethics_approval_number|default:'' }}" placeholder="IRB/Ethics approval number">
+          </div>
+        </div>
+        
+        <div style="margin-top: 1.5rem;">
+          <div class="info-label">Data Use Permissions</div>
+          <div class="editable-checkbox-group">
+            {% for value, label in study.DATA_USE_CHOICES %}
+              <div class="editable-checkbox-item">
+                <input type="checkbox" id="edit-perm-{{ value }}" name="data_use_permissions" value="{{ value }}" 
+                  {% if value in study.data_use_permissions %}checked{% endif %}>
+                <label for="edit-perm-{{ value }}">{{ label }}</label>
+              </div>
             {% endfor %}
           </div>
         </div>
-      {% endif %}
+        
+        <div class="edit-actions">
+          <span id="legal-status" class="saving-indicator" style="display: none;"></span>
+          <button type="button" class="edit-btn edit-btn-cancel" onclick="cancelEditMode('legal')">Cancel</button>
+          <button type="button" class="edit-btn edit-btn-save" onclick="saveLegal()">Save Changes</button>
+        </div>
+      </form>
     </div>
 
     <!-- Files -->
@@ -828,50 +1782,252 @@
           Source Study Materials
         {% endif %}
       </h2>
-      <div class="info-grid">
-        {% if study.codebook %}
-          <div class="info-item">
-            <div class="info-label">
-              {% if study.study_purpose == 'target' %}
-                Target Codebook
-              {% else %}
-                Source Codebook
+      
+      {% if study.codebook %}
+        <!-- Codebook Details Section -->
+        <div class="file-details-section">
+          <h3 class="section-subtitle">
+            <i class="fas fa-file-alt"></i>
+            {% if study.study_purpose == 'target' %}Target{% else %}Source{% endif %} Codebook
+          </h3>
+          <div class="file-details-card">
+            <div class="file-icon-wrapper">
+              <div class="file-icon file-icon-{{ study.codebook_format|default:'unknown' }}">
+                {% if study.codebook_format == 'csv' %}
+                  <i class="fas fa-file-csv"></i>
+                {% elif study.codebook_format == 'xlsx' or study.codebook_format == 'xls' %}
+                  <i class="fas fa-file-excel"></i>
+                {% elif study.codebook_format == 'json' %}
+                  <i class="fas fa-file-code"></i>
+                {% elif study.codebook_format == 'spss' or study.codebook_format == 'stata' %}
+                  <i class="fas fa-database"></i>
+                {% else %}
+                  <i class="fas fa-file"></i>
+                {% endif %}
+              </div>
+            </div>
+            <div class="file-info">
+              <div class="file-name">
+                <a href="{{ study.codebook.url }}" target="_blank" class="file-link">
+                  {{ study.codebook.name|cut:"studies/codebooks/" }}
+                </a>
+              </div>
+              <div class="file-meta">
+                <span class="file-meta-item">
+                  <i class="fas fa-tag"></i> {{ study.codebook_format|upper|default:"Unknown" }} format
+                </span>
+                <span class="file-meta-item">
+                  <i class="fas fa-weight-hanging"></i> 
+                  {% widthratio study.codebook.size 1024 1 as size_kb %}
+                  {% if size_kb < 1 %}
+                    {{ study.codebook.size }} bytes
+                  {% elif size_kb < 1024 %}
+                    {{ size_kb }} KB
+                  {% else %}
+                    {% widthratio size_kb 1024 1 %} MB
+                  {% endif %}
+                </span>
+                <span class="file-meta-item">
+                  <i class="fas fa-clock"></i> Updated {{ study.updated_at|timesince }} ago
+                </span>
+              </div>
+            </div>
+            <div class="file-actions">
+              <a href="{% url 'core:download_codebook' study.pk %}" class="btn btn-sm btn-file-action">
+                <i class="fas fa-download"></i> Download
+              </a>
+              <button class="btn btn-sm btn-file-action" onclick="showReuploadModal()">
+                <i class="fas fa-sync-alt"></i> Replace
+              </button>
+              <button class="btn btn-sm btn-file-action btn-danger-subtle" onclick="confirmDeleteFile('codebook')">
+                <i class="fas fa-trash-alt"></i> Delete
+              </button>
+            </div>
+          </div>
+          
+          <!-- Quick Actions -->
+          <div class="codebook-quick-actions">
+            {% if study.study_purpose == 'target' %}
+              {% if study.variables.count == 0 %}
+                <a href="{% url 'core:target_map_codebook' study.pk %}" class="quick-action-btn quick-action-primary">
+                  <i class="fas fa-cogs"></i>
+                  Extract Variables
+                </a>
               {% endif %}
-            </div>
-            <div class="info-value">
-              <a href="{{ study.codebook.url }}" class="file-link" target="_blank">
-                {{ study.codebook.name }} 
-                {% if study.codebook_format %}({{ study.codebook_format|upper }}){% endif %}
-              </a>
-            </div>
+            {% else %}
+              {% if study.variables.count == 0 %}
+                <a href="{% url 'health:map_codebook' study.pk %}" class="quick-action-btn quick-action-primary">
+                  <i class="fas fa-cogs"></i>
+                  Extract Variables
+                </a>
+              {% endif %}
+            {% endif %}
           </div>
-        {% endif %}
-        
+        </div>
+      {% else %}
+        <!-- No Codebook Uploaded -->
+        <div class="empty-codebook-section">
+          <div class="empty-icon">
+            <i class="fas fa-file-upload"></i>
+          </div>
+          <h3>No Codebook Uploaded</h3>
+          <p>Upload a codebook to define the variables in your {% if study.study_purpose == 'target' %}target{% else %}source{% endif %} study.</p>
+          <p class="supported-formats">
+            <strong>Supported formats:</strong> CSV, Excel (.xlsx, .xls), SPSS, Stata, JSON, SQLite, XML
+          </p>
+          <button class="btn btn-primary btn-lg" onclick="showReuploadModal()">
+            <i class="fas fa-upload"></i>
+            Upload {% if study.study_purpose == 'target' %}Target{% else %}Source{% endif %} Codebook
+          </button>
+        </div>
+      {% endif %}
+      
+      <!-- Study Protocol Section -->
+      <div class="document-upload-section">
+        <h3 class="section-subtitle">
+          <i class="fas fa-file-medical-alt"></i>
+          Study Protocol
+        </h3>
         {% if study.protocol_file %}
-          <div class="info-item">
-            <div class="info-label">Protocol File</div>
-            <div class="info-value">
-              <a href="{{ study.protocol_file.url }}" class="file-link" target="_blank">
-                {{ study.protocol_file.name }}
+          <div class="file-details-card">
+            <div class="file-icon-wrapper">
+              <div class="file-icon file-icon-document">
+                {% with study.protocol_file.name|slice:"-4:"|lower as ext %}
+                  {% if ext == '.pdf' %}
+                    <i class="fas fa-file-pdf"></i>
+                  {% elif ext == 'docx' or ext == '.doc' %}
+                    <i class="fas fa-file-word"></i>
+                  {% elif ext == '.txt' %}
+                    <i class="fas fa-file-alt"></i>
+                  {% else %}
+                    <i class="fas fa-file"></i>
+                  {% endif %}
+                {% endwith %}
+              </div>
+            </div>
+            <div class="file-info">
+              <div class="file-name">
+                <a href="{{ study.protocol_file.url }}" target="_blank" class="file-link">
+                  {{ study.protocol_file.name|cut:"studies/protocols/" }}
+                </a>
+              </div>
+              <div class="file-meta">
+                <span class="file-meta-item">
+                  <i class="fas fa-weight-hanging"></i> 
+                  {% widthratio study.protocol_file.size 1024 1 as size_kb %}
+                  {% if size_kb < 1 %}
+                    {{ study.protocol_file.size }} bytes
+                  {% elif size_kb < 1024 %}
+                    {{ size_kb }} KB
+                  {% else %}
+                    {% widthratio size_kb 1024 1 %} MB
+                  {% endif %}
+                </span>
+              </div>
+            </div>
+            <div class="file-actions">
+              <a href="{{ study.protocol_file.url }}" class="btn btn-sm btn-file-action" target="_blank">
+                <i class="fas fa-download"></i> Download
               </a>
+              <button class="btn btn-sm btn-file-action" onclick="showProtocolUploadModal()">
+                <i class="fas fa-sync-alt"></i> Replace
+              </button>
+              <button class="btn btn-sm btn-file-action btn-danger-subtle" onclick="confirmDeleteFile('protocol')">
+                <i class="fas fa-trash-alt"></i> Delete
+              </button>
+            </div>
+          </div>
+        {% else %}
+          <div class="document-upload-empty">
+            <div class="upload-prompt">
+              <i class="fas fa-file-medical-alt"></i>
+              <span>No protocol file uploaded</span>
+            </div>
+            <button class="btn btn-sm btn-file-action" onclick="showProtocolUploadModal()">
+              <i class="fas fa-upload"></i> Upload Protocol
+            </button>
+          </div>
+        {% endif %}
+      </div>
+      
+      <!-- Additional Materials Section -->
+      <div class="document-upload-section">
+        <h3 class="section-subtitle">
+          <i class="fas fa-folder-open"></i>
+          Additional Documents
+          {% if study.documents.count > 0 %}
+            <span class="badge badge-info">{{ study.documents.count }}</span>
+          {% endif %}
+        </h3>
+        
+        {% if study.documents.exists %}
+          <div class="documents-list">
+            {% for doc in study.documents.all %}
+              <div class="file-details-card document-item">
+                <div class="file-icon-wrapper">
+                  <div class="file-icon file-icon-document">
+                    {% with doc.file_extension as ext %}
+                      {% if ext == '.pdf' %}
+                        <i class="fas fa-file-pdf"></i>
+                      {% elif ext == '.docx' or ext == '.doc' %}
+                        <i class="fas fa-file-word"></i>
+                      {% elif ext == '.txt' %}
+                        <i class="fas fa-file-alt"></i>
+                      {% elif ext == '.xlsx' or ext == '.xls' %}
+                        <i class="fas fa-file-excel"></i>
+                      {% elif ext == '.zip' or ext == '.rar' %}
+                        <i class="fas fa-file-archive"></i>
+                      {% else %}
+                        <i class="fas fa-file"></i>
+                      {% endif %}
+                    {% endwith %}
+                  </div>
+                </div>
+                <div class="file-info">
+                  <div class="file-name">
+                    <a href="{% url 'core:download_study_document' study.pk doc.pk %}" class="file-link">
+                      {{ doc.filename }}
+                    </a>
+                  </div>
+                  <div class="file-meta">
+                    <span class="file-meta-item">
+                      <i class="fas fa-tag"></i> {{ doc.get_document_type_display }}
+                    </span>
+                    {% if doc.description %}
+                    <span class="file-meta-item">
+                      <i class="fas fa-comment"></i> {{ doc.description|truncatewords:5 }}
+                    </span>
+                    {% endif %}
+                    <span class="file-meta-item">
+                      <i class="fas fa-clock"></i> {{ doc.uploaded_at|timesince }} ago
+                    </span>
+                  </div>
+                </div>
+                <div class="file-actions">
+                  <a href="{% url 'core:download_study_document' study.pk doc.pk %}" class="btn btn-sm btn-file-action">
+                    <i class="fas fa-download"></i> Download
+                  </a>
+                  <button class="btn btn-sm btn-file-action btn-danger-subtle" onclick="confirmDeleteDocument({{ doc.pk }}, '{{ doc.filename|escapejs }}')">
+                    <i class="fas fa-trash-alt"></i> Delete
+                  </button>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="document-upload-empty">
+            <div class="upload-prompt">
+              <i class="fas fa-folder-open"></i>
+              <span>No additional documents uploaded</span>
             </div>
           </div>
         {% endif %}
         
-        {% if study.additional_files %}
-          <div class="info-item">
-            <div class="info-label">Additional Files</div>
-            <div class="info-value">
-              <a href="{{ study.additional_files.url }}" class="file-link" target="_blank">
-                {{ study.additional_files.name }}
-              </a>
-            </div>
-          </div>
-        {% endif %}
-        
-        {% if not study.codebook and not study.protocol_file and not study.additional_files %}
-          <div class="empty-state">No files uploaded</div>
-        {% endif %}
+        <div class="add-document-action" style="margin-top: 1rem;">
+          <button class="btn btn-sm btn-file-action" onclick="showAdditionalUploadModal()">
+            <i class="fas fa-plus"></i> Add Document
+          </button>
+        </div>
       </div>
       
       <!-- Codebook Management Actions -->
@@ -1174,7 +2330,7 @@
 
     <!-- Variable Embeddings Management -->
     {% if study.variables.count > 0 %}
-      {% include 'components/embeddings/embeddings_card.html' with study=study %}
+      {% include 'components/embeddings/embeddings_card.html' with study=study variables_with_embeddings=variables_with_embeddings total_variables=total_variables embedding_progress=embedding_progress %}
     {% endif %}
 
     <!-- Variables Summary & Statistics -->
@@ -1183,7 +2339,7 @@
         {% if study.study_purpose == 'target' %}
           Target Variables Summary & Statistics
         {% else %}
-          Source Variables Summary & Statistics
+          Source Variables
         {% endif %}
       </h2>
       {% if study.variables.count > 0 %}
@@ -1242,6 +2398,12 @@
             <div class="variable-card" 
                  data-type="{{ variable.variable_type }}" 
                  data-variable-id="{{ variable.id }}"
+                 data-variable-name="{{ variable.variable_name }}"
+                 data-display-name="{{ variable.display_name|default:'' }}"
+                 data-description="{{ variable.description|default:'' }}"
+                 data-unit="{{ variable.unit|default:'' }}"
+                 data-ontology-code="{{ variable.ontology_code|default:'' }}"
+                 data-category="{{ variable.category|default:'health' }}"
                  data-search="{{ variable.variable_name|lower }} {{ variable.display_name|lower }} {{ variable.description|lower }}"
                  onclick="showVariableDetail({{ variable.id }})">
               <div class="variable-header">
@@ -1272,8 +2434,11 @@
                 <span class="meta-item">
                   <strong>Created:</strong> {{ variable.created_at|date:"M j, Y" }}
                 </span>
-                <!-- Embedding status and controls -->
-                <div class="meta-item" style="margin-left: auto;">
+                <!-- Edit and Embedding controls -->
+                <div class="meta-item" style="margin-left: auto; display: flex; gap: 0.5rem; align-items: center;">
+                  <button class="btn-edit-variable" onclick="event.stopPropagation(); openEditVariable({{ variable.id }}, this.closest('.variable-card'))" title="Edit variable">
+                    <i class="fas fa-edit"></i> Edit
+                  </button>
                   {% include 'components/embeddings/status_badge.html' with variable=variable show_button=True %}
                 </div>
               </div>
@@ -1342,10 +2507,9 @@
                     {% include 'components/svg_icon.html' with icon='microscope' size='16' class='inline-icon' %} Start Harmonisation →
                   </a>
                 {% endif %}
-                <a href="{% url 'health:reset_variables' study.id %}" class="btn btn-outline" 
-                   onclick="return confirm('Are you sure you want to reset all variables? This action cannot be undone.')">
+                <button class="btn btn-outline" onclick="showResetModal()">
                   {% include 'components/svg_icon.html' with icon='refresh' size='16' class='inline-icon' %} Reset Variables
-                </a>
+                </button>
               {% else %}
                 <!-- Source study with codebook but no variables selected -->
                 <a href="{% url 'health:map_codebook' study.id %}" class="btn btn-primary">
@@ -1369,6 +2533,18 @@
       <a href="{% url 'core:study_list' %}" class="btn btn-secondary">
         ← Back to Studies
       </a>
+
+      {% if study.study_purpose == 'target' %}
+        {% if has_harmonised_sources %}
+        <a href="{% url 'health:combined_export' %}?target_study={{ study.id }}" class="btn btn-primary">
+          {% include 'components/svg_icon.html' with icon='download' size='16' class='inline-icon' %} Combined Export
+        </a>
+        {% else %}
+        <a href="{% url 'core:project_detail' study.project.id %}" class="btn btn-primary">
+          {% include 'components/svg_icon.html' with icon='link' size='16' class='inline-icon' %} Harmonise from Source Studies
+        </a>
+        {% endif %}
+      {% endif %}
       
       <!-- Delete Study Button -->
       <button class="btn btn-danger" onclick="showDeleteModal()" style="margin-left: auto;">
@@ -1388,7 +2564,82 @@
         <!-- Content loaded dynamically -->
       </div>
       <div class="modal-footer">
+        <button type="button" class="btn btn-primary" id="editVariableBtn" onclick="editCurrentVariable()">
+          <i class="fas fa-edit"></i> Edit
+        </button>
         <button type="button" class="btn btn-secondary" onclick="closeVariableModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Variable Edit Modal -->
+  <div id="variableEditModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Edit Variable</h3>
+        <span class="close" onclick="closeVariableEditModal()">&times;</span>
+      </div>
+      <div class="modal-body">
+        <form id="variableEditForm">
+          <input type="hidden" id="editVariableId" name="variable_id">
+          
+          <div class="form-group">
+            <label for="editVariableName">Variable Name</label>
+            <input type="text" id="editVariableName" class="form-control" readonly disabled>
+            <small class="text-muted">Variable name cannot be changed</small>
+          </div>
+          
+          <div class="form-group">
+            <label for="editDisplayName">Display Name</label>
+            <input type="text" id="editDisplayName" name="display_name" class="form-control">
+          </div>
+          
+          <div class="form-group">
+            <label for="editDescription">Description</label>
+            <textarea id="editDescription" name="description" class="form-control" rows="3"></textarea>
+          </div>
+          
+          <div class="form-row" style="display: flex; gap: 1rem;">
+            <div class="form-group" style="flex: 1;">
+              <label for="editVariableType">Variable Type</label>
+              <select id="editVariableType" name="variable_type" class="form-control">
+                <option value="float">Float</option>
+                <option value="int">Integer</option>
+                <option value="string">String</option>
+                <option value="categorical">Categorical</option>
+                <option value="boolean">Boolean</option>
+                <option value="datetime">Datetime</option>
+              </select>
+            </div>
+            
+            <div class="form-group" style="flex: 1;">
+              <label for="editCategory">Category</label>
+              <select id="editCategory" name="category" class="form-control">
+                <option value="health">Health</option>
+                <option value="climate">Climate</option>
+                <option value="geolocation">Geolocation</option>
+              </select>
+            </div>
+          </div>
+          
+          <div class="form-row" style="display: flex; gap: 1rem;">
+            <div class="form-group" style="flex: 1;">
+              <label for="editUnit">Unit</label>
+              <input type="text" id="editUnit" name="unit" class="form-control" placeholder="e.g., kg, cm, °C">
+            </div>
+            
+            <div class="form-group" style="flex: 1;">
+              <label for="editOntologyCode">Ontology Code</label>
+              <input type="text" id="editOntologyCode" name="ontology_code" class="form-control" placeholder="e.g., SNOMED:12345">
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeVariableEditModal()">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="saveVariableEdit()">
+          <i class="fas fa-save"></i> Save Changes
+        </button>
       </div>
     </div>
   </div>
@@ -1413,6 +2664,7 @@
         <form id="reuploadForm" method="post" enctype="multipart/form-data" action="{% url 'core:upload' %}">
           {% csrf_token %}
           <input type="hidden" name="study_id" value="{{ study.id }}">
+          <input type="hidden" name="project" value="{{ study.project.id }}">
           <input type="hidden" name="name" value="{{ study.name }}">
           <input type="hidden" name="study_type" value="{{ study.study_type }}">
           <input type="hidden" name="study_purpose" value="{{ study.study_purpose }}">
@@ -1426,6 +2678,8 @@
           {% if study.has_ethical_approval %}<input type="hidden" name="has_ethical_approval" value="on">{% endif %}
           <input type="hidden" name="ethics_approval_number" value="{{ study.ethics_approval_number|default:'' }}">
           <input type="hidden" name="geographic_scope" value="{{ study.geographic_scope|default:'' }}">
+          {% if study.study_period_start %}<input type="hidden" name="study_period_start" value="{{ study.study_period_start|date:'Y-m-d' }}">{% endif %}
+          {% if study.study_period_end %}<input type="hidden" name="study_period_end" value="{{ study.study_period_end|date:'Y-m-d' }}">{% endif %}
           
           <div class="form-group">
             <label for="newCodebook">
@@ -1436,16 +2690,7 @@
               {% endif %}
             </label>
             <input type="file" id="newCodebook" name="codebook" class="form-control" accept=".csv,.xlsx,.xls" required>
-            <small class="form-text text-muted">Supported formats: CSV, Excel (.xlsx, .xls)</small>
-          </div>
-          
-          <div class="form-group">
-            <label for="codebook_format">Codebook Format:</label>
-            <select id="codebook_format" name="codebook_format" class="form-control" required>
-              <option value="">Select format...</option>
-              <option value="csv" {% if study.codebook_format == 'csv' %}selected{% endif %}>CSV</option>
-              <option value="excel" {% if study.codebook_format == 'excel' %}selected{% endif %}>Excel</option>
-            </select>
+            <small class="form-text text-muted">Supported formats: CSV, Excel (.xlsx, .xls). Format will be auto-detected from file extension.</small>
           </div>
         </form>
       </div>
@@ -1462,27 +2707,149 @@
     </div>
   </div>
 
-  <!-- Reset Variables Modal (for target studies) -->
-  {% if study.study_purpose == 'target' %}
+  <!-- Protocol Upload Modal -->
+  <div id="protocolUploadModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>
+          {% if study.protocol_file %}
+            Replace Study Protocol
+          {% else %}
+            Upload Study Protocol
+          {% endif %}
+        </h3>
+        <span class="close" onclick="closeProtocolUploadModal()">&times;</span>
+      </div>
+      <div class="modal-body">
+        {% if study.protocol_file %}
+        <div class="alert" style="background: #fff3cd; border-left-color: #ffc107; color: #856404; margin-bottom: 1rem;">
+          <strong>Note:</strong> This will replace the current protocol file.
+        </div>
+        {% endif %}
+        <form id="protocolUploadForm" method="post" enctype="multipart/form-data" action="{% url 'core:update_study_field' study.pk %}">
+          {% csrf_token %}
+          <input type="hidden" name="field" value="protocol_file">
+          
+          <div class="document-upload-dropzone" onclick="document.getElementById('protocolFileInput').click()" id="protocolDropzone">
+            <i class="fas fa-cloud-upload-alt"></i>
+            <p><strong>Click to select</strong> or drag and drop</p>
+            <p class="supported">PDF, Word (.doc, .docx), Text (.txt), or other documents</p>
+          </div>
+          <input type="file" id="protocolFileInput" name="protocol_file" class="document-file-input" accept=".pdf,.doc,.docx,.txt,.rtf,.odt">
+          
+          <div id="protocolSelectedFile" class="selected-file-info">
+            <i class="fas fa-file-check"></i>
+            <span class="file-name"></span>
+            <button type="button" class="remove-file" onclick="clearProtocolFile(event)">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeProtocolUploadModal()">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="submitProtocolUpload()" id="protocolSubmitBtn" disabled>
+          {% if study.protocol_file %}Replace Protocol{% else %}Upload Protocol{% endif %}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Additional Materials Upload Modal -->
+  <div id="additionalUploadModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Add Document</h3>
+        <span class="close" onclick="closeAdditionalUploadModal()">&times;</span>
+      </div>
+      <div class="modal-body">
+        <form id="additionalUploadForm" method="post" enctype="multipart/form-data" action="{% url 'core:add_study_document' study.pk %}">
+          {% csrf_token %}
+          
+          <div class="form-group" style="margin-bottom: 1rem;">
+            <label for="documentType" style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Document Type</label>
+            <select name="document_type" id="documentType" class="form-select" style="width: 100%; padding: 0.5rem; border-radius: 0.25rem; border: 1px solid #ccc;">
+              <option value="additional">Additional Document</option>
+              <option value="consent">Consent Form</option>
+              <option value="questionnaire">Questionnaire</option>
+              <option value="data_dictionary">Data Dictionary</option>
+              <option value="ethics">Ethics Approval</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          
+          <div class="form-group" style="margin-bottom: 1rem;">
+            <label for="documentDescription" style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Description (optional)</label>
+            <input type="text" name="description" id="documentDescription" class="form-control" placeholder="Brief description of this document" style="width: 100%; padding: 0.5rem; border-radius: 0.25rem; border: 1px solid #ccc;">
+          </div>
+          
+          <div class="document-upload-dropzone" onclick="document.getElementById('additionalFileInput').click()" id="additionalDropzone">
+            <i class="fas fa-cloud-upload-alt"></i>
+            <p><strong>Click to select</strong> or drag and drop</p>
+            <p class="supported">PDF, Word (.doc, .docx), Text (.txt), or other documents</p>
+          </div>
+          <input type="file" id="additionalFileInput" name="file" class="document-file-input" accept=".pdf,.doc,.docx,.txt,.rtf,.odt,.zip,.xlsx,.xls,.csv">
+          
+          <div id="additionalSelectedFile" class="selected-file-info">
+            <i class="fas fa-file-check"></i>
+            <span class="file-name"></span>
+            <button type="button" class="remove-file" onclick="clearAdditionalFile(event)">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeAdditionalUploadModal()">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="submitAdditionalUpload()" id="additionalSubmitBtn" disabled>
+          Add Document
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete File Confirmation Modal -->
+  <div id="deleteFileModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Delete File</h3>
+        <span class="close" onclick="closeDeleteFileModal()">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div class="alert" style="background: #f8d7da; border-left-color: #dc3545; color: #721c24; margin-bottom: 1rem;">
+          <strong>Warning:</strong> This action cannot be undone.
+        </div>
+        <p id="deleteFileMessage">Are you sure you want to delete this file?</p>
+        <form id="deleteFileForm" method="post" style="display: none;">
+          {% csrf_token %}
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeDeleteFileModal()">Cancel</button>
+        <button type="button" class="btn btn-danger" onclick="submitDeleteFile()" id="deleteFileBtn">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reset Variables Modal -->
   <div id="resetModal" class="modal">
     <div class="modal-content">
       <div class="modal-header">
-        <h3>Reset Target Variables</h3>
+        <h3>Reset {% if study.study_purpose == 'target' %}Target {% endif %}Variables</h3>
         <span class="close" onclick="closeResetModal()">&times;</span>
       </div>
       <div class="modal-body">
         <div class="alert" style="background: #f8d7da; border-left-color: #dc3545; color: #721c24; margin-bottom: 1rem;">
-          <strong>Warning:</strong> This will permanently delete all {{ study.variables.count }} target variables and reset your target study. This action cannot be undone.
+          <strong>Warning:</strong> This will permanently delete all {{ study.variables.count }} {% if study.study_purpose == 'target' %}target {% endif %}variables. This action cannot be undone.
         </div>
-        <p>Are you sure you want to reset all target variables? You will need to re-define your harmonisation targets from the beginning.</p>
+        <p>Are you sure you want to reset all {% if study.study_purpose == 'target' %}target {% endif %}variables? You will need to re-extract variables from the beginning.</p>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" onclick="closeResetModal()">Cancel</button>
-        <button type="button" class="btn btn-danger" onclick="submitReset()">Reset Target Variables</button>
+        <button type="button" class="btn btn-danger" onclick="submitReset()">Reset {% if study.study_purpose == 'target' %}Target {% endif %}Variables</button>
       </div>
     </div>
   </div>
-  {% endif %}
 
   <!-- Delete Study Modal -->
   <div id="deleteModal" class="modal">
@@ -1560,32 +2927,58 @@
 
     // Handle bulk embedding generation with progress indicator
     function handleGenerateAllEmbeddings(event, variableCount) {
+      event.preventDefault();  // Prevent form submission
+      
       if (!confirm(`This will generate embeddings for all ${variableCount} variables. Continue?`)) {
         return false;
       }
       
-      // Show progress indicator
+      // Show progress indicator immediately
       const button = document.getElementById('generateAllBtn');
       const icon = document.getElementById('generateAllIcon');
       const text = document.getElementById('generateAllText');
       const progress = document.getElementById('embeddingProgress');
       
       // Update button state
-      button.disabled = true;
-      icon.className = 'fas fa-spinner fa-spin';
-      text.textContent = 'Generating...';
-      button.style.opacity = '0.7';
+      if (button) {
+        button.disabled = true;
+        button.style.opacity = '0.7';
+      }
+      if (icon) icon.className = 'fas fa-spinner fa-spin';
+      if (text) text.textContent = 'Generating...';
       
       // Show progress section
-      progress.style.display = 'block';
+      if (progress) progress.style.display = 'block';
       
-      // Start polling for progress after a short delay to allow task to start
-      setTimeout(() => {
+      // Submit via AJAX instead of form
+      const form = document.getElementById('generateAllEmbeddingsForm');
+      const formData = new FormData(form);
+      
+      fetch(form.action, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      })
+      .then(response => {
+        // Task queued successfully, start polling
         startProgressPolling(studyData.id);
-      }, 2000);
+      })
+      .catch(error => {
+        console.error('Error starting embedding generation:', error);
+        // Reset button state on error
+        if (button) {
+          button.disabled = false;
+          button.style.opacity = '1';
+        }
+        if (icon) icon.className = 'fas fa-magic';
+        if (text) text.textContent = 'Generate All Embeddings';
+        if (progress) progress.style.display = 'none';
+        alert('Failed to start embedding generation. Please try again.');
+      });
       
-      // Allow form submission to continue
-      return true;
+      return false;  // Prevent form submission
     }
 
     // Poll for embedding progress
@@ -1717,6 +3110,10 @@
       }
     });
 
+    // Current variable being edited (declared before showVariableDetail uses them)
+    let currentVariableId = null;
+    let currentVariableData = {};
+
     // Variable detail modal functionality
     function showVariableDetail(variableId) {
       const modal = document.getElementById('variableDetailModal');
@@ -1745,6 +3142,18 @@
       });
       
       const unit = variableCard.querySelector('.unit-badge')?.textContent || '';
+      
+      // Store current variable data for editing
+      currentVariableId = variableId;
+      currentVariableData = {
+        variable_name: variableCard.dataset.variableName || variableName,
+        display_name: variableCard.dataset.displayName || '',
+        description: variableCard.dataset.description || '',
+        variable_type: variableCard.dataset.type || 'string',
+        category: variableCard.dataset.category || 'health',
+        unit: variableCard.dataset.unit || '',
+        ontology_code: variableCard.dataset.ontologyCode || ''
+      };
       
       // Get embedding status from the status badge
       const embeddingStatus = getEmbeddingStatusFromCard(variableCard);
@@ -1875,6 +3284,97 @@
       document.getElementById('variableDetailModal').style.display = 'none';
     }
 
+    // Open edit modal directly from variable card
+    function openEditVariable(variableId, variableCard) {
+      if (!variableCard) return;
+      
+      const data = {
+        variable_name: variableCard.dataset.variableName || '',
+        display_name: variableCard.dataset.displayName || '',
+        description: variableCard.dataset.description || '',
+        variable_type: variableCard.dataset.type || 'string',
+        category: variableCard.dataset.category || 'health',
+        unit: variableCard.dataset.unit || '',
+        ontology_code: variableCard.dataset.ontologyCode || ''
+      };
+      
+      showVariableEditModal(variableId, data);
+    }
+
+    // Edit variable functionality
+    function editCurrentVariable() {
+      if (!currentVariableId) {
+        alert('No variable selected.');
+        return;
+      }
+      
+      // Close the detail modal
+      closeVariableModal();
+      
+      // Show the edit modal with data
+      showVariableEditModal(currentVariableId, currentVariableData);
+    }
+
+    function showVariableEditModal(variableId, data) {
+      const modal = document.getElementById('variableEditModal');
+      
+      // Populate form fields
+      document.getElementById('editVariableId').value = variableId;
+      document.getElementById('editVariableName').value = data.variable_name || '';
+      document.getElementById('editDisplayName').value = data.display_name || '';
+      document.getElementById('editDescription').value = data.description || '';
+      document.getElementById('editVariableType').value = data.variable_type || 'string';
+      document.getElementById('editCategory').value = data.category || 'health';
+      document.getElementById('editUnit').value = data.unit || '';
+      document.getElementById('editOntologyCode').value = data.ontology_code || '';
+      
+      modal.style.display = 'block';
+    }
+
+    function closeVariableEditModal() {
+      document.getElementById('variableEditModal').style.display = 'none';
+    }
+
+    async function saveVariableEdit() {
+      const variableId = document.getElementById('editVariableId').value;
+      if (!variableId) {
+        alert('No variable selected.');
+        return;
+      }
+      
+      const data = {
+        display_name: document.getElementById('editDisplayName').value,
+        description: document.getElementById('editDescription').value,
+        variable_type: document.getElementById('editVariableType').value,
+        category: document.getElementById('editCategory').value,
+        unit: document.getElementById('editUnit').value,
+        ontology_code: document.getElementById('editOntologyCode').value,
+      };
+      
+      try {
+        const response = await fetch(`/app/attributes/${variableId}/update/`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+          },
+          body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          // Close modal and reload page to show updates
+          closeVariableEditModal();
+          location.reload();
+        } else {
+          alert('Error saving changes: ' + (result.error || 'Unknown error'));
+        }
+      } catch (error) {
+        alert('Error saving changes: ' + error.message);
+      }
+    }
+
     // Reupload modal functionality
     function showReuploadModal() {
       document.getElementById('reuploadModal').style.display = 'block';
@@ -1887,15 +3387,9 @@
     function submitReupload() {
       const form = document.getElementById('reuploadForm');
       const fileInput = document.getElementById('newCodebook');
-      const formatSelect = document.getElementById('codebook_format');
       
       if (!fileInput.files.length) {
         alert('Please select a codebook file first.');
-        return;
-      }
-      
-      if (!formatSelect.value) {
-        alert('Please select the codebook format.');
         return;
       }
       
@@ -1908,24 +3402,202 @@
       }
     }
 
-    // Reset variables modal functionality (target studies)
-    function showResetModal() {
-      if (isTargetStudy) {
-        document.getElementById('resetModal').style.display = 'block';
+    // Protocol upload modal functionality
+    function showProtocolUploadModal() {
+      document.getElementById('protocolUploadModal').style.display = 'block';
+    }
+
+    function closeProtocolUploadModal() {
+      document.getElementById('protocolUploadModal').style.display = 'none';
+      clearProtocolFile();
+    }
+
+    function clearProtocolFile(event) {
+      if (event) event.stopPropagation();
+      document.getElementById('protocolFileInput').value = '';
+      document.getElementById('protocolSelectedFile').classList.remove('active');
+      document.getElementById('protocolSubmitBtn').disabled = true;
+    }
+
+    function submitProtocolUpload() {
+      const form = document.getElementById('protocolUploadForm');
+      const fileInput = document.getElementById('protocolFileInput');
+      
+      if (!fileInput.files.length) {
+        alert('Please select a file first.');
+        return;
       }
+      
+      form.submit();
+    }
+
+    // Additional materials upload modal functionality
+    function showAdditionalUploadModal() {
+      document.getElementById('additionalUploadModal').style.display = 'block';
+    }
+
+    function closeAdditionalUploadModal() {
+      document.getElementById('additionalUploadModal').style.display = 'none';
+      clearAdditionalFile();
+    }
+
+    function clearAdditionalFile(event) {
+      if (event) event.stopPropagation();
+      document.getElementById('additionalFileInput').value = '';
+      document.getElementById('additionalSelectedFile').classList.remove('active');
+      document.getElementById('additionalSubmitBtn').disabled = true;
+    }
+
+    function submitAdditionalUpload() {
+      const form = document.getElementById('additionalUploadForm');
+      const fileInput = document.getElementById('additionalFileInput');
+      
+      if (!fileInput.files.length) {
+        alert('Please select a file first.');
+        return;
+      }
+      
+      form.submit();
+    }
+
+    // Delete file modal functionality
+    let deleteFileTarget = null;
+    let deleteDocumentId = null;
+
+    function confirmDeleteFile(fileType) {
+      deleteFileTarget = fileType;
+      deleteDocumentId = null;
+      const modal = document.getElementById('deleteFileModal');
+      const message = document.getElementById('deleteFileMessage');
+      
+      if (fileType === 'codebook') {
+        message.innerHTML = 'Are you sure you want to delete the <strong>codebook</strong>? This will also reset the study status.';
+      } else if (fileType === 'protocol') {
+        message.innerHTML = 'Are you sure you want to delete the <strong>protocol file</strong>?';
+      }
+      
+      modal.style.display = 'block';
+    }
+
+    function confirmDeleteDocument(docId, filename) {
+      deleteFileTarget = 'document';
+      deleteDocumentId = docId;
+      const modal = document.getElementById('deleteFileModal');
+      const message = document.getElementById('deleteFileMessage');
+      message.innerHTML = 'Are you sure you want to delete <strong>' + filename + '</strong>?';
+      modal.style.display = 'block';
+    }
+
+    function closeDeleteFileModal() {
+      document.getElementById('deleteFileModal').style.display = 'none';
+      deleteFileTarget = null;
+      deleteDocumentId = null;
+    }
+
+    function submitDeleteFile() {
+      const form = document.getElementById('deleteFileForm');
+      
+      if (deleteFileTarget === 'document' && deleteDocumentId) {
+        form.action = '{% url "core:delete_study_document" study.pk 0 %}'.replace('/0/', '/' + deleteDocumentId + '/');
+      } else if (deleteFileTarget) {
+        form.action = '{% url "core:delete_study_file" study.pk "TYPE" %}'.replace('/TYPE/', '/' + deleteFileTarget + '/');
+      }
+      
+      form.submit();
+    }
+
+    // Setup file input listeners for document uploads
+    document.addEventListener('DOMContentLoaded', function() {
+      // Protocol file input
+      const protocolInput = document.getElementById('protocolFileInput');
+      if (protocolInput) {
+        protocolInput.addEventListener('change', function() {
+          const selectedFile = document.getElementById('protocolSelectedFile');
+          const submitBtn = document.getElementById('protocolSubmitBtn');
+          if (this.files.length > 0) {
+            selectedFile.querySelector('.file-name').textContent = this.files[0].name;
+            selectedFile.classList.add('active');
+            submitBtn.disabled = false;
+          } else {
+            selectedFile.classList.remove('active');
+            submitBtn.disabled = true;
+          }
+        });
+      }
+
+      // Additional file input
+      const additionalInput = document.getElementById('additionalFileInput');
+      if (additionalInput) {
+        additionalInput.addEventListener('change', function() {
+          const selectedFile = document.getElementById('additionalSelectedFile');
+          const submitBtn = document.getElementById('additionalSubmitBtn');
+          if (this.files.length > 0) {
+            selectedFile.querySelector('.file-name').textContent = this.files[0].name;
+            selectedFile.classList.add('active');
+            submitBtn.disabled = false;
+          } else {
+            selectedFile.classList.remove('active');
+            submitBtn.disabled = true;
+          }
+        });
+      }
+
+      // Drag and drop for protocol
+      const protocolDropzone = document.getElementById('protocolDropzone');
+      if (protocolDropzone) {
+        setupDropzone(protocolDropzone, protocolInput);
+      }
+
+      // Drag and drop for additional
+      const additionalDropzone = document.getElementById('additionalDropzone');
+      if (additionalDropzone) {
+        setupDropzone(additionalDropzone, additionalInput);
+      }
+    });
+
+    function setupDropzone(dropzone, fileInput) {
+      ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropzone.addEventListener(eventName, preventDefaults, false);
+      });
+
+      function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+
+      ['dragenter', 'dragover'].forEach(eventName => {
+        dropzone.addEventListener(eventName, () => dropzone.classList.add('dragover'), false);
+      });
+
+      ['dragleave', 'drop'].forEach(eventName => {
+        dropzone.addEventListener(eventName, () => dropzone.classList.remove('dragover'), false);
+      });
+
+      dropzone.addEventListener('drop', function(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        if (files.length > 0) {
+          fileInput.files = files;
+          fileInput.dispatchEvent(new Event('change'));
+        }
+      }, false);
+    }
+
+    // Reset variables modal functionality
+    function showResetModal() {
+      document.getElementById('resetModal').style.display = 'block';
     }
 
     function closeResetModal() {
-      if (isTargetStudy) {
-        document.getElementById('resetModal').style.display = 'none';
-      }
+      document.getElementById('resetModal').style.display = 'none';
     }
 
     function submitReset() {
       // Create a form to submit the reset request
       const form = document.createElement('form');
       form.method = 'POST';
-      form.action = urls.targetResetVariables;
+      // Use the appropriate reset URL based on study type
+      form.action = isTargetStudy ? urls.targetResetVariables : urls.resetVariables;
       
       const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
       const csrfInput = document.createElement('input');
@@ -2007,18 +3679,203 @@
     // Close modals when clicking outside
     window.onclick = function(event) {
       const variableModal = document.getElementById('variableDetailModal');
+      const variableEditModal = document.getElementById('variableEditModal');
       const reuploadModal = document.getElementById('reuploadModal');
       const deleteModal = document.getElementById('deleteModal');
-      const resetModal = isTargetStudy ? document.getElementById('resetModal') : null;
+      const resetModal = document.getElementById('resetModal');
+      const protocolModal = document.getElementById('protocolUploadModal');
+      const additionalModal = document.getElementById('additionalUploadModal');
       
       if (event.target === variableModal) {
         closeVariableModal();
+      } else if (event.target === variableEditModal) {
+        closeVariableEditModal();
       } else if (event.target === reuploadModal) {
         closeReuploadModal();
       } else if (event.target === deleteModal) {
         closeDeleteModal();
-      } else if (resetModal && event.target === resetModal) {
+      } else if (event.target === resetModal) {
         closeResetModal();
+      } else if (event.target === protocolModal) {
+        closeProtocolUploadModal();
+      } else if (event.target === additionalModal) {
+        closeAdditionalUploadModal();
+      }
+    }
+
+    // ========== Inline Edit Functionality ==========
+    
+    const updateFieldUrl = '{% url "core:update_study_field" pk=study.pk %}';
+    const csrfToken = '{{ csrf_token }}';
+    
+    // Toggle edit mode for a section
+    function toggleEditMode(section) {
+      const viewEl = document.getElementById(`${section}-view`);
+      const editEl = document.getElementById(`${section}-edit`);
+      const card = document.getElementById(`${section}-card`);
+      const btn = card.querySelector('.card-edit-toggle');
+      
+      if (editEl.style.display === 'none') {
+        // Enter edit mode
+        if (viewEl) viewEl.style.display = 'none';
+        editEl.style.display = 'block';
+        btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+        </svg> Cancel`;
+        
+        // Also hide description view for overview
+        if (section === 'overview') {
+          const descView = document.getElementById('overview-description-view');
+          if (descView) descView.style.display = 'none';
+        }
+      } else {
+        // Exit edit mode
+        cancelEditMode(section);
+      }
+    }
+    
+    // Cancel edit mode and restore view
+    function cancelEditMode(section) {
+      const viewEl = document.getElementById(`${section}-view`);
+      const editEl = document.getElementById(`${section}-edit`);
+      const card = document.getElementById(`${section}-card`);
+      const btn = card.querySelector('.card-edit-toggle');
+      
+      if (viewEl) viewEl.style.display = '';
+      editEl.style.display = 'none';
+      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+      </svg> Edit`;
+      
+      // Also restore description view for overview
+      if (section === 'overview') {
+        const descView = document.getElementById('overview-description-view');
+        if (descView) descView.style.display = '';
+      }
+    }
+    
+    // Show status indicator
+    function showStatus(section, type, message) {
+      const statusEl = document.getElementById(`${section}-status`);
+      statusEl.style.display = 'inline-flex';
+      
+      if (type === 'saving') {
+        statusEl.innerHTML = `<span class="spinner"></span> Saving...`;
+        statusEl.className = 'saving-indicator';
+      } else if (type === 'success') {
+        statusEl.innerHTML = `✓ ${message || 'Saved'}`;
+        statusEl.className = 'saving-indicator save-success';
+        setTimeout(() => {
+          statusEl.style.display = 'none';
+        }, 2000);
+      } else if (type === 'error') {
+        statusEl.innerHTML = `✗ ${message || 'Error'}`;
+        statusEl.className = 'saving-indicator save-error';
+      }
+    }
+    
+    // Generic function to update a field
+    async function updateField(field, value) {
+      const response = await fetch(updateFieldUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({ field, value })
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to save');
+      }
+      
+      return await response.json();
+    }
+    
+    // Save Overview section
+    async function saveOverview() {
+      const form = document.getElementById('overview-edit');
+      showStatus('overview', 'saving');
+      
+      try {
+        const fields = ['name', 'description', 'principal_investigator', 'study_type', 
+                       'sample_size', 'study_period_start', 'study_period_end', 'geographic_scope'];
+        
+        for (const field of fields) {
+          const input = form.querySelector(`[name="${field}"]`);
+          if (input) {
+            await updateField(field, input.value);
+          }
+        }
+        
+        showStatus('overview', 'success', 'All changes saved');
+        
+        // Reload page to show updated data
+        setTimeout(() => {
+          location.reload();
+        }, 1000);
+        
+      } catch (error) {
+        showStatus('overview', 'error', error.message);
+      }
+    }
+    
+    // Save Characteristics section
+    async function saveCharacteristics() {
+      const form = document.getElementById('characteristics-edit');
+      showStatus('characteristics', 'saving');
+      
+      try {
+        const checkboxFields = ['has_dates', 'has_locations', 'needs_geolocation', 'needs_climate_linkage'];
+        
+        for (const field of checkboxFields) {
+          const checkbox = form.querySelector(`[name="${field}"]`);
+          if (checkbox) {
+            await updateField(field, checkbox.checked);
+          }
+        }
+        
+        showStatus('characteristics', 'success', 'All changes saved');
+        
+        // Reload page to show updated data
+        setTimeout(() => {
+          location.reload();
+        }, 1000);
+        
+      } catch (error) {
+        showStatus('characteristics', 'error', error.message);
+      }
+    }
+    
+    // Save Legal section
+    async function saveLegal() {
+      const form = document.getElementById('legal-edit');
+      showStatus('legal', 'saving');
+      
+      try {
+        // Save ethical approval checkbox
+        const ethicalCheckbox = form.querySelector('[name="has_ethical_approval"]');
+        await updateField('has_ethical_approval', ethicalCheckbox.checked);
+        
+        // Save approval number
+        const approvalNumber = form.querySelector('[name="ethics_approval_number"]');
+        await updateField('ethics_approval_number', approvalNumber.value);
+        
+        // Save data use permissions (collect all checked values)
+        const permCheckboxes = form.querySelectorAll('[name="data_use_permissions"]:checked');
+        const permissions = Array.from(permCheckboxes).map(cb => cb.value);
+        await updateField('data_use_permissions', permissions);
+        
+        showStatus('legal', 'success', 'All changes saved');
+        
+        // Reload page to show updated data
+        setTimeout(() => {
+          location.reload();
+        }, 1000);
+        
+      } catch (error) {
+        showStatus('legal', 'error', error.message);
       }
     }
   </script>

@@ -790,6 +790,11 @@
       opacity: 0.7;
     }
 
+    .step-item.partial {
+      border-color: var(--warning-color);
+      background-color: rgba(255, 149, 0, 0.1);
+    }
+
     .step-icon {
       width: 40px;
       height: 40px;
@@ -813,6 +818,11 @@
 
     .step-icon.pending {
       background-color: var(--text-secondary);
+      color: white;
+    }
+
+    .step-icon.partial {
+      background-color: var(--warning-color);
       color: white;
     }
 
@@ -1415,50 +1425,53 @@
           </div>
         </div>
 
-        <!-- Step 3: Column Mapping -->
-        <div class="step-item {% if mapping_completed %}completed{% elif raw_data_file.processing_status == 'validated' %}active{% else %}pending{% endif %}">
-          <div class="step-icon {% if mapping_completed %}completed{% elif raw_data_file.processing_status == 'validated' %}active{% else %}pending{% endif %}">
-            {% if mapping_completed %}
+        <!-- Step 3: Harmonisation Setup -->
+        {% with mapping_schema=raw_data_file.study.source_mappings.first %}
+        <div class="step-item {% if mapping_schema and mapping_schema.status == 'approved' %}completed{% elif mapping_schema %}partial{% elif validation_completed %}active{% else %}pending{% endif %}">
+          <div class="step-icon {% if mapping_schema and mapping_schema.status == 'approved' %}completed{% elif mapping_schema %}partial{% elif validation_completed %}active{% else %}pending{% endif %}">
+            {% if mapping_schema and mapping_schema.status == 'approved' %}
               <i class="fas fa-check"></i>
-            {% elif raw_data_file.processing_status == 'validated' %}
+            {% elif mapping_schema %}
+              <i class="fas fa-clock"></i>
+            {% elif validation_completed %}
               3
             {% else %}
               3
             {% endif %}
           </div>
           <div class="step-content">
-            <div class="step-title">Column Mapping & Harmonization</div>
+            <div class="step-title">Harmonisation Setup</div>
             <div class="step-description">
-              Map raw data columns to harmonized study variables
+              Configure harmonisation mapping to a target study
             </div>
-            {% if raw_data_file.processing_status == 'validated' %}
-              <div class="action-buttons mt-2">
-                <a href="{% url 'health:map_raw_data_columns' raw_data_file.id %}" class="btn btn-primary btn-sm">
-                  <i class="fas fa-link me-1"></i>Map Columns
-                </a>
-              </div>
-            {% elif mapping_completed %}
-              <div class="text-success mt-2 mb-2">
-                <small><i class="fas fa-check"></i> Column mapping completed</small>
-              </div>
-              <div class="action-buttons">
-                <a href="{% url 'health:map_raw_data_columns' raw_data_file.id %}" class="btn btn-secondary btn-sm me-2">
-                  <i class="fas fa-edit me-1"></i>Edit Mappings
-                </a>
-                <a href="{% url 'health:map_raw_data_columns' raw_data_file.id %}" class="btn btn-warning btn-sm me-2"
-                   onclick="return confirm('Re-mapping columns will require you to re-ingest the data. Continue?')">
-                  <i class="fas fa-redo me-1"></i>Re-map Columns
-                </a>
-                {% if raw_data_file.study.source_mappings.exists %}
-                  <a href="{% url 'health:study_harmonization_dashboard' raw_data_file.study.id %}" class="btn btn-success btn-sm">
-                    <i class="fas fa-chart-line me-1"></i>View Analysis
-                  </a>
+            {% if validation_completed %}
+              {% if mapping_schema %}
+                {% if mapping_schema.status == 'approved' %}
+                  <div class="text-success mt-2 mb-2">
+                    <small><i class="fas fa-check-circle"></i> Harmonisation approved and ready</small>
+                  </div>
                 {% else %}
-                  <a href="{% url 'health:start_harmonisation' raw_data_file.study.id %}" class="btn btn-success btn-sm">
-                    <i class="fas fa-cogs me-1"></i>Setup Harmonization
-                  </a>
+                  <div class="text-warning mt-2 mb-2">
+                    <small>
+                      <i class="fas fa-exclamation-circle"></i> 
+                      Harmonisation in progress ({{ mapping_schema.rules.count }} mapping{{ mapping_schema.rules.count|pluralize }} configured)
+                      <br>
+                      <span class="text-muted">Status: Provisional - requires review and approval</span>
+                    </small>
+                  </div>
                 {% endif %}
-              </div>
+                <div class="action-buttons">
+                  <a href="{% url 'health:study_harmonization_dashboard' raw_data_file.study.id %}" class="btn {% if mapping_schema.status == 'approved' %}btn-success{% else %}btn-warning{% endif %} btn-sm">
+                    <i class="fas fa-chart-line me-1"></i>{% if mapping_schema.status == 'approved' %}View{% else %}Continue{% endif %} Harmonisation
+                  </a>
+                </div>
+              {% else %}
+                <div class="action-buttons mt-2">
+                  <a href="{% url 'health:start_harmonisation' raw_data_file.study.id %}" class="btn btn-primary btn-sm">
+                    <i class="fas fa-cogs me-1"></i>Setup Harmonisation
+                  </a>
+                </div>
+              {% endif %}
             {% else %}
               <div class="text-muted mt-2">
                 <small><i class="fas fa-clock"></i> Complete validation first</small>
@@ -1466,18 +1479,17 @@
             {% endif %}
           </div>
         </div>
+        {% endwith %}
 
         <!-- Step 4: Data Ingestion -->
-        <div class="step-item {% if raw_data_file.processing_status == 'ingested' or raw_data_file.processing_status == 'processed_with_errors' %}completed{% elif raw_data_file.processing_status == 'processing' %}active{% elif raw_data_file.processing_status == 'processed' %}active{% elif raw_data_file.processing_status == 'ingestion_error' %}error{% else %}pending{% endif %}">
-          <div class="step-icon {% if raw_data_file.processing_status == 'ingested' or raw_data_file.processing_status == 'processed_with_errors' %}completed{% elif raw_data_file.processing_status == 'processing' %}active{% elif raw_data_file.processing_status == 'processed' %}active{% elif raw_data_file.processing_status == 'ingestion_error' %}error{% else %}pending{% endif %}">
+        <div class="step-item {% if raw_data_file.processing_status == 'ingested' or raw_data_file.processing_status == 'processed_with_errors' %}completed{% elif raw_data_file.processing_status == 'processing' %}active{% elif validation_completed %}active{% elif raw_data_file.processing_status == 'ingestion_error' %}error{% else %}pending{% endif %}">
+          <div class="step-icon {% if raw_data_file.processing_status == 'ingested' or raw_data_file.processing_status == 'processed_with_errors' %}completed{% elif raw_data_file.processing_status == 'processing' %}active{% elif validation_completed %}active{% elif raw_data_file.processing_status == 'ingestion_error' %}error{% else %}pending{% endif %}">
             {% if raw_data_file.processing_status == 'ingested' or raw_data_file.processing_status == 'processed_with_errors' %}
               <i class="fas fa-check"></i>
             {% elif raw_data_file.processing_status == 'processing' %}
               <i class="fas fa-spinner fa-spin"></i>
             {% elif raw_data_file.processing_status == 'ingestion_error' %}
               <i class="fas fa-times"></i>
-            {% elif raw_data_file.processing_status == 'processed' %}
-              4
             {% else %}
               4
             {% endif %}
@@ -1485,7 +1497,7 @@
           <div class="step-content">
             <div class="step-title">Data Ingestion</div>
             <div class="step-description">
-              Create observations from raw data using column mappings
+              Create observations from raw data file
             </div>
             {% if raw_data_file.processing_status == 'processing' %}
               <div class="alert alert-info mt-2 p-2">
@@ -1496,7 +1508,7 @@
                   </button>
                 </div>
               </div>
-            {% elif raw_data_file.processing_status == 'processed' %}
+            {% elif validation_completed and raw_data_file.processing_status != 'ingested' and raw_data_file.processing_status != 'processed_with_errors' and raw_data_file.processing_status != 'ingestion_error' %}
               <div class="action-buttons mt-2">
                 <form method="post" action="{% url 'health:start_data_ingestion' raw_data_file.id %}" style="display: inline;">
                   {% csrf_token %}
@@ -1513,7 +1525,7 @@
                 <form method="post" action="{% url 'health:start_data_ingestion' raw_data_file.id %}" style="display: inline;">
                   {% csrf_token %}
                   <input type="hidden" name="force_reingest" value="true">
-                  <button type="submit" class="btn btn-warning btn-sm" onclick="return confirm('Re-ingestion will delete existing observations from this file and recreate them. This is useful if you\'ve updated column mappings. Continue?')">
+                  <button type="submit" class="btn btn-warning btn-sm" onclick="return confirm('Re-ingestion will delete existing observations from this file and recreate them. Continue?')">
                     <i class="fas fa-redo me-1"></i>Re-ingest Data
                   </button>
                 </form>
@@ -1544,7 +1556,7 @@
               </div>
             {% else %}
               <div class="text-muted mt-2">
-                <small><i class="fas fa-clock"></i> Complete column mapping first</small>
+                <small><i class="fas fa-clock"></i> Complete validation first</small>
               </div>
             {% endif %}
           </div>
@@ -1637,7 +1649,17 @@
               </div>
             {% else %}
               <div class="text-muted mt-2">
-                <small><i class="fas fa-clock"></i> Will start when mappings are approved in the Harmonization Dashboard</small>
+                <small><i class="fas fa-clock"></i> 
+                  {% if not raw_data_file.study.source_mappings.exists and raw_data_file.processing_status != 'ingested' %}
+                    Complete harmonisation setup and data ingestion first
+                  {% elif not raw_data_file.study.source_mappings.exists %}
+                    Complete harmonisation setup first
+                  {% elif raw_data_file.processing_status != 'ingested' %}
+                    Complete data ingestion first
+                  {% else %}
+                    Will start when mappings are approved in the Harmonization Dashboard
+                  {% endif %}
+                </small>
               </div>
             {% endif %}
           </div>

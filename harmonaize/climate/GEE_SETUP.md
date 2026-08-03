@@ -4,9 +4,14 @@ This document explains how to configure Google Earth Engine (GEE) API credential
 
 ## Overview
 
-The climate module supports two modes:
-- **Mock Mode** (default): Uses simulated data for testing
-- **Production Mode**: Makes real API calls to Google Earth Engine
+The climate module always uses live Google Earth Engine (GEE) data. Configure valid
+credentials to enable API access in every environment.
+
+TLDR; for local Docker development, the simplest workflow is:
+
+1. Download the service account JSON key
+2. Save it somewhere under the repository's local-only env directory, for example `./.envs/.local/gee-credentials.json`
+3. Set `GOOGLE_APPLICATION_CREDENTIALS=/app/.envs/.local/gee-credentials.json` in `./.envs/.local/.django`
 
 ## Prerequisites
 
@@ -52,78 +57,49 @@ The climate module supports two modes:
 
 ### 5. Configure HarmonAIze
 
-#### Option A: Using Environment Variables (Recommended for Production)
+#### Local Docker setup
 
-Add to your `.envs/.local/.django` or `.envs/.production/.django`:
+1. Save the downloaded JSON key to a local-only path inside the repo, for example:
+
+```bash
+mv ~/Downloads/gee-credentials.json ./.envs/.local/gee-credentials.json
+```
+
+2. Add the credential path to `./.envs/.local/.django`:
 
 ```bash
 # Google Earth Engine Configuration
-GOOGLE_APPLICATION_CREDENTIALS=/path/to/gee-credentials.json
-CLIMATE_USE_MOCK_DATA=False
+GOOGLE_APPLICATION_CREDENTIALS=/app/.envs/.local/gee-credentials.json
 ```
 
-#### Option B: Using Docker Secrets (Most Secure)
+3. Restart the containers so Django picks up the new environment variable:
 
-1. Create a secret file:
 ```bash
-mkdir -p secrets
-cp /path/to/gee-credentials.json secrets/gee-credentials.json
-chmod 600 secrets/gee-credentials.json
+docker-compose -f docker-compose.local.yml restart django celeryworker celerybeat flower
 ```
 
-2. Add to `.envs/.local/.django`:
-```bash
-GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/gee-credentials
-CLIMATE_USE_MOCK_DATA=False
-```
+Because the repository is mounted into the Django container at `/app`, any file you keep under the local ignored env directory can be referenced from there.
 
-3. Update `docker-compose.local.yml`:
-```yaml
-services:
-  django:
-    secrets:
-      - gee-credentials
+#### Other environments
 
-secrets:
-  gee-credentials:
-    file: ./secrets/gee-credentials.json
-```
-
-#### Option C: Direct Path (Development Only)
-
-Place credentials file in project and reference it:
-
-```python
-# In config/settings/local.py
-import os
-from pathlib import Path
-
-# Path to GEE credentials (DO NOT commit this file!)
-GEE_CREDENTIALS_PATH = Path(BASE_DIR) / 'secrets' / 'gee-credentials.json'
-
-if GEE_CREDENTIALS_PATH.exists():
-    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = str(GEE_CREDENTIALS_PATH)
-    CLIMATE_USE_MOCK_DATA = False
-else:
-    CLIMATE_USE_MOCK_DATA = True
-```
+Set `GOOGLE_APPLICATION_CREDENTIALS` in the relevant environment file, such as `.envs/.production/.django`, to a path that exists inside the running container.
 
 ### 6. Update .gitignore
 
 Ensure these files are ignored:
 
 ```gitignore
-# Google Earth Engine credentials
-secrets/
-gee-credentials.json
-*-credentials.json
 .envs/.local/.django
 .envs/.production/.django
 ```
 
+Files stored under `.envs/.local/` are already kept out of version control in normal local development. Do not commit service account JSON files anywhere in the repository.
+
 ### 7. Install Python Dependencies
 
-The Earth Engine Python API is already in `requirements/base.txt`:
+The Earth Engine Python API is already included in the project requirements, so no extra local package installation should be necessary when running through Docker.
+
+Relevant packages in `requirements/base.txt` include:
 
 ```bash
 earthengine-api==0.1.XXX
@@ -132,24 +108,24 @@ google-auth-oauthlib==1.XX.X
 google-auth-httplib2==0.2.X
 ```
 
-If not, add them and run:
-```bash
-pip install earthengine-api google-auth
-```
-
 ### 8. Test the Connection
 
-Run this in Django shell to verify credentials work:
+Run this through Docker to verify credentials work:
+
+```bash
+docker-compose -f docker-compose.local.yml run --rm django python manage.py shell
+```
+
+Then run:
 
 ```python
-python manage.py shell
 
 from climate.services import EarthEngineDataService
 from climate.models import ClimateDataSource
 
 # Create a test data source
 source = ClimateDataSource.objects.first()  # or create one
-service = EarthEngineDataService(source, use_mock=False)
+service = EarthEngineDataService(source)
 
 # This should initialize without errors
 print("✓ Google Earth Engine initialized successfully")
@@ -159,44 +135,21 @@ print("✓ Google Earth Engine initialized successfully")
 
 ### Django Settings
 
-Add to `config/settings/base.py`:
-
-```python
-# Climate Module Settings
-CLIMATE_USE_MOCK_DATA = env.bool('CLIMATE_USE_MOCK_DATA', default=True)
-```
-
-Add to `config/settings/production.py`:
-
-```python
-# Use real GEE data in production
-CLIMATE_USE_MOCK_DATA = env.bool('CLIMATE_USE_MOCK_DATA', default=False)
-```
+Ensure `GOOGLE_APPLICATION_CREDENTIALS` is available in your environment so
+`EarthEngineDataService` can initialize. No fallback mode is available.
 
 ## Available GEE Datasets
 
 The climate module currently supports these datasets:
 
 ### ERA5 (via GEE)
-- **Dataset**: `ECMWF/ERA5/DAILY` or `ECMWF/ERA5_LAND/DAILY_AGGR`
-- **Variables**:
   - Temperature: `mean_2m_air_temperature`
   - Precipitation: `total_precipitation`
   - Humidity, pressure, wind, etc.
-- **Resolution**: ~27km (ERA5), ~11km (ERA5-Land)
-- **Temporal**: Daily, 1940-present
 
 ### CHIRPS (Precipitation)
-- **Dataset**: `UCSB-CHG/CHIRPS/DAILY`
-- **Variables**: `precipitation`
-- **Resolution**: ~5.5km
-- **Temporal**: Daily, 1981-present
 
 ### MODIS (Vegetation/Land Surface)
-- **Dataset**: `MODIS/006/MOD11A1` (temperature), `MODIS/006/MOD13A2` (NDVI)
-- **Variables**: Land surface temperature, NDVI, EVI
-- **Resolution**: 1km (temperature), 1km (vegetation)
-- **Temporal**: Daily/16-day, 2000-present
 
 ## Troubleshooting
 
@@ -204,14 +157,14 @@ The climate module currently supports these datasets:
 
 **Solution:**
 ```bash
-# Check credentials file exists
-ls -la $GOOGLE_APPLICATION_CREDENTIALS
+# Check the file exists inside the Django container
+docker-compose -f docker-compose.local.yml run --rm django ls -la $GOOGLE_APPLICATION_CREDENTIALS
 
-# Verify environment variable is set
-echo $GOOGLE_APPLICATION_CREDENTIALS
+# Verify the environment variable is set in the container
+docker-compose -f docker-compose.local.yml run --rm django env | grep GOOGLE_APPLICATION_CREDENTIALS
 
 # Check file permissions
-chmod 600 /path/to/gee-credentials.json
+chmod 600 ./.envs/.local/gee-credentials.json #or DOS equivalent
 ```
 
 ### Issue: "Permission denied" or "Service account not registered"
@@ -233,18 +186,8 @@ Ensure your credentials JSON contains `project_id`:
 }
 ```
 
-### Issue: Mock data still being used
-
-**Solution:**
-1. Check `CLIMATE_USE_MOCK_DATA` is set to `False`
-2. Restart Django/Celery containers
-3. Check logs for Earth Engine initialization messages
-
 ## Cost Considerations
 
-- Google Earth Engine is **free for research and educational use**
-- Commercial use requires **Earth Engine Commercial license**
-- There are quota limits:
   - Compute units per day
   - Storage limits
   - Concurrent requests
@@ -254,42 +197,9 @@ Monitor usage at: https://code.earthengine.google.com/
 ## Security Best Practices
 
 1. ✅ **DO**: Use service accounts (not user accounts)
-2. ✅ **DO**: Store credentials in secrets management system
+2. ✅ **DO**: Keep credentials in a local-only or managed secret location
 3. ✅ **DO**: Rotate credentials regularly
 4. ✅ **DO**: Use least-privilege IAM roles
 5. ❌ **DON'T**: Commit credentials to git
 6. ❌ **DON'T**: Share credentials files
 7. ❌ **DON'T**: Use production credentials in development
-
-## Alternative: Copernicus Climate Data Store (CDS)
-
-For ERA5 data directly from Copernicus (not via GEE):
-
-1. Register at: https://cds.climate.copernicus.eu/
-2. Get API key from: https://cds.climate.copernicus.eu/api-how-to
-3. Create `~/.cdsapirc`:
-```
-url: https://cds.climate.copernicus.eu/api/v2
-key: {UID}:{API-KEY}
-```
-
-4. Install CDS API:
-```bash
-pip install cdsapi
-```
-
-5. Set in Django settings:
-```python
-CLIMATE_USE_COPERNICUS_CDS = True
-```
-
-## Support
-
-For GEE-specific issues:
-- [Earth Engine Forum](https://groups.google.com/g/google-earth-engine-developers)
-- [Earth Engine Documentation](https://developers.google.com/earth-engine/)
-
-For HarmonAIze climate module issues:
-- Check module logs: `docker logs harmonaize_local_django`
-- Review Celery logs: `docker logs harmonaize_local_celeryworker`
-- See climate module tests: `python manage.py test climate`

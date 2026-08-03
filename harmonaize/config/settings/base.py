@@ -45,10 +45,17 @@ LOCALE_PATHS = [str(BASE_DIR / "locale")]
 # DATABASES
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#databases
+ANALYSIS_ENABLED = env.bool("ANALYSIS_ENABLED", default=True)
+
 DATABASES = {
     'default': env.db('DATABASE_URL', default='postgres://VyEeAsAhLQRemlTBkLvZEOFiVOAtvIHf:DA3372kNwHHhsmhr5cS5ucomOjsY9hs0UiNzxlfOITRM4ZwjW1nTYXSPz1zWousV@localhost:5432/harmonaize')
 }
 DATABASES["default"]["ATOMIC_REQUESTS"] = True
+DATABASES["analysis_export"] = env.db(
+    "ANALYSIS_EXPORT_DATABASE_URL",
+    default="postgres://debug:debug@armadillo_postgres:5432/armadillo_snapshot",
+)
+DATABASES["analysis_export"]["ATOMIC_REQUESTS"] = False
 # https://docs.djangoproject.com/en/stable/ref/settings/#std:setting-DEFAULT_AUTO_FIELD
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -57,7 +64,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Increase the maximum number of POST parameters to handle large variable selection forms
 # Default is 1000, but we may have many variables with multiple fields each
 # https://docs.djangoproject.com/en/dev/ref/settings/#data-upload-max-number-fields
-DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 50000
 
 # URLS
 # ------------------------------------------------------------------------------
@@ -89,6 +96,7 @@ THIRD_PARTY_APPS = [
     "rest_framework",
     "rest_framework.authtoken",
     "corsheaders",
+    "django_htmx",
     "drf_spectacular",
     "django_ace",
 ]
@@ -101,6 +109,10 @@ LOCAL_APPS = [
     "geolocation",
     # Your stuff: custom apps go here
 ]
+
+if ANALYSIS_ENABLED:
+    LOCAL_APPS.append("analysis")
+
 # https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
@@ -153,6 +165,7 @@ MIDDLEWARE = [
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.locale.LocaleMiddleware",
     "django.middleware.common.CommonMiddleware",
+    "django_htmx.middleware.HtmxMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
@@ -307,10 +320,10 @@ CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#task-time-limit
 # TODO: set to whatever value is adequate in your circumstances
-CELERY_TASK_TIME_LIMIT = 5 * 60
+CELERY_TASK_TIME_LIMIT = 5 * 300
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#task-soft-time-limit
 # TODO: set to whatever value is adequate in your circumstances
-CELERY_TASK_SOFT_TIME_LIMIT = 60
+CELERY_TASK_SOFT_TIME_LIMIT = 300
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#beat-scheduler
 CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#worker-send-task-events
@@ -396,6 +409,19 @@ EMBEDDING_DIMENSIONS = env.int("EMBEDDING_DIMENSIONS", default=3072)  # text-emb
 GOOGLE_GEOCODING_API_KEY = env("GOOGLE_GEOCODING_API_KEY", default="")
 
 # Mapbox Access Token (required for interactive map visualisations)
+
+# Analysis export configuration
+# ------------------------------------------------------------------------------
+ANALYSIS_DEIDENTIFICATION_SALT = env("ANALYSIS_DEIDENTIFICATION_SALT", default="harmonaize-analysis-salt")
+ANALYSIS_EXPORT_ROOT = env("ANALYSIS_EXPORT_ROOT", default=str(APPS_DIR / "media" / "analysis_exports"))
+ANALYSIS_ARMADILLO_BASE_URL = env("ANALYSIS_ARMADILLO_BASE_URL", default="http://armadillo:8080")
+ANALYSIS_ARMADILLO_USERNAME = env("ANALYSIS_ARMADILLO_USERNAME", default="admin")
+ANALYSIS_ARMADILLO_PASSWORD = env("ANALYSIS_ARMADILLO_PASSWORD", default="admin")
+ANALYSIS_KEYCLOAK_SYNC_ENABLED = env.bool("ANALYSIS_KEYCLOAK_SYNC_ENABLED", default=False)
+ANALYSIS_KEYCLOAK_BASE_URL = env("ANALYSIS_KEYCLOAK_BASE_URL", default="http://keycloak:8080")
+ANALYSIS_KEYCLOAK_REALM = env("ANALYSIS_KEYCLOAK_REALM", default="Armadillo")
+ANALYSIS_KEYCLOAK_ADMIN_USERNAME = env("ANALYSIS_KEYCLOAK_ADMIN_USERNAME", default="admin")
+ANALYSIS_KEYCLOAK_ADMIN_PASSWORD = env("ANALYSIS_KEYCLOAK_ADMIN_PASSWORD", default="admin")
 MAPBOX_ACCESS_TOKEN = env("MAPBOX_ACCESS_TOKEN", default="")
 
 # LLM Enhancement Settings (LLM is default, non-LLM only used as fallback)

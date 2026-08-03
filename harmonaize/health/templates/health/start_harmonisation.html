@@ -160,6 +160,45 @@
       color: var(--text-secondary);
       margin-bottom: 0;
     }
+
+    /* No Target Studies Alert */
+    .no-target-alert {
+      background: linear-gradient(135deg, #fff3cd 0%, #ffeeba 100%);
+      border: 1px solid #ffc107;
+      border-radius: var(--border-radius);
+      padding: 2rem;
+      margin-bottom: 2rem;
+      text-align: center;
+    }
+
+    .no-target-alert .alert-icon {
+      font-size: 3rem;
+      color: #856404;
+      margin-bottom: 1rem;
+    }
+
+    .no-target-alert h4 {
+      color: #856404;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+    }
+
+    .no-target-alert p {
+      color: #856404;
+      margin-bottom: 1.5rem;
+    }
+
+    .no-target-alert .btn-warning {
+      background-color: #ffc107;
+      border-color: #ffc107;
+      color: #212529;
+      font-weight: 600;
+    }
+
+    .no-target-alert .btn-warning:hover {
+      background-color: #e0a800;
+      border-color: #d39e00;
+    }
   </style>
 {% endblock %}
 
@@ -183,6 +222,27 @@
       <p>You're about to create a harmonisation schema for <strong>{{ study.name }}</strong>. This will define how your source data maps to standardised target variables, enabling consistent analysis across datasets.</p>
     </div>
 
+    {% if not has_target_studies %}
+    <!-- No Target Studies Warning -->
+    <div class="no-target-alert">
+      <div class="alert-icon">
+        <i class="fas fa-exclamation-triangle"></i>
+      </div>
+      <h4>No Target Study Found</h4>
+      <p>
+        To harmonise your data, you first need to create a <strong>Target Study</strong> that defines the standardised variables 
+        you want to map your source data to. A target study serves as the common data model for harmonisation.
+      </p>
+      <a href="{% url 'core:create_target_study' %}?project={{ study.project.id }}" class="btn btn-warning btn-lg">
+        <i class="fas fa-plus-circle me-2"></i>Create Target Study
+      </a>
+      <div class="mt-3">
+        <a href="{% url 'core:study_detail' study.id %}" class="text-muted">
+          <i class="fas fa-arrow-left me-1"></i>Back to Study
+        </a>
+      </div>
+    </div>
+    {% else %}
     <!-- Harmonisation Schema Form -->
     <div class="card">
       <div class="card-header">
@@ -206,4 +266,5 @@
         </form>
       </div>
     </div>
+    {% endif %}
 {% endblock %}

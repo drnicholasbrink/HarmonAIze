@@ -5,11 +5,25 @@ from django.contrib import admin
 from django.contrib.staticfiles.urls import staticfiles_urlpatterns
 from django.urls import include
 from django.urls import path
+from django.contrib.auth.decorators import login_required
 from django.views import defaults as default_views
 from django.views.generic import TemplateView
 from drf_spectacular.views import SpectacularAPIView
 from drf_spectacular.views import SpectacularSwaggerView
 from rest_framework.authtoken.views import obtain_auth_token
+
+disabled_analysis_urlpatterns = (
+    [
+        path(
+            "",
+            login_required(
+                TemplateView.as_view(template_name="pages/analysis_unavailable.html"),
+            ),
+            name="dashboard",
+        ),
+    ],
+    "analysis",
+)
 
 urlpatterns = [
     path("", TemplateView.as_view(template_name="pages/home.html"), name="home"),
@@ -28,6 +42,12 @@ urlpatterns = [
     path("health/", include("health.urls", namespace="health")),
     path("climate/", include("climate.urls", namespace="climate")),
     path("geolocation/", include("geolocation.urls", namespace="geolocation")),
+    path(
+        "analysis/",
+        include("analysis.urls", namespace="analysis")
+        if settings.ANALYSIS_ENABLED
+        else include(disabled_analysis_urlpatterns, namespace="analysis"),
+    ),
     # ...
     # Media files
     *static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT),

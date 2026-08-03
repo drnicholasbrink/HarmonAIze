@@ -38,20 +38,6 @@
       "is_active": true,
       "last_checked": null
     }
-  },
-  {
-    "model": "climate.climatevariable",
-    "pk": 1,
-    "fields": {
-      "name": "temperature_2m",
-      "display_name": "2m Air Temperature",
-      "description": "Air temperature at 2 meters above the surface",
-      "category": "temperature",
-      "unit": "degrees Celsius",
-      "unit_symbol": "°C",
-      "min_value": -50.0,
-      "max_value": 50.0,
-      "supports_temporal_aggregation": true,
       "supports_spatial_aggregation": true,
       "default_aggregation_method": "mean",
       "health_relevance": "Temperature affects heat-related health outcomes, respiratory conditions, and infectious disease transmission"
@@ -72,25 +58,7 @@
       "supports_temporal_aggregation": true,
       "supports_spatial_aggregation": true,
       "default_aggregation_method": "sum",
-      "health_relevance": "Precipitation affects waterborne diseases, vector breeding, and flooding impacts on health"
-    }
-  },
-  {
-    "model": "climate.climatevariable",
-    "pk": 3,
-    "fields": {
-      "name": "relative_humidity",
-      "display_name": "Relative Humidity",
-      "description": "Relative humidity percentage",
-      "category": "humidity",
-      "unit": "percent",
-      "unit_symbol": "%",
-      "min_value": 0.0,
-      "max_value": 100.0,
-      "supports_temporal_aggregation": true,
-      "supports_spatial_aggregation": true,
-      "default_aggregation_method": "mean",
-      "health_relevance": "Humidity affects respiratory conditions, heat index, and pathogen survival"
+          "pk": 5,
     }
   },
   {
@@ -127,10 +95,10 @@
     "fields": {
       "variable": 3,
       "data_source": 1,
-      "source_variable_name": "relative_humidity",
+      "source_variable_name": "total_precipitation",
       "source_dataset": "ECMWF/ERA5/DAILY",
-      "source_band": "relative_humidity_2m",
-      "scale_factor": 100.0,
+      "source_band": "total_precipitation",
+      "scale_factor": 1000.0,
       "offset": 0.0,
       "extra_parameters": {}
     }

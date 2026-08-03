@@ -1,0 +1,207 @@
+<div id="dataset-template-builder"
+     hx-get="{% url 'analysis:template_builder_partial' %}"
+  hx-trigger="refresh, change from:#dataset-template-form .analysis-refresh-control delay:150ms, change from:#dataset-template-form [name='dataset_shape'] delay:150ms"
+     hx-target="this"
+     hx-include="#dataset-template-form"
+     hx-swap="outerHTML">
+  <div class="card-panel builder-shell">
+    <div class="builder-header">
+      <div>
+        <div class="section-kicker">Builder</div>
+        <h2 class="card-title mb-1">{% if editing_template %}Edit dataset template{% else %}Build dataset template{% endif %}</h2>
+        <p class="text-muted small mb-0">Step through scope, outcome design, and review details before syncing to Armadillo.</p>
+      </div>
+      <div class="d-flex gap-2 flex-wrap">
+        {% if editing_template %}
+          <form method="post"
+                hx-post="{% url 'analysis:delete_template' %}"
+                hx-target="#dataset-template-builder"
+                hx-swap="outerHTML"
+                hx-confirm="Delete {{ editing_template.name }}? This also removes its synced table from Armadillo when possible."
+                class="d-inline-flex">
+            {% csrf_token %}
+            <input type="hidden" name="template_id" value="{{ editing_template.id }}">
+            <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+          </form>
+        {% endif %}
+        <button type="button"
+                class="btn btn-sm btn-outline-secondary"
+                hx-get="{% url 'analysis:template_builder_partial' %}"
+                hx-target="#dataset-template-builder"
+                hx-swap="outerHTML">
+          New template
+        </button>
+      </div>
+    </div>
+
+    <div class="step-overview">
+      <span class="step-pill">1. Scope</span>
+      <span class="step-pill">2. Primary outcome</span>
+      <span class="step-pill">3. Confounders & climate</span>
+      <span class="step-pill">4. Review & save</span>
+    </div>
+
+    {% if template_success_message %}
+      <div class="alert alert-success" role="alert">{{ template_success_message }}</div>
+    {% endif %}
+
+    {% if template_warning_message %}
+      <div class="alert alert-warning" role="alert">{{ template_warning_message }}</div>
+    {% endif %}
+
+    {% if template_form.non_field_errors %}
+      <div class="alert alert-danger" role="alert">
+        {{ template_form.non_field_errors|join:" " }}
+      </div>
+    {% endif %}
+
+    {% if duplicate_template %}
+      <div class="alert alert-warning" role="alert">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <div>
+            {% if duplicate_is_exact %}
+              An identical template already exists: <code>{{ duplicate_template.name }}</code>.
+            {% else %}
+              The generated slug <code>{{ duplicate_template.name }}</code> already exists for this target study.
+            {% endif %}
+          </div>
+          <button type="button"
+                  class="btn btn-sm btn-outline-primary"
+                  hx-get="{% url 'analysis:template_builder_partial' %}?template_id={{ duplicate_template.id }}"
+                  hx-target="#dataset-template-builder"
+                  hx-swap="outerHTML">
+            Open existing template
+          </button>
+        </div>
+        <div class="small mt-2 text-muted">
+          Review and update the existing template context instead of creating another template with the same generated path.
+        </div>
+      </div>
+    {% endif %}
+
+    <form method="post"
+          action="{% url 'analysis:save_template' %}"
+          id="dataset-template-form"
+          hx-post="{% url 'analysis:save_template' %}"
+          hx-target="#dataset-template-builder"
+          hx-swap="outerHTML">
+      {% csrf_token %}
+      {{ template_form.template_id }}
+
+      <section class="step-section">
+        <div class="step-heading">
+          <div class="d-flex align-items-start gap-3">
+            <span class="step-number">1</span>
+            <div class="step-heading-text">
+              <h3>Scope and structure</h3>
+              <p>Select the project, target study, source studies, and the dataset shape to generate.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="mb-3 mt-3">
+          <label class="form-label" for="{{ template_form.project.id_for_label }}">Project</label>
+          {{ template_form.project }}
+          {% if template_form.project.errors %}
+            <div class="text-danger small mt-1">{{ template_form.project.errors|join:", " }}</div>
+          {% endif %}
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label" for="{{ template_form.target_study.id_for_label }}">Target study</label>
+          {{ template_form.target_study }}
+          {% if template_form.target_study.errors %}
+            <div class="text-danger small mt-1">{{ template_form.target_study.errors|join:", " }}</div>
+          {% endif %}
+        </div>
+
+        {% include "analysis/partials/study_selector_group.html" with title="Source studies" help_text="Only source studies mapped into the selected target study are shown. Use select all to include the full mapped source set." field=template_form.source_studies selected_ids=selected_source_study_ids %}
+
+        <div class="mb-3">
+          <label class="form-label d-block">Dataset shape</label>
+          <div class="d-flex gap-3 flex-wrap">
+            {% for radio in template_form.dataset_shape %}
+              <label class="form-check form-check-inline mb-0">
+                {{ radio.tag }}
+                <span class="ms-1">{{ radio.choice_label }}</span>
+              </label>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="row g-3 align-items-end">
+          <div class="col-sm-6">
+            <label class="form-label" for="{{ template_form.max_lag_value.id_for_label }}">Max lag</label>
+            {{ template_form.max_lag_value }}
+          </div>
+          <div class="col-sm-6">
+            <div class="form-check mb-2">
+              {{ template_form.deidentify }}
+              <label class="form-check-label" for="{{ template_form.deidentify.id_for_label }}">De-identify sync output</label>
+            </div>
+            <div class="form-check mb-0">
+              {{ template_form.is_active }}
+              <label class="form-check-label" for="{{ template_form.is_active.id_for_label }}">Active template</label>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="step-section">
+        <div class="step-heading">
+          <div class="d-flex align-items-start gap-3">
+            <span class="step-number">2</span>
+            <div class="step-heading-text">
+              <h3>Primary outcome</h3>
+              <p>Pick the single outcome that drives the row grain and the dataset naming.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="alert alert-info mt-3" role="alert">
+          Only attributes with observed data are offered here. Choose one primary outcome; confounders come from the remaining eligible health attributes and remain patient-linked only. The synced DataSHIELD path appears on the saved template card once the template exists.
+        </div>
+
+        {% include "analysis/partials/attribute_selector_group.html" with title="Primary outcome" help_text=template_form.outcome_attributes.help_text field=template_form.outcome_attributes selected_ids=selected_outcome_ids selection_mode="single" %}
+      </section>
+
+      <section class="step-section">
+        <div class="step-heading">
+          <div class="d-flex align-items-start gap-3">
+            <span class="step-number">3</span>
+            <div class="step-heading-text">
+              <h3>Context variables</h3>
+              <p>Choose patient-linked confounders, lagged climate context, and optional geolocation columns.</p>
+            </div>
+          </div>
+        </div>
+
+        {% include "analysis/partials/attribute_selector_group.html" with title="Confounder attributes" help_text=template_form.confounder_attributes.help_text field=template_form.confounder_attributes selected_ids=selected_confounder_ids selection_mode="multiple" %}
+        {% include "analysis/partials/attribute_selector_group.html" with title="Climate attributes" help_text="Observed climate attributes that can be lagged onto outcomes." field=template_form.climate_attributes selected_ids=selected_climate_ids selection_mode="multiple" %}
+        {% include "analysis/partials/attribute_selector_group.html" with title="Geolocation attributes" help_text="Observed geolocation context columns for non-de-identified exports and wide syncs. These are handled separately from outcomes and confounders." field=template_form.location_attributes selected_ids=selected_location_ids selection_mode="multiple" %}
+      </section>
+
+      <section class="step-section">
+        <div class="step-heading">
+          <div class="d-flex align-items-start gap-3">
+            <span class="step-number">4</span>
+            <div class="step-heading-text">
+              <h3>Review and save</h3>
+              <p>Capture implementation notes and save the template back into the managed list.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-3">
+          <label class="form-label" for="{{ template_form.notes.id_for_label }}">Notes</label>
+          {{ template_form.notes }}
+        </div>
+
+        <div class="builder-action-row">
+          <div class="text-muted small">Templates are listed in the manager panel and can be edited, deleted, or synced after saving.</div>
+          <button type="submit" class="btn btn-primary-gradient">{% if editing_template %}Update dataset template{% else %}Save dataset template{% endif %}</button>
+        </div>
+      </section>
+    </form>
+  </div>
+</div>

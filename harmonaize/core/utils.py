@@ -17,19 +17,21 @@ logger = logging.getLogger(__name__)
 def detect_file_format(file_path: str) -> str:
     """
     Detect the format of uploaded file based on extension.
+    Returns standardized format string for codebook processing.
     """
     path = Path(file_path)
     extension = path.suffix.lower()
     
     format_mapping = {
         '.csv': 'csv',
-        '.xlsx': 'excel',
+        '.xlsx': 'xlsx',
         '.xls': 'excel', 
         '.sav': 'spss',
         '.dta': 'stata',
         '.json': 'json',
         '.db': 'sqlite',
         '.sqlite': 'sqlite',
+        '.sqlite3': 'sqlite',
         '.xml': 'xml',
         '.txt': 'text',
     }
@@ -46,33 +48,75 @@ def process_dataframe_codebook(df: pd.DataFrame) -> List[Dict[str, Any]]:
     """
     variables = []
     
-    # Common column name variations
-    name_cols = ['variable', 'variable_name', 'var_name', 'name', 'field', 'column']
-    label_cols = ['label', 'description', 'variable_label', 'desc', 'display_name']
-    type_cols = ['type', 'data_type', 'variable_type', 'format', 'dtype']
-    unit_cols = ['unit', 'units', 'measurement_unit', 'uom']
+    # Common column name variations (expanded for better matching)
+    name_cols = [
+        'variable', 'variable_name', 'var_name', 'varname', 'name', 'field', 
+        'field_name', 'column', 'column_name', 'colname', 'code', 'var_id',
+        'attribute', 'item', 'indicator', 'metric', 'measure'
+    ]
+    label_cols = [
+        'label', 'display_name', 'displayname', 'variable_label', 'var_label',
+        'varlabel', 'title', 'caption', 'heading', 'short_name', 'friendly_name',
+        'human_name', 'readable_name', 'pretty_name'
+    ]
+    desc_cols = [
+        'description', 'desc', 'descr', 'definition', 'detail', 'details',
+        'explanation', 'info', 'information', 'notes', 'comment', 'comments',
+        'long_description', 'full_description', 'help', 'help_text'
+    ]
+    type_cols = [
+        'type', 'data_type', 'datatype', 'dtype', 'variable_type', 'vartype',
+        'var_type', 'format', 'field_type', 'col_type', 'class', 'value_type'
+    ]
+    unit_cols = [
+        'unit', 'units', 'measurement_unit', 'uom', 'unit_of_measure',
+        'measurement', 'scale'
+    ]
     
     # Find actual column names (case-insensitive)
-    df_cols_lower = [col.lower() for col in df.columns]
+    df_cols_lower = [col.lower().replace(' ', '_').replace('-', '_') for col in df.columns]
     
-    name_col = next((df.columns[i] for i, col in enumerate(df_cols_lower) 
-                    if col in [n.lower() for n in name_cols]), df.columns[0])
-    label_col = next((df.columns[i] for i, col in enumerate(df_cols_lower) 
-                     if col in [n.lower() for n in label_cols]), None)
-    type_col = next((df.columns[i] for i, col in enumerate(df_cols_lower) 
-                    if col in [n.lower() for n in type_cols]), None)
-    unit_col = next((df.columns[i] for i, col in enumerate(df_cols_lower) 
-                    if col in [n.lower() for n in unit_cols]), None)
+    def find_column(search_cols):
+        """Find matching column from search list."""
+        for i, col in enumerate(df_cols_lower):
+            if col in [s.lower() for s in search_cols]:
+                return df.columns[i]
+        return None
+    
+    name_col = find_column(name_cols) or df.columns[0]
+    label_col = find_column(label_cols)
+    desc_col = find_column(desc_cols)
+    type_col = find_column(type_cols)
+    unit_col = find_column(unit_cols)
     
     for _, row in df.iterrows():
         var_name = str(row[name_col]).strip()
         if not var_name or var_name.lower() in ['nan', 'none', '', 'null']:
             continue
+        
+        # Smart display_name extraction with multiple fallbacks
+        display_name = ''
+        if label_col and pd.notna(row[label_col]):
+            display_name = str(row[label_col]).strip()
+        
+        if not display_name:
+            # Check if variable name is already human-readable
+            if ' ' in var_name or (var_name[0].isupper() and '_' not in var_name and '-' not in var_name):
+                display_name = var_name
+            else:
+                display_name = var_name.replace('_', ' ').replace('-', ' ').title()
+        
+        # Description from dedicated column or fallback to label
+        description = ''
+        if desc_col and pd.notna(row[desc_col]):
+            description = str(row[desc_col]).strip()
+        elif label_col and pd.notna(row[label_col]):
+            description = str(row[label_col]).strip()
             
         variable = {
             'variable_name': var_name,
-            'display_name': str(row[label_col]).strip() if label_col and pd.notna(row[label_col]) else var_name.replace('_', ' ').title(),
-            'description': str(row[label_col]).strip() if label_col and pd.notna(row[label_col]) else '',
+            'display_name': display_name,
+            'description': description,
             'variable_type': infer_variable_type(str(row[type_col]) if type_col and pd.notna(row[type_col]) else ''),
             'unit': str(row[unit_col]).strip() if unit_col and pd.notna(row[unit_col]) else '',
             'ontology_code': '',
@@ -86,11 +130,24 @@ def normalize_variable_dict(var_dict: Dict[str, Any]) -> Dict[str, Any]:
     """
     Normalize a variable dictionary to match our expected structure.
     """
-    # Common key mappings
-    name_keys = ['name', 'variable_name', 'var_name', 'field', 'column']
-    label_keys = ['label', 'display_name', 'description', 'desc']
-    type_keys = ['type', 'data_type', 'variable_type', 'dtype']
-    unit_keys = ['unit', 'units', 'measurement_unit']
+    # Common key mappings (expanded for better coverage)
+    name_keys = [
+        'name', 'variable_name', 'var_name', 'varname', 'field', 'field_name',
+        'column', 'column_name', 'colname', 'code', 'attribute', 'item'
+    ]
+    label_keys = [
+        'label', 'display_name', 'displayname', 'variable_label', 'var_label',
+        'title', 'caption', 'heading', 'short_name', 'friendly_name'
+    ]
+    desc_keys = [
+        'description', 'desc', 'descr', 'definition', 'detail', 'details',
+        'explanation', 'info', 'notes', 'comment', 'long_description'
+    ]
+    type_keys = [
+        'type', 'data_type', 'datatype', 'dtype', 'variable_type', 'vartype',
+        'format', 'field_type', 'col_type', 'class'
+    ]
+    unit_keys = ['unit', 'units', 'measurement_unit', 'uom', 'unit_of_measure']
     
     def get_first_value(keys, default=''):
         for key in keys:
@@ -100,10 +157,26 @@ def normalize_variable_dict(var_dict: Dict[str, Any]) -> Dict[str, Any]:
     
     var_name = get_first_value(name_keys)
     
+    # Smart display_name extraction
+    display_name = get_first_value(label_keys, '')
+    if not display_name:
+        # Check if variable name is already human-readable
+        if var_name and (' ' in var_name or (var_name[0].isupper() and '_' not in var_name and '-' not in var_name)):
+            display_name = var_name
+        elif var_name:
+            display_name = var_name.replace('_', ' ').replace('-', ' ').title()
+        else:
+            display_name = ''
+    
+    # Description from desc_keys or fallback to label
+    description = get_first_value(desc_keys, '')
+    if not description:
+        description = get_first_value(label_keys, '')
+    
     return {
         'variable_name': var_name,
-        'display_name': get_first_value(label_keys, var_name.replace('_', ' ').title()),
-        'description': get_first_value(label_keys),
+        'display_name': display_name,
+        'description': description,
         'variable_type': infer_variable_type(get_first_value(type_keys)),
         'unit': get_first_value(unit_keys),
         'ontology_code': var_dict.get('ontology_code', ''),
@@ -216,16 +289,34 @@ def extract_variables_from_codebook(file_path: str, column_mapping: Dict[str, st
         if not var_name_col or var_name_col not in df.columns:
             raise ValueError("Variable name column must be specified and exist in the file")
         
+        # Get display_name column for fallback logic
+        display_name_col = column_mapping.get('display_name')
+        
         # Process each row
         for _, row in df.iterrows():
             var_name = str(row[var_name_col]).strip()
             if not var_name or var_name.lower() in ['nan', 'none', '']:
                 continue
             
+            # Smart display_name extraction with multiple fallbacks:
+            # 1. Use mapped display_name column if it has a value
+            # 2. Use variable name as-is if it looks like a readable name (has spaces/proper case)
+            # 3. Convert variable_name to title case (replace underscores with spaces)
+            display_name_value = _get_column_value(row, display_name_col, df.columns, '')
+            
+            if not display_name_value:
+                # Check if variable name is already human-readable
+                # (contains spaces, or is already in proper case with no underscores)
+                if ' ' in var_name or (var_name[0].isupper() and '_' not in var_name and '-' not in var_name):
+                    display_name_value = var_name
+                else:
+                    # Convert snake_case or kebab-case to Title Case
+                    display_name_value = var_name.replace('_', ' ').replace('-', ' ').title()
+            
             # Extract data from mapped columns (with fallbacks)
             variable = {
                 'variable_name': var_name,
-                'display_name': _get_column_value(row, column_mapping.get('display_name'), df.columns, var_name.replace('_', ' ').title()),
+                'display_name': display_name_value,
                 'description': _get_column_value(row, column_mapping.get('description'), df.columns, ''),
                 'variable_type': infer_variable_type(_get_column_value(row, column_mapping.get('variable_type'), df.columns, '')),
                 'unit': _get_column_value(row, column_mapping.get('unit'), df.columns, ''),

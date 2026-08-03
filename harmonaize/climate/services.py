@@ -2,11 +2,13 @@
 Climate data services for fetching and processing climate data from various sources.
 """
 import logging
-from typing import Dict, List, Optional, Tuple, Any
-from datetime import datetime, timedelta
+import json
+from typing import Dict, List, Optional, Any, Tuple
 import numpy as np
+from datetime import datetime, timedelta
+from django.db import models, transaction
+from django.db.models import Min, Max
 from django.utils import timezone
-from django.db import transaction, models
 from core.models import Location, TimeDimension, Attribute, Observation
 from .models import (
     ClimateDataSource,
@@ -27,6 +29,8 @@ class BaseClimateDataService:
         self.api_key = data_source.api_key
         self.api_endpoint = data_source.api_endpoint
         self.logger = logging.getLogger(self.__class__.__name__)
+        # Safety cap for APIs that page/limit per request
+        self.max_images_per_call = 4950  # keep well under EE 5000 element limit
     
     def fetch_data(
         self,
@@ -59,60 +63,62 @@ class EarthEngineDataService(BaseClimateDataService):
     """
     Google Earth Engine data service for satellite-based climate data.
 
-    Supports both mock and real GEE API calls. When USE_MOCK_DATA=False and credentials
-    are configured, it will make real API calls to Google Earth Engine.
-
-    Setup for real data:
-    1. Install: pip install earthengine-api
-    2. Set up service account credentials (JSON key file)
-    3. Configure GOOGLE_APPLICATION_CREDENTIALS environment variable
-    4. Set USE_MOCK_DATA=False in settings
+    Requires valid credentials and the `earthengine-api` package. Initialization errors
+    are surfaced so misconfiguration is visible during development and deployment.
     """
 
-    def __init__(self, data_source: ClimateDataSource, use_mock: bool = True):
+    def __init__(self, data_source: ClimateDataSource):
         super().__init__(data_source)
-        self.use_mock = use_mock
         self.ee = None
+        self._initialize_earth_engine()
 
-        if not use_mock:
-            try:
-                import ee
-                import os
-                from google.oauth2 import service_account
+    def _initialize_earth_engine(self) -> None:
+        """Initialize the Earth Engine client with service account or user auth."""
+        try:
+            import os
+            import json
+            import ee
+            from google.oauth2 import service_account
 
-                self.ee = ee
-
-                # Initialize Earth Engine with service account credentials
-                credentials_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
-
-                if credentials_path and os.path.exists(credentials_path):
-                    # Use service account credentials
-                    self.logger.info(f"Initializing Earth Engine with service account: {credentials_path}")
+            credentials_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+#not sure if this is correct pathing for docker deployment
+            if credentials_path:
+                resolved_path = os.path.abspath(credentials_path)
+                if os.path.exists(resolved_path):
+                    self.logger.info(
+                        "Initializing Google Earth Engine with service account credentials"
+                    )
                     credentials = service_account.Credentials.from_service_account_file(
-                        credentials_path,
+                        resolved_path,
                         scopes=['https://www.googleapis.com/auth/earthengine']
                     )
-                    # Get project ID from credentials file
-                    import json
-                    with open(credentials_path) as f:
+                    with open(resolved_path) as f:
                         creds_data = json.load(f)
-                        project_id = creds_data.get('project_id', 'joburg-hvi')
+                        project_id = creds_data.get('project_id')
 
                     ee.Initialize(credentials=credentials, project=project_id)
-                    self.logger.info(f"✓ Google Earth Engine initialized successfully with project: {project_id}")
+                    self.logger.info(
+                        f"Google Earth Engine initialized successfully with project: {project_id}"
+                    )
                 else:
-                    # Try default authentication (falls back to user auth)
-                    self.logger.warning("No service account credentials found, trying default auth")
+                    self.logger.warning(
+                        "GOOGLE_APPLICATION_CREDENTIALS is set but file was not found at %s; attempting interactive auth",
+                        resolved_path,
+                    )
+                    ee.Authenticate()  # may prompt if running interactively
                     ee.Initialize()
-                    self.logger.info("Google Earth Engine initialized with default credentials")
+            else:
+                self.logger.info("Initializing Google Earth Engine with default credentials")
+                ee.Initialize()
 
-            except ImportError:
-                self.logger.warning("earthengine-api not installed, using mock data")
-                self.use_mock = True
-            except Exception as e:
-                self.logger.error(f"Failed to initialize Earth Engine: {e}")
-                self.logger.info("Falling back to mock data mode")
-                self.use_mock = True
+            self.ee = ee
+
+        except ImportError as exc:
+            raise RuntimeError(
+                "earthengine-api not installed; install it and configure credentials to fetch climate data"
+            ) from exc
+        except Exception as exc:
+            raise RuntimeError(f"Failed to initialize Earth Engine: {exc}") from exc
     
     def fetch_data(
         self,
@@ -122,10 +128,7 @@ class EarthEngineDataService(BaseClimateDataService):
         end_date: datetime,
         **kwargs
     ) -> List[Dict[str, Any]]:
-        """
-        Fetch data from Google Earth Engine.
-        Uses mock data if use_mock=True, otherwise makes real GEE API calls.
-        """
+        """Fetch data from Google Earth Engine."""
         if not self.validate_location(location):
             raise ValueError(f"Invalid location coordinates: {location}")
 
@@ -141,13 +144,9 @@ class EarthEngineDataService(BaseClimateDataService):
         except ClimateVariableMapping.DoesNotExist:
             raise ValueError(f"Variable {variable} not available in {self.data_source}")
 
-        # Choose real or mock implementation
-        if self.use_mock:
-            return self._fetch_mock_data(variable, location, start_date, end_date, mapping)
-        else:
-            return self._fetch_real_gee_data(variable, location, start_date, end_date, mapping)
+        return self._fetch_gee_data(variable, location, start_date, end_date, mapping)
 
-    def _fetch_real_gee_data(
+    def _fetch_gee_data(
         self,
         variable: ClimateVariable,
         location: Location,
@@ -156,7 +155,7 @@ class EarthEngineDataService(BaseClimateDataService):
         mapping: ClimateVariableMapping
     ) -> List[Dict[str, Any]]:
         """
-        Fetch real data from Google Earth Engine API.
+        Fetch data from Google Earth Engine API.
 
         Example for ERA5 temperature:
         - Dataset: ECMWF/ERA5/DAILY
@@ -170,11 +169,17 @@ class EarthEngineDataService(BaseClimateDataService):
             # Define point geometry
             point = self.ee.Geometry.Point([location.longitude, location.latitude])
 
-            # Load image collection
+            # Load image collection; GEE filterDate end is exclusive, so add one day
+            end_exclusive = end_date + timedelta(days=1)
             collection = (
                 self.ee.ImageCollection(mapping.source_dataset)
-                .filterDate(start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))
+                .filterDate(
+                    start_date.strftime('%Y-%m-%d'),
+                    end_exclusive.strftime('%Y-%m-%d'),
+                )
                 .filterBounds(point)
+                # Apply a hard cap before mapping to avoid EE 5000-element aborts
+                .limit(self.max_images_per_call)
             )
 
             # Extract time series at point
@@ -227,114 +232,36 @@ class EarthEngineDataService(BaseClimateDataService):
 
         except Exception as e:
             self.logger.error(f"Error fetching GEE data: {e}")
-            raise
-
-    def _fetch_mock_data(
-        self,
-        variable: ClimateVariable,
-        location: Location,
-        start_date: datetime,
-        end_date: datetime,
-        mapping: ClimateVariableMapping
-    ) -> List[Dict[str, Any]]:
-        """
-        Generate mock data for testing without GEE credentials.
-        """
-        data = []
-        current_date = start_date
-        while current_date <= end_date:
-            # Simulate fetching data from Earth Engine
-            value = self._simulate_climate_value(variable, location, current_date)
-
-            # Apply scaling and offset from mapping
-            value = value * mapping.scale_factor + mapping.offset
-
-            data.append({
-                'date': current_date.date(),
-                'value': value,
-                'quality_flag': 'mock',
-                'source': 'Mock (GEE structure)',
-            })
-
-            current_date += timedelta(days=1)
-
-        return data
-    
-    def _simulate_climate_value(
-        self,
-        variable: ClimateVariable,
-        location: Location,
-        date: datetime
-    ) -> float:
-        """
-        Simulate climate values for MVP demonstration.
-        In production, this would be replaced with actual Earth Engine data retrieval.
-        """
-        # Simple simulation based on variable type and location
-        base_value = 0
-        
-        if variable.category == 'temperature':
-            # Temperature varies by latitude and season
-            base_value = 20 - abs(location.latitude) / 3
-            seasonal_variation = 10 * np.sin((date.timetuple().tm_yday / 365) * 2 * np.pi)
-            base_value += seasonal_variation
-        elif variable.category == 'precipitation':
-            # Precipitation with seasonal pattern
-            base_value = 50 + 30 * np.sin((date.timetuple().tm_yday / 365) * 2 * np.pi + np.pi/2)
-            base_value = max(0, base_value + np.random.normal(0, 10))
-        elif variable.category == 'vegetation':
-            # NDVI values between 0 and 1
-            base_value = 0.5 + 0.3 * np.sin((date.timetuple().tm_yday / 365) * 2 * np.pi)
-            base_value = max(0, min(1, base_value))
-        else:
-            # Generic climate variable
-            base_value = np.random.uniform(
-                variable.min_value or 0,
-                variable.max_value or 100
-            )
-        
-        return base_value
-
+            raise RuntimeError(
+                f"Failed to fetch band '{mapping.source_band}' from dataset '{mapping.source_dataset}': {e}"
+            ) from e
 
 class CopernicusDataService(BaseClimateDataService):
     """
     Copernicus Climate Data Store (CDS) service for ERA5 reanalysis data.
 
-    Supports both mock and real CDS API calls. When USE_MOCK_DATA=False and API key
-    is configured, it will make real API calls to Copernicus CDS.
-
-    Setup for real data:
-    1. Install: pip install cdsapi
-    2. Register at: https://cds.climate.copernicus.eu/
-    3. Get API key from: https://cds.climate.copernicus.eu/api-how-to
-    4. Create ~/.cdsapirc with:
-       url: https://cds.climate.copernicus.eu/api/v2
-       key: {UID}:{API-KEY}
-    5. Set USE_MOCK_DATA=False in settings
-
-    CDS provides access to:
-    - ERA5 reanalysis (hourly and monthly)
-    - ERA5-Land (higher resolution land data)
-    - Satellite observations
-    - Climate projections
+    Requires a configured CDS API client. Initialization errors are raised so missing
+    dependencies or credentials are visible immediately.
     """
 
-    def __init__(self, data_source: ClimateDataSource, use_mock: bool = True):
+    def __init__(self, data_source: ClimateDataSource):
         super().__init__(data_source)
-        self.use_mock = use_mock
         self.cds_client = None
+        self._initialize_cds_client()
 
-        if not use_mock:
-            try:
-                import cdsapi
-                self.cds_client = cdsapi.Client()
-                self.logger.info("Copernicus CDS client initialized successfully")
-            except ImportError:
-                self.logger.warning("cdsapi not installed, using mock data")
-                self.use_mock = True
-            except Exception as e:
-                self.logger.error(f"Failed to initialize CDS client: {e}")
-                self.use_mock = True
+    def _initialize_cds_client(self) -> None:
+        """Initialize the Copernicus CDS API client."""
+        try:
+            import cdsapi
+
+            self.cds_client = cdsapi.Client()
+            self.logger.info("Copernicus CDS client initialized successfully")
+        except ImportError as exc:
+            raise RuntimeError(
+                "cdsapi not installed; install it and configure credentials to fetch CDS data"
+            ) from exc
+        except Exception as exc:
+            raise RuntimeError(f"Failed to initialize CDS client: {exc}") from exc
 
     def fetch_data(
         self,
@@ -344,10 +271,7 @@ class CopernicusDataService(BaseClimateDataService):
         end_date: datetime,
         **kwargs
     ) -> List[Dict[str, Any]]:
-        """
-        Fetch data from Copernicus Climate Data Store.
-        Uses mock data if use_mock=True, otherwise makes real CDS API calls.
-        """
+        """Fetch data from Copernicus Climate Data Store."""
         if not self.validate_location(location):
             raise ValueError(f"Invalid location coordinates: {location}")
 
@@ -363,13 +287,9 @@ class CopernicusDataService(BaseClimateDataService):
         except ClimateVariableMapping.DoesNotExist:
             raise ValueError(f"Variable {variable} not available in {self.data_source}")
 
-        # Choose real or mock implementation
-        if self.use_mock:
-            return self._fetch_mock_data(variable, location, start_date, end_date, mapping)
-        else:
-            return self._fetch_real_cds_data(variable, location, start_date, end_date, mapping)
+        return self._fetch_cds_data(variable, location, start_date, end_date, mapping)
 
-    def _fetch_real_cds_data(
+    def _fetch_cds_data(
         self,
         variable: ClimateVariable,
         location: Location,
@@ -378,7 +298,7 @@ class CopernicusDataService(BaseClimateDataService):
         mapping: ClimateVariableMapping
     ) -> List[Dict[str, Any]]:
         """
-        Fetch real data from Copernicus CDS API.
+        Fetch data from Copernicus CDS API.
 
         Example request for ERA5 2m temperature:
         - Dataset: reanalysis-era5-single-levels
@@ -477,76 +397,6 @@ class CopernicusDataService(BaseClimateDataService):
             self.logger.error(f"Error fetching CDS data: {e}")
             raise
 
-    def _fetch_mock_data(
-        self,
-        variable: ClimateVariable,
-        location: Location,
-        start_date: datetime,
-        end_date: datetime,
-        mapping: ClimateVariableMapping
-    ) -> List[Dict[str, Any]]:
-        """
-        Generate mock data for testing without CDS credentials.
-        """
-        data = []
-        current_date = start_date
-        while current_date <= end_date:
-            # Simulate realistic climate values
-            value = self._simulate_climate_value(variable, location, current_date)
-
-            # Apply scaling and offset from mapping
-            value = value * mapping.scale_factor + mapping.offset
-
-            data.append({
-                'date': current_date.date(),
-                'value': value,
-                'quality_flag': 'mock',
-                'source': 'Mock (CDS structure)',
-            })
-
-            current_date += timedelta(days=1)
-
-        return data
-
-    def _simulate_climate_value(
-        self,
-        variable: ClimateVariable,
-        location: Location,
-        date: datetime
-    ) -> float:
-        """
-        Simulate realistic climate values based on location and season.
-        Uses similar logic to EarthEngineDataService for consistency.
-        """
-        base_value = 0
-
-        if variable.category == 'temperature':
-            # Temperature varies by latitude and season
-            base_value = 20 - abs(location.latitude) / 3
-            seasonal_variation = 10 * np.sin((date.timetuple().tm_yday / 365) * 2 * np.pi)
-            base_value += seasonal_variation
-        elif variable.category == 'precipitation':
-            # Precipitation with seasonal pattern
-            base_value = 50 + 30 * np.sin((date.timetuple().tm_yday / 365) * 2 * np.pi + np.pi/2)
-            base_value = max(0, base_value + np.random.normal(0, 10))
-        elif variable.category == 'humidity':
-            # Relative humidity between 30-90%
-            base_value = 60 + 20 * np.sin((date.timetuple().tm_yday / 365) * 2 * np.pi)
-            base_value = max(30, min(90, base_value + np.random.normal(0, 5)))
-        elif variable.category == 'wind':
-            # Wind speed 0-20 m/s with seasonal variation
-            base_value = 5 + 3 * np.sin((date.timetuple().tm_yday / 365) * 2 * np.pi)
-            base_value = max(0, base_value + np.random.normal(0, 2))
-        else:
-            # Generic climate variable
-            base_value = np.random.uniform(
-                variable.min_value or 0,
-                variable.max_value or 100
-            )
-
-        return base_value
-
-
 class ClimateDataProcessor:
     """
     Processes and harmonises climate data for integration with health data.
@@ -555,6 +405,10 @@ class ClimateDataProcessor:
     def __init__(self, request: ClimateDataRequest):
         self.request = request
         self.logger = logging.getLogger(self.__class__.__name__)
+        # Limit per-call date span to avoid huge API payloads
+        self.max_days_per_batch = 10
+        self.max_batch_span_days = 14
+        self._retrieval_errors: List[Dict[str, Any]] = []
     
     def process_request(self) -> Dict[str, Any]:
         """
@@ -565,33 +419,85 @@ class ClimateDataProcessor:
             self.request.started_at = timezone.now()
             self.request.save()
             
+            # Optionally remove previously fetched climate observations for this window
+            if self.request.reset_existing:
+                self._delete_existing_climate_observations()
+
             # Get data service for the source
             service = self._get_data_service()
             
             # Process each location
             total_observations = 0
             locations = self.request.locations.all()
+            variables_count = self.request.variables.count()
+            
+            # Estimate total work units (Location * Variable * Days)
+            date_span = (self.request.end_date - self.request.start_date).days + 1
+            if date_span < 1: date_span = 1
+            
             self.request.total_locations = locations.count()
+            self.request.total_estimated_units = self.request.total_locations * variables_count * date_span
+            self.request.processed_units = 0
             self.request.save()
             
             for idx, location in enumerate(locations):
-                obs_count = self._process_location(service, location)
+                # Allow cooperative cancellation mid-run
+                self.request.refresh_from_db(fields=['status'])
+                if self.request.status == 'cancelled':
+                    self.logger.info("Request %s cancelled mid-run; stopping", self.request.id)
+                    self.request.completed_at = timezone.now()
+                    self.request.save(update_fields=['completed_at'])
+                    return {
+                        'status': 'cancelled',
+                        'total_observations': total_observations,
+                        'duration_seconds': self.request.duration.total_seconds() if self.request.duration else None,
+                    }
+
+                obs_count = self._process_location(service, location, variables_count, date_span)
                 total_observations += obs_count
                 
                 # Update progress
                 self.request.processed_locations = idx + 1
                 self.request.total_observations = total_observations
+                # Ensure we don't undershoot due to estimation rounding or gaps if _process_location didn't purely add up
+                # (handled inside _process_location now, but safety sync here could be good)
                 self.request.save()
             
+            if total_observations == 0:
+                failure_message = self._build_no_observations_failure_message()
+                error_report = self._build_error_report()
+
+                self.request.status = 'failed'
+                self.request.error_message = (
+                    f"{failure_message}\n\nError report:\n{error_report}"
+                    if error_report
+                    else failure_message
+                )
+                self.request.completed_at = timezone.now()
+                self.request.save(update_fields=['status', 'error_message', 'completed_at'])
+
+                return {
+                    'status': 'failed',
+                    'error': self.request.error_message,
+                    'total_observations': total_observations,
+                }
+
             # Mark as completed
             self.request.status = 'completed'
             self.request.completed_at = timezone.now()
-            self.request.save()
-            
+
+            error_report = self._build_error_report()
+            if error_report:
+                self.request.error_message = error_report
+                self.request.save(update_fields=['status', 'completed_at', 'error_message'])
+            else:
+                self.request.save(update_fields=['status', 'completed_at'])
+
             return {
                 'status': 'success',
                 'total_observations': total_observations,
-                'duration': self.request.duration,
+                'duration_seconds': self.request.duration.total_seconds() if self.request.duration else None,
+                'errors': self._retrieval_errors if self._retrieval_errors else None,
             }
             
         except Exception as e:
@@ -617,81 +523,384 @@ class ClimateDataProcessor:
         - 'modis': Currently via GEE
         - 'worldclim': Could be added later
         """
-        from django.conf import settings
-
-        # Check if we should use mock data (default: True for safety)
-        use_mock = getattr(settings, 'CLIMATE_USE_MOCK_DATA', True)
-
         source_type = self.request.data_source.source_type
 
         if source_type == 'gee':
-            return EarthEngineDataService(self.request.data_source, use_mock=use_mock)
+            return EarthEngineDataService(self.request.data_source)
         elif source_type in ['era5', 'worldclim']:
             # ERA5 and WorldClim available via Copernicus CDS
-            return CopernicusDataService(self.request.data_source, use_mock=use_mock)
+            return CopernicusDataService(self.request.data_source)
         elif source_type in ['chirps', 'modis']:
             # CHIRPS and MODIS available via Google Earth Engine
-            return EarthEngineDataService(self.request.data_source, use_mock=use_mock)
+            return EarthEngineDataService(self.request.data_source)
         else:
             raise NotImplementedError(
                 f"Service for {source_type} not implemented. "
                 f"Available: gee, era5, chirps, modis"
             )
+
+    def _delete_existing_climate_observations(self) -> int:
+        """Remove existing climate observations and cached entries for this request window."""
+        locations = list(self.request.locations.all())
+        variables = list(self.request.variables.all())
+
+        if not locations or not variables:
+            return 0
+
+        attributes = [self._get_or_create_climate_attribute(v) for v in variables]
+
+        deleted_obs, _ = Observation.objects.filter(
+            location__in=locations,
+            attribute__in=attributes,
+            time__timestamp__date__gte=self.request.start_date,
+            time__timestamp__date__lte=self.request.end_date,
+        ).delete()
+
+        ClimateDataCache.objects.filter(
+            data_source=self.request.data_source,
+            variable__in=variables,
+            location__in=locations,
+            date__gte=self.request.start_date,
+            date__lte=self.request.end_date,
+        ).delete()
+
+        self.logger.info(
+            "Deleted %s existing climate observations and cleared cache entries before processing",
+            deleted_obs,
+        )
+        return deleted_obs
     
     def _process_location(
         self,
         service: BaseClimateDataService,
-        location: Location
+        location: Location,
+        variables_count: int,
+        date_span: int
     ) -> int:
         """Process climate data for a single location."""
         observations_created = 0
-        
-        for variable in self.request.variables.all():
-            # Check cache first
-            cached_data = self._get_cached_data(variable, location)
-            
-            if cached_data:
-                data_to_process = cached_data
-            else:
-                # Fetch new data
-                data_to_process = service.fetch_data(
-                    variable=variable,
-                    location=location,
-                    start_date=datetime.combine(self.request.start_date, datetime.min.time()),
-                    end_date=datetime.combine(self.request.end_date, datetime.min.time()),
-                )
-                
-                # Cache the data
-                self._cache_data(variable, location, data_to_process)
-            
-            # Apply temporal aggregation if needed
-            if self.request.temporal_aggregation != 'none':
-                data_to_process = self._aggregate_temporal(
-                    data_to_process,
-                    self.request.temporal_aggregation
-                )
-            
-            # Create observations
-            observations_created += self._create_observations(
-                variable,
-                location,
-                data_to_process
+
+        target_dates = self._compute_location_dates(location)
+        if not target_dates:
+            self.logger.info("No target dates found for location %s; skipping", location)
+            self._record_retrieval_error(
+                location=location,
+                variable=None,
+                dates=None,
+                reason=(
+                    "No target dates for location within request window and lag configuration"
+                ),
             )
+            # Count this location as fully processed (all vars, all days skipped)
+            self._increment_processed_units(variables_count * date_span)
+            return 0
+
+        # Count skipped days (days estimated but not actually processed)
+        actual_days_to_process = len(target_dates)
+        skipped_days = max(0, date_span - actual_days_to_process)
+        if skipped_days > 0:
+            self._increment_processed_units(skipped_days * variables_count)
+
+        target_date_set = set(target_dates)
+
+        for variable in self.request.variables.all():
+            attribute = self._get_or_create_climate_attribute(variable)
+
+            existing_dates = set(
+                Observation.objects.filter(
+                    location=location,
+                    attribute=attribute,
+                    time__timestamp__date__in=target_date_set,
+                ).values_list('time__timestamp__date', flat=True)
+            )
+
+            if existing_dates:
+                self._increment_processed_units(len(existing_dates))
+
+            missing_dates = [d for d in target_dates if d not in existing_dates]
+            if not missing_dates:
+                continue
+
+            # Chunk dates to respect API limits and avoid wide spans
+            date_batches = self._chunk_dates(missing_dates)
+
+            for batch in date_batches:
+                batch_start = min(batch)
+                batch_end = max(batch)
+
+                # Check cache for batch window
+                cached_data = self._get_cached_data(variable, location, batch_start, batch_end)
+
+                target_set = set(batch)
+                combined_by_date: Dict[datetime.date, Dict[str, Any]] = {}
+
+                if cached_data:
+                    for item in cached_data:
+                        if item.get("date") in target_set:
+                            combined_by_date[item["date"]] = item
+
+                missing_after_cache = target_set - set(combined_by_date.keys())
+                fetch_error: Optional[str] = None
+
+                if missing_after_cache:
+                    fetched_data, fetch_error = self._attempt_fetch_with_retry(
+                        service=service,
+                        variable=variable,
+                        location=location,
+                        batch_start=batch_start,
+                        batch_end=batch_end,
+                    )
+
+                    if not fetch_error:
+                        self._cache_data(variable, location, fetched_data)
+                        for item in fetched_data:
+                            if item.get("date") in target_set:
+                                combined_by_date[item["date"]] = item
+
+                data_to_process = list(combined_by_date.values())
+
+                missing_after_retry = target_set - set(combined_by_date.keys())
+                if missing_after_retry:
+                    reason = (
+                        "Missing data after retry" if not fetch_error else f"Fetch failed: {fetch_error}"
+                    )
+                    self._record_retrieval_error(
+                        location=location,
+                        variable=variable,
+                        dates=sorted(missing_after_retry),
+                        reason=reason,
+                    )
+
+                # Apply temporal aggregation if needed
+                if self.request.temporal_aggregation != 'none':
+                    data_to_process = self._aggregate_temporal(
+                        data_to_process,
+                        self.request.temporal_aggregation
+                    )
+
+                observations_created += self._create_observations(
+                    variable,
+                    location,
+                    data_to_process,
+                    attribute,
+                )
+
+                # Update progress for processed days in this batch
+                self._increment_processed_units(len(batch))
         
         return observations_created
+
+    def _chunk_dates(self, dates: List[datetime.date]) -> List[List[datetime.date]]:
+        """Group dates into batches by size and contiguous span to keep EE collections small."""
+        if not dates:
+            return []
+
+        batches = []
+        current = []
+        batch_start = None
+
+        for d in dates:
+            if not current:
+                current = [d]
+                batch_start = d
+                continue
+
+            span_days = (d - batch_start).days
+            if len(current) >= self.max_days_per_batch or span_days >= self.max_batch_span_days:
+                batches.append(current)
+                current = [d]
+                batch_start = d
+            else:
+                current.append(d)
+
+        if current:
+            batches.append(current)
+        return batches
+
+    def _attempt_fetch_with_retry(
+        self,
+        service: BaseClimateDataService,
+        variable: ClimateVariable,
+        location: Location,
+        batch_start: datetime.date,
+        batch_end: datetime.date,
+    ) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+        """Fetch data with a single retry if the response is empty."""
+        try:
+            data = service.fetch_data(
+                variable=variable,
+                location=location,
+                start_date=datetime.combine(batch_start, datetime.min.time()),
+                end_date=datetime.combine(batch_end, datetime.min.time()),
+            )
+        except Exception as exc:
+            self.logger.error(
+                "Fetch failed for %s (%s) from %s to %s: %s",
+                location,
+                variable.name,
+                batch_start,
+                batch_end,
+                exc,
+            )
+            return [], str(exc)
+
+        if data:
+            return data, None
+
+        self.logger.warning(
+            "Empty response for %s (%s) from %s to %s; retrying once",
+            location,
+            variable.name,
+            batch_start,
+            batch_end,
+        )
+
+        try:
+            retry_data = service.fetch_data(
+                variable=variable,
+                location=location,
+                start_date=datetime.combine(batch_start, datetime.min.time()),
+                end_date=datetime.combine(batch_end, datetime.min.time()),
+            )
+        except Exception as exc:
+            self.logger.error(
+                "Retry fetch failed for %s (%s) from %s to %s: %s",
+                location,
+                variable.name,
+                batch_start,
+                batch_end,
+                exc,
+            )
+            return [], str(exc)
+
+        if retry_data:
+            return retry_data, None
+
+        return [], "Empty response after retry"
+
+    def _compute_location_dates(self, location: Location) -> Optional[List[datetime.date]]:
+        """Determine exact dates to fetch for a location, respecting lags and gaps.
+
+        - Start from actual observation dates for this study/location.
+        - For each observation date, include lag back to configured lag_value/lag_unit.
+        - Exclude dates outside data source availability and outside the configured request window.
+        - Do not query dates between earliest/latest if there was no observation on that date.
+        """
+        obs_dates = Observation.objects.filter(
+            location=location,
+            attribute__study=self.request.study,
+            time__timestamp__date__gte=self.request.start_date,
+            time__timestamp__date__lte=self.request.end_date,
+        ).values_list('time__timestamp__date', flat=True)
+
+        if not obs_dates:
+            return None
+
+        # Determine lag in days from configuration
+        cfg = self.request.configuration or {}
+        lag_value = cfg.get('lag_value') or 0
+        lag_unit = cfg.get('lag_unit') or 'days'
+        unit_days = {
+            'days': 1,
+            'weeks': 7,
+            'months': 30,
+            'years': 365,
+        }.get(lag_unit, 1)
+        lag_span = max(int(lag_value) * unit_days, 0)
+
+        ds = self.request.data_source
+        ds_start = getattr(ds, 'data_start_date', None)
+        ds_end = getattr(ds, 'data_end_date', None)
+
+        date_set = set()
+        for obs_date in obs_dates:
+            for offset in range(lag_span + 1):
+                candidate = obs_date - timedelta(days=offset)
+                if ds_start and candidate < ds_start:
+                    continue
+                if ds_end and candidate > ds_end:
+                    continue
+                date_set.add(candidate)
+
+        if not date_set:
+            return None
+
+        return sorted(date_set)
+
+    def _record_retrieval_error(
+        self,
+        location: Location,
+        variable: Optional[ClimateVariable],
+        dates: Optional[List[datetime.date]],
+        reason: str,
+    ) -> None:
+        """Track retrieval errors for reporting."""
+        entry = {
+            "location_id": location.id,
+            "location_name": getattr(location, "name", str(location)),
+            "latitude": location.latitude,
+            "longitude": location.longitude,
+            "variable": variable.name if variable else None,
+            "dates": [d.isoformat() for d in (dates or [])],
+            "reason": reason,
+        }
+        self._retrieval_errors.append(entry)
+
+    def _build_no_observations_failure_message(self) -> str:
+        """Build an accurate top-level message when no observations were created."""
+        if not self._retrieval_errors:
+            return 'Failed to retrieve data: no climate data returned from the API.'
+
+        reasons = [entry.get("reason", "") for entry in self._retrieval_errors]
+
+        if reasons and all(reason.startswith("No target dates for location") for reason in reasons):
+            return (
+                "Failed to retrieve data: no eligible location/time points were found "
+                "for this request window and lag configuration."
+            )
+
+        if any(reason.startswith("Fetch failed:") for reason in reasons):
+            return (
+                "Failed to retrieve data: climate API fetch errors occurred for one or more "
+                "location/time points."
+            )
+
+        if any("Missing data after retry" in reason for reason in reasons):
+            return (
+                "Failed to retrieve data: climate API returned no values for one or more "
+                "location/time points, even after retry."
+            )
+
+        return 'Failed to retrieve data: no climate observations were created.'
+    def _build_error_report(self) -> Optional[str]:
+        """Create a compact error report for missing or failed retrievals."""
+        if not self._retrieval_errors:
+            return None
+
+        report = {
+            "summary": {
+                "total_error_groups": len(self._retrieval_errors),
+                "request_id": self.request.id,
+                "data_source": getattr(self.request.data_source, "name", None),
+            },
+            "errors": self._retrieval_errors,
+        }
+        return json.dumps(report, indent=2)
     
     def _get_cached_data(
         self,
         variable: ClimateVariable,
-        location: Location
+        location: Location,
+        start_date,
+        end_date,
     ) -> Optional[List[Dict[str, Any]]]:
-        """Retrieve data from cache if available."""
+        """Retrieve data from cache if available for the per-location window."""
         cached_entries = ClimateDataCache.objects.filter(
             data_source=self.request.data_source,
             variable=variable,
             location=location,
-            date__gte=self.request.start_date,
-            date__lte=self.request.end_date,
+            date__gte=start_date,
+            date__lte=end_date,
             expires_at__gt=timezone.now()
         ).order_by('date')
         
@@ -783,27 +992,59 @@ class ClimateDataProcessor:
             })
         
         return aggregated
+
+    def _get_or_create_climate_attribute(self, variable: ClimateVariable) -> Attribute:
+        """Return the Attribute used for this climate variable (shared/global)."""
+        # Climate data is uniform and shared across studies (no study-specific suffix, no study fk)
+        variable_name = f"climate_{variable.name}"
+
+        # Try to find existing global attribute
+        # We use source_type='target' because climate data is pre-standardized (clean)
+        attribute = Attribute.objects.filter(
+            variable_name=variable_name,
+            source_type='target', 
+            study__isnull=True  # Ensure it's a global attribute
+        ).first()
+
+        if attribute is None:
+            attribute = Attribute.objects.create(
+                variable_name=variable_name,
+                source_type='target',
+                display_name=variable.display_name,
+                description=variable.description,
+                unit=variable.unit,
+                variable_type='float',
+                category='climate',
+                study=None,  # Explicitly None for global sharing
+            )
+
+        # Ensure the attribute is linked to the requesting study so it appears in exports
+        if self.request.study:
+            self.request.study.variables.add(attribute)
+
+        return attribute
+
+    def _increment_processed_units(self, count: int) -> None:
+        """Advance processed_units without exceeding the estimate."""
+        if count <= 0:
+            return
+
+        self.request.processed_units = min(
+            self.request.processed_units + count,
+            self.request.total_estimated_units,
+        )
+        self.request.save(update_fields=['processed_units'])
     
     def _create_observations(
         self,
         variable: ClimateVariable,
         location: Location,
-        data: List[Dict[str, Any]]
+        data: List[Dict[str, Any]],
+        attribute: Optional[Attribute] = None,
     ) -> int:
         """Create observation records from processed data."""
-        # Get or create climate attribute
-        attribute, created = Attribute.objects.get_or_create(
-            variable_name=f"climate_{variable.name}",
-            defaults={
-                'display_name': variable.display_name,
-                'description': variable.description,
-                'unit': variable.unit,
-                'variable_type': 'float',
-                'category': 'climate',
-                'source_type': 'source',
-            }
-        )
-        
+        attribute = attribute or self._get_or_create_climate_attribute(variable)
+
         observations_created = 0
         
         with transaction.atomic():

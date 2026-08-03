@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Analysis Access Required{% endblock title %}
+
+{% block css %}
+  {{ block.super }}
+  <style>
+    :root {
+      --primary-color: #007AFF;
+      --secondary-color: #5AC8FA;
+      --background-color: #F2F2F7;
+      --card-background: #FFFFFF;
+      --text-primary: #1C1C1E;
+      --text-secondary: #8E8E93;
+      --border-color: #C6C6C8;
+      --shadow: 0 2px 20px rgba(0, 0, 0, 0.08);
+      --border-radius: 12px;
+    }
+
+    body {
+      background-color: var(--background-color);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--text-primary);
+    }
+
+    .header-section {
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      color: white;
+      padding: 2rem 0;
+      margin: -1rem -15px 0 -15px;
+      text-align: center;
+    }
+
+    .content-wrapper {
+      max-width: 900px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+
+    .card-panel {
+      background: var(--card-background);
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border-color);
+      padding: 2rem;
+    }
+
+    .muted {
+      color: var(--text-secondary);
+    }
+  </style>
+{% endblock css %}
+
+{% block content %}
+  <div class="header-section">
+    <h1 class="h2 mb-2">Analysis access required</h1>
+    <p class="mb-0">You need project ownership or manager access before this workspace is available.</p>
+  </div>
+
+  <div class="content-wrapper">
+    <div class="card-panel">
+      <h2 class="h4 mb-3">Why access is blocked</h2>
+      <p class="muted mb-4">
+        The Analysis workspace is restricted to project owners, project managers, analysis administrators,
+        and platform superusers. Permissions are synced to Armadillo to keep project access consistent.
+      </p>
+
+      <h3 class="h6">What happens once granted</h3>
+      <ul class="mb-4">
+        <li>Your project and users are synced to Armadillo.</li>
+        <li>Target-study long-format Parquet datasets are generated and uploaded.</li>
+        <li>Project-level analysis workflows become available.</li>
+      </ul>
+
+      <h3 class="h6">R and ROCK context</h3>
+      <p class="mb-4 muted">
+        ROCK services are consumed by Armadillo during analysis execution. Access control is still governed by
+        HarmonAIze project membership and Armadillo project permissions.
+      </p>
+
+      <div class="d-flex gap-2 flex-wrap">
+        <a class="btn btn-primary" href="{% url 'core:project_list' %}">Go to Projects</a>
+        <a class="btn btn-outline-secondary" href="{% url 'core:study_list' %}">View Studies</a>
+        <a class="btn btn-outline-primary" href="{% url 'core:dashboard' %}">Back to Dashboard</a>
+      </div>
+    </div>
+  </div>
+{% endblock content %}
