@@ -247,6 +247,15 @@
       background: linear-gradient(135deg, #138d75 0%, #17a589 100%);
     }
 
+    .btn-geojson {
+      background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+      color: white;
+    }
+
+    .btn-geojson:hover {
+      background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+    }
+
     .map-legend {
       position: absolute;
       bottom: 1rem;
@@ -684,6 +693,18 @@
             Loading boundaries...
           </div>
         </div>
+
+        <div class="layer-group">
+          <div class="layer-group-label">Location Display</div>
+          <label class="overlay-toggle">
+            <input type="checkbox" id="toggle-location-polygons" onchange="toggleLocationPolygons(this.checked)">
+            <span class="toggle-slider"></span>
+            <span class="toggle-label">Show as Polygons</span>
+          </label>
+          <div style="font-size: 0.65rem; color: var(--text-secondary); padding-left: 0.5rem;">
+            Display location boundaries instead of points (where available)
+          </div>
+        </div>
       </div>
 
       <!-- Download Panel -->
@@ -716,9 +737,25 @@
           <span>📊</span>
           <span>Download CSV</span>
         </a>
+        <!-- Geometry Type Selection -->
+        <div style="margin-bottom: 0.75rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border-color);">
+          <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.25rem;">Geometry Type:</label>
+          <select id="geometryTypeSelect" style="width: 100%; padding: 0.5rem; border-radius: 6px; border: 1px solid var(--border-color); font-size: 0.8rem; background: white;">
+            <option value="centroid">Points (Centroids)</option>
+            <option value="polygon">Polygons (Admin Boundaries)</option>
+          </select>
+          <div style="font-size: 0.65rem; color: var(--text-secondary); margin-top: 0.25rem;">
+            Polygon exports full boundary shapes for admin areas
+          </div>
+        </div>
+
         <a href="{% url 'geolocation:download_validated_locations_shapefile' %}" class="download-btn btn-shapefile" style="text-decoration: none;" id="shapefileDownloadLink">
           <span>🗺️</span>
           <span>Download Shapefile</span>
+        </a>
+        <a href="{% url 'geolocation:download_validated_locations_geojson' %}" class="download-btn btn-geojson" style="text-decoration: none;" id="geojsonDownloadLink">
+          <span>📍</span>
+          <span>Download GeoJSON</span>
         </a>
 
         <!-- Download Progress -->
@@ -803,6 +840,39 @@
     let markers = [];
     let currentMapStyle = 'satellite';
     let locationColors = {};
+    let locationPolygonsVisible = false;
+    let locationPolygonLayers = [];
+    let exportLocationPolygonData = null; // Stores polygon data for exports
+
+    // Africa boundary data for locator maps (loaded on demand)
+    let africaBoundaryData = null;
+    let countryBoundaryData = null;
+    const africaBoundaryUrl = '{% url "geolocation:admin_boundaries_api" layer_type="countries" %}?continent=Africa';
+
+    // Detect primary country from locations
+    function detectPrimaryCountry() {
+      // Extract country from location names (assumes format "Location, Country")
+      const countries = {};
+      locationsData.forEach(loc => {
+        const parts = loc.name.split(',');
+        if (parts.length > 1) {
+          const country = parts[parts.length - 1].trim();
+          countries[country] = (countries[country] || 0) + 1;
+        }
+      });
+      // Return most common country
+      let maxCount = 0;
+      let primaryCountry = 'Zimbabwe'; // default
+      Object.entries(countries).forEach(([country, count]) => {
+        if (count > maxCount) {
+          maxCount = count;
+          primaryCountry = country;
+        }
+      });
+      return primaryCountry;
+    }
+
+    const primaryCountry = detectPrimaryCountry();
 
     // Get selected source file prefix for export filenames
     function getExportPrefix() {
@@ -813,11 +883,19 @@
       return defaultPrefix || 'validated_locations';
     }
 
-    // Update CSV and Shapefile download links with prefix
+    // Get selected geometry type for export
+    function getGeometryType() {
+      const select = document.getElementById('geometryTypeSelect');
+      return select ? select.value : 'centroid';
+    }
+
+    // Update CSV, Shapefile, and GeoJSON download links with prefix and geometry type
     function updateDownloadLinks() {
       const prefix = getExportPrefix();
+      const geometryType = getGeometryType();
       const csvLink = document.getElementById('csvDownloadLink');
       const shapefileLink = document.getElementById('shapefileDownloadLink');
+      const geojsonLink = document.getElementById('geojsonDownloadLink');
 
       if (csvLink) {
         const baseUrl = '{% url "geolocation:download_validated_locations_csv" %}';
@@ -825,18 +903,27 @@
       }
       if (shapefileLink) {
         const baseUrl = '{% url "geolocation:download_validated_locations_shapefile" %}';
-        shapefileLink.href = `${baseUrl}?prefix=${encodeURIComponent(prefix)}`;
+        shapefileLink.href = `${baseUrl}?prefix=${encodeURIComponent(prefix)}&geometry_export=${geometryType}`;
+      }
+      if (geojsonLink) {
+        const baseUrl = '{% url "geolocation:download_validated_locations_geojson" %}';
+        geojsonLink.href = `${baseUrl}?prefix=${encodeURIComponent(prefix)}&geometry_export=${geometryType}`;
       }
     }
 
-    // Update links when source file selection changes
+    // Update links when source file or geometry type selection changes
     document.addEventListener('DOMContentLoaded', function() {
-      const select = document.getElementById('sourceFileSelect');
-      if (select) {
-        select.addEventListener('change', updateDownloadLinks);
-        // Initial update
-        updateDownloadLinks();
+      const sourceSelect = document.getElementById('sourceFileSelect');
+      const geometrySelect = document.getElementById('geometryTypeSelect');
+
+      if (sourceSelect) {
+        sourceSelect.addEventListener('change', updateDownloadLinks);
       }
+      if (geometrySelect) {
+        geometrySelect.addEventListener('change', updateDownloadLinks);
+      }
+      // Initial update
+      updateDownloadLinks();
     });
 
     // Enhanced color palette for better distinction
@@ -974,6 +1061,262 @@
         }
         updateBoundaryLegend();
       }
+    }
+
+    // Toggle location polygons display (show boundaries instead of points)
+    function toggleLocationPolygons(show) {
+      locationPolygonsVisible = show;
+
+      if (show) {
+        // Load and show polygon boundaries for locations (will handle mixed display)
+        loadLocationPolygons();
+      } else {
+        // Show all point markers
+        markers.forEach(marker => marker.getElement().style.display = 'block');
+        // Hide polygon layers
+        hideLocationPolygons();
+      }
+    }
+
+    // Load polygon boundaries for locations that have admin boundary matches
+    function loadLocationPolygons() {
+      // Fetch location polygon data from API
+      fetch('{% url "geolocation:geocoding_api" %}?action=get_location_polygons')
+        .then(response => response.json())
+        .then(data => {
+          if (data.error) {
+            showMessage('Could not load location polygons: ' + data.error, 'warning');
+            // Keep showing all points
+            markers.forEach(marker => marker.getElement().style.display = 'block');
+            return;
+          }
+
+          // Build set of location names that have polygons
+          const locationsWithPolygons = new Set();
+          if (data.features) {
+            data.features.forEach(f => {
+              if (f.properties && f.properties.name) {
+                locationsWithPolygons.add(f.properties.name);
+              }
+            });
+          }
+
+          // Show/hide markers based on whether they have polygon data
+          markers.forEach((marker, index) => {
+            const locationName = locationsData[index]?.name;
+            if (locationsWithPolygons.has(locationName)) {
+              // Has polygon - hide the point marker
+              marker.getElement().style.display = 'none';
+            } else {
+              // No polygon - show the point marker (with visual indicator)
+              marker.getElement().style.display = 'block';
+              marker.getElement().style.opacity = '0.8';
+              marker.getElement().title = `${locationName} (point only - no boundary data)`;
+            }
+          });
+
+          if (!data.features || data.features.length === 0) {
+            showMessage('No polygon boundaries available. Showing all locations as points.', 'info');
+            markers.forEach(marker => {
+              marker.getElement().style.display = 'block';
+              marker.getElement().style.opacity = '1';
+            });
+            return;
+          }
+
+          const pointOnlyCount = locationsData.length - locationsWithPolygons.size;
+          if (pointOnlyCount > 0) {
+            showMessage(`Showing ${locationsWithPolygons.size} polygons + ${pointOnlyCount} points (no boundary data)`, 'info');
+          } else {
+            showMessage(`Showing ${locationsWithPolygons.size} location polygons`, 'success');
+          }
+
+          // Add polygon source and layers
+          if (!map.getSource('location-polygons-source')) {
+            map.addSource('location-polygons-source', {
+              type: 'geojson',
+              data: data
+            });
+
+            // Add fill layer
+            map.addLayer({
+              id: 'location-polygons-fill',
+              type: 'fill',
+              source: 'location-polygons-source',
+              paint: {
+                'fill-color': ['get', 'color'],
+                'fill-opacity': 0.4
+              }
+            });
+
+            // Add line layer
+            map.addLayer({
+              id: 'location-polygons-line',
+              type: 'line',
+              source: 'location-polygons-source',
+              paint: {
+                'line-color': ['get', 'color'],
+                'line-width': 2,
+                'line-opacity': 0.9
+              }
+            });
+
+            // Add labels
+            map.addLayer({
+              id: 'location-polygons-label',
+              type: 'symbol',
+              source: 'location-polygons-source',
+              layout: {
+                'text-field': ['get', 'name'],
+                'text-size': 12,
+                'text-anchor': 'center',
+                'text-allow-overlap': false
+              },
+              paint: {
+                'text-color': '#1a1a1a',
+                'text-halo-color': '#ffffff',
+                'text-halo-width': 2
+              }
+            });
+
+            locationPolygonLayers = ['location-polygons-fill', 'location-polygons-line', 'location-polygons-label'];
+          } else {
+            map.getSource('location-polygons-source').setData(data);
+          }
+
+          // Make layers visible
+          locationPolygonLayers.forEach(layerId => {
+            if (map.getLayer(layerId)) {
+              map.setLayoutProperty(layerId, 'visibility', 'visible');
+            }
+          });
+
+          // Store polygon data for exports
+          exportLocationPolygonData = data;
+        })
+        .catch(err => {
+          console.error('Error loading location polygons:', err);
+          showMessage('Error loading location polygons', 'error');
+          document.getElementById('toggle-location-polygons').checked = false;
+          markers.forEach(marker => marker.getElement().style.display = 'block');
+        });
+    }
+
+    // Hide location polygon layers
+    function hideLocationPolygons() {
+      locationPolygonLayers.forEach(layerId => {
+        if (map.getLayer(layerId)) {
+          map.setLayoutProperty(layerId, 'visibility', 'none');
+        }
+      });
+
+      // Reset marker styles
+      markers.forEach(marker => {
+        marker.getElement().style.opacity = '1';
+        marker.getElement().title = '';
+      });
+    }
+
+    // Draw location polygons on export canvas (with fallback to points for locations without polygons)
+    function drawLocationPolygonsOnCanvas(ctx, mapArea, tilesNeeded, offsetX, offsetY) {
+      // Track which locations have polygon data
+      const locationsWithPolygons = new Set();
+
+      console.log('drawLocationPolygonsOnCanvas called');
+      console.log('locationPolygonsVisible:', locationPolygonsVisible);
+      console.log('exportLocationPolygonData:', exportLocationPolygonData);
+      console.log('exportLocationPolygonData features count:', exportLocationPolygonData?.features?.length || 0);
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(mapArea.x, mapArea.y, mapArea.width, mapArea.height);
+      ctx.clip();
+
+      // First, draw all polygons
+      if (exportLocationPolygonData && exportLocationPolygonData.features) {
+        console.log('Drawing', exportLocationPolygonData.features.length, 'polygon features');
+        exportLocationPolygonData.features.forEach((feature, idx) => {
+          if (!feature.geometry) {
+            console.log('Feature', idx, 'has no geometry');
+            return;
+          }
+
+          console.log('Drawing feature', idx, ':', feature.properties?.name, 'geometry type:', feature.geometry.type);
+
+          const locationName = feature.properties.name;
+          locationsWithPolygons.add(locationName);
+
+          const color = feature.properties.color || '#e74c3c';
+
+          // Set fill and stroke styles
+          ctx.fillStyle = color + '66'; // Add transparency
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 2;
+
+          // Draw the geometry
+          drawGeometry(ctx, feature.geometry, tilesNeeded, offsetX, offsetY, mapArea);
+        });
+      } else {
+        console.log('No polygon data available for export');
+      }
+
+      // Then, draw point markers for locations WITHOUT polygon data
+      locationsData.forEach((location) => {
+        // Skip if this location has a polygon
+        if (locationsWithPolygons.has(location.name)) return;
+
+        const tileCoords = getTileCoords(location.lat, location.lng, tilesNeeded.zoom);
+        const pixelX = offsetX + (tileCoords.x - tilesNeeded.minTileX) * 256 + tileCoords.pixelX;
+        const pixelY = offsetY + (tileCoords.y - tilesNeeded.minTileY) * 256 + tileCoords.pixelY;
+
+        if (pixelX >= mapArea.x && pixelX <= mapArea.x + mapArea.width &&
+            pixelY >= mapArea.y && pixelY <= mapArea.y + mapArea.height) {
+
+          // Draw marker shadow
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+          ctx.beginPath();
+          ctx.arc(pixelX + 2, pixelY + 2, 8, 0, 2 * Math.PI);
+          ctx.fill();
+
+          // Draw marker (with dashed border to indicate no polygon available)
+          ctx.fillStyle = locationColors[location.name] || '#e74c3c';
+          ctx.beginPath();
+          ctx.arc(pixelX, pixelY, 8, 0, 2 * Math.PI);
+          ctx.fill();
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([2, 2]); // Dashed to indicate point-only
+          ctx.stroke();
+          ctx.setLineDash([]); // Reset dash
+        }
+      });
+
+      ctx.restore();
+    }
+
+    // Load Africa boundary data for locator maps
+    async function loadAfricaBoundaryData() {
+      if (africaBoundaryData) return africaBoundaryData;
+
+      try {
+        const response = await fetch('{% url "geolocation:admin_boundaries_api" layer_type="countries" %}');
+        if (!response.ok) throw new Error('Failed to load Africa boundaries');
+        africaBoundaryData = await response.json();
+        return africaBoundaryData;
+      } catch (err) {
+        console.error('Error loading Africa boundaries:', err);
+        return null;
+      }
+    }
+
+    // Get country boundary from Africa data
+    function getCountryBoundary(countryName) {
+      if (!africaBoundaryData || !africaBoundaryData.features) return null;
+
+      return africaBoundaryData.features.find(f => {
+        const name = f.properties.NAME_0 || f.properties.name || '';
+        return name.toLowerCase() === countryName.toLowerCase();
+      });
     }
 
     // Load and add boundary GeoJSON layer
@@ -1262,54 +1605,807 @@
       });
     }
 
+    // ========================================
+    // CARTOGRAPHIC EXPORT SYSTEM
+    // Phase 1: Scale bar, North arrow, Legend
+    // Phase 2: Graticule, Locator map
+    // ========================================
+
     // Download functionality
     function downloadMap(format) {
       const downloadProgress = document.getElementById('downloadProgress');
       downloadProgress.classList.add('show');
 
-      showMessage('🔄 Creating enhanced map with basemap...', 'info');
+      showMessage('🔄 Creating cartographic map export...', 'info');
 
       if (format === 'pdf') {
-        generateEnhancedPDF();
+        generateCartographicPDF();
       } else if (format === 'png') {
-        generateEnhancedPNG();
+        generateCartographicPNG();
       }
     }
 
-    // Generate PDF with proper basemap
-    function generateEnhancedPDF() {
-      const canvas = document.getElementById('downloadCanvas');
-      const ctx = canvas.getContext('2d');
-      canvas.width = 1200;
-      canvas.height = 900;
+    // Cartographic layout configuration
+    function getCartographicLayout(canvasWidth, canvasHeight, isLandscape = true) {
+      const margin = 40;
+      const titleHeight = 70;
+      const legendWidth = 220;
+      const bottomPanelHeight = 100;
 
-      // Clear canvas
-      ctx.fillStyle = '#f0f9ff';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      return {
+        canvas: { width: canvasWidth, height: canvasHeight },
+        margin: margin,
+        // Title block at top
+        titleBlock: {
+          x: margin,
+          y: margin,
+          width: canvasWidth - (2 * margin),
+          height: titleHeight
+        },
+        // Main map area
+        mapArea: {
+          x: margin,
+          y: margin + titleHeight + 10,
+          width: canvasWidth - legendWidth - (2.5 * margin),
+          height: canvasHeight - titleHeight - bottomPanelHeight - (2.5 * margin)
+        },
+        // Right panel for legend and locator
+        rightPanel: {
+          x: canvasWidth - legendWidth - margin,
+          y: margin + titleHeight + 10,
+          width: legendWidth,
+          height: canvasHeight - titleHeight - bottomPanelHeight - (2.5 * margin)
+        },
+        // Bottom panel for scale, attribution
+        bottomPanel: {
+          x: margin,
+          y: canvasHeight - bottomPanelHeight - margin + 10,
+          width: canvasWidth - (2 * margin),
+          height: bottomPanelHeight - 20
+        }
+      };
+    }
 
-      // Calculate map bounds
-      const bounds = getLocationBounds();
-      const zoom = calculateOptimalZoom(bounds, 700, 400);
+    // Calculate scale for the map
+    function calculateMapScale(bounds, mapWidthPixels, zoom) {
+      // Calculate meters per pixel at the center latitude
+      const centerLat = (bounds.north + bounds.south) / 2;
+      const metersPerPixel = 156543.03392 * Math.cos(centerLat * Math.PI / 180) / Math.pow(2, zoom);
+      return metersPerPixel;
+    }
 
-      // Centered map area
-      const mapArea = {
-        x: (canvas.width - 800) / 2,
-        y: 100,
-        width: 800,
-        height: 450
+    // Draw scale bar
+    function drawScaleBar(ctx, x, y, width, metersPerPixel) {
+      // Calculate a nice round scale distance
+      const maxScaleMeters = width * metersPerPixel;
+      let scaleDistance, scaleUnit, scaleLabel;
+
+      if (maxScaleMeters > 100000) {
+        // Use kilometers
+        const km = maxScaleMeters / 1000;
+        const niceKm = getNiceScaleValue(km);
+        scaleDistance = niceKm * 1000;
+        scaleUnit = 'km';
+        scaleLabel = niceKm;
+      } else if (maxScaleMeters > 1000) {
+        const km = maxScaleMeters / 1000;
+        const niceKm = getNiceScaleValue(km);
+        scaleDistance = niceKm * 1000;
+        scaleUnit = 'km';
+        scaleLabel = niceKm;
+      } else {
+        const niceM = getNiceScaleValue(maxScaleMeters);
+        scaleDistance = niceM;
+        scaleUnit = 'm';
+        scaleLabel = niceM;
+      }
+
+      const scaleWidthPixels = scaleDistance / metersPerPixel;
+      const barHeight = 8;
+      const numSegments = 4;
+      const segmentWidth = scaleWidthPixels / numSegments;
+
+      // Draw alternating black/white segments
+      for (let i = 0; i < numSegments; i++) {
+        ctx.fillStyle = i % 2 === 0 ? '#1a1a1a' : '#ffffff';
+        ctx.fillRect(x + (i * segmentWidth), y, segmentWidth, barHeight);
+      }
+
+      // Draw border around scale bar
+      ctx.strokeStyle = '#1a1a1a';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x, y, scaleWidthPixels, barHeight);
+
+      // Draw tick marks and labels
+      ctx.fillStyle = '#1a1a1a';
+      ctx.font = 'bold 10px Arial';
+      ctx.textAlign = 'center';
+
+      // Start label
+      ctx.fillText('0', x, y + barHeight + 12);
+
+      // End label
+      ctx.fillText(`${scaleLabel} ${scaleUnit}`, x + scaleWidthPixels, y + barHeight + 12);
+
+      // Middle label
+      ctx.fillText(`${scaleLabel / 2}`, x + scaleWidthPixels / 2, y + barHeight + 12);
+
+      // Scale title
+      ctx.font = '9px Arial';
+      ctx.fillText('Scale', x + scaleWidthPixels / 2, y - 5);
+
+      return scaleWidthPixels;
+    }
+
+    // Get nice round scale value
+    function getNiceScaleValue(value) {
+      const magnitude = Math.pow(10, Math.floor(Math.log10(value)));
+      const normalized = value / magnitude;
+
+      if (normalized < 1.5) return magnitude;
+      if (normalized < 3.5) return 2 * magnitude;
+      if (normalized < 7.5) return 5 * magnitude;
+      return 10 * magnitude;
+    }
+
+    // Draw north arrow
+    function drawNorthArrow(ctx, x, y, size) {
+      const arrowHeight = size;
+      const arrowWidth = size * 0.4;
+
+      ctx.save();
+      ctx.translate(x, y);
+
+      // Draw arrow body (north half - filled)
+      ctx.beginPath();
+      ctx.moveTo(0, -arrowHeight / 2);
+      ctx.lineTo(arrowWidth / 2, arrowHeight / 3);
+      ctx.lineTo(0, arrowHeight / 6);
+      ctx.closePath();
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fill();
+
+      // Draw arrow body (south half - outline)
+      ctx.beginPath();
+      ctx.moveTo(0, -arrowHeight / 2);
+      ctx.lineTo(-arrowWidth / 2, arrowHeight / 3);
+      ctx.lineTo(0, arrowHeight / 6);
+      ctx.closePath();
+      ctx.strokeStyle = '#1a1a1a';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+
+      // Draw "N" label
+      ctx.fillStyle = '#1a1a1a';
+      ctx.font = 'bold 14px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('N', 0, -arrowHeight / 2 - 12);
+
+      // Draw circle around arrow
+      ctx.beginPath();
+      ctx.arc(0, 0, arrowHeight / 2 + 5, 0, 2 * Math.PI);
+      ctx.strokeStyle = '#666666';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    // Draw graticule (lat/lon grid)
+    function drawGraticule(ctx, mapArea, bounds, tilesNeeded, offsetX, offsetY) {
+      // Calculate appropriate grid spacing based on extent
+      const latSpan = bounds.north - bounds.south;
+      const lngSpan = bounds.east - bounds.west;
+
+      let gridSpacing;
+      if (latSpan > 20 || lngSpan > 20) gridSpacing = 5;
+      else if (latSpan > 10 || lngSpan > 10) gridSpacing = 2;
+      else if (latSpan > 5 || lngSpan > 5) gridSpacing = 1;
+      else if (latSpan > 2 || lngSpan > 2) gridSpacing = 0.5;
+      else if (latSpan > 1 || lngSpan > 1) gridSpacing = 0.25;
+      else gridSpacing = 0.1;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(mapArea.x, mapArea.y, mapArea.width, mapArea.height);
+      ctx.clip();
+
+      ctx.strokeStyle = 'rgba(100, 100, 100, 0.3)';
+      ctx.lineWidth = 0.5;
+      ctx.setLineDash([5, 5]);
+
+      // Draw latitude lines
+      const startLat = Math.floor(bounds.south / gridSpacing) * gridSpacing;
+      const endLat = Math.ceil(bounds.north / gridSpacing) * gridSpacing;
+
+      for (let lat = startLat; lat <= endLat; lat += gridSpacing) {
+        const startCoords = getTileCoords(lat, bounds.west, tilesNeeded.zoom);
+        const endCoords = getTileCoords(lat, bounds.east, tilesNeeded.zoom);
+
+        const startX = offsetX + (startCoords.x - tilesNeeded.minTileX) * 256 + startCoords.pixelX;
+        const startY = offsetY + (startCoords.y - tilesNeeded.minTileY) * 256 + startCoords.pixelY;
+        const endX = offsetX + (endCoords.x - tilesNeeded.minTileX) * 256 + endCoords.pixelX;
+        const endY = offsetY + (endCoords.y - tilesNeeded.minTileY) * 256 + endCoords.pixelY;
+
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+        ctx.lineTo(endX, endY);
+        ctx.stroke();
+      }
+
+      // Draw longitude lines
+      const startLng = Math.floor(bounds.west / gridSpacing) * gridSpacing;
+      const endLng = Math.ceil(bounds.east / gridSpacing) * gridSpacing;
+
+      for (let lng = startLng; lng <= endLng; lng += gridSpacing) {
+        const startCoords = getTileCoords(bounds.north, lng, tilesNeeded.zoom);
+        const endCoords = getTileCoords(bounds.south, lng, tilesNeeded.zoom);
+
+        const startX = offsetX + (startCoords.x - tilesNeeded.minTileX) * 256 + startCoords.pixelX;
+        const startY = offsetY + (startCoords.y - tilesNeeded.minTileY) * 256 + startCoords.pixelY;
+        const endX = offsetX + (endCoords.x - tilesNeeded.minTileX) * 256 + endCoords.pixelX;
+        const endY = offsetY + (endCoords.y - tilesNeeded.minTileY) * 256 + endCoords.pixelY;
+
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+        ctx.lineTo(endX, endY);
+        ctx.stroke();
+      }
+
+      ctx.restore();
+
+      // Draw graticule labels outside map frame
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#333333';
+      ctx.font = '9px Arial';
+
+      // Latitude labels on left side
+      for (let lat = startLat; lat <= endLat; lat += gridSpacing) {
+        const coords = getTileCoords(lat, bounds.west, tilesNeeded.zoom);
+        const y = offsetY + (coords.y - tilesNeeded.minTileY) * 256 + coords.pixelY;
+
+        if (y >= mapArea.y && y <= mapArea.y + mapArea.height) {
+          ctx.textAlign = 'right';
+          ctx.textBaseline = 'middle';
+          const label = lat >= 0 ? `${lat.toFixed(1)}°N` : `${Math.abs(lat).toFixed(1)}°S`;
+          ctx.fillText(label, mapArea.x - 5, y);
+        }
+      }
+
+      // Longitude labels on bottom
+      for (let lng = startLng; lng <= endLng; lng += gridSpacing) {
+        const coords = getTileCoords(bounds.south, lng, tilesNeeded.zoom);
+        const x = offsetX + (coords.x - tilesNeeded.minTileX) * 256 + coords.pixelX;
+
+        if (x >= mapArea.x && x <= mapArea.x + mapArea.width) {
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'top';
+          const label = lng >= 0 ? `${lng.toFixed(1)}°E` : `${Math.abs(lng).toFixed(1)}°W`;
+          ctx.fillText(label, x, mapArea.y + mapArea.height + 3);
+        }
+      }
+    }
+
+    // Draw two-level locator maps: Africa context + Country zoom
+    function drawLocatorMaps(ctx, x, y, width, totalHeight, bounds) {
+      const labelHeight = 14; // Space for labels above each map
+      const gap = 8;
+      const availableHeight = totalHeight - (2 * labelHeight) - gap;
+      const africaHeight = availableHeight * 0.55;
+      const countryHeight = availableHeight * 0.45;
+
+      // Draw Africa context map (with label space)
+      drawAfricaLocatorMap(ctx, x, y + labelHeight, width, africaHeight, bounds);
+
+      // Draw Country zoom map (with label space)
+      const countryY = y + labelHeight + africaHeight + gap + labelHeight;
+      drawCountryLocatorMap(ctx, x, countryY, width, countryHeight, bounds);
+    }
+
+    // Draw Africa locator map with country highlighted (simplified - no internal borders)
+    function drawAfricaLocatorMap(ctx, x, y, width, height, bounds) {
+      const africaBounds = { north: 38, south: -35, east: 52, west: -18 };
+
+      // Background - ocean
+      ctx.fillStyle = '#d4e8f2';
+      ctx.fillRect(x, y, width, height);
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x, y, width, height);
+      ctx.clip();
+
+      const toPixel = (lng, lat) => ({
+        px: x + ((lng - africaBounds.west) / (africaBounds.east - africaBounds.west)) * width,
+        py: y + ((africaBounds.north - lat) / (africaBounds.north - africaBounds.south)) * height
+      });
+
+      // Draw all African countries from boundary data
+      if (boundaryLayers.countries && boundaryLayers.countries.data && boundaryLayers.countries.data.features) {
+        // First pass: Draw all countries with fill and border
+        boundaryLayers.countries.data.features.forEach(feature => {
+          if (!feature.geometry) return;
+          const countryName = feature.properties.NAME_0 || feature.properties.name || '';
+          const isHighlighted = countryName.toLowerCase() === primaryCountry.toLowerCase();
+
+          // Skip highlighted country in first pass (draw it on top later)
+          if (isHighlighted) return;
+
+          // Fill with land color
+          ctx.fillStyle = '#c8dcc8';
+          drawLocatorGeometryFillOnly(ctx, feature.geometry, toPixel);
+
+          // Draw country border
+          ctx.strokeStyle = '#888888';
+          ctx.lineWidth = 0.5;
+          drawLocatorGeometryStrokeOnly(ctx, feature.geometry, toPixel);
+        });
+
+        // Second pass: Draw highlighted country on top with distinct color
+        boundaryLayers.countries.data.features.forEach(feature => {
+          if (!feature.geometry) return;
+          const countryName = feature.properties.NAME_0 || feature.properties.name || '';
+          const isHighlighted = countryName.toLowerCase() === primaryCountry.toLowerCase();
+
+          if (isHighlighted) {
+            // Fill with highlight color
+            ctx.fillStyle = 'rgba(220, 53, 69, 0.6)';
+            drawLocatorGeometryFillOnly(ctx, feature.geometry, toPixel);
+
+            // Draw thicker outline for highlighted country
+            ctx.strokeStyle = '#dc3545';
+            ctx.lineWidth = 1.5;
+            drawLocatorGeometryStrokeOnly(ctx, feature.geometry, toPixel);
+          }
+        });
+      } else {
+        // Fallback: draw simplified Africa outline if boundary data not loaded
+        drawSimplifiedAfricaOutline(ctx, toPixel);
+      }
+
+      // Draw extent box (current map area)
+      const nw = toPixel(bounds.west, bounds.north);
+      const se = toPixel(bounds.east, bounds.south);
+      let extentWidth = Math.max(se.px - nw.px, 4);
+      let extentHeight = Math.max(se.py - nw.py, 4);
+
+      ctx.strokeStyle = '#1a1a1a';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(nw.px, nw.py, extentWidth, extentHeight);
+
+      ctx.restore();
+
+      // Border around locator map
+      ctx.strokeStyle = '#666666';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x, y, width, height);
+
+      // Label (drawn after restore so it's not clipped)
+      ctx.fillStyle = '#333333';
+      ctx.font = 'bold 9px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('Africa Context', x + width / 2, y - 4);
+    }
+
+    // Helper: Draw geometry fill only (no stroke)
+    function drawLocatorGeometryFillOnly(ctx, geometry, toPixel) {
+      const drawRingFill = (ring) => {
+        ctx.beginPath();
+        ring.forEach((coord, i) => {
+          const p = toPixel(coord[0], coord[1]);
+          if (i === 0) ctx.moveTo(p.px, p.py);
+          else ctx.lineTo(p.px, p.py);
+        });
+        ctx.closePath();
+        ctx.fill();
       };
 
-      // Get tiles needed
-      const tilesNeeded = calculateTileCoverage(bounds, zoom, mapArea.width, mapArea.height);
+      if (geometry.type === 'Polygon') {
+        geometry.coordinates.forEach((ring, i) => { if (i === 0) drawRingFill(ring); });
+      } else if (geometry.type === 'MultiPolygon') {
+        geometry.coordinates.forEach(polygon => {
+          polygon.forEach((ring, i) => { if (i === 0) drawRingFill(ring); });
+        });
+      }
+    }
+
+    // Helper: Draw geometry stroke only (no fill)
+    function drawLocatorGeometryStrokeOnly(ctx, geometry, toPixel) {
+      const drawRingStroke = (ring) => {
+        ctx.beginPath();
+        ring.forEach((coord, i) => {
+          const p = toPixel(coord[0], coord[1]);
+          if (i === 0) ctx.moveTo(p.px, p.py);
+          else ctx.lineTo(p.px, p.py);
+        });
+        ctx.closePath();
+        ctx.stroke();
+      };
+
+      if (geometry.type === 'Polygon') {
+        geometry.coordinates.forEach((ring, i) => { if (i === 0) drawRingStroke(ring); });
+      } else if (geometry.type === 'MultiPolygon') {
+        geometry.coordinates.forEach(polygon => {
+          polygon.forEach((ring, i) => { if (i === 0) drawRingStroke(ring); });
+        });
+      }
+    }
+
+    // Draw country-level locator map with provinces and locations
+    function drawCountryLocatorMap(ctx, x, y, width, height, bounds) {
+      // Get country boundary to determine zoom extent
+      let countryBounds = null;
+
+      if (boundaryLayers.countries && boundaryLayers.countries.data) {
+        const countryFeature = boundaryLayers.countries.data.features.find(f => {
+          const name = f.properties.NAME_0 || f.properties.name || '';
+          return name.toLowerCase() === primaryCountry.toLowerCase();
+        });
+
+        if (countryFeature && countryFeature.geometry) {
+          countryBounds = getGeometryBounds(countryFeature.geometry);
+        }
+      }
+
+      // Fallback to location bounds with padding
+      if (!countryBounds) {
+        const padding = 0.5;
+        countryBounds = {
+          north: bounds.north + padding,
+          south: bounds.south - padding,
+          east: bounds.east + padding,
+          west: bounds.west - padding
+        };
+      }
+
+      // Background
+      ctx.fillStyle = '#e8f4e8';
+      ctx.fillRect(x, y, width, height);
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x, y, width, height);
+      ctx.clip();
+
+      const toPixel = (lng, lat) => ({
+        px: x + ((lng - countryBounds.west) / (countryBounds.east - countryBounds.west)) * width,
+        py: y + ((countryBounds.north - lat) / (countryBounds.north - countryBounds.south)) * height
+      });
+
+      // Draw provinces if loaded
+      if (boundaryLayers.provinces && boundaryLayers.provinces.data && boundaryLayers.provinces.data.features) {
+        ctx.fillStyle = 'rgba(200, 220, 200, 0.6)';
+        ctx.strokeStyle = '#666666';
+        ctx.lineWidth = 0.5;
+
+        boundaryLayers.provinces.data.features.forEach(feature => {
+          if (!feature.geometry) return;
+          drawLocatorGeometry(ctx, feature.geometry, toPixel, false);
+        });
+      }
+
+      // Draw country outline on top
+      if (boundaryLayers.countries && boundaryLayers.countries.data) {
+        const countryFeature = boundaryLayers.countries.data.features.find(f => {
+          const name = f.properties.NAME_0 || f.properties.name || '';
+          return name.toLowerCase() === primaryCountry.toLowerCase();
+        });
+
+        if (countryFeature && countryFeature.geometry) {
+          ctx.fillStyle = 'transparent';
+          ctx.strokeStyle = '#333333';
+          ctx.lineWidth = 1.5;
+          drawLocatorGeometry(ctx, countryFeature.geometry, toPixel, false, true);
+        }
+      }
+
+      // Draw location points
+      locationsData.forEach(location => {
+        const p = toPixel(location.lng, location.lat);
+        if (p.px >= x && p.px <= x + width && p.py >= y && p.py <= y + height) {
+          ctx.fillStyle = locationColors[location.name] || '#e74c3c';
+          ctx.beginPath();
+          ctx.arc(p.px, p.py, 3, 0, 2 * Math.PI);
+          ctx.fill();
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+      });
+
+      ctx.restore();
+
+      // Border
+      ctx.strokeStyle = '#333333';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x, y, width, height);
+
+      // Label (drawn after restore so it's not clipped)
+      ctx.fillStyle = '#333333';
+      ctx.font = 'bold 9px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${primaryCountry} Detail`, x + width / 2, y - 4);
+    }
+
+    // Helper: Draw geometry on locator map
+    function drawLocatorGeometry(ctx, geometry, toPixel, fill = true, strokeOnly = false) {
+      const drawRing = (ring) => {
+        ctx.beginPath();
+        ring.forEach((coord, i) => {
+          const p = toPixel(coord[0], coord[1]);
+          if (i === 0) ctx.moveTo(p.px, p.py);
+          else ctx.lineTo(p.px, p.py);
+        });
+        ctx.closePath();
+        if (!strokeOnly && fill) ctx.fill();
+        ctx.stroke();
+      };
+
+      if (geometry.type === 'Polygon') {
+        geometry.coordinates.forEach((ring, i) => {
+          if (i === 0) drawRing(ring);
+        });
+      } else if (geometry.type === 'MultiPolygon') {
+        geometry.coordinates.forEach(polygon => {
+          polygon.forEach((ring, i) => {
+            if (i === 0) drawRing(ring);
+          });
+        });
+      }
+    }
+
+    // Helper: Get bounds of a geometry
+    function getGeometryBounds(geometry) {
+      let minLng = Infinity, maxLng = -Infinity;
+      let minLat = Infinity, maxLat = -Infinity;
+
+      const processCoords = (coords) => {
+        coords.forEach(coord => {
+          if (Array.isArray(coord[0])) {
+            processCoords(coord);
+          } else {
+            minLng = Math.min(minLng, coord[0]);
+            maxLng = Math.max(maxLng, coord[0]);
+            minLat = Math.min(minLat, coord[1]);
+            maxLat = Math.max(maxLat, coord[1]);
+          }
+        });
+      };
+
+      processCoords(geometry.coordinates);
+
+      return { north: maxLat, south: minLat, east: maxLng, west: minLng };
+    }
+
+    // Fallback: Draw simplified Africa outline
+    function drawSimplifiedAfricaOutline(ctx, toPixel) {
+      const africaOutline = [
+        [-5, 36], [10, 37], [25, 32], [35, 30], [40, 15], [52, 12],
+        [45, 0], [42, -5], [40, -15], [35, -25], [30, -34], [20, -35],
+        [15, -30], [12, -25], [18, -20], [15, -15], [10, -5], [5, 5],
+        [-5, 5], [-15, 10], [-17, 15], [-17, 20], [-12, 25], [-5, 36]
+      ];
+
+      ctx.beginPath();
+      ctx.fillStyle = '#c8dcc8';
+      africaOutline.forEach((coord, i) => {
+        const p = toPixel(coord[0], coord[1]);
+        if (i === 0) ctx.moveTo(p.px, p.py);
+        else ctx.lineTo(p.px, p.py);
+      });
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#666666';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    // Legacy function for compatibility
+    function drawLocatorMap(ctx, x, y, width, height, bounds) {
+      drawLocatorMaps(ctx, x, y, width, height, bounds);
+    }
+
+    // Draw comprehensive cartographic legend
+    function drawCartographicLegend(ctx, x, y, width, height) {
+      const padding = 10;
+      let currentY = y + padding;
+
+      // Legend background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x, y, width, height);
+      ctx.strokeStyle = '#333333';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x, y, width, height);
+
+      // Legend title
+      ctx.fillStyle = '#1a1a1a';
+      ctx.font = 'bold 12px Arial';
+      ctx.textAlign = 'left';
+      ctx.fillText('LEGEND', x + padding, currentY + 10);
+      currentY += 25;
+
+      // Separator line
+      ctx.strokeStyle = '#cccccc';
+      ctx.beginPath();
+      ctx.moveTo(x + padding, currentY);
+      ctx.lineTo(x + width - padding, currentY);
+      ctx.stroke();
+      currentY += 10;
+
+      // Location markers section
+      ctx.font = 'bold 10px Arial';
+      ctx.fillStyle = '#333333';
+      ctx.fillText('Locations', x + padding, currentY + 8);
+      currentY += 18;
+
+      // Draw location markers (compact view)
+      ctx.font = '9px Arial';
+      const maxLocationsToShow = Math.min(locationsData.length, 12);
+      locationsData.slice(0, maxLocationsToShow).forEach((location, index) => {
+        // Marker symbol
+        ctx.fillStyle = locationColors[location.name];
+        ctx.beginPath();
+        ctx.arc(x + padding + 6, currentY + 4, 5, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // Label (truncated if too long)
+        ctx.fillStyle = '#333333';
+        let label = location.name;
+        if (label.length > 22) label = label.substring(0, 20) + '...';
+        ctx.fillText(label, x + padding + 16, currentY + 7);
+        currentY += 14;
+      });
+
+      if (locationsData.length > maxLocationsToShow) {
+        ctx.fillStyle = '#666666';
+        ctx.font = 'italic 9px Arial';
+        ctx.fillText(`+ ${locationsData.length - maxLocationsToShow} more locations`, x + padding, currentY + 5);
+        currentY += 15;
+      }
+
+      // Admin boundaries section (if any visible)
+      let hasVisibleBoundaries = false;
+      Object.keys(boundaryLayers).forEach(layerType => {
+        if (boundaryLayers[layerType].visible && boundaryLayers[layerType].loaded) {
+          hasVisibleBoundaries = true;
+        }
+      });
+
+      if (hasVisibleBoundaries) {
+        currentY += 5;
+        ctx.strokeStyle = '#cccccc';
+        ctx.beginPath();
+        ctx.moveTo(x + padding, currentY);
+        ctx.lineTo(x + width - padding, currentY);
+        ctx.stroke();
+        currentY += 10;
+
+        ctx.font = 'bold 10px Arial';
+        ctx.fillStyle = '#333333';
+        ctx.fillText('Admin Boundaries', x + padding, currentY + 8);
+        currentY += 18;
+
+        ctx.font = '9px Arial';
+        Object.keys(boundaryLayers).forEach(layerType => {
+          const config = boundaryLayers[layerType];
+          if (!config.visible || !config.loaded) return;
+
+          // Line symbol
+          ctx.strokeStyle = config.lineColor;
+          ctx.lineWidth = 2;
+          if (config.lineDashArray) {
+            ctx.setLineDash(config.lineDashArray.map(v => v * 1.5));
+          } else {
+            ctx.setLineDash([]);
+          }
+          ctx.beginPath();
+          ctx.moveTo(x + padding, currentY + 4);
+          ctx.lineTo(x + padding + 25, currentY + 4);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          // Label
+          ctx.fillStyle = '#333333';
+          let label = layerType.charAt(0).toUpperCase() + layerType.slice(1);
+          ctx.fillText(label, x + padding + 32, currentY + 7);
+          currentY += 14;
+        });
+      }
+
+      return currentY;
+    }
+
+    // Draw map neatline (professional border)
+    function drawNeatline(ctx, mapArea) {
+      // Outer neatline
+      ctx.strokeStyle = '#1a1a1a';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(mapArea.x - 2, mapArea.y - 2, mapArea.width + 4, mapArea.height + 4);
+
+      // Inner neatline
+      ctx.strokeStyle = '#666666';
+      ctx.lineWidth = 0.5;
+      ctx.strokeRect(mapArea.x, mapArea.y, mapArea.width, mapArea.height);
+    }
+
+    // Draw title block
+    function drawTitleBlock(ctx, layout, title, subtitle) {
+      const tb = layout.titleBlock;
+
+      // Title
+      ctx.fillStyle = '#1a1a1a';
+      ctx.font = 'bold 24px Georgia, serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(title, tb.x + tb.width / 2, tb.y + 28);
+
+      // Subtitle
+      ctx.fillStyle = '#4a4a4a';
+      ctx.font = '14px Arial';
+      ctx.fillText(subtitle, tb.x + tb.width / 2, tb.y + 50);
+
+      // Decorative line under title
+      ctx.strokeStyle = '#059669';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(tb.x + tb.width / 2 - 100, tb.y + 58);
+      ctx.lineTo(tb.x + tb.width / 2 + 100, tb.y + 58);
+      ctx.stroke();
+    }
+
+    // Draw attribution and metadata
+    function drawAttribution(ctx, layout, bounds, zoom) {
+      const bp = layout.bottomPanel;
+
+      // Attribution text
+      ctx.fillStyle = '#666666';
+      ctx.font = '9px Arial';
+      ctx.textAlign = 'left';
+
+      const today = new Date().toLocaleDateString('en-GB', {
+        day: 'numeric', month: 'long', year: 'numeric'
+      });
+
+      ctx.fillText(`Map created: ${today}`, bp.x, bp.y + bp.height - 5);
+      ctx.fillText(`Data sources: OpenStreetMap contributors, GADM Admin Boundaries`, bp.x, bp.y + bp.height - 18);
+      ctx.fillText(`CRS: WGS 84 (EPSG:4326)`, bp.x, bp.y + bp.height - 31);
+
+      // Extent info on right
+      ctx.textAlign = 'right';
+      ctx.fillText(`Extent: ${bounds.west.toFixed(2)}°E to ${bounds.east.toFixed(2)}°E, ${bounds.south.toFixed(2)}°S to ${bounds.north.toFixed(2)}°N`, bp.x + bp.width, bp.y + bp.height - 5);
+      ctx.fillText(`Produced by: HarmonAIze Geolocation Platform`, bp.x + bp.width, bp.y + bp.height - 18);
+    }
+
+    // Generate Cartographic PDF
+    async function generateCartographicPDF() {
+      // First, ensure Africa boundary data is loaded for locator maps
+      await ensureBoundaryDataLoaded();
+
+      const canvas = document.getElementById('downloadCanvas');
+      const ctx = canvas.getContext('2d');
+
+      // A4 landscape at 96 DPI (approximate)
+      canvas.width = 1400;
+      canvas.height = 1000;
+
+      const layout = getCartographicLayout(canvas.width, canvas.height);
+      const bounds = getLocationBounds();
+      const zoom = calculateOptimalZoom(bounds, layout.mapArea.width - 60, layout.mapArea.height - 40);
+
+      const tilesNeeded = calculateTileCoverage(bounds, zoom, layout.mapArea.width, layout.mapArea.height);
       let tilesLoaded = 0;
-      let totalTiles = tilesNeeded.tiles.length;
+      const totalTiles = tilesNeeded.tiles.length;
 
       if (totalTiles === 0) {
         generateFallbackPDF();
         return;
       }
 
-      // Load tiles
       const tileImages = [];
 
       tilesNeeded.tiles.forEach((tile, index) => {
@@ -1319,16 +2415,15 @@
         img.onload = function() {
           tileImages[index] = { img: img, tile: tile };
           tilesLoaded++;
-
           if (tilesLoaded === totalTiles) {
-            drawPDFWithTiles(canvas, ctx, tileImages, tilesNeeded, bounds, mapArea);
+            drawCartographicPDFComplete(canvas, ctx, tileImages, tilesNeeded, bounds, layout);
           }
         };
 
         img.onerror = function() {
           tilesLoaded++;
           if (tilesLoaded === totalTiles) {
-            drawPDFWithTiles(canvas, ctx, tileImages, tilesNeeded, bounds, mapArea);
+            drawCartographicPDFComplete(canvas, ctx, tileImages, tilesNeeded, bounds, layout);
           }
         };
 
@@ -1336,32 +2431,87 @@
       });
     }
 
-    function drawPDFWithTiles(canvas, ctx, tileImages, tilesNeeded, bounds, mapArea) {
-      // Clear canvas
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Ensure boundary data is loaded for locator maps
+    async function ensureBoundaryDataLoaded() {
+      // Load countries boundary if not already loaded
+      if (!boundaryLayers.countries.loaded) {
+        try {
+          const response = await fetch(boundaryLayers.countries.url);
+          if (response.ok) {
+            const geojson = await response.json();
+            if (geojson.features && geojson.features.length > 0) {
+              boundaryLayers.countries.data = geojson;
+              boundaryLayers.countries.loaded = true;
+            }
+          }
+        } catch (err) {
+          console.warn('Could not load countries boundary for locator map:', err);
+        }
+      }
 
-      // Background
-      ctx.fillStyle = '#f0f9ff';
+      // Optionally load provinces if available
+      if (!boundaryLayers.provinces.loaded) {
+        try {
+          const response = await fetch(boundaryLayers.provinces.url);
+          if (response.ok) {
+            const geojson = await response.json();
+            if (geojson.features && geojson.features.length > 0) {
+              boundaryLayers.provinces.data = geojson;
+              boundaryLayers.provinces.loaded = true;
+            }
+          }
+        } catch (err) {
+          console.warn('Could not load provinces boundary for locator map:', err);
+        }
+      }
+
+      // Load location polygon data if polygons toggle is on but data not loaded
+      if (locationPolygonsVisible && !exportLocationPolygonData) {
+        try {
+          const response = await fetch('{% url "geolocation:geocoding_api" %}?action=get_location_polygons');
+          if (response.ok) {
+            const data = await response.json();
+            if (data.features && data.features.length > 0) {
+              exportLocationPolygonData = data;
+            }
+          }
+        } catch (err) {
+          console.warn('Could not load location polygons for export:', err);
+        }
+      }
+    }
+
+    function drawCartographicPDFComplete(canvas, ctx, tileImages, tilesNeeded, bounds, layout) {
+      // Clear canvas with light background
+      ctx.fillStyle = '#fafafa';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Title
-      ctx.fillStyle = '#059669';
-      ctx.font = 'bold 28px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText('Validated Locations Map', canvas.width / 2, 40);
+      // Draw title block
+      drawTitleBlock(ctx, layout, 'Validated Locations Map', `${locationsData.length} Georeferenced Sites | HarmonAIze Platform`);
 
-      ctx.fillStyle = '#6b7280';
-      ctx.font = '16px Arial';
-      ctx.fillText(`HarmonAIze Geolocation Platform | ${locationsData.length} Locations`, canvas.width / 2, 70);
+      // Calculate map centering offset
+      const boundsWidth = bounds.east - bounds.west;
+      const boundsHeight = bounds.north - bounds.south;
+      const mapCenterLng = (bounds.east + bounds.west) / 2;
+      const mapCenterLat = (bounds.north + bounds.south) / 2;
 
-      // Map background
+      const centerTileCoords = getTileCoords(mapCenterLat, mapCenterLng, tilesNeeded.zoom);
+      const centerPixelX = (centerTileCoords.x - tilesNeeded.minTileX) * 256 + centerTileCoords.pixelX;
+      const centerPixelY = (centerTileCoords.y - tilesNeeded.minTileY) * 256 + centerTileCoords.pixelY;
+
+      const offsetX = layout.mapArea.x + (layout.mapArea.width / 2) - centerPixelX;
+      const offsetY = layout.mapArea.y + (layout.mapArea.height / 2) - centerPixelY;
+
+      // Draw map background
       ctx.fillStyle = '#e0f2fe';
-      ctx.fillRect(mapArea.x, mapArea.y, mapArea.width, mapArea.height);
-      ctx.strokeStyle = '#0369a1';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(mapArea.x, mapArea.y, mapArea.width, mapArea.height);
+      ctx.fillRect(layout.mapArea.x, layout.mapArea.y, layout.mapArea.width, layout.mapArea.height);
 
-      // Draw tiles
+      // Draw tiles (clipped to map area)
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(layout.mapArea.x, layout.mapArea.y, layout.mapArea.width, layout.mapArea.height);
+      ctx.clip();
+
       const drawnTiles = new Set();
       tileImages.forEach((tileData) => {
         if (tileData && tileData.img) {
@@ -1370,100 +2520,113 @@
 
           if (!drawnTiles.has(tileKey)) {
             drawnTiles.add(tileKey);
-            const tilePixelX = mapArea.x + (tile.x - tilesNeeded.minTileX) * 256;
-            const tilePixelY = mapArea.y + (tile.y - tilesNeeded.minTileY) * 256;
-
-            if (tilePixelX < mapArea.x + mapArea.width && tilePixelY < mapArea.y + mapArea.height) {
-              ctx.drawImage(tileData.img, tilePixelX, tilePixelY, 256, 256);
-            }
+            const tilePixelX = offsetX + (tile.x - tilesNeeded.minTileX) * 256;
+            const tilePixelY = offsetY + (tile.y - tilesNeeded.minTileY) * 256;
+            ctx.drawImage(tileData.img, tilePixelX, tilePixelY, 256, 256);
           }
         }
       });
 
-      // Draw admin boundaries first (below markers)
-      const pdfOffsetX = mapArea.x;
-      const pdfOffsetY = mapArea.y;
-      drawBoundariesOnCanvas(ctx, mapArea, tilesNeeded, pdfOffsetX, pdfOffsetY);
+      ctx.restore();
 
-      // Plot locations
-      locationsData.forEach((location) => {
-        const tileCoords = getTileCoords(location.lat, location.lng, tilesNeeded.zoom);
-        const pixelX = (tileCoords.x - tilesNeeded.minTileX) * 256 + tileCoords.pixelX;
-        const pixelY = (tileCoords.y - tilesNeeded.minTileY) * 256 + tileCoords.pixelY;
+      // Draw graticule
+      drawGraticule(ctx, layout.mapArea, bounds, tilesNeeded, offsetX, offsetY);
 
-        const mapX = mapArea.x + pixelX;
-        const mapY = mapArea.y + pixelY;
+      // Draw admin boundaries
+      drawBoundariesOnCanvas(ctx, layout.mapArea, tilesNeeded, offsetX, offsetY);
 
-        if (mapX >= mapArea.x && mapX <= mapArea.x + mapArea.width &&
-            mapY >= mapArea.y && mapY <= mapArea.y + mapArea.height) {
+      // Plot locations - either as polygons or point markers based on toggle
+      console.log('=== PDF EXPORT LOCATION PLOTTING ===');
+      console.log('locationPolygonsVisible:', locationPolygonsVisible);
+      console.log('exportLocationPolygonData exists:', !!exportLocationPolygonData);
+      console.log('exportLocationPolygonData features:', exportLocationPolygonData?.features?.length || 0);
 
-          // Draw marker
-          ctx.fillStyle = locationColors[location.name];
-          ctx.beginPath();
-          ctx.arc(mapX, mapY, 10, 0, 2 * Math.PI);
-          ctx.fill();
+      if (locationPolygonsVisible && exportLocationPolygonData) {
+        console.log('Drawing location polygons for PDF...');
+        // Draw location polygons
+        drawLocationPolygonsOnCanvas(ctx, layout.mapArea, tilesNeeded, offsetX, offsetY);
+      } else {
+        console.log('Drawing point markers instead (polygons not visible or no data)');
+        // Draw point markers
+        locationsData.forEach((location) => {
+          const tileCoords = getTileCoords(location.lat, location.lng, tilesNeeded.zoom);
+          const pixelX = offsetX + (tileCoords.x - tilesNeeded.minTileX) * 256 + tileCoords.pixelX;
+          const pixelY = offsetY + (tileCoords.y - tilesNeeded.minTileY) * 256 + tileCoords.pixelY;
 
-          // White border
-          ctx.strokeStyle = '#ffffff';
-          ctx.lineWidth = 3;
-          ctx.stroke();
+          if (pixelX >= layout.mapArea.x && pixelX <= layout.mapArea.x + layout.mapArea.width &&
+              pixelY >= layout.mapArea.y && pixelY <= layout.mapArea.y + layout.mapArea.height) {
 
-          // Label
-          ctx.fillStyle = '#000000';
-          ctx.font = 'bold 12px Arial';
-          ctx.textAlign = 'center';
-          ctx.fillText(location.name, mapX, mapY + 25);
-        }
-      });
+            // Draw marker shadow
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.beginPath();
+            ctx.arc(pixelX + 2, pixelY + 2, 8, 0, 2 * Math.PI);
+            ctx.fill();
 
-      // Legend
-      let legendY = 580;
-      // Add boundary legend first
-      legendY = addBoundaryLegendToExport(ctx, 50, legendY, canvas.width - 100);
-      // Add location legend
-      addLegendToPDF(ctx, 50, legendY + 20, canvas.width - 100, 120);
+            // Draw marker
+            ctx.fillStyle = locationColors[location.name];
+            ctx.beginPath();
+            ctx.arc(pixelX, pixelY, 8, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+          }
+        });
+      }
 
-      // Metadata
-      ctx.fillStyle = '#6b7280';
-      ctx.font = '10px Arial';
-      ctx.textAlign = 'left';
-      ctx.fillText(`Generated: ${new Date().toLocaleDateString()} | Zoom: ${tilesNeeded.zoom} | Source: HarmonAIze Platform`, 50, canvas.height - 10);
+      // Draw neatline
+      drawNeatline(ctx, layout.mapArea);
+
+      // Draw legend in right panel (reduced to make room for two locator maps)
+      drawCartographicLegend(ctx, layout.rightPanel.x, layout.rightPanel.y, layout.rightPanel.width, layout.rightPanel.height * 0.40);
+
+      // Draw two-level locator maps below legend (Africa context + Country detail)
+      const locatorY = layout.rightPanel.y + layout.rightPanel.height * 0.42;
+      const locatorHeight = layout.rightPanel.height * 0.55;
+      drawLocatorMaps(ctx, layout.rightPanel.x, locatorY, layout.rightPanel.width, locatorHeight, bounds);
+
+      // Draw north arrow (top right of map)
+      drawNorthArrow(ctx, layout.mapArea.x + layout.mapArea.width - 35, layout.mapArea.y + 45, 50);
+
+      // Draw scale bar
+      const metersPerPixel = calculateMapScale(bounds, layout.mapArea.width, tilesNeeded.zoom);
+      drawScaleBar(ctx, layout.bottomPanel.x, layout.bottomPanel.y + 20, 200, metersPerPixel);
+
+      // Draw attribution
+      drawAttribution(ctx, layout, bounds, tilesNeeded.zoom);
 
       // Convert to PDF
       const { jsPDF } = window.jspdf;
       const pdf = new jsPDF('l', 'mm', 'a4');
       const imgData = canvas.toDataURL('image/png');
-      pdf.addImage(imgData, 'PNG', 10, 10, 277, 190);
+      pdf.addImage(imgData, 'PNG', 5, 5, 287, 200);
+
       const prefix = getExportPrefix();
-      pdf.save(`${prefix}_map_${new Date().toISOString().split('T')[0]}.pdf`);
+      pdf.save(`${prefix}_cartographic_map_${new Date().toISOString().split('T')[0]}.pdf`);
 
       document.getElementById('downloadProgress').classList.remove('show');
-      showMessage('Enhanced PDF downloaded!', 'success');
+      showMessage('Cartographic PDF exported successfully!', 'success');
     }
 
-    // Generate PNG
-    function generateEnhancedPNG() {
+    // Generate Cartographic PNG
+    async function generateCartographicPNG() {
+      // First, ensure Africa boundary data is loaded for locator maps
+      await ensureBoundaryDataLoaded();
+
       const canvas = document.getElementById('downloadCanvas');
       const ctx = canvas.getContext('2d');
-      canvas.width = 1400;
-      canvas.height = 1200;
 
-      ctx.fillStyle = '#f0f9ff';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // Higher resolution for PNG
+      canvas.width = 1800;
+      canvas.height = 1300;
 
+      const layout = getCartographicLayout(canvas.width, canvas.height);
       const bounds = getLocationBounds();
-      const zoom = calculateOptimalZoom(bounds, 800, 500);
+      const zoom = calculateOptimalZoom(bounds, layout.mapArea.width - 60, layout.mapArea.height - 40);
 
-      const mapArea = {
-        x: (canvas.width - 1000) / 2,
-        y: 120,
-        width: 1000,
-        height: 600
-      };
-
-      const tilesNeeded = calculateTileCoverage(bounds, zoom, mapArea.width, mapArea.height);
+      const tilesNeeded = calculateTileCoverage(bounds, zoom, layout.mapArea.width, layout.mapArea.height);
       let tilesLoaded = 0;
-      let totalTiles = tilesNeeded.tiles.length;
+      const totalTiles = tilesNeeded.tiles.length;
 
       if (totalTiles === 0) {
         generateFallbackPNG();
@@ -1479,16 +2642,15 @@
         img.onload = function() {
           tileImages[index] = { img: img, tile: tile };
           tilesLoaded++;
-
           if (tilesLoaded === totalTiles) {
-            drawPNGWithTiles(canvas, ctx, tileImages, tilesNeeded, bounds, mapArea);
+            drawCartographicPNGComplete(canvas, ctx, tileImages, tilesNeeded, bounds, layout);
           }
         };
 
         img.onerror = function() {
           tilesLoaded++;
           if (tilesLoaded === totalTiles) {
-            drawPNGWithTiles(canvas, ctx, tileImages, tilesNeeded, bounds, mapArea);
+            drawCartographicPNGComplete(canvas, ctx, tileImages, tilesNeeded, bounds, layout);
           }
         };
 
@@ -1496,32 +2658,15 @@
       });
     }
 
-    function drawPNGWithTiles(canvas, ctx, tileImages, tilesNeeded, bounds, mapArea) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      ctx.fillStyle = '#f0f9ff';
+    function drawCartographicPNGComplete(canvas, ctx, tileImages, tilesNeeded, bounds, layout) {
+      // Clear canvas
+      ctx.fillStyle = '#fafafa';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Title
-      ctx.fillStyle = '#059669';
-      ctx.font = 'bold 32px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText('Validated Locations Map', canvas.width / 2, 50);
+      // Draw title block
+      drawTitleBlock(ctx, layout, 'Validated Locations Map', `${locationsData.length} Georeferenced Sites | HarmonAIze Platform`);
 
-      ctx.fillStyle = '#6b7280';
-      ctx.font = '18px Arial';
-      ctx.fillText(`${locationsData.length} Validated Locations | Generated: ${new Date().toLocaleDateString()}`, canvas.width / 2, 80);
-
-      // Map container
-      ctx.fillStyle = '#e0f2fe';
-      ctx.fillRect(mapArea.x, mapArea.y, mapArea.width, mapArea.height);
-      ctx.strokeStyle = '#0369a1';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(mapArea.x, mapArea.y, mapArea.width, mapArea.height);
-
-      // Center map content
-      const boundsWidth = bounds.east - bounds.west;
-      const boundsHeight = bounds.north - bounds.south;
+      // Calculate centering
       const mapCenterLng = (bounds.east + bounds.west) / 2;
       const mapCenterLat = (bounds.north + bounds.south) / 2;
 
@@ -1529,10 +2674,19 @@
       const centerPixelX = (centerTileCoords.x - tilesNeeded.minTileX) * 256 + centerTileCoords.pixelX;
       const centerPixelY = (centerTileCoords.y - tilesNeeded.minTileY) * 256 + centerTileCoords.pixelY;
 
-      const offsetX = mapArea.x + (mapArea.width / 2) - centerPixelX;
-      const offsetY = mapArea.y + (mapArea.height / 2) - centerPixelY;
+      const offsetX = layout.mapArea.x + (layout.mapArea.width / 2) - centerPixelX;
+      const offsetY = layout.mapArea.y + (layout.mapArea.height / 2) - centerPixelY;
+
+      // Map background
+      ctx.fillStyle = '#e0f2fe';
+      ctx.fillRect(layout.mapArea.x, layout.mapArea.y, layout.mapArea.width, layout.mapArea.height);
 
       // Draw tiles
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(layout.mapArea.x, layout.mapArea.y, layout.mapArea.width, layout.mapArea.height);
+      ctx.clip();
+
       const drawnTiles = new Set();
       tileImages.forEach((tileData) => {
         if (tileData && tileData.img) {
@@ -1543,62 +2697,97 @@
             drawnTiles.add(tileKey);
             const tilePixelX = offsetX + (tile.x - tilesNeeded.minTileX) * 256;
             const tilePixelY = offsetY + (tile.y - tilesNeeded.minTileY) * 256;
-
-            if (tilePixelX < mapArea.x + mapArea.width && tilePixelY < mapArea.y + mapArea.height &&
-                tilePixelX + 256 > mapArea.x && tilePixelY + 256 > mapArea.y) {
-
-              ctx.save();
-              ctx.beginPath();
-              ctx.rect(mapArea.x, mapArea.y, mapArea.width, mapArea.height);
-              ctx.clip();
-
-              ctx.drawImage(tileData.img, tilePixelX, tilePixelY, 256, 256);
-              ctx.restore();
-            }
+            ctx.drawImage(tileData.img, tilePixelX, tilePixelY, 256, 256);
           }
         }
       });
 
-      // Draw admin boundaries first (below markers)
-      drawBoundariesOnCanvas(ctx, mapArea, tilesNeeded, offsetX, offsetY);
+      ctx.restore();
 
-      // Plot locations
-      locationsData.forEach((location) => {
-        const tileCoords = getTileCoords(location.lat, location.lng, tilesNeeded.zoom);
-        const pixelX = offsetX + (tileCoords.x - tilesNeeded.minTileX) * 256 + tileCoords.pixelX;
-        const pixelY = offsetY + (tileCoords.y - tilesNeeded.minTileY) * 256 + tileCoords.pixelY;
+      // Draw graticule
+      drawGraticule(ctx, layout.mapArea, bounds, tilesNeeded, offsetX, offsetY);
 
-        if (pixelX >= mapArea.x && pixelX <= mapArea.x + mapArea.width &&
-            pixelY >= mapArea.y && pixelY <= mapArea.y + mapArea.height) {
+      // Draw boundaries
+      drawBoundariesOnCanvas(ctx, layout.mapArea, tilesNeeded, offsetX, offsetY);
 
-          ctx.fillStyle = locationColors[location.name];
-          ctx.beginPath();
-          ctx.arc(pixelX, pixelY, 12, 0, 2 * Math.PI);
-          ctx.fill();
+      // Plot locations - either as polygons or point markers based on toggle
+      console.log('=== PNG EXPORT LOCATION PLOTTING ===');
+      console.log('locationPolygonsVisible:', locationPolygonsVisible);
+      console.log('exportLocationPolygonData exists:', !!exportLocationPolygonData);
+      console.log('exportLocationPolygonData features:', exportLocationPolygonData?.features?.length || 0);
 
-          ctx.strokeStyle = '#ffffff';
-          ctx.lineWidth = 3;
-          ctx.stroke();
-        }
-      });
+      if (locationPolygonsVisible && exportLocationPolygonData) {
+        console.log('Drawing location polygons for PNG...');
+        // Draw location polygons
+        drawLocationPolygonsOnCanvas(ctx, layout.mapArea, tilesNeeded, offsetX, offsetY);
+      } else {
+        console.log('Drawing point markers instead for PNG');
+        // Draw point markers
+        locationsData.forEach((location) => {
+          const tileCoords = getTileCoords(location.lat, location.lng, tilesNeeded.zoom);
+          const pixelX = offsetX + (tileCoords.x - tilesNeeded.minTileX) * 256 + tileCoords.pixelX;
+          const pixelY = offsetY + (tileCoords.y - tilesNeeded.minTileY) * 256 + tileCoords.pixelY;
 
-      // Legend
-      let legendY = mapArea.y + mapArea.height + 30;
-      // Add boundary legend first
-      legendY = addBoundaryLegendToExport(ctx, 50, legendY, canvas.width - 100);
-      // Add location legend
-      addLegendToCanvas(ctx, 50, legendY + 20, canvas.width - 100, 120);
+          if (pixelX >= layout.mapArea.x && pixelX <= layout.mapArea.x + layout.mapArea.width &&
+              pixelY >= layout.mapArea.y && pixelY <= layout.mapArea.y + layout.mapArea.height) {
+
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.beginPath();
+            ctx.arc(pixelX + 2, pixelY + 2, 10, 0, 2 * Math.PI);
+            ctx.fill();
+
+            ctx.fillStyle = locationColors[location.name];
+            ctx.beginPath();
+            ctx.arc(pixelX, pixelY, 10, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+          }
+        });
+      }
+
+      // Draw neatline
+      drawNeatline(ctx, layout.mapArea);
+
+      // Draw legend (reduced to make room for two locator maps)
+      drawCartographicLegend(ctx, layout.rightPanel.x, layout.rightPanel.y, layout.rightPanel.width, layout.rightPanel.height * 0.40);
+
+      // Draw two-level locator maps (Africa context + Country detail)
+      const locatorY = layout.rightPanel.y + layout.rightPanel.height * 0.42;
+      const locatorHeight = layout.rightPanel.height * 0.55;
+      drawLocatorMaps(ctx, layout.rightPanel.x, locatorY, layout.rightPanel.width, locatorHeight, bounds);
+
+      // Draw north arrow
+      drawNorthArrow(ctx, layout.mapArea.x + layout.mapArea.width - 40, layout.mapArea.y + 50, 60);
+
+      // Draw scale bar
+      const metersPerPixel = calculateMapScale(bounds, layout.mapArea.width, tilesNeeded.zoom);
+      drawScaleBar(ctx, layout.bottomPanel.x, layout.bottomPanel.y + 20, 250, metersPerPixel);
+
+      // Draw attribution
+      drawAttribution(ctx, layout, bounds, tilesNeeded.zoom);
 
       // Download
       const link = document.createElement('a');
       const prefix = getExportPrefix();
-      link.download = `${prefix}_map_${new Date().toISOString().split('T')[0]}.png`;
+      link.download = `${prefix}_cartographic_map_${new Date().toISOString().split('T')[0]}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
 
       document.getElementById('downloadProgress').classList.remove('show');
-      showMessage('Enhanced PNG downloaded!', 'success');
+      showMessage('Cartographic PNG exported successfully!', 'success');
     }
+
+    // Legacy PDF function name for compatibility
+    function generateEnhancedPDF() {
+      generateCartographicPDF();
+    }
+
+    function generateEnhancedPNG() {
+      generateCartographicPNG();
+    }
+
 
     // Helper functions
     function getLocationBounds() {
@@ -1722,25 +2911,54 @@
       const type = geometry.type;
       const coords = geometry.coordinates;
 
+      console.log('drawGeometry called with type:', type, 'coords length:', coords?.length);
+
       if (type === 'Polygon') {
         drawPolygon(ctx, coords, tilesNeeded, offsetX, offsetY, mapArea);
       } else if (type === 'MultiPolygon') {
-        coords.forEach(polygon => {
+        console.log('MultiPolygon with', coords.length, 'polygons');
+        coords.forEach((polygon, i) => {
+          console.log('Drawing polygon', i, 'with', polygon.length, 'rings');
           drawPolygon(ctx, polygon, tilesNeeded, offsetX, offsetY, mapArea);
         });
+      } else if (type === 'Point') {
+        // Handle Point geometry - draw as a marker
+        console.log('Point geometry at:', coords);
+        const tileCoords = getTileCoords(coords[1], coords[0], tilesNeeded.zoom);
+        const pixelX = offsetX + (tileCoords.x - tilesNeeded.minTileX) * 256 + tileCoords.pixelX;
+        const pixelY = offsetY + (tileCoords.y - tilesNeeded.minTileY) * 256 + tileCoords.pixelY;
+
+        if (pixelX >= mapArea.x && pixelX <= mapArea.x + mapArea.width &&
+            pixelY >= mapArea.y && pixelY <= mapArea.y + mapArea.height) {
+          // Draw point as a circle
+          ctx.beginPath();
+          ctx.arc(pixelX, pixelY, 8, 0, 2 * Math.PI);
+          ctx.fill();
+          ctx.stroke();
+        }
+      } else {
+        console.log('Unknown geometry type:', type);
       }
     }
 
     // Draw a single polygon
     function drawPolygon(ctx, rings, tilesNeeded, offsetX, offsetY, mapArea) {
+      console.log('drawPolygon called with', rings.length, 'rings');
       rings.forEach((ring, ringIndex) => {
         ctx.beginPath();
         let firstPoint = true;
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
 
-        ring.forEach(coord => {
+        ring.forEach((coord, coordIdx) => {
           const tileCoords = getTileCoords(coord[1], coord[0], tilesNeeded.zoom);
           const pixelX = offsetX + (tileCoords.x - tilesNeeded.minTileX) * 256 + tileCoords.pixelX;
           const pixelY = offsetY + (tileCoords.y - tilesNeeded.minTileY) * 256 + tileCoords.pixelY;
+
+          // Track bounds for debugging
+          minX = Math.min(minX, pixelX);
+          maxX = Math.max(maxX, pixelX);
+          minY = Math.min(minY, pixelY);
+          maxY = Math.max(maxY, pixelY);
 
           if (firstPoint) {
             ctx.moveTo(pixelX, pixelY);
@@ -1749,6 +2967,9 @@
             ctx.lineTo(pixelX, pixelY);
           }
         });
+
+        console.log('Ring', ringIndex, 'bounds: x[', minX, '-', maxX, '] y[', minY, '-', maxY, ']');
+        console.log('MapArea bounds: x[', mapArea.x, '-', mapArea.x + mapArea.width, '] y[', mapArea.y, '-', mapArea.y + mapArea.height, ']');
 
         ctx.closePath();
 

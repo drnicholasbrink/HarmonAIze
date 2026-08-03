@@ -1229,6 +1229,19 @@
             <span class="loading-spinner" style="width: 12px; height: 12px; display: inline-block; margin-right: 0.5rem;"></span>
             Loading boundaries...
           </div>
+          <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--border-color);">
+            <div style="font-size: 0.7rem; color: var(--text-secondary); margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.05em;">Spatial Filter</div>
+            <select id="sf-country" onchange="onSfCountryChange()" style="width: 100%; font-size: 0.75rem; padding: 0.3rem; margin-bottom: 0.3rem; background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;">
+              <option value="">All countries</option>
+            </select>
+            <select id="sf-province" onchange="onSfProvinceChange()" disabled style="width: 100%; font-size: 0.75rem; padding: 0.3rem; margin-bottom: 0.3rem; background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px; opacity: 0.5;">
+              <option value="">All provinces</option>
+            </select>
+            <select id="sf-district" disabled style="width: 100%; font-size: 0.75rem; padding: 0.3rem; margin-bottom: 0.4rem; background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px; opacity: 0.5;">
+              <option value="">All districts</option>
+            </select>
+            <button onclick="applySpatialFilter()" style="width: 100%; font-size: 0.75rem; padding: 0.3rem 0.5rem; background: var(--accent-color); color: white; border: none; border-radius: 4px; cursor: pointer;">Apply Filter</button>
+          </div>
         </div>
       </div>
 
@@ -1251,6 +1264,10 @@
           <div class="legend-color" style="background-color: #3b82f6;"></div>
           <span>HDX Health</span>
         </div>
+        <div class="legend-item">
+          <div class="legend-color" style="background-color: #10b981; border-style: dashed;"></div>
+          <span>Admin Boundary</span>
+        </div>
         <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
           <div class="legend-item">
             <div class="legend-color" style="background-color: var(--accent-color); border-color: var(--accent-color); border-width: 3px;"></div>
@@ -1260,15 +1277,15 @@
         <div id="boundary-legend" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color); display: none;">
           <h4 style="margin-bottom: 0.5rem; font-size: 0.85rem; font-weight: 600;">Admin Boundaries</h4>
           <div class="legend-item" id="legend-countries" style="display: none;">
-            <div style="width: 20px; height: 3px; background: #4B0082; margin-right: 0.5rem;"></div>
+            <div style="width: 20px; height: 3px; background: #FFD700; margin-right: 0.5rem;"></div>
             <span>Country borders</span>
           </div>
           <div class="legend-item" id="legend-provinces" style="display: none;">
-            <div style="width: 20px; height: 3px; background: #008080; margin-right: 0.5rem; border-style: dashed;"></div>
+            <div style="width: 20px; height: 3px; background: #00DCFF; margin-right: 0.5rem;"></div>
             <span>Province/State borders</span>
           </div>
           <div class="legend-item" id="legend-districts" style="display: none;">
-            <div style="width: 20px; height: 3px; background: #A0522D; margin-right: 0.5rem; border-style: dotted;"></div>
+            <div style="width: 20px; height: 3px; background: #FF8C00; margin-right: 0.5rem;"></div>
             <span>District borders</span>
           </div>
         </div>
@@ -1491,15 +1508,133 @@
       });
     }
 
+    // Admin boundary polygon layer management
+    let adminBoundaryPolygon = null;
+
+    // Render admin boundary polygon on map
+    function renderAdminBoundaryPolygon(boundaryRef) {
+      if (!boundaryRef) return;
+
+      const { layer_type, feature_index, source_file } = boundaryRef;
+
+      // Build URL with optional source_file parameter for faster lookup
+      let url = `{% url "geolocation:boundary_geometry_api" layer_type="countries" feature_index=0 %}`.replace('countries', layer_type).replace('/0/', `/${feature_index}/`);
+      if (source_file) {
+        url += `?source_file=${encodeURIComponent(source_file)}`;
+      }
+
+      // Fetch the polygon geometry
+      fetch(url)
+        .then(response => response.json())
+        .then(data => {
+          if (!data.success) return;
+
+          // Remove existing polygon layers if any
+          removeAdminBoundaryPolygon();
+
+          // Add the polygon source
+          map.addSource('admin-boundary-match', {
+            type: 'geojson',
+            data: {
+              type: 'Feature',
+              geometry: data.geometry,
+              properties: data.properties
+            }
+          });
+
+          // Add fill layer (semi-transparent)
+          map.addLayer({
+            id: 'admin-boundary-match-fill',
+            type: 'fill',
+            source: 'admin-boundary-match',
+            paint: {
+              'fill-color': '#10b981',
+              'fill-opacity': 0.15
+            }
+          });
+
+          // Add outline layer
+          map.addLayer({
+            id: 'admin-boundary-match-line',
+            type: 'line',
+            source: 'admin-boundary-match',
+            paint: {
+              'line-color': '#10b981',
+              'line-width': 3,
+              'line-dasharray': [2, 1]
+            }
+          });
+
+          adminBoundaryPolygon = true;
+
+          // Fit map to boundary if this is the only/primary source
+          if (currentLocationData.location_type === 'admin_boundary') {
+            const geojson = {
+              type: 'Feature',
+              geometry: data.geometry
+            };
+
+            // Calculate bounds from geometry
+            const bounds = getBoundsFromGeometry(data.geometry);
+            if (bounds) {
+              map.fitBounds(bounds, { padding: 50, maxZoom: 10 });
+            }
+          }
+        })
+        .catch(error => {
+          console.error('Error fetching boundary polygon:', error);
+        });
+    }
+
+    // Remove admin boundary polygon from map
+    function removeAdminBoundaryPolygon() {
+      if (map.getLayer('admin-boundary-match-fill')) {
+        map.removeLayer('admin-boundary-match-fill');
+      }
+      if (map.getLayer('admin-boundary-match-line')) {
+        map.removeLayer('admin-boundary-match-line');
+      }
+      if (map.getSource('admin-boundary-match')) {
+        map.removeSource('admin-boundary-match');
+      }
+      adminBoundaryPolygon = null;
+    }
+
+    // Calculate bounds from GeoJSON geometry
+    function getBoundsFromGeometry(geometry) {
+      const bounds = new mapboxgl.LngLatBounds();
+
+      function addCoords(coords) {
+        if (typeof coords[0] === 'number') {
+          bounds.extend(coords);
+        } else {
+          coords.forEach(addCoords);
+        }
+      }
+
+      if (geometry && geometry.coordinates) {
+        addCoords(geometry.coordinates);
+      }
+
+      return bounds.isEmpty() ? null : bounds;
+    }
+
     // Add markers to map
     function addMarkersToMap() {
       markers.forEach(marker => marker.remove());
       markers = [];
+      removeAdminBoundaryPolygon();
 
       if (!currentLocationData || !currentLocationData.coordinates) return;
 
       const coordinates = currentLocationData.coordinates;
       const bounds = new mapboxgl.LngLatBounds();
+
+      // Check if we have an admin boundary match to render
+      const adminBoundaryCoord = coordinates.find(c => c.source_key === 'admin_boundary');
+      if (adminBoundaryCoord && adminBoundaryCoord.boundary_reference) {
+        renderAdminBoundaryPolygon(adminBoundaryCoord.boundary_reference);
+      }
 
       coordinates.forEach((coord, index) => {
         const el = document.createElement('div');
@@ -1586,9 +1721,19 @@
 
     // Zoom to source
     function zoomToSource(sourceKey, lat, lng) {
+      // For admin_boundary source, show the polygon AND zoom to point
+      if (sourceKey === 'admin_boundary' && currentLocationData) {
+        const adminBoundaryCoord = currentLocationData.coordinates.find(c => c.source_key === 'admin_boundary');
+        if (adminBoundaryCoord && adminBoundaryCoord.boundary_reference) {
+          // Render the polygon (async - will fit bounds when loaded)
+          renderAdminBoundaryPolygon(adminBoundaryCoord.boundary_reference);
+        }
+      }
+
+      // Always zoom to the point (polygon render will override zoom if successful)
       map.flyTo({
         center: [lng, lat],
-        zoom: 18,
+        zoom: 14,  // Lower zoom for admin boundaries so polygon is visible
         duration: 1500,
         essential: true
       });
@@ -1603,10 +1748,10 @@
         url: '{% url "geolocation:admin_boundaries_api" layer_type="countries" %}',
         loaded: false,
         visible: false,
-        fillColor: 'rgba(75, 0, 130, 0.08)',      // Indigo fill
-        lineColor: '#4B0082',                      // Indigo - traditional for national borders
-        lineWidth: 2.5,
-        lineDashArray: null,                       // Solid line for countries
+        fillColor: 'rgba(255, 255, 0, 0.07)',
+        lineColor: '#FFD700',
+        lineWidth: 3,
+        lineDashArray: null,
         nameField: 'NAME_0',
         labelMinZoom: 3,
         labelSize: 14
@@ -1615,10 +1760,10 @@
         url: '{% url "geolocation:admin_boundaries_api" layer_type="provinces" %}',
         loaded: false,
         visible: false,
-        fillColor: 'rgba(0, 128, 128, 0.06)',     // Teal fill
-        lineColor: '#008080',                      // Teal - for state/province level
-        lineWidth: 1.8,
-        lineDashArray: [4, 2],                     // Dashed line for provinces
+        fillColor: 'rgba(0, 220, 255, 0.08)',
+        lineColor: '#00DCFF',
+        lineWidth: 2.2,
+        lineDashArray: null,
         nameField: 'name',
         labelMinZoom: 5,
         labelSize: 12
@@ -1627,10 +1772,10 @@
         url: '{% url "geolocation:admin_boundaries_api" layer_type="districts" %}',
         loaded: false,
         visible: false,
-        fillColor: 'rgba(160, 82, 45, 0.05)',     // Sienna fill
-        lineColor: '#A0522D',                      // Sienna - for district/local level
-        lineWidth: 1.2,
-        lineDashArray: [2, 2],                     // Dotted line for districts
+        fillColor: 'rgba(255, 140, 0, 0.07)',
+        lineColor: '#FF8C00',
+        lineWidth: 1.6,
+        lineDashArray: null,
         nameField: 'name',
         labelMinZoom: 7,
         labelSize: 10
@@ -1670,6 +1815,95 @@
       }
     }
 
+    // Spatial filter state
+    let currentSpatialFilter = {};
+
+    function initSpatialFilter() {
+      fetch('{% url "geolocation:spatial_filter_api" %}?action=countries')
+        .then(r => r.json())
+        .then(data => {
+          const sel = document.getElementById('sf-country');
+          (data.countries || []).sort().forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c;
+            opt.textContent = c;
+            sel.appendChild(opt);
+          });
+        })
+        .catch(() => {});
+    }
+
+    function onSfCountryChange() {
+      const country = document.getElementById('sf-country').value;
+      const provSel = document.getElementById('sf-province');
+      const distSel = document.getElementById('sf-district');
+      provSel.innerHTML = '<option value="">All provinces</option>';
+      distSel.innerHTML = '<option value="">All districts</option>';
+      provSel.disabled = !country;
+      provSel.style.opacity = country ? '1' : '0.5';
+      distSel.disabled = true;
+      distSel.style.opacity = '0.5';
+      if (!country) return;
+      fetch(`{% url "geolocation:spatial_filter_api" %}?action=provinces&country=${encodeURIComponent(country)}`)
+        .then(r => r.json())
+        .then(data => {
+          (data.provinces || []).forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p;
+            opt.textContent = p;
+            provSel.appendChild(opt);
+          });
+        })
+        .catch(() => {});
+    }
+
+    function onSfProvinceChange() {
+      const country = document.getElementById('sf-country').value;
+      const province = document.getElementById('sf-province').value;
+      const distSel = document.getElementById('sf-district');
+      distSel.innerHTML = '<option value="">All districts</option>';
+      distSel.disabled = !province;
+      distSel.style.opacity = province ? '1' : '0.5';
+      if (!province) return;
+      fetch(`{% url "geolocation:spatial_filter_api" %}?action=districts&country=${encodeURIComponent(country)}&province=${encodeURIComponent(province)}`)
+        .then(r => r.json())
+        .then(data => {
+          (data.districts || []).forEach(d => {
+            const opt = document.createElement('option');
+            opt.value = d;
+            opt.textContent = d;
+            distSel.appendChild(opt);
+          });
+        })
+        .catch(() => {});
+    }
+
+    function applySpatialFilter() {
+      const country = document.getElementById('sf-country').value;
+      const province = document.getElementById('sf-province').value;
+      const district = document.getElementById('sf-district').value;
+      currentSpatialFilter = {};
+      if (country) currentSpatialFilter.country = country;
+      if (province) currentSpatialFilter.province = province;
+      if (district) currentSpatialFilter.district = district;
+
+      // Reload all currently loaded boundary layers with the new filter
+      ['countries', 'provinces', 'districts'].forEach(lt => {
+        const cfg = boundaryLayers[lt];
+        if (cfg.loaded) {
+          ['fill', 'line', 'label'].forEach(suffix => {
+            if (map.getLayer(`${lt}-${suffix}`)) map.removeLayer(`${lt}-${suffix}`);
+          });
+          if (map.getSource(`${lt}-source`)) map.removeSource(`${lt}-source`);
+          cfg.loaded = false;
+          if (cfg.visible) loadBoundaryLayer(lt);
+        }
+      });
+
+      const label = country ? country + (province ? ` / ${province}` : '') + (district ? ` / ${district}` : '') : 'All';
+      showMessage(`Boundary filter: ${label}`, 'success');
+    }
+
     // Load and add boundary GeoJSON layer
     function loadBoundaryLayer(layerType) {
       const config = boundaryLayers[layerType];
@@ -1678,7 +1912,13 @@
       // Show loading indicator
       if (loadingEl) loadingEl.style.display = 'block';
 
-      fetch(config.url)
+      // Apply country filter for faster loading of province/district layers
+      let url = config.url;
+      if (currentSpatialFilter.country && layerType !== 'countries') {
+        url += '?country=' + encodeURIComponent(currentSpatialFilter.country);
+      }
+
+      fetch(url)
         .then(response => {
           if (!response.ok) {
             return response.json().then(err => {
@@ -1744,7 +1984,7 @@
                 8, config.lineWidth,
                 12, config.lineWidth * 1.5
               ],
-              'line-opacity': 0.85
+              'line-opacity': 1.0
             };
 
             const lineLayout = {};
@@ -2015,6 +2255,15 @@
           loadBoundaryLayer(layerType);
         }
       });
+
+      // Re-add admin boundary match polygon if it was showing
+      if (currentLocationData) {
+        const adminBoundaryCoord = currentLocationData.coordinates.find(c => c.source_key === 'admin_boundary');
+        if (adminBoundaryCoord && adminBoundaryCoord.boundary_reference) {
+          setTimeout(() => renderAdminBoundaryPolygon(adminBoundaryCoord.boundary_reference), 200);
+        }
+      }
+
       // Update legend after re-adding layers
       setTimeout(updateBoundaryLegend, 500);
     }
@@ -2022,6 +2271,7 @@
     // Initialize map
     map.on('load', function() {
       addMarkersToMap();
+      initSpatialFilter();
     });
 
     // Validation functions

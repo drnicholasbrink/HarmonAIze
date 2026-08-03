@@ -74,7 +74,7 @@
                 <select name="latitude_column" class="form-select">
                   <option value="">-- No latitude column --</option>
                   {% for col in columns %}
-                    {% if col.inferred_type == 'float' or col.inferred_type == 'integer' %}
+                    {% if col.inferred_type == 'float' or col.inferred_type == 'integer' or col.is_potential_latitude %}
                       <option value="{{ col.column_name }}"
                         {% if suggestions.latitude == col.column_name %}selected{% endif %}
                         {% if col.is_potential_latitude %}style="font-weight: bold; background-color: #e7f3ff;"{% endif %}>
@@ -101,7 +101,7 @@
                 <select name="longitude_column" class="form-select">
                   <option value="">-- No longitude column --</option>
                   {% for col in columns %}
-                    {% if col.inferred_type == 'float' or col.inferred_type == 'integer' %}
+                    {% if col.inferred_type == 'float' or col.inferred_type == 'integer' or col.is_potential_longitude %}
                       <option value="{{ col.column_name }}"
                         {% if suggestions.longitude == col.column_name %}selected{% endif %}
                         {% if col.is_potential_longitude %}style="font-weight: bold; background-color: #e7f3ff;"{% endif %}>

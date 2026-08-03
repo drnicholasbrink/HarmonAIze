@@ -18,6 +18,14 @@ from django.core.cache import cache
 from .models import GeocodingResult, ValidationResult
 from .llm_enhancement import get_llm_enhancer
 
+try:
+    from .admin_boundary_service import get_admin_boundary_geocoder
+    ADMIN_BOUNDARY_AVAILABLE = True
+except ImportError as e:
+    ADMIN_BOUNDARY_AVAILABLE = False
+    get_admin_boundary_geocoder = None
+    logging.getLogger(__name__).warning(f"Admin boundary service not available: {e}")
+
 logger = logging.getLogger(__name__)
 
 
@@ -88,11 +96,34 @@ class SmartGeocodingValidator:
         parsed_location = geocoding_result.parsed_location_data or {}
         bounds_validation = self._validate_coordinates_dynamically(coordinates, parsed_location)
 
+        # Perform admin boundary validation for each coordinate
+        admin_boundary_validation = self._validate_coordinates_against_boundaries(
+            coordinates,
+            parsed_location
+        )
+
+        # Store boundary validation result on the geocoding result
+        if admin_boundary_validation.get('has_issues'):
+            geocoding_result.boundary_validation = admin_boundary_validation
+            geocoding_result.save(update_fields=['boundary_validation'])
+
         individual_scores = self._calculate_individual_source_scores(
             coordinates,
             reverse_geocoding_results,
             geocoding_result.location_name
         )
+
+        # Apply boundary validation penalties to individual scores
+        for source, score_data in individual_scores.items():
+            source_validation = admin_boundary_validation.get('source_results', {}).get(source, {})
+            if source_validation.get('severity') == 'critical':
+                # Severely penalize coordinates in wrong country
+                score_data['individual_confidence'] *= 0.3
+                score_data['boundary_warning'] = source_validation.get('warnings', [])
+            elif source_validation.get('severity') == 'major':
+                # Moderately penalize coordinates in wrong province
+                score_data['individual_confidence'] *= 0.6
+                score_data['boundary_warning'] = source_validation.get('warnings', [])
 
         best_source, best_score, overall_confidence = self._determine_best_source(individual_scores)
 
@@ -147,6 +178,7 @@ class SmartGeocodingValidator:
             'individual_scores': individual_scores,
             'reverse_geocoding_results': reverse_geocoding_results,
             'bounds_validation': bounds_validation,
+            'admin_boundary_validation': admin_boundary_validation,
             'parsed_location': parsed_location,
             'best_source': best_source,
             'best_score': best_score,
@@ -173,15 +205,15 @@ class SmartGeocodingValidator:
     def _extract_coordinates(self, result: GeocodingResult) -> Dict[str, Tuple[float, float]]:
         """Extract all successful coordinates from geocoding result."""
         coordinates = {}
-        
-        sources = ['hdx', 'arcgis', 'google', 'nominatim']
+
+        sources = ['hdx', 'arcgis', 'google', 'nominatim', 'admin_boundary', 'user_provided']
         for source in sources:
             if getattr(result, f"{source}_success", False):
                 lat = getattr(result, f"{source}_lat")
-                lng = getattr(result, f"{source}_lng") 
+                lng = getattr(result, f"{source}_lng")
                 if lat is not None and lng is not None:
                     coordinates[source] = (lat, lng)
-        
+
         return coordinates
     
     def _wait_for_osm_rate_limit(self):
@@ -227,7 +259,7 @@ class SmartGeocodingValidator:
                 'User-Agent': 'HarmonAIze-Geocoder/1.0 (harmonaize@ceshhar.co.zw)'
             }
 
-            response = requests.get(url, params=params, headers=headers, timeout=3)
+            response = requests.get(url, params=params, headers=headers, timeout=10)
             response.raise_for_status()
             data = response.json()
 
@@ -256,7 +288,7 @@ class SmartGeocodingValidator:
                 "key": key
             }
 
-            response = requests.get(url, params=params, timeout=3)
+            response = requests.get(url, params=params, timeout=10)
             response.raise_for_status()
             data = response.json()
 
@@ -288,7 +320,7 @@ class SmartGeocodingValidator:
                 "outSR": 4326
             }
 
-            response = requests.get(url, params=params, timeout=3)
+            response = requests.get(url, params=params, timeout=10)
             response.raise_for_status()
             data = response.json()
 
@@ -338,6 +370,14 @@ class SmartGeocodingValidator:
             hdx_facility_name = geocoding_result.hdx_facility_match.facility_name
             logger.info(f"HDX: Using matched facility name directly: '{hdx_facility_name}'")
 
+        # Get admin boundary name and country if available (no reverse geocoding for polygon centroids)
+        admin_boundary_name = None
+        admin_boundary_country = None
+        if geocoding_result and hasattr(geocoding_result, 'admin_boundary_match') and geocoding_result.admin_boundary_match:
+            admin_boundary_name = geocoding_result.admin_boundary_match.get('name', '')
+            admin_boundary_country = geocoding_result.admin_boundary_match.get('country', '')
+            logger.info(f"ADMIN_BOUNDARY: Using matched boundary name: '{admin_boundary_name}' in {admin_boundary_country} (skip reverse geocoding)")
+
         # Define reverse geocoding task function
         def reverse_geocode_source(source: str, lat: float, lng: float):
             """Reverse geocode a single source using its matching API."""
@@ -361,6 +401,47 @@ class SmartGeocodingValidator:
                         # Fallback to Nominatim if no HDX facility match
                         reverse_result = self._reverse_geocode_nominatim(lat, lng)
                         address_key = 'display_name'
+                elif source == 'admin_boundary':
+                    # Admin Boundary: Use the matched boundary name directly
+                    # No reverse geocoding needed - polygon centroids don't have street addresses
+                    if admin_boundary_name:
+                        # Build full address with country if available (helps LLM sanity check)
+                        full_address = admin_boundary_name
+                        if admin_boundary_country:
+                            full_address = f"{admin_boundary_name}, {admin_boundary_country}"
+
+                        reverse_result = {'boundary_name': full_address}
+                        address_key = 'boundary_name'
+
+                        # Special handling for admin boundary similarity:
+                        # Check if boundary name is contained in the original query
+                        # "Arada" matching "Arada, ETH, Hossana" should be HIGH confidence
+                        boundary_lower = admin_boundary_name.lower()
+                        query_lower = original_name.lower()
+
+                        # If boundary name is in the query, it's a strong match
+                        if boundary_lower in query_lower:
+                            # Calculate position bonus - earlier in string = better match
+                            position = query_lower.find(boundary_lower)
+                            position_bonus = 0.1 if position == 0 else 0.05
+
+                            # High similarity since boundary name is in the query
+                            admin_similarity = 0.85 + position_bonus
+
+                            return (source, {
+                                'api': 'admin_boundary',
+                                'address': full_address,
+                                'similarity_score': admin_similarity,
+                                'confidence': 0.85,  # High confidence for admin boundary match
+                                'llm_used': False,
+                                'source_matched': source,
+                                'place_type': 'admin_boundary',
+                                'match_reason': f'Boundary "{admin_boundary_name}" found in query',
+                                'country': admin_boundary_country
+                            })
+                    else:
+                        # No boundary name available
+                        return (source, None)
                 else:
                     return (source, None)
 
@@ -831,6 +912,72 @@ class SmartGeocodingValidator:
             return f"Good validation with {best_score:.0%} confidence from {source_count} sources."
         else:
             return f"Low confidence ({best_score:.0%}) from {source_count} sources - manual verification recommended."
+
+    def _validate_coordinates_against_boundaries(
+        self,
+        coordinates: Dict[str, Tuple[float, float]],
+        parsed_location: Dict
+    ) -> Dict:
+        """
+        Validate coordinates against admin boundaries using point-in-polygon checks.
+
+        Uses the AdminBoundaryGeocoder to verify coordinates fall within expected
+        country and province boundaries.
+
+        Args:
+            coordinates: Dict mapping source names to (lat, lng) tuples
+            parsed_location: Parsed location data with country/province info
+
+        Returns:
+            Dict with validation results per source and overall status
+        """
+        result = {
+            'has_issues': False,
+            'source_results': {},
+            'summary': []
+        }
+
+        # Check if admin boundary service is available
+        if not ADMIN_BOUNDARY_AVAILABLE:
+            return result
+
+        # Get expected country/province from parsed location
+        expected_country = parsed_location.get('country')
+        expected_province = parsed_location.get('admin_level_1') or parsed_location.get('state_province')
+
+        if not expected_country:
+            # Try to get from LLM parsed data
+            llm_parsed = parsed_location.get('llm_parsed', {})
+            expected_country = llm_parsed.get('country')
+
+        if not expected_country:
+            # No expected country to validate against
+            return result
+
+        try:
+            geocoder = get_admin_boundary_geocoder()
+
+            for source, (lat, lng) in coordinates.items():
+                validation = geocoder.validate_point_in_boundary(
+                    lat=lat,
+                    lng=lng,
+                    expected_country=expected_country,
+                    expected_province=expected_province
+                )
+
+                result['source_results'][source] = validation
+
+                if not validation['is_valid']:
+                    result['has_issues'] = True
+                    for warning in validation.get('warnings', []):
+                        if warning not in result['summary']:
+                            result['summary'].append(warning)
+
+        except Exception as e:
+            logger.warning(f"Boundary validation failed: {e}")
+            result['error'] = str(e)
+
+        return result
 
     def _validate_coordinates_dynamically(self,
                                           coordinates: Dict[str, Tuple[float, float]],

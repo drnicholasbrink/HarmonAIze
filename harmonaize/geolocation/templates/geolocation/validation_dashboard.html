@@ -882,7 +882,7 @@
       .then(data => {
         if (data.success) {
           // Start monitoring Celery task progress
-          monitorGeocodingTask(data.task_id, btn);
+          monitorGeocodingTask(data.monitor_url, btn);
           showMessage('Batch geocoding started successfully!', 'success');
         } else {
           resetGeocodingUI(btn);
@@ -914,7 +914,7 @@
         .then(data => {
           if (data.success) {
             // Start monitoring Celery task progress
-            monitorValidationTask(data.task_id, btn);
+            monitorValidationTask(data.monitor_url, btn);
             showMessage('Batch validation started successfully!', 'success');
           } else {
             btn.disabled = false;
@@ -1039,10 +1039,10 @@
     }
 
     // Celery task monitoring functions
-    function monitorGeocodingTask(taskId, btn) {
+    function monitorGeocodingTask(monitorUrl, btn) {
       const poll = async () => {
         try {
-          const response = await fetch(`/geolocation/batch-progress/${taskId}/`);
+          const response = await fetch(monitorUrl);
           const data = await response.json();
 
           updateGeocodingProgress(data);
@@ -1115,10 +1115,10 @@
       }
     }
 
-    function monitorValidationTask(taskId, btn) {
+    function monitorValidationTask(monitorUrl, btn) {
       const poll = async () => {
         try {
-          const response = await fetch(`/geolocation/batch-progress/${taskId}/`);
+          const response = await fetch(monitorUrl);
           const data = await response.json();
 
           // Update progress display if needed

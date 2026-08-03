@@ -132,6 +132,12 @@ class GeocodingResult(models.Model):
         ('needs_review', 'Needs Manual Review'),
     ]
 
+    LOCATION_TYPE_CHOICES = [
+        ('point', 'Point'),
+        ('admin_boundary', 'Admin Boundary'),
+        ('unknown', 'Unknown'),
+    ]
+
     # Link to core Location model
     location = models.ForeignKey(
         Location,
@@ -148,6 +154,14 @@ class GeocodingResult(models.Model):
     )
 
     location_name = models.CharField(max_length=500, db_index=True)
+
+    # Location type (point vs admin boundary)
+    location_type = models.CharField(
+        max_length=20,
+        choices=LOCATION_TYPE_CHOICES,
+        default='unknown',
+        help_text="Type of location: point (facility/POI) or admin_boundary (province/district)"
+    )
 
     # ArcGIS Results
     arcgis_lat = models.FloatField(null=True, blank=True)
@@ -183,6 +197,51 @@ class GeocodingResult(models.Model):
         help_text="Matched HDX facility if found"
     )
 
+    # User-Provided Coordinates (from CSV upload - treated as an independent source)
+    user_provided_lat = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Latitude provided directly in the uploaded CSV file"
+    )
+    user_provided_lng = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Longitude provided directly in the uploaded CSV file"
+    )
+    user_provided_success = models.BooleanField(default=False)
+    user_provided_error = models.TextField(blank=True)
+
+    # Admin Boundary Results (5th geocoding source)
+    admin_boundary_lat = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Centroid latitude from admin boundary match"
+    )
+    admin_boundary_lng = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Centroid longitude from admin boundary match"
+    )
+    admin_boundary_success = models.BooleanField(default=False)
+    admin_boundary_error = models.TextField(blank=True)
+    admin_boundary_match = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Boundary match details: {source_file, feature_index, osm_id, name, admin_level}"
+    )
+    admin_level = models.CharField(
+        max_length=10,
+        blank=True,
+        help_text="Administrative level (e.g., '2' for country, '4' for province, '6' for district)"
+    )
+
+    # Boundary validation result (for point-in-polygon checks)
+    boundary_validation = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Validation result from boundary checking: {is_valid, actual_country, warnings, severity}"
+    )
+
     validation_status = models.CharField(
         max_length=20,
         choices=VALIDATION_STATUS_CHOICES,
@@ -204,6 +263,16 @@ class GeocodingResult(models.Model):
         null=True,
         blank=True,
         help_text="Parsed location components (country, city, facility) from intelligent parsing"
+    )
+
+    # Per-source comparison metrics relative to validated ground truth
+    source_comparison_metrics = models.JSONField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Computed after validation: per-source distance to ground truth, accuracy flags, "
+            "and inter-source pairwise distances. Used for research/paper metrics."
+        )
     )
 
     # Metadata
@@ -231,7 +300,9 @@ class GeocodingResult(models.Model):
             self.arcgis_success,
             self.google_success,
             self.nominatim_success,
-            self.hdx_success
+            self.hdx_success,
+            self.admin_boundary_success,
+            self.user_provided_success,
         ])
 
     @property
@@ -246,6 +317,10 @@ class GeocodingResult(models.Model):
             apis.append('nominatim')
         if self.hdx_success:
             apis.append('hdx')
+        if self.admin_boundary_success:
+            apis.append('admin_boundary')
+        if self.user_provided_success:
+            apis.append('user_provided')
         return apis
 
     @property
@@ -260,7 +335,104 @@ class GeocodingResult(models.Model):
             results['nominatim'] = {'lat': self.nominatim_lat, 'lng': self.nominatim_lng}
         if self.hdx_success:
             results['hdx'] = {'lat': self.hdx_lat, 'lng': self.hdx_lng}
+        if self.admin_boundary_success:
+            results['admin_boundary'] = {
+                'lat': self.admin_boundary_lat,
+                'lng': self.admin_boundary_lng,
+                'match': self.admin_boundary_match,
+                'admin_level': self.admin_level
+            }
         return results
+
+    def compute_source_comparison_metrics(self, final_lat, final_lng, selected_source):
+        """
+        Compute and persist per-source accuracy metrics relative to the accepted ground truth.
+
+        Called immediately after a location is validated so that research exports and
+        aggregate metrics endpoints always have pre-computed per-source data available.
+
+        Stores distances to ground truth, accuracy flags at 1 km and 5 km thresholds,
+        and pairwise inter-source distances for every source that returned coordinates.
+        """
+        import math
+        from django.utils import timezone
+
+        def _haversine_km(lat1, lng1, lat2, lng2):
+            lat1, lng1, lat2, lng2 = map(math.radians, [lat1, lng1, lat2, lng2])
+            a = (math.sin((lat2 - lat1) / 2) ** 2
+                 + math.cos(lat1) * math.cos(lat2) * math.sin((lng2 - lng1) / 2) ** 2)
+            return 2 * math.asin(math.sqrt(a)) * 6371
+
+        all_sources = ['hdx', 'arcgis', 'google', 'nominatim', 'admin_boundary', 'user_provided']
+        source_metrics = {}
+
+        for source in all_sources:
+            succeeded = getattr(self, f"{source}_success", False)
+            s_lat = getattr(self, f"{source}_lat", None)
+            s_lng = getattr(self, f"{source}_lng", None)
+
+            if succeeded and s_lat is not None and s_lng is not None:
+                dist_km = _haversine_km(s_lat, s_lng, final_lat, final_lng)
+                source_metrics[source] = {
+                    'succeeded': True,
+                    'coordinates': {'lat': s_lat, 'lng': s_lng},
+                    'distance_to_ground_truth_km': round(dist_km, 3),
+                    'is_accurate_1km': dist_km <= 1.0,
+                    'is_accurate_5km': dist_km <= 5.0,
+                    'is_selected': source == selected_source,
+                }
+            else:
+                source_metrics[source] = {
+                    'succeeded': False,
+                    'coordinates': None,
+                    'distance_to_ground_truth_km': None,
+                    'is_accurate_1km': None,
+                    'is_accurate_5km': None,
+                    'is_selected': source == selected_source,
+                }
+
+        # Pairwise inter-source distances (all succeeded sources)
+        succeeded_sources = {s: m for s, m in source_metrics.items() if m['succeeded']}
+        names = list(succeeded_sources.keys())
+        pairwise = []
+        for i in range(len(names)):
+            for j in range(i + 1, len(names)):
+                s1, s2 = names[i], names[j]
+                c1 = succeeded_sources[s1]['coordinates']
+                c2 = succeeded_sources[s2]['coordinates']
+                pairwise.append({
+                    'sources': [s1, s2],
+                    'distance_km': round(_haversine_km(c1['lat'], c1['lng'], c2['lat'], c2['lng']), 3),
+                })
+
+        max_inter_km = max((p['distance_km'] for p in pairwise), default=0.0)
+
+        sources_within_1km = [s for s, m in source_metrics.items() if m['is_accurate_1km']]
+        sources_within_5km = [s for s, m in source_metrics.items() if m['is_accurate_5km']]
+        sources_beyond_5km = [s for s, m in source_metrics.items()
+                               if m['succeeded'] and not m['is_accurate_5km']]
+
+        self.source_comparison_metrics = {
+            'computed_at': timezone.now().isoformat(),
+            'ground_truth': {'lat': final_lat, 'lng': final_lng, 'source': selected_source},
+            'source_metrics': source_metrics,
+            'inter_source_distances': pairwise,
+            'summary': {
+                'total_sources_attempted': len(all_sources),
+                'total_sources_succeeded': len(succeeded_sources),
+                'sources_failed': len(all_sources) - len(succeeded_sources),
+                'sources_accurate_within_1km': len(sources_within_1km),
+                'sources_accurate_within_5km': len(sources_within_5km),
+                'sources_beyond_5km_count': len(sources_beyond_5km),
+                'max_inter_source_distance_km': round(max_inter_km, 3),
+                'has_discrepancy_beyond_5km': max_inter_km > 5.0,
+                'sources_within_1km': sources_within_1km,
+                'sources_within_5km': sources_within_5km,
+                'sources_beyond_5km': sources_beyond_5km,
+            },
+        }
+        self.save(update_fields=['source_comparison_metrics'])
+        return self.source_comparison_metrics
 
 
 class ValidationResult(models.Model):

@@ -4,16 +4,18 @@ Utility functions for location CSV upload and processing.
 Follows patterns from health/utils.py for consistency.
 """
 
+import io
 import pandas as pd
 from typing import Dict, List, Any
 
 
-def analyze_location_csv_columns(file_path: str) -> Dict[str, Any]:
+def analyze_location_csv_columns(file_obj, file_ext: str = None) -> Dict[str, Any]:
     """
     Analyze location CSV columns for type inference and preview.
 
     Args:
-        file_path: Path to the CSV/Excel/JSON file
+        file_obj: File-like object or path string
+        file_ext: File extension (csv, xlsx, xls, json). If None, inferred from file_obj if it's a string path.
 
     Returns:
         Dictionary containing:
@@ -23,20 +25,36 @@ def analyze_location_csv_columns(file_path: str) -> Dict[str, Any]:
         - column_analysis: dict with metadata for each column
     """
     try:
-        file_ext = file_path.split('.')[-1].lower()
+        if file_ext is None and isinstance(file_obj, str):
+            file_ext = file_obj.split('.')[-1].lower()
+
+        file_ext = file_ext.lower()
 
         # Read sample for analysis (first 100 rows for speed)
         if file_ext == 'csv':
-            df = pd.read_csv(file_path, nrows=100)
-            # Count total rows efficiently
-            with open(file_path, 'r', encoding='utf-8') as f:
-                total_rows = sum(1 for _ in f) - 1  # Subtract header
+            if isinstance(file_obj, (str, bytes)):
+                df = pd.read_csv(file_obj, nrows=100)
+                df_full = pd.read_csv(file_obj)
+            else:
+                content = file_obj.read()
+                df = pd.read_csv(io.BytesIO(content), nrows=100)
+                df_full = pd.read_csv(io.BytesIO(content))
+            total_rows = len(df_full)
         elif file_ext in ['xlsx', 'xls']:
-            df = pd.read_excel(file_path, nrows=100)
-            df_full = pd.read_excel(file_path, usecols=[0])
+            if isinstance(file_obj, (str, bytes)):
+                df = pd.read_excel(file_obj, nrows=100)
+                df_full = pd.read_excel(file_obj, usecols=[0])
+            else:
+                content = file_obj.read()
+                df = pd.read_excel(io.BytesIO(content), nrows=100)
+                df_full = pd.read_excel(io.BytesIO(content), usecols=[0])
             total_rows = len(df_full)
         elif file_ext == 'json':
-            df = pd.read_json(file_path, lines=True, nrows=100)
+            if isinstance(file_obj, (str, bytes)):
+                df = pd.read_json(file_obj, lines=True, nrows=100)
+            else:
+                content = file_obj.read()
+                df = pd.read_json(io.BytesIO(content), lines=True, nrows=100)
             total_rows = 100  # Approximate for JSON
         else:
             return {

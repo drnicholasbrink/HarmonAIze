@@ -16,6 +16,7 @@ urlpatterns = [
     path('validated-map/', views.validated_locations_map, name='validated_locations_map'),
     path('validated-map/download-csv/', views.download_validated_locations_csv, name='download_validated_locations_csv'),
     path('validated-map/download-shapefile/', views.download_validated_locations_shapefile, name='download_validated_locations_shapefile'),
+    path('validated-map/download-geojson/', views.download_validated_locations_geojson, name='download_validated_locations_geojson'),
 
     # Location CSV Upload workflow
     path('upload-csv/', views.upload_location_csv, name='upload_location_csv'),
@@ -23,10 +24,14 @@ urlpatterns = [
     path('upload-csv/<int:upload_id>/ingest/', views.ingest_location_csv, name='ingest_location_csv'),
     path('upload-csv/<int:upload_id>/delete/', views.delete_location_csv_upload, name='delete_location_csv_upload'),
 
+    path('api/spatial-filter/', views.spatial_filter_api, name='spatial_filter_api'),
+    path('api/boundaries/<str:layer_type>/', views.admin_boundaries_api, name='admin_boundaries_api'),
+    path('api/boundary-geometry/<str:layer_type>/<int:feature_index>/', views.boundary_geometry_api, name='boundary_geometry_api'),
     path('api/validation/', views.validation_api, name='validation_api'),
     path('api/geocoding/', views.geocoding_api, name='geocoding_api'),
     path('api/bulk-actions/', views.bulk_validation_actions, name='bulk_validation_actions'),
     path('api/statistics/', views.validation_statistics, name='validation_statistics'),
+    path('api/research-metrics/', views.research_metrics_api, name='research_metrics_api'),
     path('api/location-status/', views.location_status_api, name='location_status_api'),
     path('api/validation-queue/', views.validation_queue_api, name='validation_queue_api'),
     path('api/manual-coordinate-update/', views.manual_coordinate_update, name='manual_coordinate_update'),

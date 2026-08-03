@@ -11,13 +11,22 @@ import os
 import time
 import requests
 import logging
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FuturesTimeoutError
 from django.conf import settings
 from django.db.models import Q
 from django.core.cache import cache
 
 from .models import ValidatedDataset, GeocodingResult, HDXHealthFacility
 from .llm_enhancement import get_llm_enhancer
+
+try:
+    from .admin_boundary_service import get_admin_boundary_geocoder
+    ADMIN_BOUNDARY_AVAILABLE = True
+except ImportError as e:
+    ADMIN_BOUNDARY_AVAILABLE = False
+    get_admin_boundary_geocoder = None
+    import logging
+    logging.getLogger(__name__).warning(f"Admin boundary service not available: {e}")
 
 try:
     from fuzzywuzzy import fuzz, process
@@ -133,6 +142,51 @@ class GeocodingService:
                 variants.append(main_part)
 
         return variants
+
+    def _strip_facility_type_suffix(self, name):
+        """
+        Strip common facility type suffixes to get the unique identifying name.
+
+        This prevents false matches like "MBAVI HEALTH CENTRE" matching
+        "Londuimbali Health Centre" just because they share "Health Centre".
+
+        Returns the core facility name without the type suffix.
+        """
+        if not name:
+            return name
+
+        # Common facility type suffixes (case-insensitive)
+        # Order matters - check longer phrases first
+        suffixes = [
+            # Health facilities
+            'district hospital', 'central hospital', 'general hospital',
+            'mission hospital', 'rural hospital', 'private hospital',
+            'teaching hospital', 'referral hospital',
+            'health centre', 'health center', 'health post',
+            'medical centre', 'medical center',
+            'maternity hospital', 'maternity clinic',
+            'community hospital', 'community clinic', 'community health centre',
+            'hospital', 'clinic', 'dispensary', 'infirmary',
+            # Variations
+            'hc', 'hosp', 'med center', 'med centre',
+        ]
+
+        name_lower = name.lower().strip()
+        core_name = name.strip()
+
+        for suffix in suffixes:
+            if name_lower.endswith(suffix):
+                # Remove the suffix
+                core_name = name[:len(name) - len(suffix)].strip()
+                # Also remove trailing punctuation/whitespace
+                core_name = core_name.rstrip(' -.,')
+                break
+
+        # If we stripped everything, return original
+        if not core_name or len(core_name) < 2:
+            return name.strip()
+
+        return core_name
 
     def _extract_country_smart(self, location_name):
         """Extract country using pycountry and return clean location."""
@@ -366,7 +420,7 @@ class GeocodingService:
 
         return None
 
-    def geocode_single_location(self, location, force_reprocess=False, user=None):
+    def geocode_single_location(self, location, force_reprocess=False, user=None, spatial_filter=None):
         """
         Geocode a single location using all available sources.
         This extracts the core logic from the management command.
@@ -377,13 +431,13 @@ class GeocodingService:
             user: User model instance (required for creating GeocodingResult)
         """
 
+        has_user_coords = location.latitude is not None and location.longitude is not None
+
         if not force_reprocess:
             existing_result = GeocodingResult.objects.filter(
                 location_name__iexact=location.name
             ).first()
 
-            # Only use cached result if we have multiple successful APIs
-            # If only HDX succeeded, re-query to try getting ArcGIS/Google/Nominatim
             if existing_result:
                 successful_count = sum([
                     existing_result.hdx_success,
@@ -391,38 +445,24 @@ class GeocodingService:
                     existing_result.google_success,
                     existing_result.nominatim_success
                 ])
+                user_provided_already = existing_result.user_provided_success
 
-                if successful_count >= 2:
+                if successful_count >= 2 and (not has_user_coords or user_provided_already):
                     logger.info(f"Using cached result for '{location.name}' ({successful_count} APIs successful)")
                     return existing_result
-                elif successful_count == 1:
-                    logger.warning(f"Only 1 API succeeded for '{location.name}' - re-querying all APIs")
-                    # Delete and re-geocode to try all APIs again
+                elif user_provided_already:
+                    # Has user-provided coordinates but still needs API sources — preserve this
+                    # record so geocode_location_full can add API results alongside the
+                    # user-provided ones rather than losing the user's coordinates.
+                    logger.info(f"Re-geocoding '{location.name}' — adding API sources to existing user-provided coordinates")
+                else:
+                    logger.warning(f"Re-geocoding '{location.name}' - needs more sources or user coords not yet captured")
                     existing_result.delete()
 
-        # Step 1: Check validated dataset first
-        validated_result = self.check_validated_dataset(location)
-        if validated_result:
-            # Create geocoding result from validated data
-            geocoding_result, created = GeocodingResult.objects.get_or_create(
-                location_name=location.name,
-                created_by=user or validated_result.created_by,
-                defaults={
-                    'location': location,
-                    'validation_status': 'validated',
-                    'final_lat': validated_result.final_lat,
-                    'final_lng': validated_result.final_long,
-                    'selected_source': 'validated_dataset',
-                    # Mark as having successful results for the validation logic
-                    'hdx_success': True,
-                    'hdx_lat': validated_result.final_lat,
-                    'hdx_lng': validated_result.final_long
-                }
-            )
-            return geocoding_result
-
-        # Step 2: Perform full geocoding using all APIs
-        return self.geocode_location_full(location, user=user)
+        # Always run full geocoding so all sources (Google, ArcGIS, Nominatim, HDX)
+        # are queried and stored for source comparison research metrics.
+        # The HDX geocoder (geocode_hdx_enhanced) already checks ValidatedDataset internally.
+        return self.geocode_location_full(location, user=user, spatial_filter=spatial_filter)
     
     def check_validated_dataset(self, location):
         """
@@ -495,7 +535,7 @@ class GeocodingService:
         logger.info(f"VALIDATED DATASET: No match found for '{location.name}'")
         return None
     
-    def geocode_location_full(self, location, user=None):
+    def geocode_location_full(self, location, user=None, spatial_filter=None):
         """
         Geocode using all available API sources with intelligent parsing.
 
@@ -603,28 +643,90 @@ class GeocodingService:
                 result = self.geocode_nominatim(original_query, country, iso_code)
             return ("nominatim", result)
 
-        # Execute all API calls in parallel
-        with ThreadPoolExecutor(max_workers=4) as executor:
+        def call_admin_boundary():
+            # Admin Boundary: Match against local GeoJSON boundary files
+            # Uses cached index for fast lookup (index built once, then cached)
+            # Skip if not available or if index is still building
+            if not ADMIN_BOUNDARY_AVAILABLE:
+                return ("admin_boundary", {"error": "Service not available"})
+            try:
+                from django.core.cache import cache
+                from pathlib import Path
+
+                geocoder = get_admin_boundary_geocoder()
+                cache_key = geocoder.INDEX_CACHE_KEY
+
+                # Check if index is available: in memory, in cache, or as pre-built file
+                index_file = geocoder.data_dir / geocoder.INDEX_FILE_NAME
+                has_cache = cache.get(cache_key) is not None
+                has_memory = geocoder._index is not None
+                has_file = index_file.exists()
+
+                if not has_cache and not has_memory and not has_file:
+                    # No index available at all
+                    return ("admin_boundary", {"error": "Index not ready - run build_boundary_index"})
+
+                sf = spatial_filter or {}
+                result = geocoder.geocode(
+                    location.name,
+                    country_hint=sf.get('country') or country,
+                    province_hint=sf.get('province'),
+                    district_hint=sf.get('district'),
+                    admin_level_hint=None
+                )
+                if result.get('success'):
+                    return ("admin_boundary", {
+                        "coordinates": result['coordinates'],
+                        "boundary_reference": result['boundary_reference'],
+                        "confidence": result['confidence'],
+                        "location_type": result['location_type']
+                    })
+                else:
+                    return ("admin_boundary", {"error": result.get('error', 'No match')})
+            except Exception as e:
+                logger.warning(f"Admin boundary geocoding failed: {e}")
+                return ("admin_boundary", {"error": str(e)})
+
+        # Execute all API calls in parallel (5 sources including admin_boundary)
+        with ThreadPoolExecutor(max_workers=5) as executor:
             futures = [
                 executor.submit(call_hdx),
                 executor.submit(call_arcgis),
                 executor.submit(call_google),
-                executor.submit(call_nominatim)
+                executor.submit(call_nominatim),
+                executor.submit(call_admin_boundary),
             ]
 
-            # Collect results as they complete
-            for future in as_completed(futures):
-                try:
-                    source, result = future.result()
-                    results[source] = result
+            # Collect results as they complete (with timeout to prevent hanging)
+            try:
+                for future in as_completed(futures, timeout=30):
+                    try:
+                        source, result = future.result(timeout=10)
+                        results[source] = result
 
-                    if result.get("coordinates"):
-                        logger.info(f"✓ {source.upper()}: SUCCESS - {result['coordinates']}")
-                    else:
-                        logger.warning(f"✗ {source.upper()}: {result.get('error', 'No result')}")
-                except Exception as e:
-                    logger.error(f"API call failed: {e}")
+                        if result.get("coordinates"):
+                            logger.info(f"{source.upper()}: Success - {result['coordinates'][0]:.6f}, {result['coordinates'][1]:.6f}")
+                        else:
+                            error_msg = result.get('error', 'No result')
+                            logger.info(f"{source.upper()}: Failed - {error_msg}")
+                    except FuturesTimeoutError:
+                        logger.warning("API call timed out")
+                    except Exception as e:
+                        logger.error(f"API call failed: {e}")
+            except FuturesTimeoutError:
+                # Some futures didn't complete in time - continue with what we have
+                logger.warning(f"Geocoding timeout - proceeding with {len(results)} completed sources")
         
+        # Inject user-provided coordinates (from CSV upload) as an independent source
+        if location.latitude is not None and location.longitude is not None:
+            results['user_provided'] = {
+                'coordinates': (location.latitude, location.longitude),
+            }
+            logger.info(
+                f"USER_PROVIDED: Injecting CSV coordinates as source - "
+                f"{location.latitude:.6f}, {location.longitude:.6f}"
+            )
+
         # Create or update geocoding result
         # Get or create with location_name and created_by to ensure uniqueness per user
         if user:
@@ -657,12 +759,25 @@ class GeocodingService:
 
         has_success = False
         for source, data in results.items():
+            # Skip admin_boundary or user_provided if fields don't exist (migration not applied)
+            if source == "admin_boundary":
+                if not hasattr(geocoding_result, 'admin_boundary_lat'):
+                    logger.debug("Skipping admin_boundary - fields not in model (run migration)")
+                    continue
+            if source == "user_provided":
+                if not hasattr(geocoding_result, 'user_provided_lat'):
+                    logger.debug("Skipping user_provided - fields not in model (run migration)")
+                    continue
+
             if data.get("coordinates"):
                 lat, lng = data["coordinates"]
-                setattr(geocoding_result, f"{source}_lat", lat)
-                setattr(geocoding_result, f"{source}_lng", lng)
-                setattr(geocoding_result, f"{source}_success", True)
-                
+                try:
+                    setattr(geocoding_result, f"{source}_lat", lat)
+                    setattr(geocoding_result, f"{source}_lng", lng)
+                    setattr(geocoding_result, f"{source}_success", True)
+                except AttributeError as e:
+                    logger.warning(f"Could not set {source} fields: {e}")
+                    continue
 
                 if source == "hdx" and data.get("facility"):
                     geocoding_result.hdx_facility_match = data["facility"]
@@ -671,14 +786,28 @@ class GeocodingService:
                     geocoding_result.nominatim_raw_response = {
                         'results': raw_response if isinstance(raw_response, list) else [raw_response]
                     }
+                elif source == "admin_boundary":
+                    # Store admin boundary specific data (only if fields exist)
+                    try:
+                        if hasattr(geocoding_result, 'admin_boundary_match'):
+                            geocoding_result.admin_boundary_match = data.get("boundary_reference")
+                        if hasattr(geocoding_result, 'admin_level') and data.get("boundary_reference"):
+                            geocoding_result.admin_level = data["boundary_reference"].get("admin_level", "")
+                        if hasattr(geocoding_result, 'location_type') and data.get("location_type") == "admin_boundary":
+                            geocoding_result.location_type = "admin_boundary"
+                    except Exception as e:
+                        logger.warning(f"Could not set admin_boundary fields: {e}")
                 elif source != "hdx":
                     setattr(geocoding_result, f"{source}_raw_response", data.get("raw_response"))
-                
+
                 has_success = True
                 logger.info(f"{source.upper()}: Success - {lat:.6f}, {lng:.6f}")
             else:
-                setattr(geocoding_result, f"{source}_error", data.get("error", "Unknown error"))
-                setattr(geocoding_result, f"{source}_success", False)
+                try:
+                    setattr(geocoding_result, f"{source}_error", data.get("error", "Unknown error"))
+                    setattr(geocoding_result, f"{source}_success", False)
+                except AttributeError:
+                    pass  # Field doesn't exist, skip
                 logger.info(f"{source.upper()}: Failed - {data.get('error', 'Unknown error')}")
         
         geocoding_result.save()
@@ -726,19 +855,21 @@ class GeocodingService:
 
             _, location_part = self._extract_country_smart(location.name)
             search_name = location_part if location_part else location.name
-            
-            logger.info(f"HDX: Searching {hdx_facilities.count()} total facilities for '{search_name}'")
-            
-            # Step 2: Try exact matches first
+
+            # Strip facility type suffix to get core name for matching
+            search_name_core = self._strip_facility_type_suffix(search_name)
+
+            logger.info(f"HDX: Searching {hdx_facilities.count()} facilities for '{search_name}' (core: '{search_name_core}')")
+
+            # Step 2a: Try exact match on full name first (quick check)
             exact_matches = hdx_facilities.filter(
                 Q(facility_name__iexact=search_name)
             )
 
             if exact_matches.exists():
                 facility = exact_matches.first()
-                logger.info(f"HDX: EXACT match found - '{facility.facility_name}' in {facility.country}")
+                logger.info(f"HDX: EXACT FULL match found - '{facility.facility_name}' in {facility.country}")
 
-                # CRITICAL: Validate coordinates are actually in the expected country
                 is_valid, validation_msg = self._validate_coordinates_in_country(
                     facility.hdx_latitude, facility.hdx_longitude, country
                 )
@@ -746,8 +877,6 @@ class GeocodingService:
 
                 if not is_valid:
                     logger.error(f"HDX: REJECTING match - {validation_msg}")
-                    logger.error(f"HDX: Facility '{facility.facility_name}' claims country='{facility.country}' but coordinates are elsewhere!")
-                    # Continue to next matching strategy instead of returning wrong coordinates
                 else:
                     return {
                         "coordinates": (facility.hdx_latitude, facility.hdx_longitude),
@@ -755,6 +884,32 @@ class GeocodingService:
                         "match_type": "exact",
                         "confidence": 1.0
                     }
+
+            # Step 2b: Try exact match on CORE name (suffix stripped)
+            # This matches "MBAVI HEALTH CENTRE" to "Mbavi Clinic" via core "MBAVI" = "Mbavi"
+            if search_name_core.lower() != search_name.lower():
+                logger.info(f"HDX: Trying exact match on core name '{search_name_core}'...")
+                all_facilities = list(hdx_facilities)
+                for facility in all_facilities:
+                    facility_core = self._strip_facility_type_suffix(facility.facility_name)
+                    if facility_core.lower() == search_name_core.lower():
+                        logger.info(f"HDX: EXACT CORE match found - '{facility.facility_name}' (core: '{facility_core}') in {facility.country}")
+
+                        is_valid, validation_msg = self._validate_coordinates_in_country(
+                            facility.hdx_latitude, facility.hdx_longitude, country
+                        )
+                        logger.info(f"HDX: Coordinate validation: {validation_msg}")
+
+                        if not is_valid:
+                            logger.error(f"HDX: REJECTING match - {validation_msg}")
+                            continue  # Try next facility with same core name
+                        else:
+                            return {
+                                "coordinates": (facility.hdx_latitude, facility.hdx_longitude),
+                                "facility": facility,
+                                "match_type": "exact_core",
+                                "confidence": 0.95
+                            }
             
             # Step 3: Try LLM-enhanced semantic matching FIRST (prioritized)
             if self.llm_enhancer.is_enabled():
@@ -798,14 +953,15 @@ class GeocodingService:
                             }
 
             # Step 4: Try partial matches (contains) - fallback if LLM didn't match
+            # Use stripped core name to avoid matching just on "Health Centre" suffix
+            search_name_core = self._strip_facility_type_suffix(search_name)
             contains_matches = hdx_facilities.filter(
-                Q(facility_name__icontains=search_name) |
-                Q(facility_name__icontains=search_name.replace(' ', ''))
+                Q(facility_name__icontains=search_name_core)
             )
 
             if contains_matches.exists():
                 facility = contains_matches.first()
-                logger.info(f"HDX: CONTAINS match found - '{facility.facility_name}' in {facility.country}")
+                logger.info(f"HDX: CONTAINS match found - '{facility.facility_name}' (searched for core: '{search_name_core}') in {facility.country}")
 
                 # CRITICAL: Validate coordinates are actually in the expected country
                 is_valid, validation_msg = self._validate_coordinates_in_country(
@@ -826,60 +982,75 @@ class GeocodingService:
                     }
 
             # Step 5: Fallback to traditional fuzzy matching (last resort)
+            # IMPORTANT: Strip facility type suffixes to prevent false matches
+            # e.g., "MBAVI HEALTH CENTRE" should NOT match "Londuimbali Health Centre"
             if FUZZY_AVAILABLE:
                 logger.info(f"HDX: Trying traditional fuzzy matching...")
+
+                # Strip suffix from search name to get core name
+                search_name_core = self._strip_facility_type_suffix(search_name)
+                logger.info(f"HDX: Core search name (suffix stripped): '{search_name_core}'")
+
                 all_facilities = list(hdx_facilities)
-                facility_names = [f.facility_name for f in all_facilities]
+
+                # Build mapping of stripped names to original facilities
+                # This allows us to match on core names but return the original facility
+                stripped_to_original = {}
+                for f in all_facilities:
+                    stripped_name = self._strip_facility_type_suffix(f.facility_name)
+                    # Keep track of original facility for each stripped name
+                    if stripped_name not in stripped_to_original:
+                        stripped_to_original[stripped_name] = f
+
+                stripped_names = list(stripped_to_original.keys())
+
                 matching_strategies = {
                     'token_sort_ratio': fuzz.token_sort_ratio,
                     'token_set_ratio': fuzz.token_set_ratio,
-                    'partial_ratio': fuzz.partial_ratio,
-                    'ratio': fuzz.ratio
+                    'ratio': fuzz.ratio  # Removed partial_ratio as it's too lenient
                 }
 
                 best_match = None
                 best_score = 0
                 best_strategy = None
+                best_facility = None
 
                 for strategy_name, scorer in matching_strategies.items():
                     matches = process.extract(
-                        search_name,
-                        facility_names,
+                        search_name_core,
+                        stripped_names,
                         scorer=scorer,
                         limit=3
                     )
 
                     for match_name, score in matches:
-                        if score > best_score and score >= 80:  # Threshold for fuzzy matching (increased from 65 to 80)
+                        if score > best_score and score >= 80:  # Threshold for fuzzy matching
                             best_match = match_name
                             best_score = score
                             best_strategy = strategy_name
+                            best_facility = stripped_to_original.get(match_name)
 
-                if best_match and best_score >= 80:
-                    matched_facility = hdx_facilities.filter(
-                        facility_name=best_match
-                    ).first()
+                if best_match and best_score >= 80 and best_facility:
+                    matched_facility = best_facility
+                    logger.info(f"HDX: FUZZY match found - '{matched_facility.facility_name}' (core: '{best_match}') in {matched_facility.country} (score: {best_score}%, strategy: {best_strategy})")
 
-                    if matched_facility:
-                        logger.info(f"HDX: FUZZY match found - '{best_match}' in {matched_facility.country} (score: {best_score}%, strategy: {best_strategy})")
+                    # CRITICAL: Validate coordinates are actually in the expected country
+                    is_valid, validation_msg = self._validate_coordinates_in_country(
+                        matched_facility.hdx_latitude, matched_facility.hdx_longitude, country
+                    )
+                    logger.info(f"HDX: Coordinate validation: {validation_msg}")
 
-                        # CRITICAL: Validate coordinates are actually in the expected country
-                        is_valid, validation_msg = self._validate_coordinates_in_country(
-                            matched_facility.hdx_latitude, matched_facility.hdx_longitude, country
-                        )
-                        logger.info(f"HDX: Coordinate validation: {validation_msg}")
-
-                        if not is_valid:
-                            logger.error(f"HDX: REJECTING fuzzy match - {validation_msg}")
-                            logger.error(f"HDX: Facility '{matched_facility.facility_name}' claims country='{matched_facility.country}' but coordinates are elsewhere!")
-                            # Continue to next matching strategy instead of returning wrong coordinates
-                        else:
-                            return {
-                                "coordinates": (matched_facility.hdx_latitude, matched_facility.hdx_longitude),
-                                "facility": matched_facility,
-                                "match_type": "fuzzy",
-                                "confidence": best_score / 100.0
-                            }
+                    if not is_valid:
+                        logger.error(f"HDX: REJECTING fuzzy match - {validation_msg}")
+                        logger.error(f"HDX: Facility '{matched_facility.facility_name}' claims country='{matched_facility.country}' but coordinates are elsewhere!")
+                        # Continue to next matching strategy instead of returning wrong coordinates
+                    else:
+                        return {
+                            "coordinates": (matched_facility.hdx_latitude, matched_facility.hdx_longitude),
+                            "facility": matched_facility,
+                            "match_type": "fuzzy",
+                            "confidence": best_score / 100.0
+                        }
 
             # Step 6: Enhanced containment matching (DISABLED - too aggressive, matches partial words like "hospital")
             # This was matching "Nharira Rural Hospital" for "Parirenyatwa Hospital" just because both have "hospital"
@@ -925,7 +1096,7 @@ class GeocodingService:
             elif country and country in self.country_name_to_iso2:
                 params['sourceCountry'] = self.country_name_to_iso2[country]
 
-            response = requests.get(url, params=params, timeout=3)
+            response = requests.get(url, params=params, timeout=10)
             response.raise_for_status()
             data = response.json()
 
@@ -937,7 +1108,7 @@ class GeocodingService:
                     "raw_response": data
                 }
             return {"error": "No candidates found", "raw_response": data}
-            
+
         except requests.exceptions.Timeout:
             return {"error": "Request timeout"}
         except requests.exceptions.RequestException as e:
@@ -966,7 +1137,7 @@ class GeocodingService:
                 # region: biases results towards this region (don't use components - too strict)
                 params["region"] = country_code
 
-            response = requests.get(url, params=params, timeout=3)
+            response = requests.get(url, params=params, timeout=10)
             response.raise_for_status()
             data = response.json()
 
@@ -981,7 +1152,7 @@ class GeocodingService:
                 "error": f"Status: {data.get('status', 'No results')}",
                 "raw_response": data
             }
-            
+
         except requests.exceptions.Timeout:
             return {"error": "Request timeout"}
         except requests.exceptions.RequestException as e:

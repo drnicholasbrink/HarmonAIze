@@ -155,6 +155,16 @@ def batch_geocode_locations(self, location_ids=None, force_reprocess=False, batc
     task_id = self.request.id
     progress_key = f"geocoding_progress_{task_id}"
 
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    user = None
+    if user_id:
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            cache.set(progress_key, {'status': 'failed', 'error': f'User {user_id} not found'}, timeout=3600)
+            return {'status': 'failed', 'error': 'User not found'}
+
     try:
         # Initialize progress tracking
         cache.set(progress_key, {
@@ -170,16 +180,16 @@ def batch_geocode_locations(self, location_ids=None, force_reprocess=False, batc
 
         # Get locations to process
         if location_ids:
-            locations = Location.objects.filter(id__in=location_ids)
+            locations = Location.objects.filter(id__in=location_ids, created_by=user) if user else Location.objects.filter(id__in=location_ids)
         else:
             if force_reprocess:
-                locations = Location.objects.all()
+                locations = Location.objects.filter(created_by=user) if user else Location.objects.all()
             else:
                 # Find locations that don't have complete geocoding results
                 incomplete_count = 0
                 complete_location_names = []
 
-                for result in GeocodingResult.objects.all():
+                for result in GeocodingResult.objects.filter(created_by=user) if user else GeocodingResult.objects.all():
                     successful_count = sum([
                         result.hdx_success,
                         result.arcgis_success,
@@ -195,7 +205,7 @@ def batch_geocode_locations(self, location_ids=None, force_reprocess=False, batc
                 logger.info(f"Batch geocoding: {incomplete_count} locations have only 1 API result and will be re-processed")
                 logger.info(f"Batch geocoding: {len(complete_location_names)} locations have 2+ API results and will be skipped")
 
-                locations = Location.objects.exclude(name__in=complete_location_names)
+                locations = (Location.objects.filter(created_by=user) if user else Location.objects.all()).exclude(name__in=complete_location_names)
 
         # Get list of location IDs
         location_ids_to_process = list(locations.values_list('id', flat=True))

@@ -59,8 +59,8 @@ class GeocodingLLMEnhancer:
         # Model names for different use cases
         # Haiku: fast, cheap operations (parsing, simple matching)
         # Sonnet: complex reasoning (conflict resolution)
-        self.model_fast = "claude-3-5-haiku-20241022"
-        self.model_reasoning = "claude-sonnet-4-20250514"
+        self.model_fast = "claude-haiku-4-5-20251001"
+        self.model_reasoning = "claude-sonnet-5"
 
         if self.enabled:
             logger.debug("Claude Haiku and Sonnet models configured")
@@ -267,6 +267,38 @@ Be strict: Only return is_match=true if you're reasonably confident they're the 
             logger.warning(f"LLM semantic matching failed: {e}")
             return None
 
+    def _strip_facility_suffix(self, name: str) -> str:
+        """
+        Strip common facility type suffixes to get the unique identifying name.
+
+        This prevents false matches like "MBAVI HEALTH CENTRE" matching
+        "Londuimbali Health Centre" just because they share "Health Centre".
+        """
+        if not name:
+            return name
+
+        suffixes = [
+            'district hospital', 'central hospital', 'general hospital',
+            'mission hospital', 'rural hospital', 'private hospital',
+            'teaching hospital', 'referral hospital',
+            'health centre', 'health center', 'health post',
+            'medical centre', 'medical center',
+            'maternity hospital', 'maternity clinic',
+            'community hospital', 'community clinic', 'community health centre',
+            'hospital', 'clinic', 'dispensary', 'infirmary',
+            'hc', 'hosp', 'med center', 'med centre',
+        ]
+
+        name_lower = name.lower().strip()
+        core_name = name.strip()
+
+        for suffix in suffixes:
+            if name_lower.endswith(suffix):
+                core_name = name[:len(name) - len(suffix)].strip().rstrip(' -.,')
+                break
+
+        return core_name if core_name and len(core_name) >= 2 else name.strip()
+
     def find_best_facility_match(self,
                                  query: str,
                                  candidates: list,
@@ -275,7 +307,8 @@ Be strict: Only return is_match=true if you're reasonably confident they're the 
         Find the best matching facility from a list using semantic understanding.
 
         This combines traditional fuzzy matching (for speed) with LLM reasoning
-        for the top candidates.
+        for the top candidates. Strips facility type suffixes before matching
+        to prevent false matches on common suffixes like "Health Centre".
 
         Args:
             query: Query facility name
@@ -289,32 +322,47 @@ Be strict: Only return is_match=true if you're reasonably confident they're the 
             return None
 
         try:
-            # Pre-filter with fuzzy matching (cheap and fast)
             from fuzzywuzzy import process
-            top_candidates = process.extract(query, candidates, limit=min(max_candidates, len(candidates)))
+
+            # Strip suffix from query to get core name
+            query_core = self._strip_facility_suffix(query)
+            logger.debug(f"LLM matching: query='{query}' -> core='{query_core}'")
+
+            # Build mapping of stripped names to original names
+            stripped_to_original = {}
+            for candidate in candidates:
+                stripped = self._strip_facility_suffix(candidate)
+                if stripped not in stripped_to_original:
+                    stripped_to_original[stripped] = candidate
+
+            stripped_candidates = list(stripped_to_original.keys())
+
+            # Pre-filter with fuzzy matching on STRIPPED names (cheap and fast)
+            top_candidates = process.extract(query_core, stripped_candidates, limit=min(max_candidates, len(stripped_candidates)))
 
             # Now use LLM to evaluate top candidates semantically
             best_match = None
             best_confidence = 0.0
             best_reasoning = ""
 
-            for candidate_name, fuzzy_score in top_candidates:
+            for stripped_name, fuzzy_score in top_candidates:
                 # Skip low fuzzy scores to save API calls and prevent bad matches
                 if fuzzy_score < 65:
                     continue
 
-                llm_result = self.semantic_facility_similarity(query, candidate_name)
+                original_name = stripped_to_original.get(stripped_name, stripped_name)
+                llm_result = self.semantic_facility_similarity(query, original_name)
 
                 if llm_result and llm_result['is_match']:
                     # Combine fuzzy score with LLM confidence
                     combined_confidence = (fuzzy_score / 100.0) * 0.3 + llm_result['confidence'] * 0.7
 
                     if combined_confidence > best_confidence:
-                        best_match = candidate_name
+                        best_match = original_name
                         best_confidence = combined_confidence
                         best_reasoning = llm_result['reasoning']
 
-            if best_match and best_confidence > 0.75:  # Threshold for accepting match (increased from 0.6)
+            if best_match and best_confidence > 0.75:  # Threshold for accepting match
                 logger.debug(f"✓ LLM best match for '{query}': '{best_match}' (confidence: {best_confidence:.1%})")
                 return (best_match, best_confidence, best_reasoning)
 
@@ -547,6 +595,34 @@ Examples:
             logger.warning(f"LLM address similarity check failed: {e}")
             return None
 
+    # ISO 3-letter to full country name mapping for sanity checks
+    ISO_COUNTRY_NAMES = {
+        'ETH': 'Ethiopia', 'ZWE': 'Zimbabwe', 'KEN': 'Kenya', 'TZA': 'Tanzania',
+        'UGA': 'Uganda', 'RWA': 'Rwanda', 'BDI': 'Burundi', 'MWI': 'Malawi',
+        'ZMB': 'Zambia', 'MOZ': 'Mozambique', 'ZAF': 'South Africa', 'NAM': 'Namibia',
+        'BWA': 'Botswana', 'LSO': 'Lesotho', 'SWZ': 'Eswatini', 'AGO': 'Angola',
+        'COD': 'Democratic Republic of the Congo', 'COG': 'Republic of the Congo',
+        'GAB': 'Gabon', 'CMR': 'Cameroon', 'NGA': 'Nigeria', 'GHA': 'Ghana',
+        'CIV': 'Ivory Coast', 'SEN': 'Senegal', 'MLI': 'Mali', 'BFA': 'Burkina Faso',
+        'NER': 'Niger', 'TCD': 'Chad', 'SDN': 'Sudan', 'SSD': 'South Sudan',
+        'EGY': 'Egypt', 'LBY': 'Libya', 'TUN': 'Tunisia', 'DZA': 'Algeria',
+        'MAR': 'Morocco', 'MRT': 'Mauritania', 'SOM': 'Somalia', 'DJI': 'Djibouti',
+        'ERI': 'Eritrea',
+    }
+
+    def _normalize_country_name(self, country: str) -> str:
+        """Normalize ISO country codes to full country names for better LLM matching."""
+        if not country:
+            return 'Unknown'
+
+        # Check if it's an ISO 3-letter code
+        country_upper = country.upper().strip()
+        if country_upper in self.ISO_COUNTRY_NAMES:
+            return self.ISO_COUNTRY_NAMES[country_upper]
+
+        # Already a full name
+        return country
+
     def contextual_sanity_check(self,
                                location_name: str,
                                coordinates: Dict[str, Tuple[float, float]],
@@ -573,12 +649,23 @@ Examples:
             return None
 
         try:
+            # Normalize country name (convert ISO codes like "ETH" to "Ethiopia")
+            raw_country = parsed_location.get('country', 'Unknown')
+            normalized_country = self._normalize_country_name(raw_country)
+
+            # Detect if this is a facility search or location search
+            facility_keywords = ['hospital', 'clinic', 'health', 'medical', 'dispensary', 'pharmacy']
+            query_lower = location_name.lower()
+            is_facility_search = any(kw in query_lower for kw in facility_keywords)
+            search_type = 'facility' if is_facility_search else 'location/admin_boundary'
+
             # Build context about what we expected vs what we got
             expected = {
                 'query': location_name,
-                'parsed_country': parsed_location.get('country', 'Unknown'),
+                'search_type': search_type,
+                'parsed_country': normalized_country,
                 'parsed_city': parsed_location.get('admin_level_2', 'Unknown'),
-                'parsed_facility': parsed_location.get('facility', 'Unknown')
+                'parsed_facility': parsed_location.get('facility', 'Unknown') if is_facility_search else 'N/A (location search)'
             }
 
             # Analyze reverse geocoding results
@@ -604,11 +691,18 @@ GEOCODING RESULTS:
 {json.dumps(reverse_summary, indent=2)}
 
 SANITY CHECKS NEEDED:
-1. Do the reverse addresses match the COUNTRY from the query?
-2. If a city was mentioned, do addresses include that city?
-3. Does the location type make sense? (hospital, clinic, etc.)
-4. Are any coordinates clearly wrong? (e.g., ocean, wrong continent)
-5. Do all sources agree on general geographic area?
+1. Does AT LEAST ONE source show coordinates in the expected COUNTRY? (If yes, PASS)
+2. Account for spelling variations in city names (Hosaina=Hossana, Harare=Salisbury, etc.)
+3. ONLY check facility type if query clearly mentions hospital/clinic/etc. Location queries like "Arada, Ethiopia" don't need facility matching.
+4. Are coordinates clearly wrong? (ocean, wrong continent) - this is CRITICAL severity
+5. If sources disagree on location, that's OK as long as at least one is in the right country
+
+IMPORTANT RULES:
+- If the query contains ISO country codes (ETH, ZWE, KEN), these mean Ethiopia, Zimbabwe, Kenya etc.
+- Comma-separated queries like "Arada, ETH, Hossana" are location searches, NOT facility searches
+- Be LENIENT - only fail for clear geographic errors (wrong country/continent)
+- Minor spelling differences should NOT cause failure
+- If most sources agree on the general area, PASS the check
 
 Return JSON:
 {{
@@ -619,10 +713,17 @@ Return JSON:
     "severity": "none|minor|major|critical"
 }}
 
+SEVERITY GUIDE:
+- "none": All good, coordinates clearly in expected location
+- "minor": Small discrepancies but generally correct area
+- "major": Only use if coordinates are in WRONG COUNTRY (not just different city)
+- "critical": Coordinates on wrong CONTINENT or in ocean
+
 Examples:
+- Query: "Arada, ETH, Hossana" | Address shows "Hosaina, Ethiopia" → passes: true (Hosaina=Hossana, ETH=Ethiopia)
 - Query: "Harare Hospital Zimbabwe" | All addresses in Zimbabwe → passes: true
 - Query: "Nairobi Clinic Kenya" | Addresses show "South Africa" → passes: false, severity: "critical"
-- Query: "General Hospital" | Addresses vague but plausible → passes: true, severity: "minor"
+- Query: "General Hospital" | Addresses vague but in plausible country → passes: true
 """
 
             response = self.client.messages.create(

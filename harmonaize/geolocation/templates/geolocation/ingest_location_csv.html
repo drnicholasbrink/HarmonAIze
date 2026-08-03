@@ -47,8 +47,8 @@
 
           {% if upload.has_coordinates %}
             <div class="alert alert-success">
-              <i class="fas fa-check-circle"></i> <strong>Great!</strong> Your file includes coordinates.
-              Locations will be created with latitude and longitude, ready for analysis.
+              <i class="fas fa-check-circle"></i> <strong>Coordinates detected.</strong>
+              Your file includes latitude/longitude — these will be stored as a <em>user-provided source</em> alongside OSM, ArcGIS, and Google results so you can compare and validate the best match. Run geocoding after import, then validate.
             </div>
           {% else %}
             <div class="alert alert-info">
@@ -77,11 +77,11 @@
             {% if upload.has_coordinates %}
             <li class="list-group-item">
               <i class="fas fa-check text-success"></i>
-              Set coordinates from latitude/longitude columns
+              Store your CSV coordinates as a <strong>user-provided source</strong> for comparison
             </li>
             <li class="list-group-item">
-              <i class="fas fa-check text-success"></i>
-              Update existing locations if they lack coordinates
+              <i class="fas fa-info-circle text-primary"></i>
+              Run <strong>Geocoding</strong> next to fetch OSM, ArcGIS, and Google results, then <strong>Validate</strong> to pick the best match
             </li>
             {% endif %}
             <li class="list-group-item">
@@ -100,6 +100,16 @@
           <i class="fas fa-exclamation-triangle"></i>
           <strong>Ready to proceed?</strong>
           This will create {{ upload.total_rows }} location(s) in your database.
+        </div>
+
+        <div class="mb-3 p-3 border rounded bg-light">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="replace_existing" value="true" id="replaceExisting" checked>
+            <label class="form-check-label" for="replaceExisting">
+              <strong>Start fresh — replace my existing locations</strong>
+              <small class="d-block text-muted">Recommended. Removes your previous locations and their geocoding results before importing this batch. Uncheck to append to existing locations.</small>
+            </label>
+          </div>
         </div>
 
         <div class="d-flex justify-content-between">
