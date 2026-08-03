@@ -51,7 +51,7 @@ class Command(BaseCommand):
                         continue
 
                     # Check if the entry already exists for this user
-                    validation_entry, created = ValidatedDataset.objects.get_or_create(
+                    ValidatedDataset.objects.get_or_create(
                         location_name=location_name,
                         country=country,
                         created_by=system_user,

@@ -1,7 +1,8 @@
 # geolocation/forms.py
 from django import forms
 from django.core.validators import MinValueValidator, MaxValueValidator
-from .models import ValidationResult, GeocodingResult
+from django.core.exceptions import ValidationError
+from .models import ValidationResult, LocationCSVUpload
 
 
 class ManualCoordinateForm(forms.Form):
@@ -87,3 +88,43 @@ class LocationSelectionForm(forms.Form):
         # Build choices from locations
         choices = [(loc.id, f"{loc.name} ({loc.id})") for loc in locations]
         self.fields['location_ids'].choices = choices
+
+
+class LocationCSVUploadForm(forms.ModelForm):
+    """
+    Form for uploading location CSV files.
+    Follows the pattern from health/forms.py RawDataUploadForm.
+    """
+
+    class Meta:
+        model = LocationCSVUpload
+        fields = ['file']
+        widgets = {
+            'file': forms.FileInput(attrs={
+                'class': 'form-control',
+                'accept': '.csv,.xlsx,.xls,.json',
+            }),
+        }
+
+    def clean_file(self):
+        """Validate uploaded file."""
+        file = self.cleaned_data.get('file')
+        if not file:
+            return file
+
+        # File size validation (100MB limit)
+        max_size = 100 * 1024 * 1024  # 100MB
+        if file.size > max_size:
+            raise ValidationError(
+                f"File size exceeds 100MB limit. Your file is {file.size / (1024*1024):.1f}MB."
+            )
+
+        # File format validation
+        file_ext = file.name.split('.')[-1].lower()
+        if file_ext not in ['csv', 'xlsx', 'xls', 'json']:
+            raise ValidationError(
+                f"Unsupported file format: .{file_ext}. "
+                "Only CSV, Excel (.xlsx, .xls), and JSON formats are supported."
+            )
+
+        return file

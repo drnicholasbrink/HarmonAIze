@@ -496,6 +496,26 @@
     <!-- Action Cards -->
     <div class="action-section">
       <div class="action-card">
+        <div class="action-header" style="background: linear-gradient(135deg, #FF9500 0%, #FFCC00 100%);">
+          <h3>{% include 'components/svg_icon.html' with icon='upload' size='24' class='inline-icon' %} Step 0: Upload Locations</h3>
+          <p>Import location names from CSV/Excel files</p>
+        </div>
+        <div class="action-content">
+          <ul class="feature-list">
+            <li>• Upload CSV, Excel, or JSON files</li>
+            <li>• Smart column detection</li>
+            <li>• Auto-map location names</li>
+            <li>• Optional coordinate import</li>
+          </ul>
+
+          <a href="{% url 'geolocation:upload_location_csv' %}" class="btn btn-primary">
+            {% include 'components/svg_icon.html' with icon='upload' size='16' class='inline-icon' %}
+            Upload Location CSV
+          </a>
+        </div>
+      </div>
+
+      <div class="action-card">
         <div class="action-header" style="background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);">
           <h3>{% include 'components/svg_icon.html' with icon='map-pin' size='24' class='inline-icon' %} Step 1: Find Coordinates</h3>
           <p>Search multiple databases for precise location data</p>
@@ -718,7 +738,7 @@
         refreshButton.disabled = true;
       }
 
-      fetch('{% url "geolocation:location_status_api" %}', {
+      return fetch('{% url "geolocation:location_status_api" %}', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -786,7 +806,7 @@
     }
 
     function refreshStats() {
-      fetch('{% url "geolocation:geocoding_api" %}', {
+      return fetch('{% url "geolocation:geocoding_api" %}', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({action: 'get_geocoding_stats'})
@@ -833,7 +853,7 @@
       .then(data => {
         if (data.success) {
           // Start monitoring Celery task progress
-          monitorGeocodingTask(data.task_id, btn);
+          monitorGeocodingTask(data.monitor_url, btn);
           showMessage('Batch geocoding started successfully!', 'success');
         } else {
           resetGeocodingUI(btn);
@@ -865,7 +885,7 @@
         .then(data => {
           if (data.success) {
             // Start monitoring Celery task progress
-            monitorValidationTask(data.task_id, btn);
+            monitorValidationTask(data.monitor_url, btn);
             showMessage('Batch validation started successfully!', 'success');
           } else {
             btn.disabled = false;
@@ -990,10 +1010,10 @@
     }
 
     // Celery task monitoring functions
-    function monitorGeocodingTask(taskId, btn) {
+    function monitorGeocodingTask(monitorUrl, btn) {
       const poll = async () => {
         try {
-          const response = await fetch(`/geolocation/batch-progress/${taskId}/`);
+          const response = await fetch(monitorUrl);
           const data = await response.json();
 
           updateGeocodingProgress(data);
@@ -1001,11 +1021,16 @@
           if (data.status === 'completed' || data.status === 'failed') {
             resetGeocodingUI(btn);
             if (data.status === 'completed') {
-              showMessage('Batch geocoding completed successfully!', 'success');
-              setTimeout(() => {
-                refreshStats();
-                refreshLocationStatus();
-              }, 1000);
+              // Wait for refresh to complete, then show success message
+              Promise.all([
+                refreshStats(),
+                refreshLocationStatus()
+              ]).then(() => {
+                showMessage('Batch geocoding completed! Location status updated.', 'success');
+              }).catch(err => {
+                console.error('Error refreshing data:', err);
+                showMessage('Batch geocoding completed, but refresh failed. Please reload the page.', 'warning');
+              });
             } else {
               showMessage('Batch geocoding failed: ' + (data.error || 'Unknown error'), 'error');
             }
@@ -1061,10 +1086,10 @@
       }
     }
 
-    function monitorValidationTask(taskId, btn) {
+    function monitorValidationTask(monitorUrl, btn) {
       const poll = async () => {
         try {
-          const response = await fetch(`/geolocation/batch-progress/${taskId}/`);
+          const response = await fetch(monitorUrl);
           const data = await response.json();
 
           // Update progress display if needed
@@ -1076,11 +1101,16 @@
             }
 
             if (data.status === 'completed') {
-              showMessage('Batch validation completed successfully!', 'success');
-              setTimeout(() => {
-                refreshStats();
-                refreshLocationStatus();
-              }, 1000);
+              // Wait for refresh to complete, then show success message
+              Promise.all([
+                refreshStats(),
+                refreshLocationStatus()
+              ]).then(() => {
+                showMessage('Batch validation completed! Location status updated.', 'success');
+              }).catch(err => {
+                console.error('Error refreshing data:', err);
+                showMessage('Batch validation completed, but refresh failed. Please reload the page.', 'warning');
+              });
             } else {
               showMessage('Batch validation failed: ' + (data.error || 'Unknown error'), 'error');
             }

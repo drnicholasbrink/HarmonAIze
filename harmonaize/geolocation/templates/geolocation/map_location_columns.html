@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Map Location Columns - HarmonAIze{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <div class="row">
+    <div class="col-lg-10 mx-auto">
+
+      <!-- Page Header -->
+      <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+          <h2 class="mb-0">🗺️ Map CSV Columns</h2>
+          <p class="text-muted mb-0">{{ upload.original_filename }}</p>
+        </div>
+        <div>
+          <span class="badge bg-info">{{ upload.total_rows }} rows</span>
+          <span class="badge bg-secondary">{{ columns.count }} columns</span>
+        </div>
+      </div>
+
+      <p class="lead">
+        Review detected columns and confirm which contain location data.
+      </p>
+
+      <!-- Mapping Form -->
+      <form method="post">
+        {% csrf_token %}
+
+        <div class="card shadow-sm mb-4">
+          <div class="card-body">
+            <h5 class="card-title">Required Mapping</h5>
+
+            <!-- Location Name Column -->
+            <div class="row align-items-center mb-4 pb-3 border-bottom">
+              <div class="col-md-5">
+                <h6 class="mb-1">Location Name <span class="text-danger">*</span></h6>
+                <p class="text-muted small mb-0">Select the column containing location/facility names</p>
+              </div>
+              <div class="col-md-2 text-center">
+                <i class="fas fa-arrow-right text-primary"></i>
+              </div>
+              <div class="col-md-5">
+                <select name="location_name_column" class="form-select" required>
+                  <option value="">-- Select column --</option>
+                  {% for col in columns %}
+                    <option value="{{ col.column_name }}"
+                      {% if suggestions.location_name == col.column_name %}selected{% endif %}
+                      {% if col.is_potential_location_name %}style="font-weight: bold; background-color: #e7f3ff;"{% endif %}>
+                      {{ col.column_name }}
+                      {% if col.is_potential_location_name %}★{% endif %}
+                      ({{ col.inferred_type }}, {{ col.unique_count }} unique)
+                    </option>
+                  {% endfor %}
+                </select>
+                <small class="text-muted">★ = Suggested by system</small>
+              </div>
+            </div>
+
+            <h5 class="card-title mt-4">Optional Mappings</h5>
+            <p class="text-muted small">If your CSV includes coordinates, map them here. Otherwise, leave empty.</p>
+
+            <!-- Latitude Column -->
+            <div class="row align-items-center mb-3 pb-3 border-bottom">
+              <div class="col-md-5">
+                <h6 class="mb-1">Latitude</h6>
+                <p class="text-muted small mb-0">Numeric column with latitude values (-90 to 90)</p>
+              </div>
+              <div class="col-md-2 text-center">
+                <i class="fas fa-arrow-right text-muted"></i>
+              </div>
+              <div class="col-md-5">
+                <select name="latitude_column" class="form-select">
+                  <option value="">-- No latitude column --</option>
+                  {% for col in columns %}
+                    {% if col.inferred_type == 'float' or col.inferred_type == 'integer' or col.is_potential_latitude %}
+                      <option value="{{ col.column_name }}"
+                        {% if suggestions.latitude == col.column_name %}selected{% endif %}
+                        {% if col.is_potential_latitude %}style="font-weight: bold; background-color: #e7f3ff;"{% endif %}>
+                        {{ col.column_name }}
+                        {% if col.is_potential_latitude %}★{% endif %}
+                        ({{ col.inferred_type }})
+                      </option>
+                    {% endif %}
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+
+            <!-- Longitude Column -->
+            <div class="row align-items-center mb-3">
+              <div class="col-md-5">
+                <h6 class="mb-1">Longitude</h6>
+                <p class="text-muted small mb-0">Numeric column with longitude values (-180 to 180)</p>
+              </div>
+              <div class="col-md-2 text-center">
+                <i class="fas fa-arrow-right text-muted"></i>
+              </div>
+              <div class="col-md-5">
+                <select name="longitude_column" class="form-select">
+                  <option value="">-- No longitude column --</option>
+                  {% for col in columns %}
+                    {% if col.inferred_type == 'float' or col.inferred_type == 'integer' or col.is_potential_longitude %}
+                      <option value="{{ col.column_name }}"
+                        {% if suggestions.longitude == col.column_name %}selected{% endif %}
+                        {% if col.is_potential_longitude %}style="font-weight: bold; background-color: #e7f3ff;"{% endif %}>
+                        {{ col.column_name }}
+                        {% if col.is_potential_longitude %}★{% endif %}
+                        ({{ col.inferred_type }})
+                      </option>
+                    {% endif %}
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Column Preview -->
+        <div class="card shadow-sm mb-4">
+          <div class="card-body">
+            <h5 class="card-title">Column Preview</h5>
+            <p class="text-muted small">Sample values from your file</p>
+
+            <div class="table-responsive">
+              <table class="table table-sm table-hover">
+                <thead>
+                  <tr>
+                    <th>Column Name</th>
+                    <th>Type</th>
+                    <th>Non-null</th>
+                    <th>Unique</th>
+                    <th>Sample Values</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for col in columns %}
+                  <tr {% if col.is_potential_location_name or col.is_potential_latitude or col.is_potential_longitude %}class="table-info"{% endif %}>
+                    <td>
+                      <strong>{{ col.column_name }}</strong>
+                      {% if col.is_potential_location_name %}
+                        <span class="badge bg-primary" title="Suggested for location name">Name</span>
+                      {% endif %}
+                      {% if col.is_potential_latitude %}
+                        <span class="badge bg-success" title="Suggested for latitude">Lat</span>
+                      {% endif %}
+                      {% if col.is_potential_longitude %}
+                        <span class="badge bg-warning" title="Suggested for longitude">Lon</span>
+                      {% endif %}
+                    </td>
+                    <td><span class="badge bg-secondary">{{ col.inferred_type }}</span></td>
+                    <td>{{ col.non_null_count }}</td>
+                    <td>{{ col.unique_count }}</td>
+                    <td>
+                      <small class="text-muted">
+                        {% for value in col.sample_values|slice:":3" %}
+                          <code>{{ value|truncatechars:20 }}</code>{% if not forloop.last %}, {% endif %}
+                        {% endfor %}
+                      </small>
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="d-flex justify-content-between mb-5">
+          <a href="{% url 'geolocation:upload_location_csv' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Back to Upload
+          </a>
+          <button type="submit" class="btn btn-primary btn-lg">
+            Continue to Import <i class="fas fa-arrow-right"></i>
+          </button>
+        </div>
+
+      </form>
+
+    </div>
+  </div>
+</div>
+{% endblock %}

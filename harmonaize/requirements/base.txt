@@ -36,10 +36,14 @@ pygraphviz==1.7  # https://pygraphviz.github.io/
 pandas==2.2.3  # https://github.com/pandas-dev/pandas
 pyarrow==18.1.0  # https://github.com/apache/arrow
 openpyxl==3.1.5  # https://openpyxl.readthedocs.io/
+geopandas==1.0.1  # https://github.com/geopandas/geopandas - Shapefile and geospatial data export
+shapely==2.0.6  # https://github.com/shapely/shapely - point-in-polygon boundary validation
 pgvector==0.4.1  # https://github.com/pgvector/pgvector-python
 numpy==2.3.4  # https://numpy.org/
 scikit-learn==1.7.2  # https://scikit-learn.org/
 scipy==1.16.3  # https://scipy.org/
+ijson==3.2.3  # https://github.com/ICRAR/ijson - Streaming JSON parser for large files
+gdown==5.2.0  # https://github.com/wkentaro/gdown - fetch pre-built admin boundary dataset from Google Drive
 
 # Visualization
 plotly==6.3.1  # https://plotly.com/python/
@@ -50,6 +54,7 @@ seaborn==0.13.2  # https://seaborn.pydata.org/
 openai==2.7.1  # https://github.com/openai/openai-python
 tiktoken==0.12.0  # https://github.com/openai/tiktoken
 google-generativeai==0.8.3  # https://github.com/google/generative-ai-python
+anthropic==0.52.0  # https://github.com/anthropics/anthropic-sdk-python
 fuzzywuzzy==0.18.0  # https://github.com/seatgeek/fuzzywuzzy
 python-Levenshtein==0.27.1  # https://github.com/maxbachmann/Levenshtein (speedup for fuzzywuzzy)
 

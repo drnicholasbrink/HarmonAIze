@@ -1,16 +1,14 @@
 
 import json
-import traceback
 import logging
 import requests
-from django.shortcuts import render, get_object_or_404
-from django.http import JsonResponse
+from django.shortcuts import render, get_object_or_404, redirect
+from django.urls import reverse
+from django.http import JsonResponse, Http404
 from django.views.decorators.csrf import csrf_exempt
-from django.utils.decorators import method_decorator
 from django.views.generic import TemplateView
 from django.conf import settings
 from django.db import transaction
-from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.utils import timezone
@@ -113,10 +111,11 @@ def validation_map(request):
 
 
         source_colours = {
-            'hdx': '#3b82f6',      # Blue
-            'arcgis': '#8b5cf6',   # Purple
-            'google': '#dc2626',   # Red
-            'nominatim': '#f59e0b' # Orange
+            'hdx': '#3b82f6',           # Blue
+            'arcgis': '#8b5cf6',        # Purple
+            'google': '#dc2626',        # Red
+            'nominatim': '#f59e0b',     # Orange
+            'admin_boundary': '#10b981' # Emerald/Green
         }
 
         # Ensure validation belongs to current user if it exists
@@ -161,6 +160,24 @@ def validation_map(request):
                 'color': source_colours['nominatim']
             })
 
+        # Admin boundary source (check if field exists for backwards compatibility)
+        if hasattr(result, 'admin_boundary_success') and result.admin_boundary_success:
+            if result.admin_boundary_lat and result.admin_boundary_lng:
+                admin_coord = {
+                    'source': 'Admin Boundary',
+                    'source_key': 'admin_boundary',
+                    'lat': result.admin_boundary_lat,
+                    'lng': result.admin_boundary_lng,
+                    'color': source_colours['admin_boundary'],
+                    'is_boundary': True,
+                    'location_type': getattr(result, 'location_type', 'unknown')
+                }
+                # Include boundary reference for polygon rendering
+                if hasattr(result, 'admin_boundary_match') and result.admin_boundary_match:
+                    admin_coord['boundary_reference'] = result.admin_boundary_match
+                    admin_coord['admin_level'] = getattr(result, 'admin_level', '')
+                coordinates.append(admin_coord)
+
         if coordinates:
 
             status = validation.validation_status if validation else 'pending'
@@ -173,7 +190,6 @@ def validation_map(request):
             llm_conflict_resolution = metadata.get('llm_conflict_resolution')
             llm_sanity_check = metadata.get('llm_sanity_check')
             llm_explanation = metadata.get('llm_explanation')
-            best_source = metadata.get('best_source')
             best_score = metadata.get('best_score', 0.0)
 
             # Calculate confidence from available validation data
@@ -216,9 +232,6 @@ def validation_map(request):
                     coord['distance_penalty_score'] = distance_score * 100
                     coord['individual_confidence'] = individual_confidence * 100
 
-
-                    calculated_score = (reverse_score * 0.70) + (distance_score * 0.30)
-
                 else:
                     # Calculate fallback scores when validation data is unavailable
                     reverse_score = coord['name_similarity']
@@ -254,7 +267,8 @@ def validation_map(request):
                     'hdx': 'HDX',
                     'arcgis': 'ArcGIS',
                     'google': 'Google',
-                    'nominatim': 'OpenStreetMap'
+                    'nominatim': 'OpenStreetMap',
+                    'admin_boundary': 'Admin Boundary'
                 }
                 best_source_key = metadata.get('best_source')
                 recommended_source = source_mapping.get(best_source_key, best_source_key)
@@ -367,29 +381,34 @@ def get_navigation_info(current_location_id, user=None):
                 if current_index > 0:
                     navigation['prev_location_id'] = location_ids[current_index - 1]
                     navigation['has_prev'] = True
-        except (ValueError, TypeError):
-            pass
+        except (ValueError, TypeError) as e:
+            # Could not determine navigation info (invalid location ID or empty queryset); ignore silently
+            logger.warning(f"Could not determine navigation info for location ID '{current_location_id}': {e}")
 
     return navigation
 
 def get_validation_stats(user=None):
     """Calculate validation statistics for dashboard display."""
     # Core Location statistics
-    total_locations = Location.objects.count()
-    locations_with_coords = Location.objects.filter(
-        latitude__isnull=False,
-        longitude__isnull=False
-    ).count()
-    locations_without_coords = Location.objects.filter(
-        latitude__isnull=True,
-        longitude__isnull=True
-    ).count()
+    if user:
+        total_locations = Location.objects.filter(created_by=user).count()
+        locations_with_coords = Location.objects.filter(
+            created_by=user,
+            latitude__isnull=False,
+            longitude__isnull=False
+        ).count()
+    else:
+        total_locations = Location.objects.count()
+        locations_with_coords = Location.objects.filter(
+            latitude__isnull=False,
+            longitude__isnull=False
+        ).count()
 
     # Count locations that have geocoding results but need validation
     pending_validation = 0
 
     if user:
-        for location in Location.objects.filter(latitude__isnull=True, longitude__isnull=True):
+        for location in Location.objects.filter(created_by=user, latitude__isnull=True, longitude__isnull=True):
             geocoding_result = GeocodingResult.objects.filter(
                 location_name__iexact=location.name,
                 created_by=user
@@ -405,7 +424,7 @@ def get_validation_stats(user=None):
 
         # Count locations without coordinates and without geocoding results
         awaiting_geocoding = 0
-        for location in Location.objects.filter(latitude__isnull=True, longitude__isnull=True):
+        for location in Location.objects.filter(created_by=user, latitude__isnull=True, longitude__isnull=True):
             geocoding_result = GeocodingResult.objects.filter(
                 location_name__iexact=location.name,
                 created_by=user
@@ -518,7 +537,7 @@ def location_status_api(request):
     if request.method == 'GET':
         try:
             locations_data = []
-            locations = Location.objects.all().order_by('name')
+            locations = Location.objects.filter(created_by=request.user).order_by('name')
 
             for location in locations:
                 # Determine current status with automatic validation updates
@@ -527,8 +546,6 @@ def location_status_api(request):
                     status_display = 'Validated & Complete'
                     status_colour = 'green'
                     confidence = 100
-                    sources = ['Final']
-                    coordinates = {'lat': location.latitude, 'lng': location.longitude}
                     geocoding_result_id = None
                 else:
                     # Look for geocoding result (user's own results only)
@@ -558,8 +575,6 @@ def location_status_api(request):
                                     status_display = 'Validated & Complete'
                                     status_colour = 'green'
                                     confidence = 100
-                                    sources = ['Final']
-                                    coordinates = {'lat': lat, 'lng': lng}
                                 else:
                                     # Validation exists but no final coordinates
                                     status = 'needs_review'
@@ -620,6 +635,8 @@ def location_status_api(request):
                                 sources.append('Google')
                             if geocoding_result.nominatim_success:
                                 sources.append('OSM')
+                            if hasattr(geocoding_result, 'admin_boundary_success') and geocoding_result.admin_boundary_success:
+                                sources.append('Boundary')
 
 
                             if geocoding_result.hdx_success and geocoding_result.hdx_lat:
@@ -715,6 +732,8 @@ def validation_queue_api(request):
                         sources.append('Google')
                     if result.nominatim_success:
                         sources.append('OSM')
+                    if hasattr(result, 'admin_boundary_success') and result.admin_boundary_success:
+                        sources.append('Boundary')
 
                     locations_data.append({
                         'id': result.id,
@@ -745,7 +764,8 @@ def validation_queue_api(request):
                     sources.append('Google')
                 if result.nominatim_success:
                     sources.append('OSM')
-
+                if hasattr(result, 'admin_boundary_success') and result.admin_boundary_success:
+                    sources.append('Boundary')
 
                 metadata = validation.validation_metadata or {}
                 best_score = metadata.get('best_score', validation.confidence_score)
@@ -812,7 +832,7 @@ def validation_api(request):
             elif action == 'get_details':
                 return get_enhanced_validation_details(validation)
             elif action == 'use_source':
-                return handle_use_source(validation, data)
+                return handle_use_source(validation, data, request.user)
             elif action == 'run_ai_analysis':
                 return run_ai_analysis(validation)
             else:
@@ -826,6 +846,11 @@ def validation_api(request):
                 'success': False,
                 'error': 'Invalid JSON format in request body'
             }, status=400)
+        except Http404:
+            return JsonResponse({
+                'success': False,
+                'error': 'Not found: this validation or geocoding result does not exist or does not belong to you.'
+            }, status=404)
         except Exception as e:
             logger.error(f"Validation API Error: {str(e)}")
             return JsonResponse({
@@ -834,6 +859,58 @@ def validation_api(request):
             }, status=500)
 
     return JsonResponse({'error': 'Only POST requests are allowed'}, status=405)
+
+
+@login_required
+def spatial_filter_api(request):
+    """
+    Cascading dropdown data for spatial filtering.
+
+    GET ?action=countries
+        → [{iso3, name, file}, ...]
+
+    GET ?action=provinces&country=Zimbabwe
+        → ['Bulawayo', 'Harare', ...]
+
+    GET ?action=districts&country=Zimbabwe&province=Mashonaland+West
+        → ['Chinhoyi', 'Hurungwe', ...]
+    """
+    from .admin_boundary_service import get_admin_boundary_geocoder
+
+    action = request.GET.get('action', '')
+    try:
+        geocoder = get_admin_boundary_geocoder()
+
+        if action == 'countries':
+            raw = geocoder.list_available_countries()
+            names = sorted(set(
+                c['name'] for c in raw
+                if c.get('name') and c['name'] != c.get('iso3') and c['name'] != 'AFRICA'
+            ))
+            return JsonResponse({'countries': names})
+
+        elif action == 'provinces':
+            country = request.GET.get('country', '').strip()
+            if not country:
+                return JsonResponse({'error': 'country parameter required'}, status=400)
+            provinces = geocoder.list_provinces(country)
+            return JsonResponse({'provinces': provinces})
+
+        elif action == 'districts':
+            country = request.GET.get('country', '').strip()
+            province = request.GET.get('province', '').strip()
+            if not country or not province:
+                return JsonResponse({'error': 'country and province parameters required'}, status=400)
+            districts = geocoder.list_districts(country, province)
+            return JsonResponse({'districts': districts})
+
+        return JsonResponse({'error': f'Unknown action: {action}'}, status=400)
+
+    except Exception as e:
+        logger.error(f'spatial_filter_api error: {e}')
+        return JsonResponse({'error': str(e)}, status=500)
+
+
 @login_required
 @csrf_exempt
 def geocoding_api(request):
@@ -846,12 +923,11 @@ def geocoding_api(request):
             if action == 'run_geocoding':
                 limit = data.get('limit', None)
                 force = data.get('force', False)
-
+                spatial_filter = data.get('spatial_filter') or {}
 
                 geocoding_service = GeocodingService()
 
-
-                locations = Location.objects.filter(latitude__isnull=True, longitude__isnull=True)
+                locations = Location.objects.filter(created_by=request.user, latitude__isnull=True, longitude__isnull=True)
 
                 if limit:
                     locations = locations[:limit]
@@ -914,7 +990,9 @@ def geocoding_api(request):
                                     continue
 
                         # Perform new geocoding search
-                        result = geocoding_service.geocode_single_location(location, force)
+                        result = geocoding_service.geocode_single_location(
+                            location, force, user=request.user, spatial_filter=spatial_filter
+                        )
                         success = result is not None
                         if success:
                             new_searches += 1
@@ -970,7 +1048,7 @@ def geocoding_api(request):
 
             elif action == 'get_geocoding_stats':
 
-                stats = get_validation_stats()
+                stats = get_validation_stats(user=request.user)
 
                 return JsonResponse({
                     'success': True,
@@ -1000,7 +1078,92 @@ def geocoding_api(request):
                 'error': f'An unexpected error occurred: {str(e)}'
             }, status=500)
 
-    return JsonResponse({'error': 'Only POST requests are allowed'}, status=405)
+    # Handle GET requests for specific actions
+    elif request.method == 'GET':
+        action = request.GET.get('action')
+
+        if action == 'get_location_polygons':
+            # Return polygon geometries for locations that have admin boundary matches
+            try:
+                from .admin_boundary_service import get_admin_boundary_geocoder
+
+                features = []
+                geocoder = get_admin_boundary_geocoder()
+
+                # Get all locations with coordinates
+                locations = Location.objects.filter(
+                    latitude__isnull=False,
+                    longitude__isnull=False
+                )
+                logger.info(f"get_location_polygons: Found {locations.count()} locations with coordinates")
+
+                # Get geocoding results with admin boundary matches
+                geocoding_results = GeocodingResult.objects.filter(
+                    location__in=locations,
+                    admin_boundary_success=True
+                ).select_related('location')
+                logger.info(f"get_location_polygons: Found {geocoding_results.count()} results with admin_boundary_success=True")
+
+                # Build color map for locations
+                color_palette = [
+                    '#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6',
+                    '#1abc9c', '#e67e22', '#34495e', '#e91e63', '#ff5722'
+                ]
+
+                for i, result in enumerate(geocoding_results):
+                    try:
+                        if not hasattr(result, 'admin_boundary_match') or not result.admin_boundary_match:
+                            logger.debug(f"Skipping {result.location_name}: no admin_boundary_match")
+                            continue
+
+                        boundary_ref = result.admin_boundary_match
+                        if not boundary_ref:
+                            logger.debug(f"Skipping {result.location_name}: boundary_ref is empty")
+                            continue
+
+                        logger.info(f"Processing {result.location_name}: layer_type={boundary_ref.get('layer_type')}, feature_index={boundary_ref.get('feature_index')}")
+
+                        # Get the polygon geometry
+                        geometry_data = geocoder.get_feature_geometry(
+                            boundary_ref.get('layer_type'),
+                            boundary_ref.get('feature_index'),
+                            source_file=boundary_ref.get('source_file')
+                        )
+
+                        if geometry_data:
+                            logger.info(f"Got geometry for {result.location_name}: type={geometry_data.get('type')}")
+                            features.append({
+                                'type': 'Feature',
+                                'geometry': geometry_data,
+                                'properties': {
+                                    'id': result.location.id if result.location else result.id,
+                                    'name': result.location_name,
+                                    'color': color_palette[i % len(color_palette)],
+                                    'admin_level': getattr(result, 'admin_level', ''),
+                                    'location_type': getattr(result, 'location_type', 'admin_boundary')
+                                }
+                            })
+                        else:
+                            logger.warning(f"No geometry returned for {result.location_name}")
+                    except Exception as e:
+                        logger.warning(f"Could not get polygon for {result.location_name}: {e}")
+                        continue
+
+                logger.info(f"get_location_polygons: Returning {len(features)} features")
+                return JsonResponse({
+                    'type': 'FeatureCollection',
+                    'features': features
+                })
+
+            except Exception as e:
+                logger.error(f"Error getting location polygons: {e}")
+                return JsonResponse({
+                    'error': f'Could not load location polygons: {str(e)}'
+                }, status=500)
+
+        return JsonResponse({'error': 'Unknown GET action'}, status=400)
+
+    return JsonResponse({'error': 'Only GET and POST requests are allowed'}, status=405)
 @login_required
 @csrf_exempt
 def bulk_validation_actions(request):
@@ -1069,6 +1232,8 @@ def bulk_validation_actions(request):
                                 final_lat, final_lng = result.google_lat, result.google_lng
                             elif best_source == 'nominatim' and result.nominatim_success:
                                 final_lat, final_lng = result.nominatim_lat, result.nominatim_lng
+                            elif best_source == 'admin_boundary' and hasattr(result, 'admin_boundary_success') and result.admin_boundary_success:
+                                final_lat, final_lng = result.admin_boundary_lat, result.admin_boundary_lng
                             else:
                                 errors += 1
                                 continue
@@ -1081,6 +1246,8 @@ def bulk_validation_actions(request):
                             validation.recommended_lng = final_lng
                             validation.recommended_source = best_source
                             validation.save()
+
+                            result.compute_source_comparison_metrics(final_lat, final_lng, best_source)
 
                             # Add to ValidatedDataset (POI arsenal)
                             ValidatedDataset.objects.update_or_create(
@@ -1249,6 +1416,8 @@ def handle_approve_ai_suggestion(validation, data):
                 final_lat, final_lng = result.google_lat, result.google_lng
             elif best_source == 'nominatim' and result.nominatim_success:
                 final_lat, final_lng = result.nominatim_lat, result.nominatim_lng
+            elif best_source == 'admin_boundary' and hasattr(result, 'admin_boundary_success') and result.admin_boundary_success:
+                final_lat, final_lng = result.admin_boundary_lat, result.admin_boundary_lng
             else:
                 return JsonResponse({
                     'success': False,
@@ -1264,6 +1433,9 @@ def handle_approve_ai_suggestion(validation, data):
             validation.recommended_source = best_source
             validation.save()
 
+            result.selected_source = best_source
+            result.save(update_fields=['selected_source'])
+            result.compute_source_comparison_metrics(final_lat, final_lng, best_source)
 
             # Persist validated coordinates per user; created_by is required (NOT NULL)
             ValidatedDataset.objects.update_or_create(
@@ -1280,20 +1452,20 @@ def handle_approve_ai_suggestion(validation, data):
 
 
             try:
-                location = Location.objects.get(name__iexact=result.location_name)
+                location = Location.objects.get(name__iexact=result.location_name, created_by=validation.created_by)
                 location.latitude = final_lat
                 location.longitude = final_lng
                 location.save()
             except Location.DoesNotExist:
 
-                locations = Location.objects.filter(name__icontains=result.location_name)
+                locations = Location.objects.filter(name__icontains=result.location_name, created_by=validation.created_by)
                 if locations.exists():
                     location = locations.first()
                     location.latitude = final_lat
                     location.longitude = final_lng
                     location.save()
             except Location.MultipleObjectsReturned:
-                location = Location.objects.filter(name__iexact=result.location_name).first()
+                location = Location.objects.filter(name__iexact=result.location_name, created_by=validation.created_by).first()
                 location.latitude = final_lat
                 location.longitude = final_lng
                 location.save()
@@ -1314,7 +1486,7 @@ def handle_approve_ai_suggestion(validation, data):
             'error': f'Failed to approve Auto-Validation suggestion: {str(e)}'
         }, status=500)
 
-def handle_use_source(validation, data):
+def handle_use_source(validation, data, user):
     """Handle user selecting a specific source with enhanced error handling and status updates."""
     try:
         source = data.get('source')
@@ -1337,6 +1509,8 @@ def handle_use_source(validation, data):
                 final_lat, final_lng = result.google_lat, result.google_lng
             elif source == 'nominatim' and result.nominatim_success:
                 final_lat, final_lng = result.nominatim_lat, result.nominatim_lng
+            elif source == 'admin_boundary' and hasattr(result, 'admin_boundary_success') and result.admin_boundary_success:
+                final_lat, final_lng = result.admin_boundary_lat, result.admin_boundary_lng
             else:
                 return JsonResponse({
                     'success': False,
@@ -1353,6 +1527,9 @@ def handle_use_source(validation, data):
             validation.recommended_source = source
             validation.save()
 
+            result.selected_source = source
+            result.save(update_fields=['selected_source'])
+            result.compute_source_comparison_metrics(final_lat, final_lng, source)
 
             # Ensure created_by is set to avoid NOT NULL constraint violations
             ValidatedDataset.objects.update_or_create(
@@ -1363,26 +1540,27 @@ def handle_use_source(validation, data):
                     'final_long': final_lng,
                     'country': '',
                     'source': source,
-                    'validated_at': timezone.now()
+                    'validated_at': timezone.now(),
+                    'created_by': user
                 }
             )
 
 
             try:
-                location = Location.objects.get(name__iexact=result.location_name)
+                location = Location.objects.get(name__iexact=result.location_name, created_by=validation.created_by)
                 location.latitude = final_lat
                 location.longitude = final_lng
                 location.save()
             except Location.DoesNotExist:
 
-                locations = Location.objects.filter(name__icontains=result.location_name)
+                locations = Location.objects.filter(name__icontains=result.location_name, created_by=validation.created_by)
                 if locations.exists():
                     location = locations.first()
                     location.latitude = final_lat
                     location.longitude = final_lng
                     location.save()
             except Location.MultipleObjectsReturned:
-                location = Location.objects.filter(name__iexact=result.location_name).first()
+                location = Location.objects.filter(name__iexact=result.location_name, created_by=validation.created_by).first()
                 location.latitude = final_lat
                 location.longitude = final_lng
                 location.save()
@@ -1430,6 +1608,10 @@ def handle_manual_coordinates(validation, data):
             validation.confidence_score = 1.0  # Manual entry gets highest confidence
             validation.save()
 
+            result.selected_source = 'manual'
+            result.save(update_fields=['selected_source'])
+            result.compute_source_comparison_metrics(lat, lng, 'manual')
+
             #  Add to ValidatedDataset (POI arsenal)
             ValidatedDataset.objects.update_or_create(
                 location_name=result.location_name,
@@ -1445,20 +1627,20 @@ def handle_manual_coordinates(validation, data):
 
 
             try:
-                location = Location.objects.get(name__iexact=result.location_name)
+                location = Location.objects.get(name__iexact=result.location_name, created_by=validation.created_by)
                 location.latitude = lat
                 location.longitude = lng
                 location.save()
             except Location.DoesNotExist:
 
-                locations = Location.objects.filter(name__icontains=result.location_name)
+                locations = Location.objects.filter(name__icontains=result.location_name, created_by=validation.created_by)
                 if locations.exists():
                     location = locations.first()
                     location.latitude = lat
                     location.longitude = lng
                     location.save()
             except Location.MultipleObjectsReturned:
-                location = Location.objects.filter(name__iexact=result.location_name).first()
+                location = Location.objects.filter(name__iexact=result.location_name, created_by=validation.created_by).first()
                 location.latitude = lat
                 location.longitude = lng
                 location.save()
@@ -1685,12 +1867,13 @@ def validation_statistics(request):
 @login_required
 def validated_locations_map(request):
     """Show map of all validated locations with proper data structure."""
+    from .models import LocationCSVUpload
 
     validated_locations = Location.objects.filter(
+        created_by=request.user,
         latitude__isnull=False,
         longitude__isnull=False
     ).order_by('name')
-
 
     # Prepare location data for map display
     locations_data = []
@@ -1703,10 +1886,48 @@ def validated_locations_map(request):
             'status': 'validated'
         })
 
+    # Get source file information from CSV uploads
+    # Query ingested uploads to get source filenames
+    source_files = []
+    csv_uploads = LocationCSVUpload.objects.filter(
+        processing_status='ingested',
+        uploaded_by=request.user
+    ).order_by('-uploaded_at')
+
+    for upload in csv_uploads:
+        # Extract filename without extension for cleaner prefix
+        filename = upload.original_filename
+        if '.' in filename:
+            filename_prefix = filename.rsplit('.', 1)[0]
+        else:
+            filename_prefix = filename
+        source_files.append({
+            'id': upload.id,
+            'filename': upload.original_filename,
+            'prefix': filename_prefix,
+            'uploaded_at': upload.uploaded_at.isoformat() if upload.uploaded_at else '',
+            'locations_created': upload.locations_created or 0
+        })
+
+    # Create a combined prefix from all source files (for default export name)
+    if source_files:
+        # Use the most recent file's prefix, or combine if multiple
+        if len(source_files) == 1:
+            default_prefix = source_files[0]['prefix']
+        else:
+            # Combine first parts of filenames (limit to 3)
+            prefixes = [sf['prefix'][:20] for sf in source_files[:3]]
+            default_prefix = '_'.join(prefixes)
+    else:
+        default_prefix = 'validated_locations'
+
     context = {
         'locations_data': json.dumps(locations_data),
         'mapbox_token': getattr(settings, 'MAPBOX_ACCESS_TOKEN', ''),
-        'total_locations': len(locations_data)
+        'total_locations': len(locations_data),
+        'source_files': source_files,
+        'source_files_json': json.dumps(source_files),
+        'default_prefix': default_prefix,
     }
 
     return render(request, 'geolocation/validated_locations_map.html', context)
@@ -1714,47 +1935,422 @@ def validated_locations_map(request):
 
 @login_required
 def download_validated_locations_csv(request):
-    """Download validated locations as CSV file."""
+    """
+    Download validated locations as CSV file.
+
+    Query parameters:
+        prefix: Filename prefix (default: 'validated_locations')
+        geometry_export: 'centroid' (default) or 'polygon' - for admin boundaries,
+                        includes WKT geometry column when 'polygon' is specified
+    """
     import csv
+    import re
     from django.http import HttpResponse
     from datetime import datetime
 
     # Get all validated locations (Location model has: name, lat, lng, created_at, updated_at)
     validated_locations = Location.objects.filter(
+        created_by=request.user,
         latitude__isnull=False,
         longitude__isnull=False
     ).order_by('name')
 
+    # Get source file prefix from query parameter
+    prefix = request.GET.get('prefix', 'validated_locations')
+    # Sanitize prefix for filename safety
+    prefix = re.sub(r'[^\w\-_]', '_', prefix)[:50]
+
+    # Get geometry export option (centroid or polygon)
+    geometry_export = request.GET.get('geometry_export', 'centroid')
+    include_polygon = geometry_export == 'polygon'
+
     # Create the HttpResponse object with CSV header
     response = HttpResponse(content_type='text/csv')
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    response['Content-Disposition'] = f'attachment; filename="validated_locations_{timestamp}.csv"'
+    response['Content-Disposition'] = f'attachment; filename="{prefix}_{timestamp}.csv"'
 
     # Create CSV writer
     writer = csv.writer(response)
 
     # Write header row
-    writer.writerow([
+    header = [
         'Location ID',
         'Location Name',
         'Latitude',
         'Longitude',
+        'Location Type',
+        'Admin Level',
         'Created Date',
         'Updated Date'
-    ])
+    ]
+    if include_polygon:
+        header.append('WKT_Geometry')
+    writer.writerow(header)
+
+    # Preload geocoding results for admin boundary info
+    location_geocoding = {}
+    geocoder = None
+    if include_polygon:
+        try:
+            from .admin_boundary_service import get_admin_boundary_geocoder
+            geocoder = get_admin_boundary_geocoder()
+
+            geocoding_results = GeocodingResult.objects.filter(
+                location__in=validated_locations,
+                admin_boundary_success=True
+            ).select_related('location')
+
+            for result in geocoding_results:
+                location_geocoding[result.location_id] = result
+        except Exception as e:
+            # Admin boundary fields may not exist yet (migration not applied)
+            logger.warning(f"Could not load admin boundary data for export: {e}")
 
     # Write data rows
     for location in validated_locations:
-        writer.writerow([
+        geocoding_result = location_geocoding.get(location.id)
+        location_type = 'point'
+        admin_level = ''
+        wkt_geometry = ''
+
+        if geocoding_result:
+            location_type = getattr(geocoding_result, 'location_type', 'point') or 'point'
+            admin_level = getattr(geocoding_result, 'admin_level', '') or ''
+
+            # Get polygon geometry if requested
+            if include_polygon and geocoder and hasattr(geocoding_result, 'admin_boundary_match') and geocoding_result.admin_boundary_match:
+                boundary_ref = geocoding_result.admin_boundary_match
+                try:
+                    geometry = geocoder.get_feature_geometry(
+                        boundary_ref.get('layer_type'),
+                        boundary_ref.get('feature_index'),
+                        source_file=boundary_ref.get('source_file')  # Pass source file for large file streaming
+                    )
+                    if geometry:
+                        wkt_geometry = _geometry_to_wkt(geometry)
+                except Exception as e:
+                    logger.warning(f"Could not get polygon geometry: {e}")
+                    wkt_geometry = ''
+
+        row = [
             location.id,
             location.name,
             location.latitude,
             location.longitude,
+            location_type,
+            admin_level,
             location.created_at.strftime('%Y-%m-%d %H:%M:%S') if location.created_at else 'N/A',
             location.updated_at.strftime('%Y-%m-%d %H:%M:%S') if location.updated_at else 'N/A'
-        ])
+        ]
+        if include_polygon:
+            row.append(wkt_geometry)
+        writer.writerow(row)
 
     return response
+
+
+def _geometry_to_wkt(geometry):
+    """Convert GeoJSON geometry to WKT format."""
+    geom_type = geometry.get('type', '').upper()
+    coords = geometry.get('coordinates', [])
+
+    if not coords:
+        return ''
+
+    try:
+        if geom_type == 'POINT':
+            return f"POINT ({coords[0]} {coords[1]})"
+        elif geom_type == 'POLYGON':
+            rings = []
+            for ring in coords:
+                points = ', '.join([f"{c[0]} {c[1]}" for c in ring])
+                rings.append(f"({points})")
+            return f"POLYGON ({', '.join(rings)})"
+        elif geom_type == 'MULTIPOLYGON':
+            polygons = []
+            for polygon in coords:
+                rings = []
+                for ring in polygon:
+                    points = ', '.join([f"{c[0]} {c[1]}" for c in ring])
+                    rings.append(f"({points})")
+                polygons.append(f"({', '.join(rings)})")
+            return f"MULTIPOLYGON ({', '.join(polygons)})"
+        else:
+            return ''
+    except Exception:
+        return ''
+
+
+@login_required
+def download_validated_locations_shapefile(request):
+    """
+    Download validated locations as a shapefile (ZIP archive).
+
+    Query parameters:
+        prefix: Filename prefix (default: 'validated_locations')
+        geometry_export: 'centroid' (default) or 'polygon' - for admin boundaries,
+                        exports full polygon geometry when 'polygon' is specified
+
+    Returns a ZIP file containing:
+    - .shp (geometry)
+    - .shx (index)
+    - .dbf (attributes)
+    - .prj (projection - WGS84)
+    - .cpg (character encoding)
+    """
+    import geopandas as gpd
+    from shapely.geometry import Point, shape
+    import tempfile
+    import zipfile
+    import os
+    import re
+    from io import BytesIO
+    from django.http import HttpResponse, JsonResponse
+    from datetime import datetime
+
+    # Get all validated locations (same query as CSV export)
+    validated_locations = Location.objects.filter(
+        created_by=request.user,
+        latitude__isnull=False,
+        longitude__isnull=False
+    ).order_by('name')
+
+    # Check if there are locations to export
+    if not validated_locations.exists():
+        return JsonResponse({
+            'error': 'No validated locations found to export.'
+        }, status=404)
+
+    # Get source file prefix from query parameter
+    prefix = request.GET.get('prefix', 'validated_locations')
+    # Sanitize prefix for filename safety
+    prefix = re.sub(r'[^\w\-_]', '_', prefix)[:50]
+
+    # Get geometry export option (centroid or polygon)
+    geometry_export = request.GET.get('geometry_export', 'centroid')
+    include_polygon = geometry_export == 'polygon'
+
+    # Create timestamp for filename
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    shapefile_basename = f'{prefix}_{timestamp}'
+
+    # Preload geocoding results for admin boundary info
+    location_geocoding = {}
+    geocoder = None
+    if include_polygon:
+        try:
+            from .admin_boundary_service import get_admin_boundary_geocoder
+            geocoder = get_admin_boundary_geocoder()
+
+            geocoding_results = GeocodingResult.objects.filter(
+                location__in=validated_locations,
+                admin_boundary_success=True
+            ).select_related('location')
+
+            for result in geocoding_results:
+                location_geocoding[result.location_id] = result
+        except Exception as e:
+            # Admin boundary fields may not exist yet (migration not applied)
+            logger.warning(f"Could not load admin boundary data for shapefile export: {e}")
+
+    # Prepare data for GeoDataFrame
+    data = []
+    geometries = []
+
+    for location in validated_locations:
+        geocoding_result = location_geocoding.get(location.id)
+        location_type = 'point'
+        admin_level = ''
+        geom = Point(location.longitude, location.latitude)
+
+        if geocoding_result:
+            location_type = getattr(geocoding_result, 'location_type', 'point') or 'point'
+            admin_level = getattr(geocoding_result, 'admin_level', '') or ''
+
+            # Get polygon geometry if requested and available
+            if include_polygon and geocoder and hasattr(geocoding_result, 'admin_boundary_match') and geocoding_result.admin_boundary_match:
+                boundary_ref = geocoding_result.admin_boundary_match
+                try:
+                    geometry_data = geocoder.get_feature_geometry(
+                        boundary_ref.get('layer_type'),
+                        boundary_ref.get('feature_index'),
+                        source_file=boundary_ref.get('source_file')  # Pass source file for large file streaming
+                    )
+                    if geometry_data:
+                        geom = shape(geometry_data)
+                except Exception as e:
+                    # Fall back to point geometry
+                    logger.warning(f"Could not get polygon geometry for shapefile: {e}")
+
+        geometries.append(geom)
+
+        # Prepare attributes
+        data.append({
+            'loc_id': location.id,
+            'name': location.name[:254] if location.name else '',  # Shapefile limit
+            'latitude': location.latitude,
+            'longitude': location.longitude,
+            'loc_type': location_type[:50],
+            'adm_level': admin_level[:10],
+            'created_at': location.created_at.date() if location.created_at else None,
+            'updated_at': location.updated_at.date() if location.updated_at else None
+        })
+
+    # Create GeoDataFrame
+    gdf = gpd.GeoDataFrame(data, geometry=geometries, crs='EPSG:4326')
+
+    # Use temporary directory for shapefile creation
+    with tempfile.TemporaryDirectory() as temp_dir:
+        shapefile_path = os.path.join(temp_dir, shapefile_basename + '.shp')
+
+        # Write shapefile (geopandas automatically creates .shp, .shx, .dbf, .prj, .cpg)
+        gdf.to_file(shapefile_path, driver='ESRI Shapefile', encoding='utf-8')
+
+        # Create ZIP file in memory
+        zip_buffer = BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            # Add all shapefile components to ZIP
+            for extension in ['.shp', '.shx', '.dbf', '.prj', '.cpg']:
+                file_path = os.path.join(temp_dir, shapefile_basename + extension)
+                if os.path.exists(file_path):
+                    arcname = shapefile_basename + extension
+                    zip_file.write(file_path, arcname=arcname)
+
+        # Prepare response
+        zip_buffer.seek(0)
+        response = HttpResponse(zip_buffer.getvalue(), content_type='application/zip')
+        response['Content-Disposition'] = f'attachment; filename="{shapefile_basename}.zip"'
+
+        return response
+
+
+def download_validated_locations_geojson(request):
+    """
+    Download validated locations as a GeoJSON file.
+
+    Query parameters:
+        prefix: Filename prefix (default: 'validated_locations')
+        geometry_export: 'centroid' (default) or 'polygon' - for admin boundaries,
+                        exports full polygon geometry when 'polygon' is specified
+
+    Returns a GeoJSON file with validated locations.
+    """
+    from shapely.geometry import Point, shape, mapping
+    import re
+    from django.http import HttpResponse, JsonResponse
+    from datetime import datetime
+
+    # Get all validated locations (same query as CSV export)
+    validated_locations = Location.objects.filter(
+        created_by=request.user,
+        latitude__isnull=False,
+        longitude__isnull=False
+    ).order_by('name')
+
+    # Check if there are locations to export
+    if not validated_locations.exists():
+        return JsonResponse({
+            'error': 'No validated locations found to export.'
+        }, status=404)
+
+    # Get source file prefix from query parameter
+    prefix = request.GET.get('prefix', 'validated_locations')
+    # Sanitize prefix for filename safety
+    prefix = re.sub(r'[^\w\-_]', '_', prefix)[:50]
+
+    # Get geometry export option (centroid or polygon)
+    geometry_export = request.GET.get('geometry_export', 'centroid')
+    include_polygon = geometry_export == 'polygon'
+
+    # Create timestamp for filename
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    geojson_filename = f'{prefix}_{timestamp}.geojson'
+
+    # Preload geocoding results for admin boundary info
+    location_geocoding = {}
+    geocoder = None
+    if include_polygon:
+        try:
+            from .admin_boundary_service import get_admin_boundary_geocoder
+            geocoder = get_admin_boundary_geocoder()
+
+            geocoding_results = GeocodingResult.objects.filter(
+                location__in=validated_locations,
+                admin_boundary_success=True
+            ).select_related('location')
+
+            for result in geocoding_results:
+                location_geocoding[result.location_id] = result
+        except Exception as e:
+            # Admin boundary fields may not exist yet (migration not applied)
+            logger.warning(f"Could not load admin boundary data for GeoJSON export: {e}")
+
+    # Build GeoJSON FeatureCollection
+    features = []
+
+    for location in validated_locations:
+        geocoding_result = location_geocoding.get(location.id)
+        location_type = 'point'
+        admin_level = ''
+        geom = Point(location.longitude, location.latitude)
+
+        if geocoding_result:
+            location_type = getattr(geocoding_result, 'location_type', 'point') or 'point'
+            admin_level = getattr(geocoding_result, 'admin_level', '') or ''
+
+            # Get polygon geometry if requested and available
+            if include_polygon and geocoder and hasattr(geocoding_result, 'admin_boundary_match') and geocoding_result.admin_boundary_match:
+                boundary_ref = geocoding_result.admin_boundary_match
+                try:
+                    geometry_data = geocoder.get_feature_geometry(
+                        boundary_ref.get('layer_type'),
+                        boundary_ref.get('feature_index'),
+                        source_file=boundary_ref.get('source_file')
+                    )
+                    if geometry_data:
+                        geom = shape(geometry_data)
+                except Exception as e:
+                    # Fall back to point geometry
+                    logger.warning(f"Could not get polygon geometry for GeoJSON: {e}")
+
+        # Create feature
+        feature = {
+            'type': 'Feature',
+            'geometry': mapping(geom),
+            'properties': {
+                'id': location.id,
+                'name': location.name,
+                'latitude': location.latitude,
+                'longitude': location.longitude,
+                'location_type': location_type,
+                'admin_level': admin_level,
+                'created_at': location.created_at.isoformat() if location.created_at else None,
+                'updated_at': location.updated_at.isoformat() if location.updated_at else None
+            }
+        }
+        features.append(feature)
+
+    # Create GeoJSON structure
+    geojson = {
+        'type': 'FeatureCollection',
+        'features': features,
+        'metadata': {
+            'generated_at': datetime.now().isoformat(),
+            'total_features': len(features),
+            'geometry_type': geometry_export,
+            'source': 'HarmonAIze Geolocation Platform'
+        }
+    }
+
+    # Return as downloadable JSON file
+    response = HttpResponse(
+        json.dumps(geojson, indent=2),
+        content_type='application/geo+json'
+    )
+    response['Content-Disposition'] = f'attachment; filename="{geojson_filename}"'
+
+    return response
+
 
 # MODERN CELERY-BASED BATCH PROCESSING VIEWS
 @login_required
@@ -1785,7 +2381,7 @@ def start_batch_geocoding(request):
                 'success': True,
                 'task_id': task.id,
                 'message': 'Batch geocoding started',
-                'monitor_url': f'/geolocation/batch-progress/{task.id}/'
+                'monitor_url': reverse('geolocation:batch_progress', kwargs={'task_id': task.id})
             })
 
         except Exception as e:
@@ -1821,7 +2417,7 @@ def start_batch_validation(request):
                 'success': True,
                 'task_id': task.id,
                 'message': 'Batch validation started',
-                'monitor_url': f'/geolocation/batch-progress/{task.id}/'
+                'monitor_url': reverse('geolocation:batch_progress', kwargs={'task_id': task.id})
             })
 
         except Exception as e:
@@ -1889,3 +2485,967 @@ def batch_progress(request, task_id):
             'status': 'error',
             'error': str(e)
         }, status=500)
+
+
+@login_required
+@csrf_exempt
+def manual_coordinate_update(request):
+    """
+    Manually set coordinates for a location.
+    Allows users to click on map or enter coordinates directly.
+    """
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            location_id = data.get('location_id')
+            latitude = data.get('latitude')
+            longitude = data.get('longitude')
+
+            # Validate inputs
+            if not location_id:
+                return JsonResponse({'success': False, 'error': 'Location ID is required'}, status=400)
+
+            if latitude is None or longitude is None:
+                return JsonResponse({'success': False, 'error': 'Latitude and longitude are required'}, status=400)
+
+            # Validate coordinate ranges
+            try:
+                lat = float(latitude)
+                lon = float(longitude)
+
+                if not (-90 <= lat <= 90):
+                    return JsonResponse({'success': False, 'error': 'Latitude must be between -90 and 90'}, status=400)
+
+                if not (-180 <= lon <= 180):
+                    return JsonResponse({'success': False, 'error': 'Longitude must be between -180 and 180'}, status=400)
+
+            except (ValueError, TypeError):
+                return JsonResponse({'success': False, 'error': 'Invalid coordinate format'}, status=400)
+
+            # Get location
+            location = Location.objects.filter(id=location_id).first()
+            if not location:
+                return JsonResponse({'success': False, 'error': 'Location not found'}, status=404)
+
+            # Update coordinates
+            location.latitude = lat
+            location.longitude = lon
+            location.save()
+
+            logger.info(f"Manually set coordinates for '{location.name}' to ({lat}, {lon}) by user {request.user.username}")
+
+            return JsonResponse({
+                'success': True,
+                'message': f'Coordinates updated for {location.name}',
+                'location': {
+                    'id': location.id,
+                    'name': location.name,
+                    'latitude': location.latitude,
+                    'longitude': location.longitude
+                }
+            })
+
+        except Exception as e:
+            logger.error(f"Failed to update coordinates: {e}", exc_info=True)
+            return JsonResponse({
+                'success': False,
+                'error': str(e)
+            }, status=500)
+
+    return JsonResponse({'error': 'POST required'}, status=405)
+
+
+# ============================================================================
+# LOCATION CSV UPLOAD VIEWS
+# ============================================================================
+
+@login_required
+def upload_location_csv(request):
+    """
+    Upload and validate location CSV files.
+    Step 1 of the location CSV import workflow.
+    """
+    from .forms import LocationCSVUploadForm
+    from .models import LocationCSVUpload, LocationCSVColumn
+    from .utils import analyze_location_csv_columns
+    from django.contrib import messages
+    import hashlib
+
+    if request.method == 'POST':
+        form = LocationCSVUploadForm(request.POST, request.FILES)
+
+        if form.is_valid():
+            upload = form.save(commit=False)
+            upload.uploaded_by = request.user
+            upload.original_filename = request.FILES['file'].name
+            upload.file_size = request.FILES['file'].size
+
+            # Detect file format
+            file_ext = upload.original_filename.split('.')[-1].lower()
+            upload.file_format = file_ext
+
+            # Calculate checksum for duplicate detection
+            file_obj = request.FILES['file']
+            file_obj.seek(0)
+            checksum = hashlib.sha256(file_obj.read()).hexdigest()
+            upload.checksum = checksum
+            file_obj.seek(0)
+
+            # Check for duplicate uploads (but ignore failed ones)
+            duplicate = LocationCSVUpload.objects.filter(
+                uploaded_by=request.user,
+                checksum=checksum
+            ).exclude(processing_status='error').first()
+
+            if duplicate:
+                messages.warning(
+                    request,
+                    f"Identical file already uploaded on {duplicate.uploaded_at.strftime('%Y-%m-%d %H:%M')}. "
+                    f"Status: {duplicate.get_processing_status_display()}"
+                )
+                return redirect('geolocation:upload_location_csv')
+
+            upload.save()
+
+            # Analyze columns
+            try:
+                analysis = analyze_location_csv_columns(upload.file.path)
+
+                if not analysis.get('success'):
+                    upload.processing_status = 'error'
+                    upload.processing_message = analysis.get('error', 'Unknown error during analysis')
+                    upload.save()
+                    messages.error(request, f"Could not analyze file: {upload.processing_message}")
+                    return redirect('geolocation:upload_location_csv')
+
+                # Store detected columns and row count
+                upload.detected_columns = analysis['columns']
+                upload.total_rows = analysis['total_rows']
+                upload.processing_status = 'validated'
+                upload.processing_message = f"Detected {len(analysis['columns'])} columns, {analysis['total_rows']} rows"
+                upload.save()
+
+                # Create LocationCSVColumn records
+                for idx, col_name in enumerate(analysis['columns']):
+                    col_analysis = analysis['column_analysis'][col_name]
+
+                    LocationCSVColumn.objects.create(
+                        upload=upload,
+                        column_name=col_name,
+                        column_index=idx,
+                        inferred_type=col_analysis['inferred_type'],
+                        sample_values=col_analysis['sample_values'],
+                        non_null_count=col_analysis['non_null_count'],
+                        unique_count=col_analysis['unique_count'],
+                        is_potential_location_name=col_analysis['is_potential_location_name'],
+                        is_potential_latitude=col_analysis['is_potential_latitude'],
+                        is_potential_longitude=col_analysis['is_potential_longitude'],
+                    )
+
+                messages.success(
+                    request,
+                    f"File analyzed successfully! Found {len(analysis['columns'])} columns in {analysis['total_rows']} rows. "
+                    "Please confirm column mappings."
+                )
+                return redirect('geolocation:map_location_columns', upload_id=upload.id)
+
+            except Exception as e:
+                upload.processing_status = 'error'
+                upload.processing_message = str(e)
+                upload.save()
+                logger.error(f"Failed to analyze location CSV: {e}", exc_info=True)
+                messages.error(request, f"Could not analyze file: {e}")
+                return redirect('geolocation:upload_location_csv')
+
+    else:
+        form = LocationCSVUploadForm()
+
+    # Get recent uploads for display
+    recent_uploads = LocationCSVUpload.objects.filter(
+        uploaded_by=request.user
+    ).order_by('-uploaded_at')[:5]
+
+    return render(request, 'geolocation/upload_location_csv.html', {
+        'form': form,
+        'recent_uploads': recent_uploads,
+    })
+
+
+@login_required
+def map_location_columns(request, upload_id):
+    """
+    Map CSV columns to location fields with preview.
+    Step 2 of the location CSV import workflow.
+    """
+    from .models import LocationCSVUpload
+    from .utils import suggest_location_column_mappings
+    from django.contrib import messages
+
+    upload = get_object_or_404(
+        LocationCSVUpload,
+        id=upload_id,
+        uploaded_by=request.user
+    )
+
+    columns = upload.columns.all().order_by('column_index')
+
+    if request.method == 'POST':
+        # Save column mappings
+        location_name_col = request.POST.get('location_name_column')
+        latitude_col = request.POST.get('latitude_column')
+        longitude_col = request.POST.get('longitude_column')
+
+        # Validation
+        if not location_name_col or location_name_col == '':
+            messages.error(request, "Location name column is required. Please select one.")
+            return redirect('geolocation:map_location_columns', upload_id=upload_id)
+
+        # Save mappings
+        upload.location_name_column = location_name_col
+        upload.latitude_column = latitude_col if latitude_col and latitude_col != '' else ''
+        upload.longitude_column = longitude_col if longitude_col and longitude_col != '' else ''
+        upload.processing_status = 'processed'
+        upload.save()
+
+        messages.success(request, "Column mappings saved! Ready to import locations.")
+        return redirect('geolocation:ingest_location_csv', upload_id=upload_id)
+
+    # Generate suggestions for pre-filling
+    column_metadata = []
+    for col in columns:
+        column_metadata.append({
+            'column_name': col.column_name,
+            'is_potential_location_name': col.is_potential_location_name,
+            'is_potential_latitude': col.is_potential_latitude,
+            'is_potential_longitude': col.is_potential_longitude,
+        })
+
+    suggestions = suggest_location_column_mappings(column_metadata)
+
+    return render(request, 'geolocation/map_location_columns.html', {
+        'upload': upload,
+        'columns': columns,
+        'suggestions': suggestions,
+    })
+
+
+@login_required
+def ingest_location_csv(request, upload_id):
+    """
+    Import locations from CSV into Location model.
+    Step 3 of the location CSV import workflow.
+    """
+    from .models import LocationCSVUpload
+    from core.models import Location
+    from django.contrib import messages
+    from django.utils import timezone
+    import pandas as pd
+
+    upload = get_object_or_404(
+        LocationCSVUpload,
+        id=upload_id,
+        uploaded_by=request.user
+    )
+
+    # Verify upload is ready
+    if upload.processing_status != 'processed':
+        messages.error(request, "Upload is not ready for ingestion. Please map columns first.")
+        return redirect('geolocation:map_location_columns', upload_id=upload_id)
+
+    if not upload.location_name_column:
+        messages.error(request, "Location name column not specified. Please map columns.")
+        return redirect('geolocation:map_location_columns', upload_id=upload_id)
+
+    if request.method == 'POST':
+        try:
+            replace_existing = request.POST.get('replace_existing', 'true') == 'true'
+
+            if replace_existing:
+                # Delete all existing locations for this user to start a fresh session.
+                # Cascades automatically delete GeocodingResult → ValidationResult.
+                deleted_count, _ = Location.objects.filter(created_by=request.user).delete()
+                if deleted_count:
+                    logger.info(f"Cleared {deleted_count} previous locations for user {request.user.username}")
+
+            # Read the file
+            file_ext = upload.file_format
+            if file_ext == 'csv':
+                df = pd.read_csv(upload.file.path)
+            elif file_ext in ['xlsx', 'xls']:
+                df = pd.read_excel(upload.file.path)
+            elif file_ext == 'json':
+                df = pd.read_json(upload.file.path, lines=True)
+            else:
+                raise ValueError(f"Unsupported file format: {file_ext}")
+
+            # Verify columns exist
+            if upload.location_name_column not in df.columns:
+                raise ValueError(f"Column '{upload.location_name_column}' not found in file")
+
+            has_coords = upload.has_coordinates
+            if has_coords:
+                if upload.latitude_column not in df.columns:
+                    raise ValueError(f"Column '{upload.latitude_column}' not found in file")
+                if upload.longitude_column not in df.columns:
+                    raise ValueError(f"Column '{upload.longitude_column}' not found in file")
+
+            # Identify context columns (district, country, etc.) to enhance location names
+            context_keywords = ['district', 'region', 'province', 'city', 'country', 'state', 'county', 'area']
+            context_columns = []
+            for col in df.columns:
+                col_lower = col.lower()
+                if col != upload.location_name_column and any(keyword in col_lower for keyword in context_keywords):
+                    context_columns.append(col)
+
+            logger.info(f"Context columns to append to location names: {context_columns}")
+
+            # Process rows
+            created_count = 0
+            skipped_count = 0
+
+            for idx, row in df.iterrows():
+                location_name = str(row[upload.location_name_column]).strip()
+
+                # Skip empty names
+                if not location_name or location_name == 'nan':
+                    skipped_count += 1
+                    continue
+
+                # Enhance location name with district/country context
+                context_parts = []
+                for col in context_columns:
+                    val = row[col]
+                    if pd.notna(val) and str(val).strip() and str(val).strip().lower() != 'nan':
+                        context_parts.append(str(val).strip())
+
+                # Append context to location name for better geocoding
+                if context_parts:
+                    enhanced_name = f"{location_name}, {', '.join(context_parts)}"
+                    logger.info(f"Enhanced location name: '{location_name}' → '{enhanced_name}'")
+                    location_name = enhanced_name
+
+                # Get coordinates if available
+                latitude = None
+                longitude = None
+
+                if has_coords:
+                    try:
+                        lat_val = row[upload.latitude_column]
+                        lon_val = row[upload.longitude_column]
+
+                        # Convert to float and validate - BOTH must be present and valid
+                        # Check for NaN, None, empty string, or whitespace
+                        lat_valid = pd.notna(lat_val) and str(lat_val).strip() != ''
+                        lon_valid = pd.notna(lon_val) and str(lon_val).strip() != ''
+
+                        if lat_valid and lon_valid:
+                            latitude = float(lat_val)
+                            longitude = float(lon_val)
+
+                            # Validate ranges
+                            if not (-90 <= latitude <= 90):
+                                logger.warning(f"Invalid latitude {latitude} for {location_name}, skipping coordinates")
+                                latitude = None
+                                longitude = None
+                            elif not (-180 <= longitude <= 180):
+                                logger.warning(f"Invalid longitude {longitude} for {location_name}, skipping coordinates")
+                                latitude = None
+                                longitude = None
+                        else:
+                            # If either coordinate is missing, skip both
+                            if lat_valid and not lon_valid:
+                                logger.warning(f"Missing longitude for {location_name}, skipping coordinates")
+                            elif lon_valid and not lat_valid:
+                                logger.warning(f"Missing latitude for {location_name}, skipping coordinates")
+                            latitude = None
+                            longitude = None
+                    except (ValueError, TypeError) as e:
+                        logger.warning(f"Could not parse coordinates for {location_name}: {e}")
+                        latitude = None
+                        longitude = None
+
+                # Check for duplicates (case-insensitive name match, scoped to current user)
+                existing = Location.objects.filter(name__iexact=location_name, created_by=request.user).first()
+
+                if existing:
+                    # If CSV had coordinates, store them as user_provided source in GeocodingResult
+                    # so the user can compare against OSM/ArcGIS/Google results before validating.
+                    # Never overwrite Location.latitude/longitude directly — that is set only by validation.
+                    if latitude is not None and longitude is not None:
+                        GeocodingResult.objects.update_or_create(
+                            location_name=existing.name,
+                            created_by=request.user,
+                            defaults={
+                                'location': existing,
+                                'user_provided_lat': latitude,
+                                'user_provided_lng': longitude,
+                                'user_provided_success': True,
+                            }
+                        )
+                        logger.info(f"Stored user-provided coordinates as source for existing location: {location_name}")
+                    skipped_count += 1
+                else:
+                    # Create new location WITHOUT final coordinates.
+                    # CSV coordinates are one source among many (OSM, ArcGIS, Google, HDX).
+                    # Location.latitude/longitude is only set after the user validates.
+                    location_obj = Location.objects.create(
+                        name=location_name,
+                        created_by=request.user
+                    )
+
+                    # If CSV had coordinates, store them as user_provided geocoding source
+                    if latitude is not None and longitude is not None:
+                        GeocodingResult.objects.create(
+                            location=location_obj,
+                            created_by=request.user,
+                            location_name=location_name,
+                            user_provided_lat=latitude,
+                            user_provided_lng=longitude,
+                            user_provided_success=True,
+                        )
+                        logger.info(f"Stored user-provided coordinates as source for new location: {location_name}")
+
+                    created_count += 1
+
+            # Update upload status
+            upload.processing_status = 'ingested'
+            upload.locations_created = created_count
+            upload.locations_skipped = skipped_count
+            upload.processed_at = timezone.now()
+            upload.processing_message = f"Created {created_count} locations, skipped {skipped_count} duplicates"
+            upload.save()
+
+            messages.success(
+                request,
+                f"Successfully imported {created_count} locations! "
+                f"({skipped_count} duplicates skipped)"
+            )
+
+            # Redirect to geocoding dashboard
+            return redirect('geolocation:validation_dashboard')
+
+        except Exception as e:
+            upload.processing_status = 'error'
+            upload.processing_message = f"Ingestion failed: {str(e)}"
+            upload.save()
+            logger.error(f"Failed to ingest location CSV: {e}", exc_info=True)
+            messages.error(request, f"Failed to import locations: {e}")
+            return redirect('geolocation:ingest_location_csv', upload_id=upload_id)
+
+    # GET request - show preview
+    return render(request, 'geolocation/ingest_location_csv.html', {
+        'upload': upload,
+    })
+
+
+@login_required
+def delete_location_csv_upload(request, upload_id):
+    """
+    Delete a location CSV upload record.
+    """
+    from .models import LocationCSVUpload
+    from django.contrib import messages
+
+    upload = get_object_or_404(
+        LocationCSVUpload,
+        id=upload_id,
+        uploaded_by=request.user
+    )
+
+    if request.method == 'POST':
+        filename = upload.original_filename
+        upload.delete()
+        messages.success(request, f"Deleted upload: {filename}")
+        return redirect('geolocation:upload_location_csv')
+
+    # GET request - show confirmation
+    return render(request, 'geolocation/delete_csv_upload_confirm.html', {
+        'upload': upload,
+    })
+
+
+@login_required
+def admin_boundaries_api(request, layer_type):
+    """
+    Serve admin boundary GeoJSON files for map overlays.
+
+    Supports multiple admin levels with filtering:
+    - countries: Country boundaries (Africa_Boundaries.geojson)
+    - provinces: Province/state boundaries (admin_level 2-4)
+    - districts: District boundaries (admin_level 5-8)
+
+    Query parameters:
+    - country: Filter by country name (optional)
+    - bbox: Bounding box filter as minLng,minLat,maxLng,maxLat (optional)
+
+    Args:
+        request: Django HTTP request
+        layer_type: Type of boundary layer ('countries', 'provinces', 'districts')
+
+    Returns:
+        JsonResponse: GeoJSON data or error message
+    """
+    import os
+
+    # Configuration for each layer type
+    layer_config = {
+        'countries': {
+            'file': 'Africa_Boundaries.geojson',
+            'preprocessed_file': None,
+            'admin_levels': None,
+            'cache_timeout': 3600,
+            'max_file_size_mb': 100,
+        },
+        'provinces': {
+            'file': 'africa_admin_boundaries.geojson',
+            'preprocessed_file': 'admin_boundaries/provinces.geojson',
+            'admin_levels': ['2', '3', '4'],
+            'cache_timeout': 1800,
+            'max_file_size_mb': 50,
+        },
+        'districts': {
+            'file': 'africa_admin_boundaries.geojson',
+            'preprocessed_file': 'admin_boundaries/districts.geojson',
+            'admin_levels': ['5', '6', '7', '8'],
+            'cache_timeout': 1800,
+            'max_file_size_mb': 100,
+        },
+    }
+
+    if layer_type not in layer_config:
+        return JsonResponse({
+            'error': f'Unknown layer type: {layer_type}',
+            'available_layers': list(layer_config.keys())
+        }, status=400)
+
+    config = layer_config[layer_type]
+    data_dir = os.path.join(os.path.dirname(__file__), 'data_geocoding')
+
+    # Parse query parameters
+    country_filter = request.GET.get('country')
+    bbox_param = request.GET.get('bbox')
+    bbox = None
+    if bbox_param:
+        try:
+            parts = [float(x) for x in bbox_param.split(',')]
+            if len(parts) == 4:
+                bbox = {
+                    'minLng': parts[0],
+                    'minLat': parts[1],
+                    'maxLng': parts[2],
+                    'maxLat': parts[3]
+                }
+        except ValueError:
+            pass
+
+    # Build cache key
+    cache_key = f"admin_boundaries_{layer_type}"
+    if country_filter:
+        cache_key += f"_{country_filter}"
+    if bbox:
+        cache_key += f"_bbox_{bbox_param}"
+
+    # Try cache first
+    cached_data = cache.get(cache_key)
+    if cached_data:
+        return JsonResponse(cached_data, safe=False)
+
+    # Fast path: use per-country GADM file when country filter is given
+    if country_filter and layer_type in ('provinces', 'districts'):
+        iso_map = _get_country_iso_map(data_dir)
+        iso3 = iso_map.get(country_filter.strip().lower())
+        if iso3:
+            gadm_path = os.path.join(data_dir, f'{iso3}_AdminBoundaries.geojson')
+            if os.path.exists(gadm_path):
+                try:
+                    with open(gadm_path, 'r', encoding='utf-8') as f:
+                        gadm_data = json.load(f)
+                    filtered = []
+                    for feat in gadm_data.get('features', []):
+                        props = feat.get('properties', {})
+                        al = str(props.get('admin_level', ''))
+                        if al not in config['admin_levels']:
+                            continue
+                        props = dict(props)
+                        if layer_type == 'provinces':
+                            props.setdefault('name', props.get('NAME_1', ''))
+                        else:
+                            props.setdefault('name', props.get('NAME_2', ''))
+                        feat = dict(feat, properties=props)
+                        filtered.append(feat)
+                    result = {'type': 'FeatureCollection', 'features': filtered}
+                    cache.set(cache_key, result, config['cache_timeout'])
+                    return JsonResponse(result, safe=False)
+                except Exception as e:
+                    logger.warning(f"Failed to load GADM file for {iso3}: {e}")
+
+    # Try preprocessed file first (faster, smaller)
+    geojson_path = None
+    if config['preprocessed_file']:
+        preprocessed_path = os.path.join(data_dir, config['preprocessed_file'])
+        if os.path.exists(preprocessed_path):
+            geojson_path = preprocessed_path
+            logger.info(f"Using preprocessed file for {layer_type}")
+
+    # Fall back to main file
+    if not geojson_path:
+        geojson_path = os.path.join(data_dir, config['file'])
+
+    if not os.path.exists(geojson_path):
+        return JsonResponse({
+            'error': f'{layer_type} boundary file not found',
+            'help': 'Run: python manage.py process_admin_boundaries'
+        }, status=404)
+
+    # Check file size before loading
+    file_size_mb = os.path.getsize(geojson_path) / (1024 * 1024)
+    if file_size_mb > config['max_file_size_mb']:
+        return JsonResponse({
+            'error': f'{layer_type} boundary file too large ({file_size_mb:.0f}MB)',
+            'help': 'Run: python manage.py process_admin_boundaries to create optimized files',
+            'max_size_mb': config['max_file_size_mb']
+        }, status=413)
+
+    try:
+        with open(geojson_path, 'r', encoding='utf-8') as f:
+            geojson_data = json.load(f)
+
+        # Filter features if using admin_levels and not using preprocessed file
+        if config['admin_levels'] and not config['preprocessed_file']:
+            filtered_features = []
+            for feature in geojson_data.get('features', []):
+                props = feature.get('properties', {})
+                admin_level = str(props.get('admin_level', ''))
+
+                if admin_level not in config['admin_levels']:
+                    continue
+
+                if country_filter:
+                    feature_country = props.get('name', '') or props.get('name_en', '')
+                    if country_filter.lower() not in feature_country.lower():
+                        continue
+
+                if bbox and not _feature_intersects_bbox(feature, bbox):
+                    continue
+
+                filtered_features.append(feature)
+
+            geojson_data = {
+                'type': 'FeatureCollection',
+                'features': filtered_features
+            }
+
+            logger.info(f"Filtered {layer_type}: {len(filtered_features)} features")
+
+        # Apply bbox filter if using preprocessed file
+        elif bbox:
+            filtered_features = [
+                f for f in geojson_data.get('features', [])
+                if _feature_intersects_bbox(f, bbox)
+            ]
+            geojson_data = {
+                'type': 'FeatureCollection',
+                'features': filtered_features
+            }
+
+        # Apply country filter if using preprocessed file
+        elif country_filter:
+            filtered_features = []
+            for feature in geojson_data.get('features', []):
+                props = feature.get('properties', {})
+                feature_name = props.get('name', '') or props.get('name_en', '')
+                if country_filter.lower() in feature_name.lower():
+                    filtered_features.append(feature)
+            geojson_data = {
+                'type': 'FeatureCollection',
+                'features': filtered_features
+            }
+
+        # Cache the result
+        cache.set(cache_key, geojson_data, config['cache_timeout'])
+
+        return JsonResponse(geojson_data, safe=False)
+
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid GeoJSON in {geojson_path}: {e}")
+        return JsonResponse({
+            'error': 'Invalid GeoJSON format',
+            'details': str(e)
+        }, status=500)
+    except MemoryError:
+        logger.error(f"Memory error loading {geojson_path}")
+        return JsonResponse({
+            'error': 'File too large to process',
+            'help': 'Run: python manage.py process_admin_boundaries'
+        }, status=413)
+    except Exception as e:
+        logger.error(f"Error reading boundary file {geojson_path}: {e}")
+        return JsonResponse({
+            'error': 'Failed to read boundary file',
+            'details': str(e)
+        }, status=500)
+
+
+def _get_country_iso_map(data_dir):
+    """Build and cache a mapping from country name (lowercase) to ISO3 code from GADM files."""
+    import glob
+    import os
+    import re
+
+    cache_key = 'boundary_country_iso_map_v1'
+    cached = cache.get(cache_key)
+    if cached:
+        return cached
+
+    iso_map = {}
+    for path in sorted(glob.glob(os.path.join(data_dir, '???_AdminBoundaries.geojson'))):
+        iso3 = os.path.basename(path)[:3].upper()
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                text = f.read(3000)
+            m = re.search(r'"NAME_0"\s*:\s*"([^"]+)"', text)
+            if m:
+                name0 = m.group(1)
+                iso_map[name0.lower()] = iso3
+            iso_map[iso3.lower()] = iso3  # also allow ISO3 as filter value
+        except Exception:
+            iso_map[iso3.lower()] = iso3
+
+    cache.set(cache_key, iso_map, 3600 * 24)
+    return iso_map
+
+
+def _feature_intersects_bbox(feature, bbox):
+    """
+    Check if a GeoJSON feature intersects with a bounding box.
+    Uses a simplified check based on the feature's coordinates.
+    """
+    geometry = feature.get('geometry', {})
+    coords = geometry.get('coordinates', [])
+
+    if not coords:
+        return False
+
+    def check_coords(c):
+        """Recursively check if any coordinate falls within bbox."""
+        if isinstance(c[0], (int, float)):
+            # This is a coordinate pair [lng, lat]
+            lng, lat = c[0], c[1]
+            return (bbox['minLng'] <= lng <= bbox['maxLng'] and
+                    bbox['minLat'] <= lat <= bbox['maxLat'])
+        else:
+            # This is an array of coordinates, check any
+            return any(check_coords(inner) for inner in c)
+
+    return check_coords(coords)
+
+
+@login_required
+def boundary_geometry_api(request, layer_type, feature_index):
+    """
+    Return full polygon geometry for a boundary feature.
+
+    Used for visualizing admin boundary matches on the map.
+    Returns the complete GeoJSON geometry along with centroid.
+
+    Args:
+        request: Django HTTP request
+        layer_type: Type of boundary layer ('countries', 'provinces', 'districts')
+        feature_index: Index of the feature in the GeoJSON file
+
+    Query params:
+        source_file: Optional filename to load from directly (faster for large files)
+
+    Returns:
+        JsonResponse with geometry and centroid data
+    """
+    from .admin_boundary_service import get_admin_boundary_geocoder
+
+    try:
+        # Get optional source_file from query params (from boundary_reference)
+        source_file = request.GET.get('source_file')
+
+        geocoder = get_admin_boundary_geocoder()
+        result = geocoder.get_boundary_polygon(layer_type, int(feature_index), source_file)
+
+        if result.get('success'):
+            return JsonResponse({
+                'success': True,
+                'geometry': result['geometry'],
+                'centroid': result['centroid'],
+                'properties': result['properties']
+            })
+        else:
+            return JsonResponse({
+                'success': False,
+                'error': result.get('error', 'Feature not found')
+            }, status=404)
+
+    except ValueError:
+        return JsonResponse({
+            'success': False,
+            'error': f'Invalid feature index: {feature_index}'
+        }, status=400)
+    except Exception as e:
+        logger.error(f"Error getting boundary geometry: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+def research_metrics_api(request):
+    """
+    Aggregate geocoding accuracy metrics across all validated locations for the current user.
+
+    Returns the statistics needed for the HarmonAIze paper:
+      - Per-source success rate, accuracy at 1 km and 5 km, false-positive rate
+      - Inter-source agreement (% locations where any source diverges > 5 km)
+      - Confidence score distribution
+      - Validated-dataset reuse rate (locations served from cache without API calls)
+      - Median and mean distances per source (for p-value comparisons)
+
+    Only locations that have source_comparison_metrics populated are included
+    (i.e. locations that have been validated through any workflow).
+    """
+    import statistics
+
+    qs = GeocodingResult.objects.filter(
+        created_by=request.user,
+        source_comparison_metrics__isnull=False,
+    ).select_related('validation')
+
+    total_validated = qs.count()
+    if total_validated == 0:
+        return JsonResponse({
+            'total_validated': 0,
+            'message': 'No validated locations with comparison metrics yet. Validate some locations first.',
+        })
+
+    all_sources = ['hdx', 'arcgis', 'google', 'nominatim', 'admin_boundary', 'user_provided']
+
+    source_stats = {s: {
+        'attempted': 0,
+        'succeeded': 0,
+        'distances_km': [],
+        'accurate_1km': 0,
+        'accurate_5km': 0,
+        'inaccurate_beyond_5km': 0,
+    } for s in all_sources}
+
+    inter_source = {
+        'locations_with_multiple_sources': 0,
+        'locations_with_discrepancy_5km': 0,
+        'max_distances_km': [],
+    }
+
+    confidence_scores = []
+    locations_from_validated_dataset = 0
+
+    for result in qs:
+        metrics = result.source_comparison_metrics
+        if not metrics:
+            continue
+
+        sm = metrics.get('source_metrics', {})
+        for source in all_sources:
+            sd = sm.get(source, {})
+            source_stats[source]['attempted'] += 1
+            if sd.get('succeeded'):
+                source_stats[source]['succeeded'] += 1
+                dist = sd.get('distance_to_ground_truth_km')
+                if dist is not None:
+                    source_stats[source]['distances_km'].append(dist)
+                    if sd.get('is_accurate_1km'):
+                        source_stats[source]['accurate_1km'] += 1
+                    if sd.get('is_accurate_5km'):
+                        source_stats[source]['accurate_5km'] += 1
+                    else:
+                        source_stats[source]['inaccurate_beyond_5km'] += 1
+
+        summary = metrics.get('summary', {})
+        n_succeeded = summary.get('total_sources_succeeded', 0)
+        if n_succeeded >= 2:
+            inter_source['locations_with_multiple_sources'] += 1
+            max_d = summary.get('max_inter_source_distance_km', 0)
+            inter_source['max_distances_km'].append(max_d)
+            if summary.get('has_discrepancy_beyond_5km'):
+                inter_source['locations_with_discrepancy_5km'] += 1
+
+        # Collect confidence scores
+        try:
+            conf = result.validation.confidence_score
+            if conf is not None:
+                confidence_scores.append(conf)
+        except Exception:
+            pass
+
+        # Validated dataset reuse: selected_source stored as 'validated_dataset'
+        gt_source = metrics.get('ground_truth', {}).get('source', '')
+        if 'validated_dataset' in gt_source:
+            locations_from_validated_dataset += 1
+
+    # Build per-source output
+    source_output = {}
+    for source in all_sources:
+        s = source_stats[source]
+        dists = s['distances_km']
+        succeeded = s['succeeded']
+
+        source_output[source] = {
+            'attempted': s['attempted'],
+            'succeeded': succeeded,
+            'failed': s['attempted'] - succeeded,
+            'failure_rate': round((s['attempted'] - succeeded) / s['attempted'], 4) if s['attempted'] else None,
+            'accurate_within_1km': s['accurate_1km'],
+            'accurate_within_5km': s['accurate_5km'],
+            'inaccurate_beyond_5km': s['inaccurate_beyond_5km'],
+            'accuracy_rate_1km': round(s['accurate_1km'] / succeeded, 4) if succeeded else None,
+            'accuracy_rate_5km': round(s['accurate_5km'] / succeeded, 4) if succeeded else None,
+            'false_positive_rate_5km': round(s['inaccurate_beyond_5km'] / succeeded, 4) if succeeded else None,
+            'mean_distance_km': round(statistics.mean(dists), 3) if dists else None,
+            'median_distance_km': round(statistics.median(dists), 3) if dists else None,
+            'stdev_distance_km': round(statistics.stdev(dists), 3) if len(dists) >= 2 else None,
+            'min_distance_km': round(min(dists), 3) if dists else None,
+            'max_distance_km': round(max(dists), 3) if dists else None,
+        }
+
+    n_multi = inter_source['locations_with_multiple_sources']
+    max_dists = inter_source['max_distances_km']
+
+    inter_source_output = {
+        'locations_with_multiple_sources': n_multi,
+        'locations_with_discrepancy_beyond_5km': inter_source['locations_with_discrepancy_5km'],
+        'pct_locations_with_discrepancy_5km': round(
+            inter_source['locations_with_discrepancy_5km'] / n_multi, 4
+        ) if n_multi else None,
+        'mean_max_inter_source_distance_km': round(statistics.mean(max_dists), 3) if max_dists else None,
+        'median_max_inter_source_distance_km': round(statistics.median(max_dists), 3) if max_dists else None,
+    }
+
+    conf_output = {}
+    if confidence_scores:
+        conf_output = {
+            'mean': round(statistics.mean(confidence_scores), 4),
+            'median': round(statistics.median(confidence_scores), 4),
+            'stdev': round(statistics.stdev(confidence_scores), 4) if len(confidence_scores) >= 2 else None,
+            'high_confidence_count': sum(1 for c in confidence_scores if c >= 0.8),
+            'medium_confidence_count': sum(1 for c in confidence_scores if 0.6 <= c < 0.8),
+            'low_confidence_count': sum(1 for c in confidence_scores if c < 0.6),
+        }
+
+    return JsonResponse({
+        'total_validated': total_validated,
+        'source_stats': source_output,
+        'inter_source_agreement': inter_source_output,
+        'confidence_score_distribution': conf_output,
+        'validated_dataset_reuse': {
+            'locations_from_cache': locations_from_validated_dataset,
+            'reuse_rate': round(locations_from_validated_dataset / total_validated, 4),
+        },
+        'note': (
+            'accuracy_rate_1km = fraction of succeeded locations within 1 km of ground truth; '
+            'false_positive_rate_5km = fraction of succeeded locations more than 5 km from ground truth'
+        ),
+    })

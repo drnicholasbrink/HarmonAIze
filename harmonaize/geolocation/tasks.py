@@ -1,14 +1,10 @@
 # geolocation/tasks.py
 import logging
-import time
 from celery import shared_task, group, chord
-from celery.signals import task_postrun
 from django.core.cache import cache
 from django.utils import timezone
-from django.db import transaction
-from django.conf import settings
 
-from .models import GeocodingResult, ValidationResult, ValidatedDataset
+from .models import GeocodingResult
 from .validation import SmartGeocodingValidator
 from .services import GeocodingService
 from core.models import Location
@@ -16,7 +12,7 @@ from core.models import Location
 logger = logging.getLogger(__name__)
 
 
-@shared_task(bind=True, rate_limit='100/m', max_retries=3, default_retry_delay=60)
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def geocode_single_location_task(self, location_id, force_reprocess=False, user_id=None):
     """
     Celery task to geocode a single location.
@@ -159,6 +155,16 @@ def batch_geocode_locations(self, location_ids=None, force_reprocess=False, batc
     task_id = self.request.id
     progress_key = f"geocoding_progress_{task_id}"
 
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    user = None
+    if user_id:
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            cache.set(progress_key, {'status': 'failed', 'error': f'User {user_id} not found'}, timeout=3600)
+            return {'status': 'failed', 'error': 'User not found'}
+
     try:
         # Initialize progress tracking
         cache.set(progress_key, {
@@ -174,16 +180,16 @@ def batch_geocode_locations(self, location_ids=None, force_reprocess=False, batc
 
         # Get locations to process
         if location_ids:
-            locations = Location.objects.filter(id__in=location_ids)
+            locations = Location.objects.filter(id__in=location_ids, created_by=user) if user else Location.objects.filter(id__in=location_ids)
         else:
             if force_reprocess:
-                locations = Location.objects.all()
+                locations = Location.objects.filter(created_by=user) if user else Location.objects.all()
             else:
                 # Find locations that don't have complete geocoding results
                 incomplete_count = 0
                 complete_location_names = []
 
-                for result in GeocodingResult.objects.all():
+                for result in GeocodingResult.objects.filter(created_by=user) if user else GeocodingResult.objects.all():
                     successful_count = sum([
                         result.hdx_success,
                         result.arcgis_success,
@@ -199,7 +205,7 @@ def batch_geocode_locations(self, location_ids=None, force_reprocess=False, batc
                 logger.info(f"Batch geocoding: {incomplete_count} locations have only 1 API result and will be re-processed")
                 logger.info(f"Batch geocoding: {len(complete_location_names)} locations have 2+ API results and will be skipped")
 
-                locations = Location.objects.exclude(name__in=complete_location_names)
+                locations = (Location.objects.filter(created_by=user) if user else Location.objects.all()).exclude(name__in=complete_location_names)
 
         # Get list of location IDs
         location_ids_to_process = list(locations.values_list('id', flat=True))
@@ -257,7 +263,7 @@ def batch_geocode_locations(self, location_ids=None, force_reprocess=False, batc
         raise
 
 
-@shared_task(bind=True, rate_limit='50/m', max_retries=3, default_retry_delay=60)
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def validate_single_location_task(self, geocoding_result_id):
     """
     Celery task to validate a single geocoding result.

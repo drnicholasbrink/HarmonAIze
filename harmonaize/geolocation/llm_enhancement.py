@@ -1,5 +1,5 @@
 """
-LLM-powered enhancements for geocoding using Google Gemini.
+LLM-powered enhancements for geocoding using Anthropic Claude.
 
 This module provides optional AI-powered improvements to location parsing
 and facility matching. All functions gracefully degrade if LLM is unavailable.
@@ -7,7 +7,6 @@ and facility matching. All functions gracefully degrade if LLM is unavailable.
 Key Features:
 - Intelligent location parsing (extract country, city, facility from unstructured text)
 - Semantic facility name matching
-
 - Graceful fallback to traditional methods if LLM unavailable
 """
 
@@ -20,23 +19,24 @@ from django.core.cache import cache
 
 logger = logging.getLogger(__name__)
 
-# Check if Gemini is available
-GEMINI_AVAILABLE = False
+# Check if Claude is available
+CLAUDE_AVAILABLE = False
+claude_client = None
 try:
-    import google.generativeai as genai
+    import anthropic
 
-    # Configure Gemini with API key from settings
-    if hasattr(settings, 'GEMINI_API_KEY') and settings.GEMINI_API_KEY:
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        GEMINI_AVAILABLE = True
-        logger.info("✓ Gemini LLM initialized successfully for geocoding enhancements")
+    # Configure Claude with API key from settings
+    if hasattr(settings, 'ANTHROPIC_API_KEY') and settings.ANTHROPIC_API_KEY:
+        claude_client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+        CLAUDE_AVAILABLE = True
+        logger.debug("Claude LLM initialized successfully for geocoding enhancements")
     else:
-        logger.warning("Gemini API key not configured - LLM enhancements disabled")
+        logger.warning("Anthropic API key not configured - LLM enhancements disabled")
 
 except ImportError:
-    logger.warning("google-generativeai not installed - LLM enhancements disabled")
+    logger.warning("anthropic not installed - LLM enhancements disabled")
 except Exception as e:
-    logger.error(f"Failed to initialize Gemini: {e}")
+    logger.error(f"Failed to initialize Claude: {e}")
 
 
 class GeocodingLLMEnhancer:
@@ -48,49 +48,29 @@ class GeocodingLLMEnhancer:
     """
 
     def __init__(self):
-        """Initialize the LLM enhancer with Gemini models."""
+        """Initialize the LLM enhancer with Claude models."""
         self.enabled = (
-            GEMINI_AVAILABLE and
+            CLAUDE_AVAILABLE and
             getattr(settings, 'GEOLOCATION_USE_LLM', True)
         )
 
-        self.model_flash = None
-        self.model_pro = None
+        self.client = claude_client
+
+        # Model names for different use cases
+        # Haiku: fast, cheap operations (parsing, simple matching)
+        # Sonnet: complex reasoning (conflict resolution)
+        self.model_fast = "claude-haiku-4-5-20251001"
+        self.model_reasoning = "claude-sonnet-5"
 
         if self.enabled:
-            try:
-                # Flash model for fast, cheap operations (parsing, simple matching)
-                # Using gemini-2.5-flash (fastest, cheapest, and available on free tier)
-                self.model_flash = genai.GenerativeModel(
-                    'gemini-2.5-flash',
-                    generation_config=genai.GenerationConfig(
-                        temperature=0.1,  # Low temperature for structured output
-                        max_output_tokens=1000
-                    )
-                )
-
-                # Pro model for complex reasoning (conflict resolution)
-                # Using gemini-2.5-pro (better reasoning than flash)
-                self.model_pro = genai.GenerativeModel(
-                    'gemini-2.5-pro',
-                    generation_config=genai.GenerationConfig(
-                        temperature=0.2,
-                        max_output_tokens=1000
-                    )
-                )
-
-                logger.info("✓ Gemini Flash and Pro models initialized")
-
-            except Exception as e:
-                logger.error(f"Failed to initialize Gemini models: {e}")
-                self.enabled = False
+            logger.debug("Claude Haiku and Sonnet models configured")
 
     def is_enabled(self) -> bool:
         """Check if LLM enhancements are enabled and available."""
         return self.enabled
 
     def _strip_markdown_json(self, text: str) -> str:
-        """Strip markdown code blocks from Gemini response if present."""
+        """Strip markdown code blocks from LLM response if present."""
         text = text.strip()
         if text.startswith('```'):
             lines = text.split('\n')
@@ -103,7 +83,7 @@ class GeocodingLLMEnhancer:
 
     def parse_location_structured(self, location_name: str) -> Optional[Dict]:
         """
-        Extract structured data from unstructured location name using Gemini.
+        Extract structured data from unstructured location name using Claude.
 
         This is the primary enhancement - turns messy text into clean components.
 
@@ -171,8 +151,12 @@ Examples:
 "Harare Zimbabwe" → {{"city": "Harare", "country": "Zimbabwe", "country_code": "ZW", "facility_name": null}}
 """
 
-            response = self.model_flash.generate_content(prompt)
-            result = json.loads(self._strip_markdown_json(response.text))
+            response = self.client.messages.create(
+                model=self.model_fast,
+                max_tokens=1000,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            result = json.loads(self._strip_markdown_json(response.content[0].text))
 
             # Validate that we got a dict with expected structure
             if not isinstance(result, dict):
@@ -182,7 +166,7 @@ Examples:
             # Cache successful result for 1 hour
             cache.set(cache_key, result, 3600)
 
-            logger.info(f"✓ LLM parsed '{location_name}': facility={result.get('facility_name')}, city={result.get('city')}, country={result.get('country')}")
+            logger.debug(f"✓ LLM parsed '{location_name}': facility={result.get('facility_name')}, city={result.get('city')}, country={result.get('country')}")
             return result
 
         except json.JSONDecodeError as e:
@@ -254,8 +238,12 @@ Return JSON:
 Be strict: Only return is_match=true if you're reasonably confident they're the same place.
 """
 
-            response = self.model_flash.generate_content(prompt)
-            result = json.loads(self._strip_markdown_json(response.text))
+            response = self.client.messages.create(
+                model=self.model_fast,
+                max_tokens=1000,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            result = json.loads(self._strip_markdown_json(response.content[0].text))
 
             # Validate result structure
             if not isinstance(result, dict) or 'is_match' not in result or 'confidence' not in result:
@@ -266,7 +254,7 @@ Be strict: Only return is_match=true if you're reasonably confident they're the 
             cache.set(cache_key, result, 3600)
 
             if result['is_match']:
-                logger.info(f"✓ LLM matched '{query}' → '{candidate}' (confidence: {result['confidence']:.1%})")
+                logger.debug(f"✓ LLM matched '{query}' → '{candidate}' (confidence: {result['confidence']:.1%})")
             else:
                 logger.debug(f"✗ LLM: '{query}' != '{candidate}' (confidence: {result['confidence']:.1%})")
 
@@ -279,6 +267,38 @@ Be strict: Only return is_match=true if you're reasonably confident they're the 
             logger.warning(f"LLM semantic matching failed: {e}")
             return None
 
+    def _strip_facility_suffix(self, name: str) -> str:
+        """
+        Strip common facility type suffixes to get the unique identifying name.
+
+        This prevents false matches like "MBAVI HEALTH CENTRE" matching
+        "Londuimbali Health Centre" just because they share "Health Centre".
+        """
+        if not name:
+            return name
+
+        suffixes = [
+            'district hospital', 'central hospital', 'general hospital',
+            'mission hospital', 'rural hospital', 'private hospital',
+            'teaching hospital', 'referral hospital',
+            'health centre', 'health center', 'health post',
+            'medical centre', 'medical center',
+            'maternity hospital', 'maternity clinic',
+            'community hospital', 'community clinic', 'community health centre',
+            'hospital', 'clinic', 'dispensary', 'infirmary',
+            'hc', 'hosp', 'med center', 'med centre',
+        ]
+
+        name_lower = name.lower().strip()
+        core_name = name.strip()
+
+        for suffix in suffixes:
+            if name_lower.endswith(suffix):
+                core_name = name[:len(name) - len(suffix)].strip().rstrip(' -.,')
+                break
+
+        return core_name if core_name and len(core_name) >= 2 else name.strip()
+
     def find_best_facility_match(self,
                                  query: str,
                                  candidates: list,
@@ -287,7 +307,8 @@ Be strict: Only return is_match=true if you're reasonably confident they're the 
         Find the best matching facility from a list using semantic understanding.
 
         This combines traditional fuzzy matching (for speed) with LLM reasoning
-        for the top candidates.
+        for the top candidates. Strips facility type suffixes before matching
+        to prevent false matches on common suffixes like "Health Centre".
 
         Args:
             query: Query facility name
@@ -301,33 +322,48 @@ Be strict: Only return is_match=true if you're reasonably confident they're the 
             return None
 
         try:
-            # Pre-filter with fuzzy matching (cheap and fast)
             from fuzzywuzzy import process
-            top_candidates = process.extract(query, candidates, limit=min(max_candidates, len(candidates)))
+
+            # Strip suffix from query to get core name
+            query_core = self._strip_facility_suffix(query)
+            logger.debug(f"LLM matching: query='{query}' -> core='{query_core}'")
+
+            # Build mapping of stripped names to original names
+            stripped_to_original = {}
+            for candidate in candidates:
+                stripped = self._strip_facility_suffix(candidate)
+                if stripped not in stripped_to_original:
+                    stripped_to_original[stripped] = candidate
+
+            stripped_candidates = list(stripped_to_original.keys())
+
+            # Pre-filter with fuzzy matching on STRIPPED names (cheap and fast)
+            top_candidates = process.extract(query_core, stripped_candidates, limit=min(max_candidates, len(stripped_candidates)))
 
             # Now use LLM to evaluate top candidates semantically
             best_match = None
             best_confidence = 0.0
             best_reasoning = ""
 
-            for candidate_name, fuzzy_score in top_candidates:
-                # Skip very low fuzzy scores to save API calls
-                if fuzzy_score < 50:
+            for stripped_name, fuzzy_score in top_candidates:
+                # Skip low fuzzy scores to save API calls and prevent bad matches
+                if fuzzy_score < 65:
                     continue
 
-                llm_result = self.semantic_facility_similarity(query, candidate_name)
+                original_name = stripped_to_original.get(stripped_name, stripped_name)
+                llm_result = self.semantic_facility_similarity(query, original_name)
 
                 if llm_result and llm_result['is_match']:
                     # Combine fuzzy score with LLM confidence
                     combined_confidence = (fuzzy_score / 100.0) * 0.3 + llm_result['confidence'] * 0.7
 
                     if combined_confidence > best_confidence:
-                        best_match = candidate_name
+                        best_match = original_name
                         best_confidence = combined_confidence
                         best_reasoning = llm_result['reasoning']
 
-            if best_match and best_confidence > 0.6:  # Threshold for accepting match
-                logger.info(f"✓ LLM best match for '{query}': '{best_match}' (confidence: {best_confidence:.1%})")
+            if best_match and best_confidence > 0.75:  # Threshold for accepting match
+                logger.debug(f"✓ LLM best match for '{query}': '{best_match}' (confidence: {best_confidence:.1%})")
                 return (best_match, best_confidence, best_reasoning)
 
             return None
@@ -442,12 +478,16 @@ Return JSON:
 }}
 """
 
-            response = self.model_pro.generate_content(prompt)  # Use Pro for complex reasoning
-            llm_decision = json.loads(self._strip_markdown_json(response.text))
+            response = self.client.messages.create(
+                model=self.model_reasoning,  # Use Sonnet for complex reasoning
+                max_tokens=1000,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            llm_decision = json.loads(self._strip_markdown_json(response.content[0].text))
 
-            logger.info(f"✓ LLM Conflict Resolution for '{location_name}':")
-            logger.info(f"  Recommended: {llm_decision['recommended_source']} (confidence: {llm_decision['confidence']:.1%})")
-            logger.info(f"  Reasoning: {llm_decision['reasoning']}")
+            logger.debug(f"✓ LLM Conflict Resolution for '{location_name}':")
+            logger.debug(f"  Recommended: {llm_decision['recommended_source']} (confidence: {llm_decision['confidence']:.1%})")
+            logger.debug(f"  Reasoning: {llm_decision['reasoning']}")
 
             # Cache the decision
             cache_key = f"llm_conflict:{location_name}:{max_distance_km:.1f}"
@@ -534,20 +574,12 @@ Examples:
   → match_quality: "none", similarity_score: 0.10
 """
 
-            response = self.model_flash.generate_content(prompt)
-
-            # Strip markdown code blocks if present (Gemini sometimes wraps JSON in ```json ... ```)
-            response_text = response.text.strip()
-            if response_text.startswith('```'):
-                # Remove ```json or ``` from start and ``` from end
-                lines = response_text.split('\n')
-                if lines[0].startswith('```'):
-                    lines = lines[1:]  # Remove first line
-                if lines and lines[-1].strip() == '```':
-                    lines = lines[:-1]  # Remove last line
-                response_text = '\n'.join(lines)
-
-            result = json.loads(response_text)
+            response = self.client.messages.create(
+                model=self.model_fast,
+                max_tokens=1000,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            result = json.loads(self._strip_markdown_json(response.content[0].text))
 
             # Cache for 1 hour
             cache.set(cache_key, result, 3600)
@@ -562,6 +594,34 @@ Examples:
         except Exception as e:
             logger.warning(f"LLM address similarity check failed: {e}")
             return None
+
+    # ISO 3-letter to full country name mapping for sanity checks
+    ISO_COUNTRY_NAMES = {
+        'ETH': 'Ethiopia', 'ZWE': 'Zimbabwe', 'KEN': 'Kenya', 'TZA': 'Tanzania',
+        'UGA': 'Uganda', 'RWA': 'Rwanda', 'BDI': 'Burundi', 'MWI': 'Malawi',
+        'ZMB': 'Zambia', 'MOZ': 'Mozambique', 'ZAF': 'South Africa', 'NAM': 'Namibia',
+        'BWA': 'Botswana', 'LSO': 'Lesotho', 'SWZ': 'Eswatini', 'AGO': 'Angola',
+        'COD': 'Democratic Republic of the Congo', 'COG': 'Republic of the Congo',
+        'GAB': 'Gabon', 'CMR': 'Cameroon', 'NGA': 'Nigeria', 'GHA': 'Ghana',
+        'CIV': 'Ivory Coast', 'SEN': 'Senegal', 'MLI': 'Mali', 'BFA': 'Burkina Faso',
+        'NER': 'Niger', 'TCD': 'Chad', 'SDN': 'Sudan', 'SSD': 'South Sudan',
+        'EGY': 'Egypt', 'LBY': 'Libya', 'TUN': 'Tunisia', 'DZA': 'Algeria',
+        'MAR': 'Morocco', 'MRT': 'Mauritania', 'SOM': 'Somalia', 'DJI': 'Djibouti',
+        'ERI': 'Eritrea',
+    }
+
+    def _normalize_country_name(self, country: str) -> str:
+        """Normalize ISO country codes to full country names for better LLM matching."""
+        if not country:
+            return 'Unknown'
+
+        # Check if it's an ISO 3-letter code
+        country_upper = country.upper().strip()
+        if country_upper in self.ISO_COUNTRY_NAMES:
+            return self.ISO_COUNTRY_NAMES[country_upper]
+
+        # Already a full name
+        return country
 
     def contextual_sanity_check(self,
                                location_name: str,
@@ -589,12 +649,23 @@ Examples:
             return None
 
         try:
+            # Normalize country name (convert ISO codes like "ETH" to "Ethiopia")
+            raw_country = parsed_location.get('country', 'Unknown')
+            normalized_country = self._normalize_country_name(raw_country)
+
+            # Detect if this is a facility search or location search
+            facility_keywords = ['hospital', 'clinic', 'health', 'medical', 'dispensary', 'pharmacy']
+            query_lower = location_name.lower()
+            is_facility_search = any(kw in query_lower for kw in facility_keywords)
+            search_type = 'facility' if is_facility_search else 'location/admin_boundary'
+
             # Build context about what we expected vs what we got
             expected = {
                 'query': location_name,
-                'parsed_country': parsed_location.get('country', 'Unknown'),
+                'search_type': search_type,
+                'parsed_country': normalized_country,
                 'parsed_city': parsed_location.get('admin_level_2', 'Unknown'),
-                'parsed_facility': parsed_location.get('facility', 'Unknown')
+                'parsed_facility': parsed_location.get('facility', 'Unknown') if is_facility_search else 'N/A (location search)'
             }
 
             # Analyze reverse geocoding results
@@ -620,11 +691,18 @@ GEOCODING RESULTS:
 {json.dumps(reverse_summary, indent=2)}
 
 SANITY CHECKS NEEDED:
-1. Do the reverse addresses match the COUNTRY from the query?
-2. If a city was mentioned, do addresses include that city?
-3. Does the location type make sense? (hospital, clinic, etc.)
-4. Are any coordinates clearly wrong? (e.g., ocean, wrong continent)
-5. Do all sources agree on general geographic area?
+1. Does AT LEAST ONE source show coordinates in the expected COUNTRY? (If yes, PASS)
+2. Account for spelling variations in city names (Hosaina=Hossana, Harare=Salisbury, etc.)
+3. ONLY check facility type if query clearly mentions hospital/clinic/etc. Location queries like "Arada, Ethiopia" don't need facility matching.
+4. Are coordinates clearly wrong? (ocean, wrong continent) - this is CRITICAL severity
+5. If sources disagree on location, that's OK as long as at least one is in the right country
+
+IMPORTANT RULES:
+- If the query contains ISO country codes (ETH, ZWE, KEN), these mean Ethiopia, Zimbabwe, Kenya etc.
+- Comma-separated queries like "Arada, ETH, Hossana" are location searches, NOT facility searches
+- Be LENIENT - only fail for clear geographic errors (wrong country/continent)
+- Minor spelling differences should NOT cause failure
+- If most sources agree on the general area, PASS the check
 
 Return JSON:
 {{
@@ -635,21 +713,32 @@ Return JSON:
     "severity": "none|minor|major|critical"
 }}
 
+SEVERITY GUIDE:
+- "none": All good, coordinates clearly in expected location
+- "minor": Small discrepancies but generally correct area
+- "major": Only use if coordinates are in WRONG COUNTRY (not just different city)
+- "critical": Coordinates on wrong CONTINENT or in ocean
+
 Examples:
+- Query: "Arada, ETH, Hossana" | Address shows "Hosaina, Ethiopia" → passes: true (Hosaina=Hossana, ETH=Ethiopia)
 - Query: "Harare Hospital Zimbabwe" | All addresses in Zimbabwe → passes: true
 - Query: "Nairobi Clinic Kenya" | Addresses show "South Africa" → passes: false, severity: "critical"
-- Query: "General Hospital" | Addresses vague but plausible → passes: true, severity: "minor"
+- Query: "General Hospital" | Addresses vague but in plausible country → passes: true
 """
 
-            response = self.model_flash.generate_content(prompt)
-            result = json.loads(self._strip_markdown_json(response.text))
+            response = self.client.messages.create(
+                model=self.model_fast,
+                max_tokens=1000,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            result = json.loads(self._strip_markdown_json(response.content[0].text))
 
             if not result['passes_sanity_check']:
                 logger.warning(f"⚠ LLM Sanity Check FAILED for '{location_name}':")
                 logger.warning(f"  Issues: {', '.join(result['issues_found'])}")
                 logger.warning(f"  Severity: {result['severity']}")
             else:
-                logger.info(f"✓ LLM Sanity Check PASSED for '{location_name}' (confidence: {result['confidence']:.1%})")
+                logger.debug(f"✓ LLM Sanity Check PASSED for '{location_name}' (confidence: {result['confidence']:.1%})")
 
             return result
 
@@ -686,6 +775,12 @@ Examples:
                 return f"Low confidence result ({score:.0%}). Manual verification needed."
 
         try:
+            # Check if client is initialized
+            if not self.client:
+                logger.error("LLM client not initialized - cannot generate explanation")
+                score = validation_result.confidence_score
+                return f"Confidence: {score:.0%}. {'Safe to approve' if score >= 0.8 else 'Review recommended' if score >= 0.6 else 'Manual verification needed'}."
+
             metadata = validation_result.validation_metadata or {}
             geocoding_result = validation_result.geocoding_result
 
@@ -743,17 +838,24 @@ Use friendly, non-technical language. Be direct and helpful.
 Return ONLY the explanation text (no JSON, no markdown formatting).
 """
 
-            # Use Flash model with text response (without JSON mode for text output)
-            model = genai.GenerativeModel('gemini-2.5-flash')
-            response = model.generate_content(prompt)
-            explanation = response.text.strip()
+            logger.info(f"Generating LLM explanation for '{geocoding_result.location_name}'...")
+
+            # Use Haiku model for fast text response
+            response = self.client.messages.create(
+                model=self.model_fast,
+                max_tokens=1000,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            explanation = response.content[0].text.strip()
 
             logger.info(f"✓ Generated validation explanation for '{geocoding_result.location_name}'")
 
             return explanation
 
         except Exception as e:
-            logger.warning(f"LLM explanation generation failed: {e}")
+            logger.error(f"LLM explanation generation failed for '{validation_result.geocoding_result.location_name}': {type(e).__name__}: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             # Fallback
             score = validation_result.confidence_score
             return f"Confidence: {score:.0%}. {'Safe to approve' if score >= 0.8 else 'Review recommended' if score >= 0.6 else 'Manual verification needed'}."
