@@ -1,0 +1,28 @@
+name: Feature request or improvement
+description: Suggest a new capability or an improvement to an existing workflow
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [core, health, climate, geolocation, analysis, infra / setup, not sure]
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is hard or impossible today, and who it affects.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: What you would like to happen. Mention backend, frontend and test changes if you know them.
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Done when
+      description: How a reviewer can check the change is complete.

@@ -1,0 +1,44 @@
+name: Bug report
+description: Something in HarmonAIze is broken or behaves incorrectly
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Security problems must not be reported here. Use the private "Report a security vulnerability" link instead.
+        Do not paste real participant data, credentials or API keys.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [core, health, climate, geolocation, analysis, infra / setup, not sure]
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: URL, buttons clicked, and a small synthetic file if one is needed.
+      placeholder: |
+        1. Go to /health/raw-data/
+        2. Click ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or error output
+      description: Browser console errors and `docker compose -f docker-compose.local.yml logs django celeryworker` output, with secrets removed.
+      render: text
+  - type: input
+    id: commit
+    attributes:
+      label: Commit or branch
+      placeholder: main @ 41c1cf4

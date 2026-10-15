@@ -33,6 +33,6 @@ To keep the repository maintainable as it grows:
 
 ## Documentation
 
-The main application lives in `harmonaize/`, and the primary setup and module documentation starts in `harmonaize/README.md`.
+The main application lives in `harmonaize/`, and the primary setup and module documentation starts in the repository [README.md](README.md). The issue labels, priorities and pick-up workflow are described in its "Contributing and issue workflow" section. Report security vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 
 If you change setup flows, environment variables, or contributor workflow expectations, update the relevant markdown files in the same PR.
