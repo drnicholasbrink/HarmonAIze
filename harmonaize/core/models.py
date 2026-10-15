@@ -75,12 +75,6 @@ class Project(models.Model):
         if total_studies == 0:
             return 0
 
-        completed_studies = self.studies.filter(
-            status__in=["harmonised", "completed"],
-        ).count()
-
-        return round((completed_studies / total_studies) * 100)
-
 
 class ProjectMembership(models.Model):
     ROLE_CHOICES = (
@@ -112,6 +106,13 @@ class ProjectInvitation(models.Model):
     def __str__(self):
         return f"Invite for {self.email} to {self.project.name}"
 
+
+        completed_studies = self.studies.filter(
+            status__in=["harmonised", "completed"],
+        ).count()
+
+        return round((completed_studies / total_studies) * 100)
+
 class Patient(models.Model):
     """
     Represents an individual patient or participant.
@@ -129,6 +130,19 @@ class Location(models.Model):
     Attributes (e.g., climate, population, etc.) are attached via LocationAttribute.
     """
     name = models.CharField(max_length=200, blank=True, help_text="Place name (clinic, city, etc.)")
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='locations'
+    )
+    location_lists = models.ManyToManyField(
+        'Study',
+        blank=True,
+        related_name='listed_locations',
+        help_text="Studies that list this place through an uploaded location list (geolocation-only workflow)."
+    )
     latitude = models.FloatField(
         null=True, blank=True,
         validators=[MinValueValidator(-90.0), MaxValueValidator(90.0)],
@@ -194,6 +208,7 @@ class Attribute(models.Model):
             ('health', 'Health'),
             ('climate', 'Climate'),
             ('geolocation', 'Geolocation'),
+            ('relationship_system', 'Relationship System'),
         ],
     )
     # Field to distinguish between source and target variables
@@ -629,14 +644,81 @@ class StudyDocument(models.Model):
         return os.path.splitext(self.file.name)[1].lower()
 
 
-from django.db.models.signals import post_save
-from django.dispatch import receiver
+class CodebookGenerationRun(models.Model):
+    """Track background codebook generation and enrichment for a study."""
 
-@receiver(post_save, sender=Project)
-def create_project_owner_membership(sender, instance, created, **kwargs):
-    if created and instance.created_by:
-        ProjectMembership.objects.get_or_create(
-            project=instance,
-            user=instance.created_by,
-            defaults={'role': 'owner'}
-        )
+    STATUS_PENDING = "pending"
+    STATUS_RUNNING = "running"
+    STATUS_COMPLETED = "completed"
+    STATUS_FAILED = "failed"
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Queued"),
+        (STATUS_RUNNING, "Running"),
+        (STATUS_COMPLETED, "Completed"),
+        (STATUS_FAILED, "Failed"),
+    ]
+
+    TRIGGER_AUTO = "auto"
+    TRIGGER_MANUAL = "manual"
+    TRIGGER_CHOICES = [
+        (TRIGGER_AUTO, "Automatic"),
+        (TRIGGER_MANUAL, "Manual"),
+    ]
+
+    study = models.ForeignKey(
+        Study,
+        on_delete=models.CASCADE,
+        related_name="codebook_generation_runs",
+    )
+    requested_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="codebook_generation_runs",
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING,
+    )
+    trigger_mode = models.CharField(
+        max_length=20,
+        choices=TRIGGER_CHOICES,
+        default=TRIGGER_AUTO,
+    )
+    requested_attributes = models.ManyToManyField(
+        Attribute,
+        blank=True,
+        related_name="codebook_generation_runs",
+        help_text="Attributes targeted by this codebook generation run",
+    )
+    total_attributes_count = models.PositiveIntegerField(default=0)
+    processed_attributes_count = models.PositiveIntegerField(default=0)
+    failed_attributes_count = models.PositiveIntegerField(default=0)
+    celery_task_id = models.CharField(max_length=255, blank=True)
+    codebook_filename = models.CharField(max_length=255, blank=True)
+    openai_response_ids = models.JSONField(default=list, blank=True)
+    usage_summary = models.JSONField(default=dict, blank=True)
+    error_message = models.TextField(blank=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Codebook run {self.id} for {self.study.name}"
+
+    @property
+    def progress_percentage(self):
+        if self.total_attributes_count == 0:
+            return 0
+        completed_count = min(self.total_attributes_count, self.processed_attributes_count)
+        return round((completed_count / self.total_attributes_count) * 100, 1)
+
+    @property
+    def is_active(self):
+        return self.status in {self.STATUS_PENDING, self.STATUS_RUNNING}

@@ -1,0 +1,27 @@
+{% comment %}
+  Stepper for the geolocation-only workflow. Pass current=1..4.
+{% endcomment %}
+<div class="geo-only-banner mb-4">
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+    <span class="badge rounded-pill text-bg-warning">Geolocation-only workflow</span>
+    {% if upload.project %}
+      <small class="text-muted">
+        Project: <strong>{{ upload.project.name }}</strong>
+        {% if upload.study %} &middot; Location list: <strong>{{ upload.study.name }}</strong>{% endif %}
+      </small>
+    {% endif %}
+  </div>
+  <ol class="geo-only-steps">
+    <li class="{% if current == 1 %}active{% elif current > 1 %}done{% endif %}">Upload location list</li>
+    <li class="{% if current == 2 %}active{% elif current > 2 %}done{% endif %}">Map columns</li>
+    <li class="{% if current == 3 %}active{% elif current > 3 %}done{% endif %}">Import</li>
+    <li class="{% if current == 4 %}active{% endif %}">Geocode &amp; validate</li>
+  </ol>
+</div>
+<style>
+  .geo-only-steps { display: flex; flex-wrap: wrap; gap: .5rem; list-style: none; padding: 0; margin: 0; counter-reset: geostep; }
+  .geo-only-steps li { counter-increment: geostep; flex: 1 1 140px; padding: .5rem .75rem; border-radius: 6px; background: #f1f3f5; color: #6c757d; font-size: .875rem; }
+  .geo-only-steps li::before { content: counter(geostep) ". "; font-weight: 600; }
+  .geo-only-steps li.active { background: #fff3cd; color: #664d03; font-weight: 600; }
+  .geo-only-steps li.done { background: #d1e7dd; color: #0f5132; }
+</style>

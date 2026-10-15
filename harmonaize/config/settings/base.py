@@ -104,7 +104,7 @@ THIRD_PARTY_APPS = [
 LOCAL_APPS = [
     "harmonaize.users",
     "core",
-    "health", 
+    "health",
     "climate",
     "geolocation",
     # Your stuff: custom apps go here
@@ -398,7 +398,7 @@ SPECTACULAR_SETTINGS = {
 # ------------------------------------------------------------------------------
 OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
 OPENAI_EMBEDDING_MODEL = env("OPENAI_EMBEDDING_MODEL", default="text-embedding-3-large")
-OPENAI_TRANSFORMATION_MODEL = env("OPENAI_TRANSFORMATION_MODEL", default="gpt-5")
+OPENAI_TRANSFORMATION_MODEL = env("OPENAI_TRANSFORMATION_MODEL", default="gpt-5.4-mini")
 EMBEDDING_CHUNK_TOKENS = env.int("EMBEDDING_CHUNK_TOKENS", default=8000)
 EMBEDDING_CHUNK_OVERLAP = env.int("EMBEDDING_CHUNK_OVERLAP", default=50)
 EMBEDDING_DIMENSIONS = env.int("EMBEDDING_DIMENSIONS", default=3072)  # text-embedding-3-large default
@@ -424,11 +424,9 @@ ANALYSIS_KEYCLOAK_ADMIN_USERNAME = env("ANALYSIS_KEYCLOAK_ADMIN_USERNAME", defau
 ANALYSIS_KEYCLOAK_ADMIN_PASSWORD = env("ANALYSIS_KEYCLOAK_ADMIN_PASSWORD", default="admin")
 MAPBOX_ACCESS_TOKEN = env("MAPBOX_ACCESS_TOKEN", default="")
 
-# Local Nominatim URL (optional, falls back to public API if not available)
-LOCAL_NOMINATIM_URL = env("LOCAL_NOMINATIM_URL", default="http://nominatim:8080")
-
 # LLM Enhancement Settings (LLM is default, non-LLM only used as fallback)
 GEMINI_API_KEY = env("GEMINI_API_KEY", default="")
+ANTHROPIC_API_KEY = env("ANTHROPIC_API_KEY", default="")
 GEOLOCATION_USE_LLM = env.bool("GEOLOCATION_USE_LLM", default=True)
 GEOLOCATION_LLM_CONFLICT_THRESHOLD_KM = env.float("GEOLOCATION_LLM_CONFLICT_THRESHOLD_KM", default=5.0)
 

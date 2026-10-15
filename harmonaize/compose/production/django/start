@@ -17,4 +17,15 @@ if [ "${RUN_MIGRATIONS:-true}" != "false" ]; then
     python /app/manage.py init_climate_services
 fi
 
+# Auto-load geolocation reference data in background (don't block server startup)
+(python /app/manage.py load_hdx_data || true) &
+(python /app/manage.py load_validation_data || true) &
+# Admin boundaries, in order: download from Google Drive (if not present) -> process GeoJSON
+# (if not already processed) -> pre-build the lookup index cached in Redis. Each step depends on the previous one.
+(
+  python /app/manage.py download_admin_boundary_data || true
+  python /app/manage.py process_admin_boundaries --simplify || true
+  python /app/manage.py build_boundary_index || true
+) &
+
 exec /usr/local/bin/gunicorn config.asgi --bind 0.0.0.0:5000 --chdir=/app -k uvicorn_worker.UvicornWorker

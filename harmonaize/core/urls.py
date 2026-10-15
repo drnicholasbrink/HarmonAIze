@@ -27,6 +27,8 @@ urlpatterns = [
     path('studies/<int:pk>/delete-file/<str:file_type>/', views.delete_study_file, name='delete_study_file'),
     path('studies/<int:pk>/toggle-climate/', views.toggle_climate_linkage, name='study_toggle_climate'),
     path('studies/<int:study_id>/delete/', views.delete_study, name='delete_study'),
+    path('studies/<int:study_id>/generate-codebook/', views.generate_study_codebook, name='generate_study_codebook'),
+    path('studies/<int:study_id>/codebook-generation-status/', views.codebook_generation_status, name='codebook_generation_status'),
     
     # Study documents (additional files)
     path('studies/<int:pk>/documents/add/', views.add_study_document, name='add_study_document'),

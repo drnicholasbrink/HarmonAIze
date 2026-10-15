@@ -304,3 +304,6 @@ venv.bak/
 *.env
 .env.*
 harmonaize/.envs
+
+# Generated admin boundary files (created at startup from large source file)
+geolocation/data_geocoding/admin_boundaries/

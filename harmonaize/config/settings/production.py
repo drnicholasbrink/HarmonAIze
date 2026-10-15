@@ -21,6 +21,8 @@ from .base import env
 SECRET_KEY = env("DJANGO_SECRET_KEY")
 # https://docs.djangoproject.com/en/dev/ref/settings/#allowed-hosts
 ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["harmonaize.org"])
+FORCE_SCRIPT_NAME = env("DJANGO_FORCE_SCRIPT_NAME", default="")
+CSRF_TRUSTED_ORIGINS = env.list("DJANGO_CSRF_TRUSTED_ORIGINS", default=["https://harmonaize.uk"])
 
 # DATABASES
 # ------------------------------------------------------------------------------
@@ -86,26 +88,42 @@ MIDDLEWARE = ["config.middleware.FrontDoorIDMiddleware", *MIDDLEWARE]
 # https://docs.djangoproject.com/en/dev/ref/settings/#use-x-forwarded-host
 USE_X_FORWARDED_HOST = True
 
-AZURE_ACCOUNT_KEY = env("DJANGO_AZURE_ACCOUNT_KEY")
-AZURE_ACCOUNT_NAME = env("DJANGO_AZURE_ACCOUNT_NAME")
-AZURE_CONTAINER = env("DJANGO_AZURE_CONTAINER_NAME")
-AZURE_URL_EXPIRATION_SECS = env.int("AZURE_URL_EXPIRATION_SECS", default=3600)
-
 # STATIC & MEDIA
 # ------------------------
-STORAGES = {
-    "default": {
-        "BACKEND": "storages.backends.azure_storage.AzureStorage",
-        "OPTIONS": {
-            "location": "media",
-            "overwrite_files": False,
-            "expiration_secs": AZURE_URL_EXPIRATION_SECS,
+# Defaults to Azure Blob Storage (the upstream deployment target). Self-hosted
+# instances without Azure can set DJANGO_DEFAULT_FILE_STORAGE=local to serve
+# media from a local volume instead.
+DJANGO_DEFAULT_FILE_STORAGE = env("DJANGO_DEFAULT_FILE_STORAGE", default="azure")
+
+if DJANGO_DEFAULT_FILE_STORAGE == "local":
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
         },
-    },
-    "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
-    },
-}
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
+    MEDIA_URL = env("DJANGO_MEDIA_URL", default="/media/")
+    MEDIA_ROOT = env("DJANGO_MEDIA_ROOT", default="/app/media/")
+else:
+    AZURE_ACCOUNT_KEY = env("DJANGO_AZURE_ACCOUNT_KEY")
+    AZURE_ACCOUNT_NAME = env("DJANGO_AZURE_ACCOUNT_NAME")
+    AZURE_CONTAINER = env("DJANGO_AZURE_CONTAINER_NAME")
+    AZURE_URL_EXPIRATION_SECS = env.int("AZURE_URL_EXPIRATION_SECS", default=3600)
+    STORAGES = {
+        "default": {
+            "BACKEND": "storages.backends.azure_storage.AzureStorage",
+            "OPTIONS": {
+                "location": "media",
+                "overwrite_files": False,
+                "expiration_secs": AZURE_URL_EXPIRATION_SECS,
+            },
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
 
 # EMAIL
 # ------------------------------------------------------------------------------
@@ -128,18 +146,27 @@ ACCOUNT_EMAIL_SUBJECT_PREFIX = EMAIL_SUBJECT_PREFIX
 # Django Admin URL regex.
 ADMIN_URL = env("DJANGO_ADMIN_URL")
 
-# Anymail
+# Anymail / SMTP
 # ------------------------------------------------------------------------------
-# https://anymail.readthedocs.io/en/stable/installation/#installing-anymail
-INSTALLED_APPS += ["anymail"]
-# https://docs.djangoproject.com/en/dev/ref/settings/#email-backend
-# https://anymail.readthedocs.io/en/stable/installation/#anymail-settings-reference
-# https://anymail.readthedocs.io/en/stable/esps/sendgrid/
-EMAIL_BACKEND = "anymail.backends.sendgrid.EmailBackend"
-ANYMAIL = {
-    "SENDGRID_API_KEY": env("SENDGRID_API_KEY", default=""),
-    "SENDGRID_API_URL": env("SENDGRID_API_URL", default="https://api.sendgrid.com/v3/"),
-}
+SENDGRID_API_KEY = env("SENDGRID_API_KEY", default="")
+if SENDGRID_API_KEY:
+    INSTALLED_APPS += ["anymail"]
+    EMAIL_BACKEND = "anymail.backends.sendgrid.EmailBackend"
+    ANYMAIL = {
+        "SENDGRID_API_KEY": SENDGRID_API_KEY,
+        "SENDGRID_API_URL": env("SENDGRID_API_URL", default="https://api.sendgrid.com/v3/"),
+    }
+elif env("EMAIL_HOST", default=""):
+    # SMTP fallback — used when SendGrid is unavailable (e.g. SSL interception on network)
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+    EMAIL_HOST = env("EMAIL_HOST")
+    EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+    EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+    EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+    EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
+    EMAIL_USE_SSL = env.bool("EMAIL_USE_SSL", default=False)
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 
 # LOGGING
