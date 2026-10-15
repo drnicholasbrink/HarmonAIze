@@ -254,3 +254,15 @@ def suggest_location_column_mappings(columns: List[Dict[str, Any]]) -> Dict[str,
             suggestions['longitude'] = col_name
 
     return suggestions
+
+
+def safe_extract_zip(zip_file, dest) -> None:
+    """Extract a zipfile.ZipFile into dest, rejecting members that would escape it (Zip Slip)."""
+    from pathlib import Path
+
+    dest = Path(dest).resolve()
+    for member in zip_file.namelist():
+        target = (dest / member).resolve()
+        if target != dest and dest not in target.parents:
+            raise ValueError(f"Unsafe path in zip archive: {member}")
+    zip_file.extractall(dest)

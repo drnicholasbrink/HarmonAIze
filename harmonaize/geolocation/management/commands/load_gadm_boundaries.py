@@ -25,6 +25,8 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand
 
+from geolocation.utils import safe_extract_zip
+
 logger = logging.getLogger(__name__)
 
 _LEVEL_MAP = {
@@ -33,7 +35,7 @@ _LEVEL_MAP = {
     'adm2': '6',
 }
 
-_DEFAULT_SOURCE = '/home/rutendo/PRECISE'
+_DEFAULT_SOURCE = os.environ.get('GEOLOCATION_SOURCE_DATA_DIR')
 
 
 class Command(BaseCommand):
@@ -43,7 +45,7 @@ class Command(BaseCommand):
         parser.add_argument(
             '--source',
             default=_DEFAULT_SOURCE,
-            help=f'Directory containing *_adm.zip files (default: {_DEFAULT_SOURCE})',
+            help=f'Directory containing *_adm.zip files (default: $GEOLOCATION_SOURCE_DATA_DIR)',
         )
         parser.add_argument(
             '--country',
@@ -74,6 +76,9 @@ class Command(BaseCommand):
             ))
             return
 
+        if not options['source']:
+            self.stderr.write(self.style.ERROR('Pass --source or set GEOLOCATION_SOURCE_DATA_DIR'))
+            return
         source_dir = Path(options['source'])
         if not source_dir.is_dir():
             self.stderr.write(self.style.ERROR(f'Source directory not found: {source_dir}'))
@@ -130,7 +135,7 @@ class Command(BaseCommand):
         tmp = tempfile.mkdtemp()
         try:
             with zipfile.ZipFile(zip_path) as z:
-                z.extractall(tmp)
+                safe_extract_zip(z, tmp)
 
             features = []
             for level, admin_level in _LEVEL_MAP.items():

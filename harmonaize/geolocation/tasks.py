@@ -5,6 +5,7 @@ from django.core.cache import cache
 from django.utils import timezone
 
 from .models import GeocodingResult
+from .querysets import viewable_locations_for_user
 from .validation import SmartGeocodingValidator
 from .services import GeocodingService
 from core.models import Location
@@ -27,8 +28,6 @@ def geocode_single_location_task(self, location_id, force_reprocess=False, user_
         dict: {'success': bool, 'location_id': int, 'location_name': str, 'error': str or None}
     """
     try:
-        location = Location.objects.get(id=location_id)
-
         # Get user if provided
         user = None
         if user_id:
@@ -53,6 +52,8 @@ def geocode_single_location_task(self, location_id, force_reprocess=False, user_
                 'location_name': str(location),
                 'error': 'No user provided'
             }
+
+        location = viewable_locations_for_user(user).get(id=location_id)
 
         # Geocode the location
         result = _geocode_single_location(location, force_reprocess, user_id)
@@ -180,16 +181,31 @@ def batch_geocode_locations(self, location_ids=None, force_reprocess=False, batc
 
         # Get locations to process
         if location_ids:
-            locations = Location.objects.filter(id__in=location_ids, created_by=user) if user else Location.objects.filter(id__in=location_ids)
+            if not user_id:
+                logger.error("No user provided for batch geocoding")
+                return {'status': 'failed', 'error': 'No user provided'}
+
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            user = User.objects.get(id=user_id)
+            locations = viewable_locations_for_user(user).filter(id__in=location_ids)
         else:
+            if not user_id:
+                logger.error("No user provided for batch geocoding")
+                return {'status': 'failed', 'error': 'No user provided'}
+
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            user = User.objects.get(id=user_id)
+            user_locations = viewable_locations_for_user(user)
             if force_reprocess:
-                locations = Location.objects.filter(created_by=user) if user else Location.objects.all()
+                locations = user_locations
             else:
                 # Find locations that don't have complete geocoding results
                 incomplete_count = 0
                 complete_location_names = []
 
-                for result in GeocodingResult.objects.filter(created_by=user) if user else GeocodingResult.objects.all():
+                for result in GeocodingResult.objects.filter(created_by_id=user_id):
                     successful_count = sum([
                         result.hdx_success,
                         result.arcgis_success,
@@ -205,7 +221,7 @@ def batch_geocode_locations(self, location_ids=None, force_reprocess=False, batc
                 logger.info(f"Batch geocoding: {incomplete_count} locations have only 1 API result and will be re-processed")
                 logger.info(f"Batch geocoding: {len(complete_location_names)} locations have 2+ API results and will be skipped")
 
-                locations = (Location.objects.filter(created_by=user) if user else Location.objects.all()).exclude(name__in=complete_location_names)
+                locations = user_locations.exclude(name__in=complete_location_names)
 
         # Get list of location IDs
         location_ids_to_process = list(locations.values_list('id', flat=True))
@@ -363,7 +379,7 @@ def aggregate_validation_results(results, task_id):
 
 
 @shared_task(bind=True)
-def batch_validate_locations(self, geocoding_result_ids=None, batch_size=50):
+def batch_validate_locations(self, geocoding_result_ids=None, batch_size=50, user_id=None):
     """
     Celery task for batch validation using PARALLEL processing.
 
@@ -384,8 +400,12 @@ def batch_validate_locations(self, geocoding_result_ids=None, batch_size=50):
         # Get results to validate
         if geocoding_result_ids:
             results = GeocodingResult.objects.filter(id__in=geocoding_result_ids)
+            if user_id:
+                results = results.filter(created_by_id=user_id)
         else:
             results = GeocodingResult.objects.filter(validation__isnull=True)
+            if user_id:
+                results = results.filter(created_by_id=user_id)
 
         # Get list of result IDs
         result_ids_to_process = list(results.values_list('id', flat=True))

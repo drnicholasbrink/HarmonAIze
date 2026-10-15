@@ -434,9 +434,10 @@ class GeocodingService:
         has_user_coords = location.latitude is not None and location.longitude is not None
 
         if not force_reprocess:
-            existing_result = GeocodingResult.objects.filter(
-                location_name__iexact=location.name
-            ).first()
+            existing_results = GeocodingResult.objects.filter(location_name__iexact=location.name)
+            if user:
+                existing_results = existing_results.filter(created_by=user)
+            existing_result = existing_results.first()
 
             if existing_result:
                 successful_count = sum([
@@ -464,7 +465,7 @@ class GeocodingService:
         # The HDX geocoder (geocode_hdx_enhanced) already checks ValidatedDataset internally.
         return self.geocode_location_full(location, user=user, spatial_filter=spatial_filter)
     
-    def check_validated_dataset(self, location):
+    def check_validated_dataset(self, location, user=None):
         """
         Check if location exists in validated dataset.
         CRITICAL: Filter by country FIRST to prevent wrong-country matches!
@@ -485,6 +486,8 @@ class GeocodingService:
             if search_term:
                 # Try without country filter first (fastest)
                 query = ValidatedDataset.objects.filter(location_name__iexact=search_term.strip())
+                if user:
+                    query = query.filter(created_by=user)
 
                 # CRITICAL: Filter by country if we extracted one
                 # Try all country name variants
@@ -510,6 +513,8 @@ class GeocodingService:
                 country_query |= Q(country__iexact=country_variant)
 
             country_validated = ValidatedDataset.objects.filter(country_query)
+            if user:
+                country_validated = country_validated.filter(created_by=user)
 
             if country_validated.exists():
                 location_names = [v.location_name for v in country_validated]
@@ -520,9 +525,12 @@ class GeocodingService:
                         match = process.extractOne(search_term.strip(), location_names, score_cutoff=85)
                         if match:
                             # Find the result using any country variant
-                            result = ValidatedDataset.objects.filter(
+                            result_query = ValidatedDataset.objects.filter(
                                 location_name=match[0]
-                            ).filter(country_query).first()
+                            ).filter(country_query)
+                            if user:
+                                result_query = result_query.filter(created_by=user)
+                            result = result_query.first()
 
                             if result:
                                 logger.info(f"VALIDATED DATASET: Found fuzzy match for '{search_term}' -> '{match[0]}' in {result.country} (score: {match[1]}%)")

@@ -2,6 +2,8 @@ volumes:
   harmonaize_local_postgres_data: {}
   harmonaize_local_postgres_data_backups: {}
   harmonaize_local_redis_data: {}
+  harmonaize_local_armadillo_data: {}
+  harmonaize_local_armadillo_logs: {}
 
 networks:
   armadillo-net:
@@ -39,7 +41,12 @@ services:
       - armadillo-net
     ports:
       - '8000:8000'
-    command: /start
+    command:
+      - /start
+      - --reload-exclude
+      - vendor/**
+      - --reload-exclude
+      - harmonaize/media/**
 
   postgres:
     build:
@@ -111,10 +118,12 @@ services:
     ports:
       - "${ARMADILLO_HOST_PORT:-8001}:8080"
     volumes:
-      - ./vendor/molgenis-service-armadillo/docker/quickstart/logs:/app/logs
-      - ./vendor/molgenis-service-armadillo/docker/quickstart/data:/data
+      # Keep mutable Armadillo storage out of the macOS repository bind mount.
+      # Docker Desktop file sharing can return EDEADLK after host sleep/long idle.
+      - harmonaize_local_armadillo_logs:/app/logs
+      - harmonaize_local_armadillo_data:/data
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./vendor/molgenis-service-armadillo/docker/quickstart/config:/config
+      - ./vendor/molgenis-service-armadillo/docker/quickstart/config:/config:ro
     networks:
       - armadillo-net
     depends_on:

@@ -40,7 +40,7 @@ The analysis module now supports local DataSHIELD-ready export workflows backed 
 This repository expects Armadillo as a pinned git submodule at `harmonaize/vendor/molgenis-service-armadillo`.
 The current pinned commit is `6864b346df28f4c05065dfab35149dad29a1990d` from the `harmonaize-integration` branch of `drnicholasbrink/molgenis-service-armadillo`.
 
-The local analysis stack does not use the Armadillo image alone. It also bind-mounts Armadillo quickstart configuration, Keycloak realm import files, logs, and data directories from the pinned checkout.
+The local analysis stack does not use the Armadillo image alone. It read-only bind-mounts Armadillo quickstart configuration and Keycloak realm import files from the pinned checkout. Mutable Armadillo data and logs use Docker-managed named volumes so that Docker Desktop sleep/wake cycles do not leave the services dependent on a stale macOS file-sharing mount.
 
 1. Clone this repository with submodules, or initialise the submodule after cloning:
    ```bash
@@ -50,27 +50,47 @@ The local analysis stack does not use the Armadillo image alone. It also bind-mo
    # If you already cloned without submodules
    git submodule update --init --recursive
    ```
-2. Ensure the writable quickstart directories exist:
+2. Start the stack (including Armadillo and a dedicated snapshot PostgreSQL instance):
    ```bash
-   cd harmonaize
-   mkdir -p vendor/molgenis-service-armadillo/docker/quickstart/logs
-   mkdir -p vendor/molgenis-service-armadillo/docker/quickstart/data
+   COMPOSE_PROFILES=analysis docker compose -f docker-compose.local.yml up -d
    ```
-3. Start the stack (including Armadillo and a dedicated snapshot PostgreSQL instance):
-   ```bash
-   docker-compose -f docker-compose.local.yml up -d
-   ```
-4. Create and apply migrations:
+3. Create and apply migrations:
    ```bash
    docker-compose -f docker-compose.local.yml run --rm django python manage.py makemigrations analysis
    docker-compose -f docker-compose.local.yml run --rm django python manage.py migrate
    ```
-5. Open services:
+4. Open services:
    - HarmonAIze: http://localhost:8000
-   - Armadillo: http://localhost:8081
-   - Snapshot PostgreSQL host port: 5433
+   - Armadillo: http://localhost:8001
 
 If Armadillo integration is not needed, leave `ANALYSIS_ENABLED=false` and do not start the `analysis` profile. In that mode, no Armadillo submodule checkout is required.
+
+### Recovering after Docker Desktop sleep or a resource deadlock
+
+`AnalysisSyncLock` is a database-backed single-flight application lock with a 15-minute TTL. Expired rows are reclaimable automatically and should not be deleted during every startup. An operating-system error such as `Resource deadlock avoided`/`EDEADLK` instead points to Docker Desktop's host file-sharing layer, especially when both Django's reload watcher and Armadillo storage fail together.
+
+Use this non-destructive restart order (it does not remove volumes):
+
+```bash
+docker compose -f docker-compose.local.yml stop django celeryworker celerybeat flower armadillo rserver keycloak
+COMPOSE_PROFILES=analysis docker compose -f docker-compose.local.yml up -d keycloak rserver
+COMPOSE_PROFILES=analysis docker compose -f docker-compose.local.yml up -d armadillo
+docker compose -f docker-compose.local.yml up -d django celeryworker celerybeat flower
+```
+
+If Docker commands themselves return `Resource deadlock avoided`, restart Docker Desktop before running the sequence; an application startup hook cannot safely clear a stale host filesystem mount.
+
+Older checkouts stored Armadillo state under `vendor/molgenis-service-armadillo/docker/quickstart/data`. The new named volume starts empty. To retain that state, copy it once while Armadillo is stopped:
+
+```bash
+docker compose -f docker-compose.local.yml stop armadillo
+docker run --rm \
+  -v harmonaize_harmonaize_local_armadillo_data:/target \
+  -v "$PWD/vendor/molgenis-service-armadillo/docker/quickstart/data:/source:ro" \
+  alpine sh -c 'cp -a /source/. /target/'
+```
+
+Confirm the actual Compose volume name first with `docker volume ls`; the project-name prefix can differ when `COMPOSE_PROJECT_NAME` is set. Never run the copy while Armadillo is writing to either location.
 
 Port allocations intentionally avoid overlap with the existing local stack (`8000`, `5432`, `8025`, `5555`).
 

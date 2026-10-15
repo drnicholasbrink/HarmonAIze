@@ -13,17 +13,20 @@ Usage:
 """
 
 import logging
+import os
 import shutil
 import tempfile
 import zipfile
 from pathlib import Path
 
 from django.core.management.base import BaseCommand
+
+from geolocation.utils import safe_extract_zip
 from django.db import transaction
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_SOURCE = '/home/rutendo/PRECISE'
+_DEFAULT_SOURCE = os.environ.get('GEOLOCATION_SOURCE_DATA_DIR')
 
 # HOT OSM tag fields that identify POI type
 _TYPE_FIELDS = ('amenity', 'man_made', 'shop', 'tourism')
@@ -36,7 +39,7 @@ class Command(BaseCommand):
         parser.add_argument(
             '--source',
             default=_DEFAULT_SOURCE,
-            help=f'Directory containing hotosm_*_points_of_interest_*.zip (default: {_DEFAULT_SOURCE})',
+            help=f'Directory containing hotosm_*_points_of_interest_*.zip (default: $GEOLOCATION_SOURCE_DATA_DIR)',
         )
         parser.add_argument(
             '--clear',
@@ -58,6 +61,9 @@ class Command(BaseCommand):
 
         from geolocation.models import HDXHealthFacility
 
+        if not options['source']:
+            self.stderr.write(self.style.ERROR('Pass --source or set GEOLOCATION_SOURCE_DATA_DIR'))
+            return
         source_dir = Path(options['source'])
         if not source_dir.is_dir():
             self.stderr.write(self.style.ERROR(f'Source directory not found: {source_dir}'))
@@ -99,7 +105,7 @@ def _load_zip(gpd, zip_path: Path, named_only: bool = True) -> int:
     tmp = tempfile.mkdtemp()
     try:
         with zipfile.ZipFile(zip_path) as z:
-            z.extractall(tmp)
+            safe_extract_zip(z, tmp)
 
         # Select the best shapefile: prefer one whose stem ends with '_points',
         # then '_polygons'; avoid '_lines'. Fall back to any .shp present.

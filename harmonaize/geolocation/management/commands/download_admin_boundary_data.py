@@ -19,6 +19,8 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand
 
+from geolocation.utils import safe_extract_zip
+
 logger = logging.getLogger(__name__)
 
 # Presence of this file means the dataset has already been fetched.
@@ -80,7 +82,7 @@ class Command(BaseCommand):
             if verbose:
                 self.stdout.write('Extracting ...')
             with zipfile.ZipFile(zip_path) as zf:
-                zf.extractall(data_dir.parent)
+                safe_extract_zip(zf, data_dir.parent)
 
             self.stdout.write(self.style.SUCCESS('Admin boundary dataset ready.'))
         except Exception:
