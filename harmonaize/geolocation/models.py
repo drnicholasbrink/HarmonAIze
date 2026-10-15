@@ -668,6 +668,23 @@ class LocationCSVUpload(models.Model):
         help_text="SHA256 checksum for duplicate detection"
     )
 
+    # Project scoping: each upload becomes a location list (source study) in a project
+    project = models.ForeignKey(
+        'core.Project',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='location_uploads',
+    )
+    study = models.ForeignKey(
+        'core.Study',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='location_uploads',
+        help_text="Source study that holds the locations imported from this file",
+    )
+
     # Tracking
     uploaded_by = models.ForeignKey(
         User,

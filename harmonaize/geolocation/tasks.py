@@ -137,7 +137,7 @@ def aggregate_geocoding_results(results, task_id):
 
 
 @shared_task(bind=True)
-def batch_geocode_locations(self, location_ids=None, force_reprocess=False, batch_size=50, user_id=None):
+def batch_geocode_locations(self, location_ids=None, force_reprocess=False, batch_size=50, user_id=None, scope_location_ids=None):
     """
     Celery task for batch geocoding locations using PARALLEL processing.
 
@@ -146,6 +146,7 @@ def batch_geocode_locations(self, location_ids=None, force_reprocess=False, batc
 
     Args:
         location_ids: List of location IDs to process (None = all unprocessed)
+        scope_location_ids: Restrict the "all unprocessed" run to these IDs (project/study scope)
         force_reprocess: Re-geocode existing results
         batch_size: DEPRECATED - parallel tasks process all at once
         user_id: ID of user initiating the geocoding (required for GeocodingResult)
@@ -198,6 +199,8 @@ def batch_geocode_locations(self, location_ids=None, force_reprocess=False, batc
             User = get_user_model()
             user = User.objects.get(id=user_id)
             user_locations = viewable_locations_for_user(user)
+            if scope_location_ids is not None:
+                user_locations = user_locations.filter(id__in=scope_location_ids)
             if force_reprocess:
                 locations = user_locations
             else:

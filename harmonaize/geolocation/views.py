@@ -1,6 +1,7 @@
 
 import json
 import logging
+import re
 import requests
 from django.shortcuts import render, get_object_or_404, redirect
 from django.urls import reverse
@@ -15,11 +16,18 @@ from django.utils import timezone
 from django.core.cache import cache
 
 from .models import GeocodingResult, ValidationResult, ValidatedDataset
-from .querysets import viewable_locations_for_user
+from .querysets import (
+    scoped_geocoding_results,
+    scoped_locations,
+    scoped_validations,
+    viewable_locations_for_user,
+)
+from .scope import GeolocationScope, projects_for_user, resolve_scope
 from .validation import SmartGeocodingValidator
 from .tasks import batch_geocode_locations, batch_validate_locations
 from .services import GeocodingService
-from core.models import Location
+from core.models import Location, ProjectMembership, Study
+from .forms import LocationCSVUploadForm
 logger = logging.getLogger(__name__)
 
 
@@ -40,7 +48,7 @@ def _update_location_coordinates_if_viewable(validation, lat, lng):
     return True
 
 
-def update_locations_from_validation(user=None):
+def update_locations_from_validation(user=None, scope=None):
     """
     Update core.Location coordinates from validated results.
     Only updates locations that have been validated (needs_review or validated status).
@@ -55,6 +63,8 @@ def update_locations_from_validation(user=None):
     ).select_related('geocoding_result')
     if user:
         validation_results = validation_results.filter(created_by=user)
+        if scope is not None:
+            validation_results = validation_results.filter(pk__in=scoped_validations(user, scope))
 
     for validation_result in validation_results:
         try:
@@ -81,6 +91,16 @@ def update_locations_from_validation(user=None):
             continue
 
     return updated_count
+
+
+def _geocoding_results_by_name(user):
+    """Map lower-cased location name -> the user's first geocoding result (one query)."""
+    results_by_name = {}
+    for result in GeocodingResult.objects.filter(created_by=user).select_related('validation').order_by('pk'):
+        results_by_name.setdefault((result.location_name or '').lower(), result)
+    return results_by_name
+
+
 @login_required
 def validation_map(request):
     """
@@ -100,25 +120,25 @@ def validation_map(request):
 
 
     location_id = request.GET.get('location_id')
+    scope = resolve_scope(request)
+    scoped_results = scoped_geocoding_results(request.user, scope)
 
     if location_id:
         # Show specific location
         try:
             result = GeocodingResult.objects.get(id=location_id, created_by=request.user)
             results = [result]
-        except GeocodingResult.DoesNotExist:
+        except (GeocodingResult.DoesNotExist, ValueError):
             results = []
     else:
 
-        results = GeocodingResult.objects.filter(
-            created_by=request.user,
+        results = scoped_results.filter(
             validation__validation_status__in=['needs_review', 'pending']
         ).order_by('created_at')[:1]
 
         if not results:
 
-            results = GeocodingResult.objects.filter(
-                created_by=request.user,
+            results = scoped_results.filter(
                 validation__isnull=True
             ).order_by('created_at')[:1]
 
@@ -337,10 +357,10 @@ def validation_map(request):
             })
 
 
-    navigation_info = get_navigation_info(location_id, user=request.user)
+    navigation_info = get_navigation_info(location_id, user=request.user, scope=scope)
 
     # Calculate stats for the template
-    stats = get_validation_stats(user=request.user)
+    stats = get_validation_stats(user=request.user, scope=scope)
 
     context = {
         'locations_data': json.dumps(locations_data),
@@ -348,23 +368,23 @@ def validation_map(request):
         'current_location': locations_data[0] if locations_data else None,
         'current_location_json': json.dumps(locations_data[0]) if locations_data else 'null',
         'navigation': navigation_info,
+        'scope': scope,
         **stats
     }
 
     return render(request, 'geolocation/validation_map.html', context)
-def get_navigation_info(current_location_id, user=None):
+def get_navigation_info(current_location_id, user=None, scope=None):
     """Get navigation information for next/previous locations."""
 
     if user:
-        pending_locations = ValidationResult.objects.filter(
-            validation_status__in=['needs_review', 'pending'],
-            created_by=user
+        scope = scope or GeolocationScope()
+        pending_locations = scoped_validations(user, scope).filter(
+            validation_status__in=['needs_review', 'pending']
         ).order_by('created_at')
 
         if not pending_locations.exists():
-            pending_locations = GeocodingResult.objects.filter(
-                validation__isnull=True,
-                created_by=user
+            pending_locations = scoped_geocoding_results(user, scope).filter(
+                validation__isnull=True
             ).order_by('created_at')
     else:
         pending_locations = ValidationResult.objects.filter(
@@ -412,123 +432,101 @@ def get_navigation_info(current_location_id, user=None):
 
     return navigation
 
-def get_validation_stats(user=None):
+def get_validation_stats(user=None, scope=None):
     """Calculate validation statistics for dashboard display."""
+    scope = scope or GeolocationScope()
     # Core Location statistics
-    locations = viewable_locations_for_user(user) if user else Location.objects.none()
+    locations = scoped_locations(user, scope) if user else Location.objects.none()
     total_locations = locations.count()
     locations_with_coords = locations.filter(
         latitude__isnull=False,
         longitude__isnull=False
-    ).count()
-    locations_without_coords = locations.filter(
-        latitude__isnull=True,
-        longitude__isnull=True
     ).count()
 
     # Count locations that have geocoding results but need validation
     pending_validation = 0
 
     if user:
-        for location in locations.filter(latitude__isnull=True, longitude__isnull=True):
-            geocoding_result = GeocodingResult.objects.filter(
-                location_name__iexact=location.name,
-                created_by=user
-            ).first()
+        validations = scoped_validations(user, scope)
+        results_by_name = _geocoding_results_by_name(user)
+        missing_coords = list(locations.filter(latitude__isnull=True, longitude__isnull=True).only('name'))
+        for location in missing_coords:
+            geocoding_result = results_by_name.get((location.name or '').lower())
             if geocoding_result and geocoding_result.has_any_results:
                 pending_validation += 1
 
         # Add locations with validation results still requiring review
-        pending_validation += ValidationResult.objects.filter(
+        pending_validation += validations.filter(
             validation_status__in=['needs_review', 'pending'],
-            created_by=user
         ).count()
 
         # Count locations without coordinates and without geocoding results
         awaiting_geocoding = 0
-        for location in locations.filter(latitude__isnull=True, longitude__isnull=True):
-            geocoding_result = GeocodingResult.objects.filter(
-                location_name__iexact=location.name,
-                created_by=user
-            ).first()
+        for location in missing_coords:
+            geocoding_result = results_by_name.get((location.name or '').lower())
             if not geocoding_result or not geocoding_result.has_any_results:
                 awaiting_geocoding += 1
     else:
         awaiting_geocoding = 0
+        validations = ValidationResult.objects.all()
 
-    if user:
-        return {
-            'total_locations': total_locations,
-            'awaiting_geocoding': awaiting_geocoding,  # No coordinates, no geocoding results
-            'pending_validation': pending_validation,  # Has geocoding results but needs validation
-            'validated_complete': locations_with_coords,  # Has final coordinates
-            'high_confidence': ValidationResult.objects.filter(confidence_score__gte=0.8, created_by=user).count(),
-            'medium_confidence': ValidationResult.objects.filter(
-                confidence_score__gte=0.6, confidence_score__lt=0.8, created_by=user
-            ).count(),
-            'low_confidence': ValidationResult.objects.filter(confidence_score__lt=0.6, created_by=user).count(),
-            'needs_review': ValidationResult.objects.filter(
-                validation_status='needs_review', created_by=user
-            ).count(),
-            'manual_review': ValidationResult.objects.filter(
-                validation_status='pending', created_by=user
-            ).count(),
-            'auto_validated': ValidationResult.objects.filter(
-                validation_status='validated', created_by=user
-            ).count(),
-        }
-    else:
-        return {
-            'total_locations': total_locations,
-            'awaiting_geocoding': awaiting_geocoding,  # No coordinates, no geocoding results
-            'pending_validation': pending_validation,  # Has geocoding results but needs validation
-            'validated_complete': locations_with_coords,  # Has final coordinates
-            'high_confidence': ValidationResult.objects.filter(confidence_score__gte=0.8).count(),
-            'medium_confidence': ValidationResult.objects.filter(
-                confidence_score__gte=0.6, confidence_score__lt=0.8
-            ).count(),
-            'low_confidence': ValidationResult.objects.filter(confidence_score__lt=0.6).count(),
-            'needs_review': ValidationResult.objects.filter(
-                validation_status='needs_review'
-            ).count(),
-            'manual_review': ValidationResult.objects.filter(
-                validation_status='pending'
-            ).count(),
-            'auto_validated': ValidationResult.objects.filter(
-                validation_status='validated'
-            ).count(),
-        }
+    return {
+        'total_locations': total_locations,
+        'awaiting_geocoding': awaiting_geocoding,  # No coordinates, no geocoding results
+        'pending_validation': pending_validation,  # Has geocoding results but needs validation
+        'validated_complete': locations_with_coords,  # Has final coordinates
+        'high_confidence': validations.filter(confidence_score__gte=0.8).count(),
+        'medium_confidence': validations.filter(
+            confidence_score__gte=0.6, confidence_score__lt=0.8
+        ).count(),
+        'low_confidence': validations.filter(confidence_score__lt=0.6).count(),
+        'needs_review': validations.filter(validation_status='needs_review').count(),
+        'manual_review': validations.filter(validation_status='pending').count(),
+        'auto_validated': validations.filter(validation_status='validated').count(),
+    }
 
 class ValidationDashboardView(LoginRequiredMixin, TemplateView):
-    """Enhanced validation dashboard with summary and actions."""
+    """Enhanced validation dashboard with summary and actions, scoped to a project / study."""
     template_name = 'geolocation/validation_dashboard.html'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
+        scope = resolve_scope(self.request)
+        validations = scoped_validations(self.request.user, scope)
 
         stats = {
-            'total_validations': ValidationResult.objects.filter(created_by=self.request.user).count(),
-            'auto_validated': ValidationResult.objects.filter(validation_status='validated', created_by=self.request.user).count(),
-            'needs_review': ValidationResult.objects.filter(validation_status='needs_review', created_by=self.request.user).count(),
-            'pending_manual': ValidationResult.objects.filter(validation_status='pending', created_by=self.request.user).count(),
-            'rejected': ValidationResult.objects.filter(validation_status='rejected', created_by=self.request.user).count(),
-            'high_confidence': ValidationResult.objects.filter(confidence_score__gte=0.8, created_by=self.request.user).count(),
-            'medium_confidence': ValidationResult.objects.filter(
-                confidence_score__gte=0.6, confidence_score__lt=0.8, created_by=self.request.user
+            'total_validations': validations.count(),
+            'auto_validated': validations.filter(validation_status='validated').count(),
+            'needs_review': validations.filter(validation_status='needs_review').count(),
+            'pending_manual': validations.filter(validation_status='pending').count(),
+            'rejected': validations.filter(validation_status='rejected').count(),
+            'high_confidence': validations.filter(confidence_score__gte=0.8).count(),
+            'medium_confidence': validations.filter(
+                confidence_score__gte=0.6, confidence_score__lt=0.8
             ).count(),
-            'low_confidence': ValidationResult.objects.filter(confidence_score__lt=0.6, created_by=self.request.user).count(),
+            'low_confidence': validations.filter(confidence_score__lt=0.6).count(),
         }
 
 
-        recent_validations = ValidationResult.objects.filter(
+        recent_validations = validations.filter(
             validation_status__in=['needs_review', 'pending'],
-            created_by=self.request.user
         ).select_related('geocoding_result').order_by('-created_at')[:10]
+
+        projects = projects_for_user(self.request.user)
+        scope_studies = (
+            scope.project.studies.order_by('study_purpose', 'name') if scope.project else Study.objects.none()
+        )
 
         context.update({
             'stats': stats,
             'recent_validations': recent_validations,
+            'scope': scope,
+            'projects': projects,
+            'source_studies': [s for s in scope_studies if s.study_purpose == 'source'],
+            'target_studies': [s for s in scope_studies if s.study_purpose == 'target'],
+            'upload_projects_json': json.dumps(_upload_project_options(self.request.user)),
+            'upload_form': LocationCSVUploadForm(user=self.request.user, initial=_upload_initial(scope)),
         })
 
         return context
@@ -540,7 +538,9 @@ def location_status_api(request):
     if request.method == 'GET':
         try:
             locations_data = []
-            locations = viewable_locations_for_user(request.user).order_by('name')
+            scope = resolve_scope(request)
+            locations = scoped_locations(request.user, scope).order_by('name')
+            results_by_name = _geocoding_results_by_name(request.user)
 
             for location in locations:
                 # Determine current status with automatic validation updates
@@ -552,10 +552,7 @@ def location_status_api(request):
                     geocoding_result_id = None
                 else:
                     # Look for geocoding result (user's own results only)
-                    geocoding_result = GeocodingResult.objects.filter(
-                        location_name__iexact=location.name,
-                        created_by=request.user
-                    ).first()
+                    geocoding_result = results_by_name.get((location.name or '').lower())
 
                     if geocoding_result:
                         geocoding_result_id = geocoding_result.id
@@ -692,6 +689,7 @@ def location_status_api(request):
                 'success': True,
                 'locations': locations_data,
                 'summary': summary,
+                'scope': scope.label,
                 'timestamp': timezone.now().isoformat()
             })
 
@@ -711,16 +709,15 @@ def validation_queue_api(request):
     if request.method == 'GET':
         try:
 
-            pending_validations = ValidationResult.objects.filter(
+            scope = resolve_scope(request)
+            pending_validations = scoped_validations(request.user, scope).filter(
                 validation_status__in=['needs_review', 'pending'],
-                created_by=request.user
             ).select_related('geocoding_result').order_by('-confidence_score')[:20]
 
 
             if not pending_validations.exists():
-                unvalidated_results = GeocodingResult.objects.filter(
+                unvalidated_results = scoped_geocoding_results(request.user, scope).filter(
                     validation__isnull=True,
-                    created_by=request.user
                 ).order_by('-created_at')[:20]
 
                 locations_data = []
@@ -922,6 +919,7 @@ def geocoding_api(request):
         try:
             data = json.loads(request.body)
             action = data.get('action')
+            scope = resolve_scope(request)
 
             if action == 'run_geocoding':
                 limit = data.get('limit', None)
@@ -931,7 +929,7 @@ def geocoding_api(request):
                 geocoding_service = GeocodingService()
 
 
-                locations = viewable_locations_for_user(request.user).filter(latitude__isnull=True, longitude__isnull=True)
+                locations = scoped_locations(request.user, scope).filter(latitude__isnull=True, longitude__isnull=True)
 
                 if limit:
                     locations = locations[:limit]
@@ -1027,10 +1025,14 @@ def geocoding_api(request):
                 from .validation import run_smart_validation
 
                 limit = data.get('limit', None)
-                validation_stats = run_smart_validation(limit, user=request.user)
+                validation_stats = run_smart_validation(
+                    limit,
+                    user=request.user,
+                    geocoding_results=scoped_geocoding_results(request.user, scope),
+                )
 
                 # After validation, update Location coordinates for validated results
-                updated_locations = update_locations_from_validation(user=request.user)
+                updated_locations = update_locations_from_validation(user=request.user, scope=scope)
                 validation_stats['updated_locations'] = updated_locations
 
                 return JsonResponse({
@@ -1042,7 +1044,7 @@ def geocoding_api(request):
 
             elif action == 'update_coordinates':
                 # Update Location coordinates from validation results
-                updated_locations = update_locations_from_validation(user=request.user)
+                updated_locations = update_locations_from_validation(user=request.user, scope=scope)
 
                 return JsonResponse({
                     'success': True,
@@ -1052,7 +1054,7 @@ def geocoding_api(request):
 
             elif action == 'get_geocoding_stats':
 
-                stats = get_validation_stats(user=request.user)
+                stats = get_validation_stats(user=request.user, scope=scope)
 
                 return JsonResponse({
                     'success': True,
@@ -1062,7 +1064,8 @@ def geocoding_api(request):
                         'pending_validation': stats['pending_validation'],  # Geocoded but awaiting validation
                         'validated_complete': stats['validated_complete'],  # Locations with coordinates
                         'completion_rate': (stats['validated_complete'] / stats['total_locations'] * 100) if stats['total_locations'] > 0 else 0
-                    }
+                    },
+                    'scope': scope.label,
                 })
             else:
                 return JsonResponse({
@@ -1095,7 +1098,7 @@ def geocoding_api(request):
                 geocoder = get_admin_boundary_geocoder()
 
                 # Get all locations with coordinates
-                locations = viewable_locations_for_user(request.user).filter(
+                locations = scoped_locations(request.user, resolve_scope(request)).filter(
                     latitude__isnull=False,
                     longitude__isnull=False
                 )
@@ -1176,10 +1179,13 @@ def bulk_validation_actions(request):
         try:
             data = json.loads(request.body)
             action = data.get('action')
+            scope = resolve_scope(request)
+            geocoding_results = scoped_geocoding_results(request.user, scope)
+            validations = scoped_validations(request.user, scope)
 
             if action == 'auto_validate_high_confidence':
 
-                total_geocoding_results = GeocodingResult.objects.filter(created_by=request.user).count()
+                total_geocoding_results = geocoding_results.count()
                 if total_geocoding_results == 0:
                     return JsonResponse({
                         'success': False,
@@ -1187,7 +1193,7 @@ def bulk_validation_actions(request):
                     }, status=400)
 
 
-                total_validations = ValidationResult.objects.filter(created_by=request.user).count()
+                total_validations = validations.count()
                 if total_validations == 0:
                     return JsonResponse({
                         'success': False,
@@ -1196,9 +1202,8 @@ def bulk_validation_actions(request):
 
 
                 # Look for ValidationResults with status = 'needs_review'
-                high_confidence_results = ValidationResult.objects.filter(
+                high_confidence_results = validations.filter(
                     validation_status='needs_review',  # Only those needing review
-                    created_by=request.user
                 ).select_related('geocoding_result')
 
                 #Filter by best individual source confidence (≥80%)
@@ -1295,7 +1300,7 @@ def bulk_validation_actions(request):
 
             elif action == 'run_smart_validation_batch':
 
-                total_geocoding_results = GeocodingResult.objects.filter(created_by=request.user).count()
+                total_geocoding_results = geocoding_results.count()
                 if total_geocoding_results == 0:
                     return JsonResponse({
                         'success': False,
@@ -1303,9 +1308,8 @@ def bulk_validation_actions(request):
                     }, status=400)
 
 
-                pending_results = GeocodingResult.objects.filter(
+                pending_results = geocoding_results.filter(
                     validation__isnull=True,
-                    created_by=request.user
                 ).exclude(validation_status='rejected')
 
                 if not pending_results.exists():
@@ -1762,30 +1766,30 @@ def run_ai_analysis(validation):
 def validation_statistics(request):
     """Get detailed validation statistics for dashboard with enhanced error handling."""
     try:
+        scope = resolve_scope(request)
+        validations = scoped_validations(request.user, scope)
+
         # Basic counts
-        total_locations = GeocodingResult.objects.filter(created_by=request.user).count()
-        total_validations = ValidationResult.objects.filter(created_by=request.user).count()
+        total_locations = scoped_geocoding_results(request.user, scope).count()
+        total_validations = validations.count()
 
         # Confidence distribution
-        high_confidence = ValidationResult.objects.filter(confidence_score__gte=0.8, created_by=request.user).count()
-        medium_confidence = ValidationResult.objects.filter(
-            confidence_score__gte=0.6, confidence_score__lt=0.8, created_by=request.user
+        high_confidence = validations.filter(confidence_score__gte=0.8).count()
+        medium_confidence = validations.filter(
+            confidence_score__gte=0.6, confidence_score__lt=0.8
         ).count()
-        low_confidence = ValidationResult.objects.filter(confidence_score__lt=0.6, created_by=request.user).count()
+        low_confidence = validations.filter(confidence_score__lt=0.6).count()
 
         # Status distribution
-        validated = ValidationResult.objects.filter(validation_status='validated', created_by=request.user).count()
-        needs_review = ValidationResult.objects.filter(validation_status='needs_review', created_by=request.user).count()
-        pending = ValidationResult.objects.filter(validation_status='pending', created_by=request.user).count()
-        rejected = ValidationResult.objects.filter(validation_status='rejected', created_by=request.user).count()
+        validated = validations.filter(validation_status='validated').count()
+        needs_review = validations.filter(validation_status='needs_review').count()
+        pending = validations.filter(validation_status='pending').count()
+        rejected = validations.filter(validation_status='rejected').count()
 
         # Source reliability stats
         source_usage = {}
         for source in ['google', 'arcgis', 'hdx', 'nominatim']:
-            source_usage[source] = ValidationResult.objects.filter(
-                recommended_source=source,
-                created_by=request.user
-            ).count()
+            source_usage[source] = validations.filter(recommended_source=source).count()
 
         return JsonResponse({
             'total_locations': total_locations,
@@ -1817,7 +1821,8 @@ def validated_locations_map(request):
     """Show map of all validated locations with proper data structure."""
     from .models import LocationCSVUpload
 
-    validated_locations = viewable_locations_for_user(request.user).filter(
+    scope = resolve_scope(request)
+    validated_locations = scoped_locations(request.user, scope).filter(
         latitude__isnull=False,
         longitude__isnull=False
     ).order_by('name')
@@ -1840,6 +1845,10 @@ def validated_locations_map(request):
         processing_status='ingested',
         uploaded_by=request.user
     ).order_by('-uploaded_at')
+    if scope.study is not None:
+        csv_uploads = csv_uploads.filter(study=scope.study)
+    elif scope.project is not None:
+        csv_uploads = csv_uploads.filter(project=scope.project)
 
     for upload in csv_uploads:
         # Extract filename without extension for cleaner prefix
@@ -1865,10 +1874,13 @@ def validated_locations_map(request):
             # Combine first parts of filenames (limit to 3)
             prefixes = [sf['prefix'][:20] for sf in source_files[:3]]
             default_prefix = '_'.join(prefixes)
+    elif not scope.is_all:
+        default_prefix = re.sub(r'[^\w\-]', '_', (scope.study or scope.project).name)[:50]
     else:
         default_prefix = 'validated_locations'
 
     context = {
+        'scope': scope,
         'locations_data': json.dumps(locations_data),
         'mapbox_token': getattr(settings, 'MAPBOX_ACCESS_TOKEN', ''),
         'total_locations': len(locations_data),
@@ -1896,7 +1908,7 @@ def download_validated_locations_csv(request):
     from datetime import datetime
 
     # Get all validated locations (Location model has: name, lat, lng, created_at, updated_at)
-    validated_locations = viewable_locations_for_user(request.user).filter(
+    validated_locations = scoped_locations(request.user, resolve_scope(request)).filter(
         latitude__isnull=False,
         longitude__isnull=False
     ).order_by('name')
@@ -2055,7 +2067,7 @@ def download_validated_locations_shapefile(request):
     from datetime import datetime
 
     # Get all validated locations (same query as CSV export)
-    validated_locations = viewable_locations_for_user(request.user).filter(
+    validated_locations = scoped_locations(request.user, resolve_scope(request)).filter(
         latitude__isnull=False,
         longitude__isnull=False
     ).order_by('name')
@@ -2169,6 +2181,7 @@ def download_validated_locations_shapefile(request):
         return response
 
 
+@login_required
 def download_validated_locations_geojson(request):
     """
     Download validated locations as a GeoJSON file.
@@ -2186,7 +2199,7 @@ def download_validated_locations_geojson(request):
     from datetime import datetime
 
     # Get all validated locations (same query as CSV export)
-    validated_locations = viewable_locations_for_user(request.user).filter(
+    validated_locations = scoped_locations(request.user, resolve_scope(request)).filter(
         latitude__isnull=False,
         longitude__isnull=False
     ).order_by('name')
@@ -2325,13 +2338,26 @@ def start_batch_geocoding(request):
                         'error': 'One or more requested locations are not viewable by this user.'
                     }, status=403)
                 location_ids = list(allowed_ids)
+            scope_location_ids = None
+            if not location_ids:
+                scope = resolve_scope(request)
+                if not scope.is_all:
+                    scope_location_ids = list(
+                        scoped_locations(request.user, scope).values_list("id", flat=True)
+                    )
+                    if not scope_location_ids:
+                        return JsonResponse({
+                            'success': False,
+                            'error': f'No locations found in {scope.label}.'
+                        }, status=400)
 
             # Start Celery task (pass user_id for GeocodingResult creation)
             task = batch_geocode_locations.delay(
                 location_ids=location_ids,
                 force_reprocess=force_reprocess,
                 batch_size=batch_size,
-                user_id=request.user.id
+                user_id=request.user.id,
+                scope_location_ids=scope_location_ids,
             )
 
             return JsonResponse({
@@ -2377,6 +2403,20 @@ def start_batch_validation(request):
                         'error': 'One or more requested geocoding results are not owned by this user.'
                     }, status=403)
                 result_ids = list(allowed_ids)
+            else:
+                scope = resolve_scope(request)
+                if not scope.is_all:
+                    result_ids = list(
+                        scoped_geocoding_results(request.user, scope)
+                        .filter(validation__isnull=True)
+                        .values_list("id", flat=True)
+                    )
+                    if not result_ids:
+                        return JsonResponse({
+                            'success': True,
+                            'message': f'No unvalidated geocoding results in {scope.label}.',
+                            'nothing_to_do': True,
+                        })
 
             # Start Celery task
             task = batch_validate_locations.delay(
@@ -2528,23 +2568,80 @@ def manual_coordinate_update(request):
 
 
 # ============================================================================
-# LOCATION CSV UPLOAD VIEWS
+# LOCATION CSV UPLOAD VIEWS (geolocation-only workflow)
 # ============================================================================
+
+def _upload_project_options(user):
+    """Projects (and their source studies) a location list can be uploaded into."""
+    options = []
+    for project in projects_for_user(user).prefetch_related('studies'):
+        options.append({
+            'id': project.pk,
+            'name': project.name,
+            'source_studies': [
+                {'id': study.pk, 'name': study.name}
+                for study in project.studies.all()
+                if study.study_purpose == 'source'
+            ],
+        })
+    return options
+
+
+def _upload_initial(scope):
+    """Pre-select the active project / source study in the upload form."""
+    if scope.is_all:
+        return {}
+    initial = {'project_choice': str(scope.project.pk)}
+    if scope.study is not None and scope.study.study_purpose == 'source':
+        initial['study_choice'] = str(scope.study.pk)
+    return initial
+
+
+def _create_upload_target(user, cleaned_data, filename):
+    """Create the project and/or location-list study for a geolocation-only upload."""
+    from core.models import Project
+
+    project = cleaned_data['project']
+    if project is None:
+        project = Project.objects.create(
+            name=cleaned_data['new_project_name'].strip(),
+            description='Geolocation-only project: location lists uploaded for geocoding and validation.',
+            created_by=user,
+        )
+        ProjectMembership.objects.create(user=user, project=project, role='owner')
+
+    study = cleaned_data['study']
+    if study is None:
+        study = Study.objects.create(
+            name=(cleaned_data.get('location_list_name') or '').strip() or filename.rsplit('.', 1)[0],
+            description=f'Location list uploaded through the geolocation-only workflow ({filename}).',
+            created_by=user,
+            project=project,
+            study_purpose='source',
+            study_type='other',
+            has_locations=True,
+            needs_geolocation=True,
+        )
+    return project, study
+
 
 @login_required
 def upload_location_csv(request):
     """
-    Upload and validate location CSV files.
-    Step 1 of the location CSV import workflow.
+    Geolocation-only workflow, step 1: upload a location list into a project.
+
+    The file becomes a location list (source study) in an existing project or
+    a new geolocation-only project, so it is scoped like any other study.
     """
-    from .forms import LocationCSVUploadForm
     from .models import LocationCSVUpload, LocationCSVColumn
     from .utils import analyze_location_csv_columns
     from django.contrib import messages
     import hashlib
 
+    scope = resolve_scope(request)
+
     if request.method == 'POST':
-        form = LocationCSVUploadForm(request.POST, request.FILES)
+        form = LocationCSVUploadForm(request.POST, request.FILES, user=request.user)
 
         if form.is_valid():
             upload = form.save(commit=False)
@@ -2563,19 +2660,23 @@ def upload_location_csv(request):
             upload.checksum = checksum
             file_obj.seek(0)
 
-            # Check for duplicate uploads (but ignore failed ones)
-            duplicate = LocationCSVUpload.objects.filter(
-                uploaded_by=request.user,
-                checksum=checksum
-            ).exclude(processing_status='error').first()
+            # Check for duplicate uploads into the same location list (but ignore failed ones)
+            target_study = form.cleaned_data['study']
+            if target_study is not None:
+                duplicate = LocationCSVUpload.objects.filter(
+                    uploaded_by=request.user,
+                    checksum=checksum,
+                    study=target_study,
+                ).exclude(processing_status='error').first()
 
-            if duplicate:
-                messages.warning(
-                    request,
-                    f"Identical file already uploaded on {duplicate.uploaded_at.strftime('%Y-%m-%d %H:%M')}. "
-                    f"Status: {duplicate.get_processing_status_display()}"
-                )
-                return redirect('geolocation:upload_location_csv')
+                if duplicate:
+                    messages.warning(
+                        request,
+                        f"Identical file already uploaded to {target_study.name} on "
+                        f"{duplicate.uploaded_at.strftime('%Y-%m-%d %H:%M')}. "
+                        f"Status: {duplicate.get_processing_status_display()}"
+                    )
+                    return redirect('geolocation:upload_location_csv')
 
             upload.save()
 
@@ -2614,6 +2715,13 @@ def upload_location_csv(request):
                         is_potential_longitude=col_analysis['is_potential_longitude'],
                     )
 
+                # Only create the project / location list once the file is known to be usable
+                with transaction.atomic():
+                    upload.project, upload.study = _create_upload_target(
+                        request.user, form.cleaned_data, upload.original_filename
+                    )
+                    upload.save(update_fields=['project', 'study'])
+
                 messages.success(
                     request,
                     f"File analyzed successfully! Found {len(analysis['columns'])} columns in {analysis['total_rows']} rows. "
@@ -2630,17 +2738,20 @@ def upload_location_csv(request):
                 return redirect('geolocation:upload_location_csv')
 
     else:
-        form = LocationCSVUploadForm()
+        form = LocationCSVUploadForm(user=request.user, initial=_upload_initial(scope))
 
     # Get recent uploads for display
     recent_uploads = LocationCSVUpload.objects.filter(
         uploaded_by=request.user
-    ).order_by('-uploaded_at')[:5]
+    ).select_related('project', 'study').order_by('-uploaded_at')[:5]
 
     return render(request, 'geolocation/upload_location_csv.html', {
         'form': form,
         'recent_uploads': recent_uploads,
+        'upload_projects_json': json.dumps(_upload_project_options(request.user)),
+        'scope': scope,
     })
+
 
 
 @login_required
@@ -2732,12 +2843,19 @@ def ingest_location_csv(request, upload_id):
         try:
             replace_existing = request.POST.get('replace_existing', 'true') == 'true'
 
+            # Locations from this file live in its location list (study); legacy
+            # uploads without a study fall back to the user's unscoped locations.
+            if upload.study_id:
+                list_locations = Location.objects.filter(study=upload.study)
+            else:
+                list_locations = Location.objects.filter(created_by=request.user, study__isnull=True)
+
             if replace_existing:
-                # Delete all existing locations for this user to start a fresh session.
+                # Clear this location list only, never locations in other projects or studies.
                 # Cascades automatically delete GeocodingResult → ValidationResult.
-                deleted_count, _ = Location.objects.filter(created_by=request.user).delete()
+                deleted_count, _ = list_locations.delete()
                 if deleted_count:
-                    logger.info(f"Cleared {deleted_count} previous locations for user {request.user.username}")
+                    logger.info(f"Cleared {deleted_count} previous locations from upload target for user {request.user.username}")
 
             # Read the file
             file_ext = upload.file_format
@@ -2836,8 +2954,8 @@ def ingest_location_csv(request, upload_id):
                         latitude = None
                         longitude = None
 
-                # Check for duplicates (case-insensitive name match, scoped to current user)
-                existing = Location.objects.filter(name__iexact=location_name, created_by=request.user).first()
+                # Check for duplicates (case-insensitive name match within this location list)
+                existing = list_locations.filter(name__iexact=location_name).first()
 
                 if existing:
                     # If CSV had coordinates, store them as user_provided source in GeocodingResult
@@ -2862,19 +2980,34 @@ def ingest_location_csv(request, upload_id):
                     # Location.latitude/longitude is only set after the user validates.
                     location_obj = Location.objects.create(
                         name=location_name,
-                        created_by=request.user
+                        created_by=request.user,
+                        study=upload.study,
                     )
 
-                    # If CSV had coordinates, store them as user_provided geocoding source
+                    # If CSV had coordinates, store them as user_provided geocoding source.
+                    # Results are cached per user by name, so reuse one from another
+                    # project rather than creating a duplicate.
                     if latitude is not None and longitude is not None:
-                        GeocodingResult.objects.create(
-                            location=location_obj,
-                            created_by=request.user,
+                        cached_result = GeocodingResult.objects.filter(
                             location_name=location_name,
-                            user_provided_lat=latitude,
-                            user_provided_lng=longitude,
-                            user_provided_success=True,
-                        )
+                            created_by=request.user,
+                        ).first()
+                        if cached_result:
+                            cached_result.user_provided_lat = latitude
+                            cached_result.user_provided_lng = longitude
+                            cached_result.user_provided_success = True
+                            cached_result.save(update_fields=[
+                                'user_provided_lat', 'user_provided_lng', 'user_provided_success',
+                            ])
+                        else:
+                            GeocodingResult.objects.create(
+                                location=location_obj,
+                                created_by=request.user,
+                                location_name=location_name,
+                                user_provided_lat=latitude,
+                                user_provided_lng=longitude,
+                                user_provided_success=True,
+                            )
                         logger.info(f"Stored user-provided coordinates as source for new location: {location_name}")
 
                     created_count += 1
@@ -2893,8 +3026,11 @@ def ingest_location_csv(request, upload_id):
                 f"({skipped_count} duplicates skipped)"
             )
 
-            # Redirect to geocoding dashboard
-            return redirect('geolocation:validation_dashboard')
+            # Continue in the geolocation dashboard, scoped to the new location list
+            dashboard_url = reverse('geolocation:validation_dashboard')
+            if upload.study_id:
+                dashboard_url += f'?project={upload.project_id}&study={upload.study_id}'
+            return redirect(dashboard_url)
 
         except Exception as e:
             upload.processing_status = 'error'
@@ -2930,10 +3066,8 @@ def delete_location_csv_upload(request, upload_id):
         messages.success(request, f"Deleted upload: {filename}")
         return redirect('geolocation:upload_location_csv')
 
-    # GET request - show confirmation
-    return render(request, 'geolocation/delete_csv_upload_confirm.html', {
-        'upload': upload,
-    })
+    # Deletion is confirmed client-side and submitted by POST
+    return redirect('geolocation:upload_location_csv')
 
 
 @login_required
@@ -3283,8 +3417,7 @@ def research_metrics_api(request):
     """
     import statistics
 
-    qs = GeocodingResult.objects.filter(
-        created_by=request.user,
+    qs = scoped_geocoding_results(request.user, resolve_scope(request)).filter(
         source_comparison_metrics__isnull=False,
     ).select_related('validation')
 

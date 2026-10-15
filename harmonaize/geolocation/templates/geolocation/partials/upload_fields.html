@@ -1,0 +1,82 @@
+{% comment %}
+  Destination + file fields for a geolocation-only upload.
+  Needs: form (LocationCSVUploadForm), upload_projects_json, prefix (unique id prefix).
+{% endcomment %}
+<div class="geo-upload-fields">
+{{ form.non_field_errors }}
+<div class="mb-3">
+  <label class="form-label fw-semibold" for="{{ prefix }}-project">Project</label>
+  <select name="project_choice" id="{{ prefix }}-project" class="form-select" data-geo-project>
+    {% for value, label in form.fields.project_choice.choices %}
+      <option value="{{ value }}" {% if form.project_choice.value|stringformat:"s" == value|stringformat:"s" %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <div class="form-text">Use an existing project to add locations alongside its studies, or start a standalone geolocation-only project.</div>
+  {% for error in form.project_choice.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+</div>
+
+<div class="mb-3" data-geo-new-project>
+  <label class="form-label" for="{{ prefix }}-new-project">New project name</label>
+  <input type="text" name="new_project_name" id="{{ prefix }}-new-project" class="form-control" maxlength="200"
+         value="{{ form.new_project_name.value|default_if_none:'' }}">
+  {% for error in form.new_project_name.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+</div>
+
+<div class="mb-3">
+  <label class="form-label fw-semibold" for="{{ prefix }}-study">Location list</label>
+  <select name="study_choice" id="{{ prefix }}-study" class="form-select" data-geo-study
+          data-selected="{{ form.study_choice.value|default_if_none:'new' }}">
+    <option value="new">+ New location list</option>
+  </select>
+  <div class="form-text">Each list is stored as a source study in the project. Pick an existing list to re-import into it.</div>
+  {% for error in form.study_choice.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+</div>
+
+<div class="mb-3" data-geo-new-study>
+  <label class="form-label" for="{{ prefix }}-list-name">Location list name</label>
+  <input type="text" name="location_list_name" id="{{ prefix }}-list-name" class="form-control" maxlength="200"
+         placeholder="Defaults to the file name" value="{{ form.location_list_name.value|default_if_none:'' }}">
+</div>
+
+<div class="mb-3">
+  <label class="form-label fw-semibold" for="{{ prefix }}-file">File</label>
+  <input type="file" name="file" id="{{ prefix }}-file" class="form-control" accept=".csv,.xlsx,.xls,.json" required>
+  <div class="form-text">CSV, Excel (.xlsx, .xls) or JSON, up to 100MB. Coordinates are optional.</div>
+  {% for error in form.file.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+</div>
+
+<script>
+  (function () {
+    const projects = {{ upload_projects_json|safe }};
+    const root = document.currentScript.parentElement;
+    const projectSelect = root.querySelector('[data-geo-project]');
+    const studySelect = root.querySelector('[data-geo-study]');
+    const newProject = root.querySelector('[data-geo-new-project]');
+    const newStudy = root.querySelector('[data-geo-new-study]');
+
+    function syncStudies() {
+      const project = projects.find(p => String(p.id) === projectSelect.value);
+      const selected = studySelect.dataset.selected;
+      studySelect.innerHTML = '<option value="new">+ New location list</option>';
+      (project ? project.source_studies : []).forEach(study => {
+        const option = document.createElement('option');
+        option.value = study.id;
+        option.textContent = study.name;
+        option.selected = String(study.id) === selected;
+        studySelect.appendChild(option);
+      });
+      studySelect.disabled = !project;
+      newProject.style.display = project ? 'none' : '';
+      syncNewStudy();
+    }
+
+    function syncNewStudy() {
+      newStudy.style.display = studySelect.value === 'new' ? '' : 'none';
+    }
+
+    projectSelect.addEventListener('change', () => { studySelect.dataset.selected = 'new'; syncStudies(); });
+    studySelect.addEventListener('change', syncNewStudy);
+    syncStudies();
+  })();
+</script>
+</div>

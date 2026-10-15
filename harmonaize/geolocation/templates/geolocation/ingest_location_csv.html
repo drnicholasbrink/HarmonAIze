@@ -13,6 +13,8 @@
         <h2 class="mb-0">✅ Ready to Import</h2>
       </div>
 
+      {% include 'geolocation/partials/workflow_steps.html' with current=3 %}
+
       <!-- Summary Card -->
       <div class="card shadow-sm mb-4">
         <div class="card-body">
@@ -72,7 +74,7 @@
             </li>
             <li class="list-group-item">
               <i class="fas fa-check text-success"></i>
-              Skip duplicate locations (case-insensitive name matching)
+              Skip duplicate locations within this location list (case-insensitive name matching)
             </li>
             {% if upload.has_coordinates %}
             <li class="list-group-item">
@@ -86,7 +88,7 @@
             {% endif %}
             <li class="list-group-item">
               <i class="fas fa-arrow-right text-primary"></i>
-              Redirect to Geolocation Dashboard when complete
+              Open the Geolocation Dashboard for {% if upload.study %}<strong>{{ upload.study.name }}</strong>{% else %}your locations{% endif %} to geocode and validate
             </li>
           </ul>
         </div>
@@ -106,8 +108,8 @@
           <div class="form-check">
             <input class="form-check-input" type="checkbox" name="replace_existing" value="true" id="replaceExisting" checked>
             <label class="form-check-label" for="replaceExisting">
-              <strong>Start fresh — replace my existing locations</strong>
-              <small class="d-block text-muted">Recommended. Removes your previous locations and their geocoding results before importing this batch. Uncheck to append to existing locations.</small>
+              <strong>Start fresh — replace the locations already in {% if upload.study %}“{{ upload.study.name }}”{% else %}my unscoped location list{% endif %}</strong>
+              <small class="d-block text-muted">Recommended. Removes this list's previous locations and their geocoding results before importing. Other projects and studies are not touched. Uncheck to append.</small>
             </label>
           </div>
         </div>

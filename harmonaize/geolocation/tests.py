@@ -211,3 +211,220 @@ def test_manual_coordinate_update_rejects_non_viewable_location(client, geolocat
     assert response.status_code == 200
     uploaded.refresh_from_db()
     assert uploaded.latitude == pytest.approx(-26.2)
+
+
+# ---------------------------------------------------------------------------
+# Project / study scoping and the geolocation-only workflow
+# ---------------------------------------------------------------------------
+
+
+def _add_study_location(user, project, study_name, location_name):
+    """Add a source study with one observed location to an existing project."""
+    study = Study.objects.create(
+        name=study_name,
+        project=project,
+        created_by=user,
+        study_purpose="source",
+        study_type="cohort",
+    )
+    attribute = Attribute.objects.create(
+        variable_name=f"{study_name.lower()}_location_marker",
+        variable_type="string",
+        category="geolocation",
+        source_type="source",
+        study=study,
+    )
+    patient = Patient.objects.create(unique_id=f"{study_name}-patient")
+    location = Location.objects.create(name=location_name)
+    Observation.objects.create(patient=patient, location=location, attribute=attribute, text_value="observed")
+    return study, location
+
+
+@pytest.fixture
+def two_projects_one_user(geolocation_users):
+    user, _other = geolocation_users
+    project_1 = Project.objects.create(name="Scope Project 1", created_by=user)
+    ProjectMembership.objects.create(project=project_1, user=user, role="owner")
+    project_2 = Project.objects.create(name="Scope Project 2", created_by=user)
+    ProjectMembership.objects.create(project=project_2, user=user, role="owner")
+    study_1a, loc_1a = _add_study_location(user, project_1, "ScopeStudy1A", "Clinic 1A")
+    study_1b, loc_1b = _add_study_location(user, project_1, "ScopeStudy1B", "Clinic 1B")
+    study_2, loc_2 = _add_study_location(user, project_2, "ScopeStudy2", "Clinic 2")
+    return {
+        "user": user,
+        "project_1": project_1,
+        "project_2": project_2,
+        "study_1a": study_1a,
+        "loc_1a": loc_1a,
+        "loc_1b": loc_1b,
+        "loc_2": loc_2,
+    }
+
+
+def _status_ids(client, **params):
+    response = client.get(reverse("geolocation:location_status_api"), params)
+    assert response.status_code == 200
+    return {item["id"] for item in response.json()["locations"]}
+
+
+@pytest.mark.django_db
+def test_location_status_scopes_to_project_study_and_view_all(client, two_projects_one_user):
+    data = two_projects_one_user
+    client.force_login(data["user"])
+
+    assert _status_ids(client, project=data["project_1"].pk) == {data["loc_1a"].id, data["loc_1b"].id}
+    assert _status_ids(client, project=data["project_1"].pk, study=data["study_1a"].pk) == {data["loc_1a"].id}
+    assert _status_ids(client, project=data["project_2"].pk) == {data["loc_2"].id}
+    assert _status_ids(client, project="all") == {data["loc_1a"].id, data["loc_1b"].id, data["loc_2"].id}
+
+
+@pytest.mark.django_db
+def test_dashboard_scope_is_remembered_for_apis(client, two_projects_one_user):
+    data = two_projects_one_user
+    client.force_login(data["user"])
+
+    response = client.get(reverse("geolocation:validation_dashboard"), {"project": data["project_2"].pk})
+    assert response.status_code == 200
+    assert response.context["scope"].project == data["project_2"]
+
+    # No parameters: the API follows the dashboard's last selection
+    assert _status_ids(client) == {data["loc_2"].id}
+
+
+@pytest.mark.django_db
+def test_scope_ignores_projects_user_is_not_member_of(client, two_projects_one_user, two_project_locations):
+    data = two_projects_one_user
+    _user_a, user_b, _location_a, location_b = two_project_locations
+    foreign_project = Project.objects.get(name="Geo Project B")
+    client.force_login(data["user"])
+
+    ids = _status_ids(client, project=foreign_project.pk)
+
+    assert location_b.id not in ids
+
+
+@pytest.mark.django_db
+def test_batch_geocoding_without_ids_is_limited_to_scope(client, two_projects_one_user):
+    data = two_projects_one_user
+    client.force_login(data["user"])
+
+    with patch("geolocation.views.batch_geocode_locations.delay") as delay:
+        delay.return_value.id = "task-1"
+        response = client.post(
+            reverse("geolocation:start_batch_geocoding") + f"?project={data['project_2'].pk}",
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+
+    assert response.status_code == 200
+    kwargs = delay.call_args.kwargs
+    assert kwargs["location_ids"] is None
+    assert kwargs["scope_location_ids"] == [data["loc_2"].id]
+
+
+def _run_location_list_upload(client, settings, tmp_path, csv_text, **fields):
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    from geolocation.models import LocationCSVUpload
+
+    settings.MEDIA_ROOT = str(tmp_path)
+    upload_file = SimpleUploadedFile("clinic_sites.csv", csv_text.encode(), content_type="text/csv")
+    response = client.post(reverse("geolocation:upload_location_csv"), {"file": upload_file, **fields})
+    assert response.status_code == 302, getattr(response, "context", None) and response.context["form"].errors
+    upload = LocationCSVUpload.objects.latest("uploaded_at")
+
+    response = client.post(
+        reverse("geolocation:map_location_columns", args=[upload.id]),
+        {"location_name_column": "facility", "latitude_column": "", "longitude_column": ""},
+    )
+    assert response.status_code == 302
+    return upload
+
+
+@pytest.mark.django_db
+def test_geolocation_only_workflow_creates_project_and_location_list(client, settings, tmp_path, geolocation_users):
+    user, other = geolocation_users
+    client.force_login(user)
+
+    upload = _run_location_list_upload(
+        client, settings, tmp_path, "facility\nMbare Clinic\nBudiriro Clinic\n",
+        project_choice="new", new_project_name="Geolocation only", study_choice="new", location_list_name="",
+    )
+    response = client.post(reverse("geolocation:ingest_location_csv", args=[upload.id]), {"replace_existing": "true"})
+
+    upload.refresh_from_db()
+    project, study = upload.project, upload.study
+    assert project.name == "Geolocation only"
+    assert ProjectMembership.objects.filter(project=project, user=user, role="owner").exists()
+    assert study.project == project
+    assert study.study_purpose == "source"
+    assert study.name == "clinic_sites"
+    assert set(Location.objects.filter(study=study).values_list("name", flat=True)) == {"Mbare Clinic", "Budiriro Clinic"}
+    assert response.status_code == 302
+    assert response.url.endswith(f"?project={project.pk}&study={study.pk}")
+
+    # The list is scoped like any other study, and invisible to non-members
+    assert len(_status_ids(client, project=project.pk, study=study.pk)) == 2
+    client.force_login(other)
+    assert not _status_ids(client, project="all")
+
+
+@pytest.mark.django_db
+def test_location_list_upload_into_existing_project_sits_alongside_study_locations(
+    client, settings, tmp_path, two_projects_one_user,
+):
+    data = two_projects_one_user
+    client.force_login(data["user"])
+
+    upload = _run_location_list_upload(
+        client, settings, tmp_path, "facility\nExtra Site\n",
+        project_choice=str(data["project_1"].pk), study_choice="new", location_list_name="Extra sites",
+    )
+    client.post(reverse("geolocation:ingest_location_csv", args=[upload.id]), {"replace_existing": "true"})
+
+    extra = Location.objects.get(name="Extra Site")
+    assert extra.study.name == "Extra sites"
+    assert _status_ids(client, project=data["project_1"].pk) == {data["loc_1a"].id, data["loc_1b"].id, extra.id}
+    assert extra.id not in _status_ids(client, project=data["project_2"].pk)
+
+
+@pytest.mark.django_db
+def test_replace_existing_only_clears_the_target_location_list(client, settings, tmp_path, two_projects_one_user):
+    data = two_projects_one_user
+    user = data["user"]
+    client.force_login(user)
+    legacy = Location.objects.create(name="Legacy Upload", created_by=user)
+    first = _run_location_list_upload(
+        client, settings, tmp_path, "facility\nOld Site\n",
+        project_choice=str(data["project_1"].pk), study_choice="new", location_list_name="Sites",
+    )
+    client.post(reverse("geolocation:ingest_location_csv", args=[first.id]), {"replace_existing": "true"})
+
+    second = _run_location_list_upload(
+        client, settings, tmp_path, "facility\nNew Site\n",
+        project_choice=str(data["project_1"].pk), study_choice=str(first.study_id),
+    )
+    client.post(reverse("geolocation:ingest_location_csv", args=[second.id]), {"replace_existing": "true"})
+
+    assert list(Location.objects.filter(study=first.study).values_list("name", flat=True)) == ["New Site"]
+    assert Location.objects.filter(pk__in=[legacy.pk, data["loc_1a"].pk, data["loc_2"].pk]).count() == 3
+
+
+@pytest.mark.django_db
+def test_upload_rejects_project_user_is_not_member_of(client, settings, tmp_path, two_project_locations):
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    user_a, _user_b, _location_a, _location_b = two_project_locations
+    foreign_project = Project.objects.get(name="Geo Project B")
+    settings.MEDIA_ROOT = str(tmp_path)
+    client.force_login(user_a)
+
+    response = client.post(reverse("geolocation:upload_location_csv"), {
+        "file": SimpleUploadedFile("x.csv", b"facility\nA\n", content_type="text/csv"),
+        "project_choice": str(foreign_project.pk),
+        "study_choice": "new",
+    })
+
+    assert response.status_code == 200
+    assert "project_choice" in response.context["form"].errors
+    assert not Study.objects.filter(project=foreign_project, created_by=user_a).exists()

@@ -137,6 +137,14 @@ class Location(models.Model):
         blank=True,
         related_name='locations'
     )
+    study = models.ForeignKey(
+        'Study',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='uploaded_locations',
+        help_text="Study this location was uploaded into as a location list (geolocation-only workflow)."
+    )
     latitude = models.FloatField(
         null=True, blank=True,
         validators=[MinValueValidator(-90.0), MaxValueValidator(90.0)],
