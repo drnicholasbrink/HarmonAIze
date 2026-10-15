@@ -93,10 +93,10 @@ def update_locations_from_validation(user=None, scope=None):
     return updated_count
 
 
-def _geocoding_results_by_name(user):
-    """Map lower-cased location name -> the user's first geocoding result (one query)."""
+def _geocoding_results_by_name(results):
+    """Map lower-cased location name -> first geocoding result in ``results`` (one query)."""
     results_by_name = {}
-    for result in GeocodingResult.objects.filter(created_by=user).select_related('validation').order_by('pk'):
+    for result in results.select_related('validation').order_by('pk'):
         results_by_name.setdefault((result.location_name or '').lower(), result)
     return results_by_name
 
@@ -448,7 +448,7 @@ def get_validation_stats(user=None, scope=None):
 
     if user:
         validations = scoped_validations(user, scope)
-        results_by_name = _geocoding_results_by_name(user)
+        results_by_name = _geocoding_results_by_name(scoped_geocoding_results(user, scope))
         missing_coords = list(locations.filter(latitude__isnull=True, longitude__isnull=True).only('name'))
         for location in missing_coords:
             geocoding_result = results_by_name.get((location.name or '').lower())
@@ -525,7 +525,7 @@ class ValidationDashboardView(LoginRequiredMixin, TemplateView):
             'projects': projects,
             'source_studies': [s for s in scope_studies if s.study_purpose == 'source'],
             'target_studies': [s for s in scope_studies if s.study_purpose == 'target'],
-            'upload_projects_json': json.dumps(_upload_project_options(self.request.user)),
+            'upload_projects': _upload_project_options(self.request.user),
             'upload_form': LocationCSVUploadForm(user=self.request.user, initial=_upload_initial(scope)),
         })
 
@@ -540,7 +540,7 @@ def location_status_api(request):
             locations_data = []
             scope = resolve_scope(request)
             locations = scoped_locations(request.user, scope).order_by('name')
-            results_by_name = _geocoding_results_by_name(request.user)
+            results_by_name = _geocoding_results_by_name(scoped_geocoding_results(request.user, scope))
 
             for location in locations:
                 # Determine current status with automatic validation updates
@@ -2748,7 +2748,7 @@ def upload_location_csv(request):
     return render(request, 'geolocation/upload_location_csv.html', {
         'form': form,
         'recent_uploads': recent_uploads,
-        'upload_projects_json': json.dumps(_upload_project_options(request.user)),
+        'upload_projects': _upload_project_options(request.user),
         'scope': scope,
     })
 
@@ -2843,19 +2843,33 @@ def ingest_location_csv(request, upload_id):
         try:
             replace_existing = request.POST.get('replace_existing', 'true') == 'true'
 
-            # Locations from this file live in its location list (study); legacy
-            # uploads without a study fall back to the user's unscoped locations.
+            # A location list links to shared Location rows (one per place name, as in
+            # the rest of the toolkit). Legacy uploads without a study fall back to the
+            # user's unlisted, unobserved locations.
             if upload.study_id:
-                list_locations = Location.objects.filter(study=upload.study)
+                list_locations = upload.study.listed_locations.all()
             else:
-                list_locations = Location.objects.filter(created_by=request.user, study__isnull=True)
+                list_locations = Location.objects.filter(
+                    created_by=request.user, location_lists__isnull=True, observations__isnull=True,
+                )
 
             if replace_existing:
-                # Clear this location list only, never locations in other projects or studies.
-                # Cascades automatically delete GeocodingResult → ValidationResult.
-                deleted_count, _ = list_locations.delete()
-                if deleted_count:
-                    logger.info(f"Cleared {deleted_count} previous locations from upload target for user {request.user.username}")
+                # Empty this list only. Unlink first, then delete just the user's own rows
+                # that nothing else uses, so geocoding/validation shared with other lists,
+                # studies or users survives (deleting cascades to GeocodingResult).
+                previous_ids = list(list_locations.values_list('pk', flat=True))
+                if upload.study_id:
+                    upload.study.listed_locations.clear()
+                deleted_count, _ = Location.objects.filter(
+                    pk__in=previous_ids,
+                    created_by=request.user,
+                    location_lists__isnull=True,
+                    observations__isnull=True,
+                ).delete()
+                logger.info(
+                    f"Cleared {len(previous_ids)} locations from upload target "
+                    f"({deleted_count} orphaned rows deleted) for user {request.user.username}"
+                )
 
             # Read the file
             file_ext = upload.file_format
@@ -2978,37 +2992,32 @@ def ingest_location_csv(request, upload_id):
                     # Create new location WITHOUT final coordinates.
                     # CSV coordinates are one source among many (OSM, ArcGIS, Google, HDX).
                     # Location.latitude/longitude is only set after the user validates.
-                    location_obj = Location.objects.create(
-                        name=location_name,
-                        created_by=request.user,
-                        study=upload.study,
+                    # Reuse the place if the user can already see it (another list, or
+                    # study data), so coordinates and geocoding stay shared; otherwise
+                    # create it. Prefer the user's own row when names collide.
+                    candidates = viewable_locations_for_user(request.user).filter(name__iexact=location_name)
+                    location_obj = (
+                        candidates.filter(created_by=request.user).order_by('pk').first()
+                        or candidates.order_by('pk').first()
                     )
+                    if location_obj is None:
+                        location_obj = Location.objects.create(name=location_name, created_by=request.user)
+                    if upload.study_id:
+                        upload.study.listed_locations.add(location_obj)
 
-                    # If CSV had coordinates, store them as user_provided geocoding source.
-                    # Results are cached per user by name, so reuse one from another
-                    # project rather than creating a duplicate.
+                    # If CSV had coordinates, store them as user_provided geocoding source
                     if latitude is not None and longitude is not None:
-                        cached_result = GeocodingResult.objects.filter(
-                            location_name=location_name,
+                        GeocodingResult.objects.update_or_create(
+                            location_name=location_obj.name,
                             created_by=request.user,
-                        ).first()
-                        if cached_result:
-                            cached_result.user_provided_lat = latitude
-                            cached_result.user_provided_lng = longitude
-                            cached_result.user_provided_success = True
-                            cached_result.save(update_fields=[
-                                'user_provided_lat', 'user_provided_lng', 'user_provided_success',
-                            ])
-                        else:
-                            GeocodingResult.objects.create(
-                                location=location_obj,
-                                created_by=request.user,
-                                location_name=location_name,
-                                user_provided_lat=latitude,
-                                user_provided_lng=longitude,
-                                user_provided_success=True,
-                            )
-                        logger.info(f"Stored user-provided coordinates as source for new location: {location_name}")
+                            defaults={
+                                'location': location_obj,
+                                'user_provided_lat': latitude,
+                                'user_provided_lng': longitude,
+                                'user_provided_success': True,
+                            }
+                        )
+                        logger.info(f"Stored user-provided coordinates as source for location: {location_name}")
 
                     created_count += 1
 

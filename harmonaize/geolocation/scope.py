@@ -5,9 +5,9 @@ Mirrors the rest of HarmonAIze: work happens inside a project, optionally
 narrowed to one source or target study. "All projects" is available as an
 explicit "view all" option.
 
-The active scope is read from ``?project=<id|all>&study=<id>`` and remembered
-in the session, so the map pages and JSON APIs follow whatever the dashboard
-last selected without every URL having to carry the parameters.
+The active scope is read from ``?project=<id|all>&study=<id>``. Pages and the
+dashboard's API calls pass it explicitly; the last explicit selection is also
+remembered in the session as a fallback for links and calls that don't.
 """
 from dataclasses import dataclass
 from typing import Optional
@@ -92,9 +92,12 @@ def resolve_scope(request, remember=True):
             study = project.studies.filter(pk=study_id).first()
 
     scope = GeolocationScope(project=project, study=study)
-    if remember:
-        request.session[SESSION_KEY] = {
+    if remember and "project" in request.GET:
+        # Only an explicit selection is remembered; polling APIs don't write the session.
+        selection = {
             "project": ALL_PROJECTS if project is None else project.pk,
             "study": study.pk if study else None,
         }
+        if request.session.get(SESSION_KEY) != selection:
+            request.session[SESSION_KEY] = selection
     return scope

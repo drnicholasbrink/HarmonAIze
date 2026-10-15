@@ -137,13 +137,11 @@ class Location(models.Model):
         blank=True,
         related_name='locations'
     )
-    study = models.ForeignKey(
+    location_lists = models.ManyToManyField(
         'Study',
-        on_delete=models.CASCADE,
-        null=True,
         blank=True,
-        related_name='uploaded_locations',
-        help_text="Study this location was uploaded into as a location list (geolocation-only workflow)."
+        related_name='listed_locations',
+        help_text="Studies that list this place through an uploaded location list (geolocation-only workflow)."
     )
     latitude = models.FloatField(
         null=True, blank=True,

@@ -1,6 +1,6 @@
 {% comment %}
   Destination + file fields for a geolocation-only upload.
-  Needs: form (LocationCSVUploadForm), upload_projects_json, prefix (unique id prefix).
+  Needs: form (LocationCSVUploadForm), upload_projects, prefix (unique id prefix).
 {% endcomment %}
 <div class="geo-upload-fields">
 {{ form.non_field_errors }}
@@ -45,10 +45,11 @@
   {% for error in form.file.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
 </div>
 
+{% with json_id=prefix|add:"-projects" %}{{ upload_projects|json_script:json_id }}{% endwith %}
 <script>
   (function () {
-    const projects = {{ upload_projects_json|safe }};
     const root = document.currentScript.parentElement;
+    const projects = JSON.parse(document.getElementById('{{ prefix }}-projects').textContent);
     const projectSelect = root.querySelector('[data-geo-project]');
     const studySelect = root.querySelector('[data-geo-study]');
     const newProject = root.querySelector('[data-geo-new-project]');

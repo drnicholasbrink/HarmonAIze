@@ -131,11 +131,10 @@ class LocationCSVUploadForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         from core.models import Project
 
+        from .scope import projects_for_user
+
         self.user = user
-        self.projects = (
-            Project.objects.filter(members=user).distinct().order_by("-updated_at")
-            if user is not None else Project.objects.none()
-        )
+        self.projects = projects_for_user(user) if user is not None else Project.objects.none()
         self.fields["project_choice"].choices = [(NEW_CHOICE, "+ New geolocation-only project")] + [
             (str(p.pk), p.name) for p in self.projects
         ]
@@ -161,7 +160,8 @@ class LocationCSVUploadForm(forms.ModelForm):
             if project is None:
                 self.add_error("study_choice", "A new project needs a new location list.")
             else:
-                study = project.studies.filter(pk=study_choice, study_purpose="source").first()
+                if study_choice.isdigit():
+                    study = project.studies.filter(pk=int(study_choice), study_purpose="source").first()
                 if study is None:
                     self.add_error("study_choice", "Choose a source study in this project.")
 

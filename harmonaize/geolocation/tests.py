@@ -359,7 +359,7 @@ def test_geolocation_only_workflow_creates_project_and_location_list(client, set
     assert study.project == project
     assert study.study_purpose == "source"
     assert study.name == "clinic_sites"
-    assert set(Location.objects.filter(study=study).values_list("name", flat=True)) == {"Mbare Clinic", "Budiriro Clinic"}
+    assert set(study.listed_locations.values_list("name", flat=True)) == {"Mbare Clinic", "Budiriro Clinic"}
     assert response.status_code == 302
     assert response.url.endswith(f"?project={project.pk}&study={study.pk}")
 
@@ -383,7 +383,7 @@ def test_location_list_upload_into_existing_project_sits_alongside_study_locatio
     client.post(reverse("geolocation:ingest_location_csv", args=[upload.id]), {"replace_existing": "true"})
 
     extra = Location.objects.get(name="Extra Site")
-    assert extra.study.name == "Extra sites"
+    assert list(extra.location_lists.values_list("name", flat=True)) == ["Extra sites"]
     assert _status_ids(client, project=data["project_1"].pk) == {data["loc_1a"].id, data["loc_1b"].id, extra.id}
     assert extra.id not in _status_ids(client, project=data["project_2"].pk)
 
@@ -406,7 +406,8 @@ def test_replace_existing_only_clears_the_target_location_list(client, settings,
     )
     client.post(reverse("geolocation:ingest_location_csv", args=[second.id]), {"replace_existing": "true"})
 
-    assert list(Location.objects.filter(study=first.study).values_list("name", flat=True)) == ["New Site"]
+    assert list(first.study.listed_locations.values_list("name", flat=True)) == ["New Site"]
+    assert not Location.objects.filter(name="Old Site").exists()  # own orphan cleaned up
     assert Location.objects.filter(pk__in=[legacy.pk, data["loc_1a"].pk, data["loc_2"].pk]).count() == 3
 
 
@@ -428,3 +429,103 @@ def test_upload_rejects_project_user_is_not_member_of(client, settings, tmp_path
     assert response.status_code == 200
     assert "project_choice" in response.context["form"].errors
     assert not Study.objects.filter(project=foreign_project, created_by=user_a).exists()
+
+
+@pytest.mark.django_db
+def test_location_list_reuses_existing_place_instead_of_duplicating(client, settings, tmp_path, two_projects_one_user):
+    """Locations are one row per place (health ingestion relies on name lookups)."""
+    data = two_projects_one_user
+    client.force_login(data["user"])
+
+    upload = _run_location_list_upload(
+        client, settings, tmp_path, "facility\nclinic 2\n",
+        project_choice=str(data["project_1"].pk), study_choice="new", location_list_name="Shared",
+    )
+    client.post(reverse("geolocation:ingest_location_csv", args=[upload.id]), {"replace_existing": "true"})
+
+    assert Location.objects.filter(name__iexact="clinic 2").count() == 1
+    assert data["loc_2"].id in _status_ids(client, project=data["project_1"].pk)
+    assert data["loc_2"].id in _status_ids(client, project=data["project_2"].pk)
+
+
+@pytest.mark.django_db
+def test_replace_keeps_places_and_geocoding_used_elsewhere(client, settings, tmp_path, two_projects_one_user):
+    data = two_projects_one_user
+    user = data["user"]
+    client.force_login(user)
+    first = _run_location_list_upload(
+        client, settings, tmp_path, "facility\nShared Site\n",
+        project_choice=str(data["project_1"].pk), study_choice="new", location_list_name="List A",
+    )
+    client.post(reverse("geolocation:ingest_location_csv", args=[first.id]), {"replace_existing": "true"})
+    shared = Location.objects.get(name="Shared Site")
+    GeocodingResult.objects.create(location=shared, location_name=shared.name, created_by=user, hdx_success=True)
+    second = _run_location_list_upload(
+        client, settings, tmp_path, "facility\nShared Site\n",
+        project_choice=str(data["project_2"].pk), study_choice="new", location_list_name="List B",
+    )
+    client.post(reverse("geolocation:ingest_location_csv", args=[second.id]), {"replace_existing": "true"})
+
+    # Re-importing list A with different contents must not delete the place list B still uses
+    third = _run_location_list_upload(
+        client, settings, tmp_path, "facility\nOther Site\n",
+        project_choice=str(data["project_1"].pk), study_choice=str(first.study_id),
+    )
+    client.post(reverse("geolocation:ingest_location_csv", args=[third.id]), {"replace_existing": "true"})
+
+    shared.refresh_from_db()
+    assert list(shared.location_lists.values_list("name", flat=True)) == ["List B"]
+    assert GeocodingResult.objects.filter(location=shared).exists()
+
+
+@pytest.mark.django_db
+def test_upload_form_escapes_project_and_study_names(client, geolocation_users):
+    user, _other = geolocation_users
+    project = Project.objects.create(name="</script><script>alert(1)</script>", created_by=user)
+    ProjectMembership.objects.create(project=project, user=user, role="owner")
+    Study.objects.create(
+        name="</script><b>x</b>", project=project, created_by=user, study_purpose="source", study_type="other",
+    )
+    client.force_login(user)
+
+    body = client.get(reverse("geolocation:upload_location_csv")).content.decode()
+
+    assert "</script><script>alert(1)" not in body
+    assert "</script><b>x</b>" not in body
+
+
+@pytest.mark.django_db
+def test_upload_rejects_non_numeric_study_choice(client, settings, tmp_path, two_projects_one_user):
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    data = two_projects_one_user
+    settings.MEDIA_ROOT = str(tmp_path)
+    client.force_login(data["user"])
+
+    response = client.post(reverse("geolocation:upload_location_csv"), {
+        "file": SimpleUploadedFile("x.csv", b"facility\nA\n", content_type="text/csv"),
+        "project_choice": str(data["project_1"].pk),
+        "study_choice": "abc",
+    })
+
+    assert response.status_code == 200
+    assert "study_choice" in response.context["form"].errors
+
+
+@pytest.mark.django_db
+def test_polling_apis_do_not_change_remembered_scope(client, two_projects_one_user):
+    from geolocation.scope import SESSION_KEY
+
+    data = two_projects_one_user
+    client.force_login(data["user"])
+    client.get(reverse("geolocation:validation_dashboard"), {"project": data["project_2"].pk})
+    remembered = client.session[SESSION_KEY]
+
+    client.get(reverse("geolocation:location_status_api"))
+    client.post(
+        reverse("geolocation:geocoding_api"),
+        data=json.dumps({"action": "get_geocoding_stats"}),
+        content_type="application/json",
+    )
+
+    assert client.session[SESSION_KEY] == remembered
