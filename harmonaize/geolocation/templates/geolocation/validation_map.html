@@ -892,7 +892,7 @@
           {% include 'components/svg_icon.html' with icon='map-pin' size='24' class='inline-icon' %}
           Visual Source Validation
         </h1>
-        <p class="hero-subtitle">coordinates visualisation for all sources</p>
+        <p class="hero-subtitle">Coordinates from all sources &middot; {{ scope.label }}</p>
       </div>
 
       <div class="hero-nav">
@@ -909,7 +909,7 @@
 
         <div style="display: flex; align-items: center; gap: 1rem;">
           {% if navigation.has_prev %}
-          <a href="{% url 'geolocation:validation_map' %}?location_id={{ navigation.prev_location_id }}"
+          <a href="{% url 'geolocation:validation_map' %}?{{ scope.querystring }}&location_id={{ navigation.prev_location_id }}"
              class="btn btn-primary">
             ← Previous
           </a>
@@ -920,13 +920,13 @@
           </span>
 
           {% if navigation.has_next %}
-          <a href="{% url 'geolocation:validation_map' %}?location_id={{ navigation.next_location_id }}"
+          <a href="{% url 'geolocation:validation_map' %}?{{ scope.querystring }}&location_id={{ navigation.next_location_id }}"
              class="btn btn-secondary">
             Next →
           </a>
           {% endif %}
 
-          <a href="{% url 'geolocation:validation_dashboard' %}"
+          <a href="{% url 'geolocation:validation_dashboard' %}?{{ scope.querystring }}"
              class="btn btn-primary">
             Geolocation Dashboard
           </a>
@@ -1154,7 +1154,7 @@
           <div style="font-size: 2rem; margin-bottom: 1rem; font-weight: bold; color: var(--accent-color);">✓</div>
           <h3 style="color: var(--text-primary); margin-bottom: 1rem;">All Caught Up!</h3>
           <p style="color: var(--text-secondary); margin-bottom: 2rem;">No locations currently need validation</p>
-          <a href="{% url 'geolocation:validation_dashboard' %}" class="btn btn-secondary">
+          <a href="{% url 'geolocation:validation_dashboard' %}?{{ scope.querystring }}" class="btn btn-secondary">
             Return to Dashboard
           </a>
         </div>
@@ -2315,9 +2315,9 @@
           showMessage(data.message, 'success');
           setTimeout(() => {
             {% if navigation.has_next %}
-            window.location.href = '{% url "geolocation:validation_map" %}?location_id={{ navigation.next_location_id }}';
+            window.location.href = '{% url "geolocation:validation_map" %}?{{ scope.querystring }}&location_id={{ navigation.next_location_id }}';
             {% else %}
-            window.location.href = '{% url "geolocation:validation_dashboard" %}';
+            window.location.href = '{% url "geolocation:validation_dashboard" %}?{{ scope.querystring }}';
             {% endif %}
           }, 2000);
         } else {
@@ -2349,9 +2349,9 @@
           showMessage(data.message, 'success');
           setTimeout(() => {
             {% if navigation.has_next %}
-            window.location.href = '{% url "geolocation:validation_map" %}?location_id={{ navigation.next_location_id }}';
+            window.location.href = '{% url "geolocation:validation_map" %}?{{ scope.querystring }}&location_id={{ navigation.next_location_id }}';
             {% else %}
-            window.location.href = '{% url "geolocation:validation_dashboard" %}';
+            window.location.href = '{% url "geolocation:validation_dashboard" %}?{{ scope.querystring }}';
             {% endif %}
           }, 2000);
         } else {
@@ -2415,9 +2415,9 @@
           showMessage(data.message, 'success');
           setTimeout(() => {
             {% if navigation.has_next %}
-            window.location.href = '{% url "geolocation:validation_map" %}?location_id={{ navigation.next_location_id }}';
+            window.location.href = '{% url "geolocation:validation_map" %}?{{ scope.querystring }}&location_id={{ navigation.next_location_id }}';
             {% else %}
-            window.location.href = '{% url "geolocation:validation_dashboard" %}';
+            window.location.href = '{% url "geolocation:validation_dashboard" %}?{{ scope.querystring }}';
             {% endif %}
           }, 2000);
         } else {
@@ -2462,9 +2462,9 @@
           showMessage(data.message, 'success');
           setTimeout(() => {
             {% if navigation.has_next %}
-            window.location.href = '{% url "geolocation:validation_map" %}?location_id={{ navigation.next_location_id }}';
+            window.location.href = '{% url "geolocation:validation_map" %}?{{ scope.querystring }}&location_id={{ navigation.next_location_id }}';
             {% else %}
-            window.location.href = '{% url "geolocation:validation_dashboard" %}';
+            window.location.href = '{% url "geolocation:validation_dashboard" %}?{{ scope.querystring }}';
             {% endif %}
           }, 2000);
         } else {
@@ -2503,9 +2503,9 @@
     // Keyboard shortcuts
     document.addEventListener('keydown', function(e) {
       if (e.key === 'ArrowLeft' && {{ navigation.has_prev|yesno:"true,false" }}) {
-        window.location.href = '{% url "geolocation:validation_map" %}?location_id={{ navigation.prev_location_id }}';
+        window.location.href = '{% url "geolocation:validation_map" %}?{{ scope.querystring }}&location_id={{ navigation.prev_location_id }}';
       } else if (e.key === 'ArrowRight' && {{ navigation.has_next|yesno:"true,false" }}) {
-        window.location.href = '{% url "geolocation:validation_map" %}?location_id={{ navigation.next_location_id }}';
+        window.location.href = '{% url "geolocation:validation_map" %}?{{ scope.querystring }}&location_id={{ navigation.next_location_id }}';
       } else if (e.key === 'Enter' && currentLocationData && currentLocationData.confidence >= 70) {
         approveBestSource();
       } else if (e.key === 'Escape') {

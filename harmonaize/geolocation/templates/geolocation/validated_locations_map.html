@@ -610,7 +610,7 @@
           {% include 'components/svg_icon.html' with icon='check-circle' size='24' class='inline-icon' %}
           Validated Locations Map
         </h1>
-        <p class="hero-subtitle">Ground-Truth for Impact — Explore {{ total_locations }} Validated Sites in Context</p>
+        <p class="hero-subtitle">Ground-Truth for Impact — Explore {{ total_locations }} Validated Sites in Context &middot; {{ scope.label }}</p>
       </div>
 
       <div class="hero-nav">
@@ -618,7 +618,7 @@
           {{ total_locations }} Validated Locations
         </div>
 
-        <a href="{% url 'geolocation:validation_dashboard' %}"
+        <a href="{% url 'geolocation:validation_dashboard' %}?{{ scope.querystring }}"
            class="btn btn-primary">
           📊 Back to Dashboard
         </a>

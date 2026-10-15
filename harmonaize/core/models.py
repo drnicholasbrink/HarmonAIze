@@ -137,6 +137,12 @@ class Location(models.Model):
         blank=True,
         related_name='locations'
     )
+    location_lists = models.ManyToManyField(
+        'Study',
+        blank=True,
+        related_name='listed_locations',
+        help_text="Studies that list this place through an uploaded location list (geolocation-only workflow)."
+    )
     latitude = models.FloatField(
         null=True, blank=True,
         validators=[MinValueValidator(-90.0), MaxValueValidator(90.0)],

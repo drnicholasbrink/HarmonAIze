@@ -90,11 +90,84 @@ class LocationSelectionForm(forms.Form):
         self.fields['location_ids'].choices = choices
 
 
+NEW_CHOICE = "new"
+
+
 class LocationCSVUploadForm(forms.ModelForm):
     """
-    Form for uploading location CSV files.
+    Form for uploading location CSV files (geolocation-only workflow).
     Follows the pattern from health/forms.py RawDataUploadForm.
+
+    Each upload lands in a project as a location list (a source study), either
+    an existing one or a new "geolocation only" project / list created here.
     """
+
+    project_choice = forms.ChoiceField(
+        label="Project",
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    new_project_name = forms.CharField(
+        label="New project name",
+        max_length=200,
+        required=False,
+        initial="Geolocation only",
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+    )
+    study_choice = forms.CharField(
+        label="Location list",
+        required=False,
+        initial=NEW_CHOICE,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    location_list_name = forms.CharField(
+        label="Location list name",
+        max_length=200,
+        required=False,
+        help_text="Defaults to the file name.",
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "e.g. Clinic sites 2026"}),
+    )
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        from core.models import Project
+
+        from .scope import projects_for_user
+
+        self.user = user
+        self.projects = projects_for_user(user) if user is not None else Project.objects.none()
+        self.fields["project_choice"].choices = [(NEW_CHOICE, "+ New geolocation-only project")] + [
+            (str(p.pk), p.name) for p in self.projects
+        ]
+        if not self.initial.get("project_choice"):
+            self.initial["project_choice"] = NEW_CHOICE
+
+    def clean(self):
+        cleaned = super().clean()
+        project_choice = cleaned.get("project_choice")
+        study_choice = cleaned.get("study_choice") or NEW_CHOICE
+
+        project = None
+        if project_choice == NEW_CHOICE:
+            if not (cleaned.get("new_project_name") or "").strip():
+                self.add_error("new_project_name", "Name the new project.")
+        elif project_choice:
+            project = self.projects.filter(pk=project_choice).first()
+            if project is None:
+                self.add_error("project_choice", "Choose a project you are a member of.")
+
+        study = None
+        if study_choice != NEW_CHOICE:
+            if project is None:
+                self.add_error("study_choice", "A new project needs a new location list.")
+            else:
+                if study_choice.isdigit():
+                    study = project.studies.filter(pk=int(study_choice), study_purpose="source").first()
+                if study is None:
+                    self.add_error("study_choice", "Choose a source study in this project.")
+
+        cleaned["project"] = project
+        cleaned["study"] = study
+        return cleaned
 
     class Meta:
         model = LocationCSVUpload

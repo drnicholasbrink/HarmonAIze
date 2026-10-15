@@ -1185,11 +1185,16 @@ class SmartGeocodingValidator:
         return validation_result
 
 
-def run_smart_validation(limit: int = None, user=None) -> Dict[str, int]:
-    """Run smart validation on pending geocoding results."""
+def run_smart_validation(limit: int = None, user=None, geocoding_results=None) -> Dict[str, int]:
+    """Run smart validation on pending geocoding results.
+
+    ``geocoding_results`` optionally narrows the candidates (e.g. to a project scope).
+    """
     validator = SmartGeocodingValidator()
     
-    pending_results = GeocodingResult.objects.filter(
+    pending_results = (
+        geocoding_results if geocoding_results is not None else GeocodingResult.objects.all()
+    ).filter(
         validation__isnull=True
     ).exclude(validation_status='rejected')
     if user:
