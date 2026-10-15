@@ -5,10 +5,13 @@ from collections.abc import Mapping
 from typing import Any
 
 from django.conf import settings
+from django.core.exceptions import ValidationError as DjangoValidationError
 from openai import APIError, BadRequestError, OpenAI, RateLimitError
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from core.models import Attribute
+from core.models import Attribute, Study
+
+from .summary_stats_context import build_deidentified_summary_stats_context
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +29,8 @@ class TransformationSuggestionPayload(BaseModel):
 class TransformationSuggestionService:
     """Service for generating transformation code suggestions using OpenAI."""
 
+    LOG_PREVIEW_CHARS = 2500
+
     def __init__(self):
         """Initialize the transformation suggestion service with OpenAI client."""
         if not settings.OPENAI_API_KEY:
@@ -37,13 +42,18 @@ class TransformationSuggestionService:
         self.model = getattr(
             settings,
             "OPENAI_TRANSFORMATION_MODEL",
-            "gpt-5.1",
+            "gpt-5.4-mini",
         )
 
     def suggest_transformation_code(
         self,
         source_attribute: Attribute,
         target_attribute: Attribute,
+        *,
+        source_study: Study | None = None,
+        include_deidentified_summary_stats: bool = False,
+        mapping_context: Mapping[str, Any] | None = None,
+        source_eda_summary: Mapping[str, Any] | None = None,
     ) -> str | None:
         """Generate transformation code suggestion for a source/target pair."""
         result: str | None = None
@@ -52,6 +62,10 @@ class TransformationSuggestionService:
             context = self._build_transformation_context(
                 source_attribute,
                 target_attribute,
+                source_study=source_study,
+                include_deidentified_summary_stats=include_deidentified_summary_stats,
+                mapping_context=mapping_context,
+                source_eda_summary=source_eda_summary,
             )
 
             # Skip call for obvious no-op mappings
@@ -63,40 +77,11 @@ class TransformationSuggestionService:
                 )
                 result = ""
             else:
-                # Generate the transformation using OpenAI Responses API
-                prompt = self._create_transformation_prompt(context)
-                response_payload = self._call_openai_for_structured_output(prompt)
-                if not response_payload:
-                    logger.warning("Empty or invalid response from OpenAI")
-                    result = None
-                else:
-                    transformation_needed = response_payload.get(
-                        "transformation_needed",
-                        True,
-                    )
-                    if not transformation_needed:
-                        logger.info(
-                            "No transformation needed for %s -> %s",
-                            source_attribute.variable_name,
-                            target_attribute.variable_name,
-                        )
-                        result = ""
-                    else:
-                        code = response_payload.get("transformation_code", "")
-                        explanation = response_payload.get("explanation", "")
-                        if code:
-                            logger.info(
-                                "Generated transformation for %s -> %s: %s",
-                                source_attribute.variable_name,
-                                target_attribute.variable_name,
-                                explanation,
-                            )
-                            result = code.strip()
-                        else:
-                            logger.warning(
-                                "No transformation code in OpenAI response",
-                            )
-                            result = None
+                result = self._generate_validated_transformation(
+                    source_attribute,
+                    target_attribute,
+                    context,
+                )
         except (ValueError, RuntimeError):
             logger.exception("Error generating transformation suggestion")
             result = None
@@ -108,6 +93,13 @@ class TransformationSuggestionService:
         prompt: str,
     ) -> Mapping[str, Any] | None:
         """Call OpenAI Responses API requesting a strict JSON schema."""
+        self._log_request_payload(
+            label="transformation_suggestion_request",
+            payload={
+                "model": self.model,
+                "prompt": prompt,
+            },
+        )
         try:
             response = self.client.responses.parse(
                 model=self.model,
@@ -149,7 +141,36 @@ class TransformationSuggestionService:
             logger.warning("Structured payload failed validation")
             return None
 
+        self._log_response_payload(
+            label="transformation_suggestion_response",
+            response=response,
+            payload=validated,
+        )
+
         return validated
+
+    def _truncate_for_log(self, value: Any) -> str:
+        if isinstance(value, str):
+            text = value
+        else:
+            try:
+                text = json.dumps(value, default=str, ensure_ascii=True, indent=2)
+            except TypeError:
+                text = str(value)
+        if len(text) <= self.LOG_PREVIEW_CHARS:
+            return text
+        return f"{text[:self.LOG_PREVIEW_CHARS]}... [truncated {len(text) - self.LOG_PREVIEW_CHARS} chars]"
+
+    def _log_request_payload(self, *, label: str, payload: Any) -> None:
+        logger.info("%s: %s", label, self._truncate_for_log(payload))
+
+    def _log_response_payload(self, *, label: str, response: Any, payload: Any) -> None:
+        logger.info(
+            "%s: response_id=%s payload=%s",
+            label,
+            getattr(response, "id", None),
+            self._truncate_for_log(payload),
+        )
 
     def _extract_structured_payload(self, response: Any) -> Mapping[str, Any] | None:
         """Extract parsed structured output from the OpenAI Responses API."""
@@ -202,9 +223,14 @@ class TransformationSuggestionService:
         self,
         source_attr: Attribute,
         target_attr: Attribute,
+        *,
+        source_study: Study | None = None,
+        include_deidentified_summary_stats: bool = False,
+        mapping_context: Mapping[str, Any] | None = None,
+        source_eda_summary: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Build comprehensive context about the attributes for transformation."""
-        return {
+        context = {
             "source": {
                 "variable_name": source_attr.variable_name,
                 "display_name": source_attr.display_name or "",
@@ -222,6 +248,20 @@ class TransformationSuggestionService:
                 "ontology_code": target_attr.ontology_code or "",
             },
         }
+
+        if mapping_context:
+            context["mapping_context"] = dict(mapping_context)
+
+        if source_eda_summary:
+            context["source_eda_summary"] = dict(source_eda_summary)
+
+        if include_deidentified_summary_stats and source_study is not None:
+            context["deidentified_summary_stats_context"] = build_deidentified_summary_stats_context(
+                source_study=source_study,
+                variable_names=[source_attr.variable_name],
+            )
+
+        return context
 
     def _transformation_likely_needed(self, context: dict[str, Any]) -> bool:
         """
@@ -253,10 +293,123 @@ class TransformationSuggestionService:
 
         return False
 
-    def _create_transformation_prompt(self, context: dict[str, Any]) -> str:
+    def _generate_validated_transformation(
+        self,
+        source_attribute: Attribute,
+        target_attribute: Attribute,
+        context: dict[str, Any],
+    ) -> str | None:
+        """Generate transform code and retry once if it fails the local validator."""
+        validation_error = ""
+
+        for attempt in range(2):
+            prompt = self._create_transformation_prompt(
+                context,
+                validation_error=validation_error,
+            )
+            response_payload = self._call_openai_for_structured_output(prompt)
+            if not response_payload:
+                logger.warning("Empty or invalid response from OpenAI")
+                return None
+
+            transformation_needed = response_payload.get(
+                "transformation_needed",
+                True,
+            )
+            if not transformation_needed:
+                logger.info(
+                    "No transformation needed for %s -> %s",
+                    source_attribute.variable_name,
+                    target_attribute.variable_name,
+                )
+                return ""
+
+            code = response_payload.get("transformation_code", "").strip()
+            explanation = response_payload.get("explanation", "")
+            if not code:
+                logger.warning("No transformation code in OpenAI response")
+                return None
+
+            try:
+                self._validate_transform_code(code)
+            except DjangoValidationError as exc:
+                validation_error = str(exc)
+                logger.warning(
+                    "Generated transform code failed local validation for %s -> %s on attempt %s: %s",
+                    source_attribute.variable_name,
+                    target_attribute.variable_name,
+                    attempt + 1,
+                    validation_error,
+                )
+                if attempt == 0:
+                    continue
+                return None
+
+            logger.info(
+                "Generated transformation for %s -> %s: %s",
+                source_attribute.variable_name,
+                target_attribute.variable_name,
+                explanation,
+            )
+            return code
+
+        return None
+
+    def _validate_transform_code(self, code: str) -> None:
+        """Use the same AST validator as the model layer before returning code to the UI."""
+        from health.models import validate_safe_transform_code
+
+        validate_safe_transform_code(code)
+
+    def _create_transformation_prompt(
+        self,
+        context: dict[str, Any],
+        validation_error: str = "",
+    ) -> str:
         """Create a detailed prompt for transformation code generation."""
         source = context["source"]
         target = context["target"]
+        mapping_context = context.get("mapping_context") or {}
+        source_eda_summary = context.get("source_eda_summary") or {}
+        summary_stats_context = context.get("deidentified_summary_stats_context") or {}
+        retry_guidance = ""
+        if validation_error:
+            retry_guidance = f"""
+
+PREVIOUS DRAFT REJECTED:
+- The last candidate failed local validation with: {validation_error}
+- Regenerate the code so every function call is inline and whitelisted.
+- Do not invent helper functions such as parse_date(...), normalize_sex(...), to_grams(...), round_to_int(...), or any other named utility.
+"""
+
+        summary_context_block = ""
+        mapping_context_block = ""
+        source_eda_block = ""
+        if mapping_context:
+            mapping_context_block = f"""
+
+CURRENT MAPPING CONTEXT:
+{json.dumps(mapping_context, indent=2, default=str)}
+
+Use this to understand the intended mapping, relation ownership, role, and any AI/human notes. Do not change the target or relation here; only generate value-level transform code when needed.
+"""
+        if source_eda_summary:
+            source_eda_block = f"""
+
+SOURCE VARIABLE EDA SUMMARY:
+{json.dumps(source_eda_summary, indent=2, default=str)}
+
+Use this aggregate EDA to infer observed encodings, ranges, missingness, high-cardinality behaviour, and whether category/type conversion is likely needed. Do not infer row-level values or identifiable data from it.
+"""
+        if summary_stats_context:
+            summary_context_block = f"""
+
+DE-IDENTIFIED SUMMARY DATA:
+{json.dumps(summary_stats_context, indent=2)}
+
+Use these aggregate summary statistics only when they help choose a safe transformation.
+Do not infer raw values, example records, or identifiable data from them.
+"""
 
         prompt = f"""
 You are an expert data harmonisation specialist helping to transform health
@@ -279,25 +432,53 @@ TARGET VARIABLE:
 - Type: {target['variable_type']}
 - Unit: {target['unit']}
 - Ontology Code: {target['ontology_code']}
+{mapping_context_block}
+{source_eda_block}
+{summary_context_block}
 
 TASK:
 1. Determine if a transformation is needed to map from source to target.
+   Use the source EDA summary when available to understand observed encodings,
+   ranges, missingness, and category values.
 2. If no transformation is needed (variables already compatible), set
    transformation_needed to false.
 3. If transformation is needed, generate safe Python code following these
    constraints:
 
 TRANSFORMATION CODE REQUIREMENTS:
-- Use lambda: lambda value: value.upper().strip() if value else "".
-- OR multi-line functions like: def transform(value): return processed_value
+- Return exactly one lambda expression or exactly one function named
+    transform(value).
+- Do not define helper functions, nested functions, classes, imports, or any
+    custom named utilities.
+- Do not call any user-defined or invented functions.
+- Every call must be one of the whitelisted built-ins below or a whitelisted
+    string/list/dict method.
+- Preferred form: lambda value: ... when possible.
 - Handle None/empty values gracefully.
-- Only use safe methods: str(), int(), float(), bool(), round(), abs(),
-  min(), max(), len().
-- String methods: .upper(), .lower(), .strip(), .split(), .replace(), .join(),
-  .startswith(), .endswith().
+- Only use safe built-ins: str(), int(), float(), bool(), round(), abs(),
+    min(), max(), len(), sum(), any(), all(), sorted(), reversed(), enumerate(),
+    range(), zip(), list(), tuple(), dict(), set().
+- Safe operators: +, -, *, /, %, **, comparisons, in/not in, is/is not,
+    boolean and/or/not, ternary expressions, indexing and slicing.
+- Safe control flow: if/else, comprehensions, and simple for-loops inside
+    def transform(value): ... functions.
+- String methods: .upper(), .lower(), .title(), .capitalize(), .strip(),
+    .lstrip(), .rstrip(), .split(), .rsplit(), .replace(), .join(),
+    .startswith(), .endswith(), .find(), .count(), .isdigit().
+- Safe list methods: .append(), .extend(), .insert(), .remove(), .pop(),
+    .clear(), .count(), .index(), .sort(), .reverse(), .copy().
+- Safe dict methods: .keys(), .values(), .items(), .get(), .pop(), .clear(),
+    .copy(), .update().
 - No file operations, imports, or dangerous functions.
+- Never call helper names like parse_date, parse_int, parse_time,
+    normalize_sex, strip_whitespace, clamp_0_10_int, round_to_int,
+    boolean_to_yes_no, map_nonempty_to_yes, standardize_mode_of_delivery,
+    to_grams, or any similarly invented function.
 - Return the same type as expected by target variable.
 - Add input validation for edge cases.
+- If using a loop, keep it bounded to the provided value and return the result.
+- Do not use while-loops, try/except, class definitions, imports, or dunder
+    attributes.
 
 COMMON TRANSFORMATION PATTERNS:
 - Unit conversion: lambda value: float(value) * 2.54 if value else None
@@ -307,6 +488,17 @@ COMMON TRANSFORMATION PATTERNS:
   '0' else value.
 - Extract data: lambda value: value.split(',')[0] if value else None.
 - Type conversion: lambda value: int(float(value)) if value else None.
+- Safe iterable cleanup:
+    def transform(value):
+            if not value:
+                    return []
+            cleaned = []
+            for item in value.split(','):
+                    item = item.strip()
+                    if item:
+                            cleaned.append(item)
+            return cleaned
+                {retry_guidance}
 
 RESPOND WITH VALID JSON:
 {{
@@ -329,10 +521,20 @@ CORE PRINCIPLES:
 1. Safety first — only suggest transformations using whitelisted safe
    functions.
 2. Handle edge cases — always check for None/empty values.
-3. Be conservative — if unsure whether transformation is needed, return
-   transformation_needed: false.
+3. Use the mapping context and EDA summary to make a practical judgement about
+   observed encodings, units, ranges, and category values. If the EDA shows a
+   clear encoding or unit mismatch, generate a transform instead of returning a
+   no-op.
 4. Prefer simple, readable code over complex transformations.
 5. Always return valid JSON in the exact format requested.
+6. Stay inside the validator whitelist: safe built-ins, safe string/list/dict
+    methods, comprehensions, and simple for-loops only.
+7. Never invent helper functions or wrapper utilities. Inline every step in the
+   lambda or in def transform(value).
+8. Only use de-identified summary statistics when they are explicitly provided.
+    Never request, infer, or rely on row-level or identifiable data.
+9. Treat relation ownership and mapping role as context for interpreting the
+   value, not as instructions to change the target mapping.
 
 WHEN NO TRANSFORMATION IS NEEDED:
 - Variables have identical names, types, units, and encodings.

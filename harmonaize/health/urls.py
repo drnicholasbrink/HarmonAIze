@@ -38,6 +38,41 @@ urlpatterns = [
         name="harmonization_dashboard",
     ),
     path(
+        "mapping/<int:schema_id>/variables/",
+        views.mapping_variable_summaries,
+        name="mapping_variable_summaries",
+    ),
+    path(
+        "mapping/<int:schema_id>/variable/<int:attribute_id>/card/",
+        views.mapping_variable_card,
+        name="mapping_variable_card",
+    ),
+    path(
+        "mapping/<int:schema_id>/variable/<int:attribute_id>/save/",
+        views.save_mapping_variable,
+        name="save_mapping_variable",
+    ),
+    path(
+        "mapping/<int:schema_id>/variable/<int:attribute_id>/eda/",
+        views.mapping_variable_eda,
+        name="mapping_variable_eda",
+    ),
+    path(
+        "mapping/<int:schema_id>/variable/<int:attribute_id>/suggestions/",
+        views.mapping_variable_suggestions,
+        name="mapping_variable_suggestions",
+    ),
+    path(
+        "mapping/<int:schema_id>/approve-similarity-threshold/",
+        views.approve_similarity_threshold,
+        name="approve_similarity_threshold",
+    ),
+    path(
+        "mapping/<int:schema_id>/clear/",
+        views.clear_mapping_rules,
+        name="clear_mapping_rules",
+    ),
+    path(
         "study/<int:study_id>/harmonization-dashboard/",
         views.study_harmonization_dashboard,
         name="study_harmonization_dashboard",
@@ -181,5 +216,30 @@ urlpatterns = [
         "api/transformation-suggestion/",
         views.transformation_suggestion_api,
         name="transformation_suggestion_api",
+    ),
+    path(
+        "api/mapping/<int:schema_id>/ai-refresh/start/",
+        views.start_ai_harmonization_refresh,
+        name="start_ai_harmonization_refresh",
+    ),
+    path(
+        "api/mapping/<int:schema_id>/ai-refresh/restart/",
+        views.restart_ai_harmonization_refresh,
+        name="restart_ai_harmonization_refresh",
+    ),
+    path(
+        "api/mapping/<int:schema_id>/ai-refresh/rerun-attribute/",
+        views.rerun_attribute_ai_harmonization,
+        name="rerun_attribute_ai_harmonization",
+    ),
+    path(
+        "api/ai-refresh-run/<int:run_id>/status/",
+        views.ai_harmonization_run_status,
+        name="ai_harmonization_run_status",
+    ),
+    path(
+        "api/ai-refresh-run/<int:run_id>/status-partial/",
+        views.ai_harmonization_run_status_partial,
+        name="ai_harmonization_run_status_partial",
     ),
 ]

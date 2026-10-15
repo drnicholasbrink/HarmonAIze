@@ -17,12 +17,32 @@ from django.utils import timezone
 from django.core.cache import cache
 
 from .models import GeocodingResult, ValidationResult, ValidatedDataset
+from .querysets import viewable_locations_for_user
 from .validation import SmartGeocodingValidator
 from .tasks import batch_geocode_locations, batch_validate_locations
 from .services import GeocodingService
 from core.models import Location
 logger = logging.getLogger(__name__)
-def update_locations_from_validation():
+
+
+def _update_location_coordinates_if_viewable(validation, lat, lng):
+    """Update only the location tied to this validation and visible to its owner."""
+    location = validation.geocoding_result.location
+    if not viewable_locations_for_user(validation.created_by).filter(pk=location.pk).exists():
+        logger.warning(
+            "Skipped coordinate update for non-viewable location %s from validation %s",
+            location.pk,
+            validation.pk,
+        )
+        return False
+
+    location.latitude = lat
+    location.longitude = lng
+    location.save(update_fields=["latitude", "longitude", "updated_at"])
+    return True
+
+
+def update_locations_from_validation(user=None):
     """
     Update core.Location coordinates from validated results.
     Only updates locations that have been validated (needs_review or validated status).
@@ -35,20 +55,25 @@ def update_locations_from_validation():
         recommended_lat__isnull=False,
         recommended_lng__isnull=False
     ).select_related('geocoding_result')
+    if user:
+        validation_results = validation_results.filter(created_by=user)
 
     for validation_result in validation_results:
         try:
-            # Find the corresponding location in core
-            location = Location.objects.get(name=validation_result.geocoding_result.location_name)
+            location = validation_result.geocoding_result.location
+            if user and not viewable_locations_for_user(user).filter(pk=location.pk).exists():
+                continue
 
             # Only update if location doesn't already have coordinates
             if location.latitude is None or location.longitude is None:
                 with transaction.atomic():
-                    location.latitude = validation_result.recommended_lat
-                    location.longitude = validation_result.recommended_lng
-                    location.save()
-                    updated_count += 1
-                    logger.info(f"Updated coordinates for location: {location.name}")
+                    if _update_location_coordinates_if_viewable(
+                        validation_result,
+                        validation_result.recommended_lat,
+                        validation_result.recommended_lng,
+                    ):
+                        updated_count += 1
+                        logger.info(f"Updated coordinates for location: {location.name}")
 
         except Location.DoesNotExist:
             logger.warning(f"Location not found in core: {validation_result.geocoding_result.location_name}")
@@ -375,12 +400,13 @@ def get_navigation_info(current_location_id, user=None):
 def get_validation_stats(user=None):
     """Calculate validation statistics for dashboard display."""
     # Core Location statistics
-    total_locations = Location.objects.count()
-    locations_with_coords = Location.objects.filter(
+    locations = viewable_locations_for_user(user) if user else Location.objects.none()
+    total_locations = locations.count()
+    locations_with_coords = locations.filter(
         latitude__isnull=False,
         longitude__isnull=False
     ).count()
-    locations_without_coords = Location.objects.filter(
+    locations_without_coords = locations.filter(
         latitude__isnull=True,
         longitude__isnull=True
     ).count()
@@ -389,7 +415,7 @@ def get_validation_stats(user=None):
     pending_validation = 0
 
     if user:
-        for location in Location.objects.filter(latitude__isnull=True, longitude__isnull=True):
+        for location in locations.filter(latitude__isnull=True, longitude__isnull=True):
             geocoding_result = GeocodingResult.objects.filter(
                 location_name__iexact=location.name,
                 created_by=user
@@ -405,7 +431,7 @@ def get_validation_stats(user=None):
 
         # Count locations without coordinates and without geocoding results
         awaiting_geocoding = 0
-        for location in Location.objects.filter(latitude__isnull=True, longitude__isnull=True):
+        for location in locations.filter(latitude__isnull=True, longitude__isnull=True):
             geocoding_result = GeocodingResult.objects.filter(
                 location_name__iexact=location.name,
                 created_by=user
@@ -413,26 +439,7 @@ def get_validation_stats(user=None):
             if not geocoding_result or not geocoding_result.has_any_results:
                 awaiting_geocoding += 1
     else:
-        for location in Location.objects.filter(latitude__isnull=True, longitude__isnull=True):
-            geocoding_result = GeocodingResult.objects.filter(
-                location_name__iexact=location.name
-            ).first()
-            if geocoding_result and geocoding_result.has_any_results:
-                pending_validation += 1
-
-        # Add locations with validation results still requiring review
-        pending_validation += ValidationResult.objects.filter(
-            validation_status__in=['needs_review', 'pending']
-        ).count()
-
-        # Count locations without coordinates and without geocoding results
         awaiting_geocoding = 0
-        for location in Location.objects.filter(latitude__isnull=True, longitude__isnull=True):
-            geocoding_result = GeocodingResult.objects.filter(
-                location_name__iexact=location.name
-            ).first()
-            if not geocoding_result or not geocoding_result.has_any_results:
-                awaiting_geocoding += 1
 
     if user:
         return {
@@ -518,7 +525,7 @@ def location_status_api(request):
     if request.method == 'GET':
         try:
             locations_data = []
-            locations = Location.objects.all().order_by('name')
+            locations = viewable_locations_for_user(request.user).order_by('name')
 
             for location in locations:
                 # Determine current status with automatic validation updates
@@ -851,7 +858,7 @@ def geocoding_api(request):
                 geocoding_service = GeocodingService()
 
 
-                locations = Location.objects.filter(latitude__isnull=True, longitude__isnull=True)
+                locations = viewable_locations_for_user(request.user).filter(latitude__isnull=True, longitude__isnull=True)
 
                 if limit:
                     locations = locations[:limit]
@@ -879,7 +886,7 @@ def geocoding_api(request):
                     try:
                         logger.info(f"Processing location: '{location.name}' (ID: {location.id})")
 
-                        validated_result = geocoding_service.check_validated_dataset(location)
+                        validated_result = geocoding_service.check_validated_dataset(location, user=request.user)
                         logger.info(f"Validated result for '{location.name}': {validated_result}")
                         if validated_result:
 
@@ -914,7 +921,7 @@ def geocoding_api(request):
                                     continue
 
                         # Perform new geocoding search
-                        result = geocoding_service.geocode_single_location(location, force)
+                        result = geocoding_service.geocode_single_location(location, force, user=request.user)
                         success = result is not None
                         if success:
                             new_searches += 1
@@ -945,10 +952,10 @@ def geocoding_api(request):
                 from .validation import run_smart_validation
 
                 limit = data.get('limit', None)
-                validation_stats = run_smart_validation(limit)
+                validation_stats = run_smart_validation(limit, user=request.user)
 
                 # After validation, update Location coordinates for validated results
-                updated_locations = update_locations_from_validation()
+                updated_locations = update_locations_from_validation(user=request.user)
                 validation_stats['updated_locations'] = updated_locations
 
                 return JsonResponse({
@@ -960,7 +967,7 @@ def geocoding_api(request):
 
             elif action == 'update_coordinates':
                 # Update Location coordinates from validation results
-                updated_locations = update_locations_from_validation()
+                updated_locations = update_locations_from_validation(user=request.user)
 
                 return JsonResponse({
                     'success': True,
@@ -970,7 +977,7 @@ def geocoding_api(request):
 
             elif action == 'get_geocoding_stats':
 
-                stats = get_validation_stats()
+                stats = get_validation_stats(user=request.user)
 
                 return JsonResponse({
                     'success': True,
@@ -1097,19 +1104,14 @@ def bulk_validation_actions(request):
 
 
                             try:
-                                location = Location.objects.get(name__iexact=result.location_name)
-                                location.latitude = final_lat
-                                location.longitude = final_lng
-                                location.save()
-                                count += 1
+                                if _update_location_coordinates_if_viewable(validation, final_lat, final_lng):
+                                    count += 1
+                                else:
+                                    errors += 1
                             except Location.DoesNotExist:
                                 errors += 1
-                            except Location.MultipleObjectsReturned:
-                                location = Location.objects.filter(name__iexact=result.location_name).first()
-                                location.latitude = final_lat
-                                location.longitude = final_lng
-                                location.save()
-                                count += 1
+                            except Exception:
+                                errors += 1
 
                     except Exception as e:
                         logger.error(f"Error auto-validating {validation.geocoding_result.location_name}: {e}")
@@ -1279,24 +1281,7 @@ def handle_approve_ai_suggestion(validation, data):
             )
 
 
-            try:
-                location = Location.objects.get(name__iexact=result.location_name)
-                location.latitude = final_lat
-                location.longitude = final_lng
-                location.save()
-            except Location.DoesNotExist:
-
-                locations = Location.objects.filter(name__icontains=result.location_name)
-                if locations.exists():
-                    location = locations.first()
-                    location.latitude = final_lat
-                    location.longitude = final_lng
-                    location.save()
-            except Location.MultipleObjectsReturned:
-                location = Location.objects.filter(name__iexact=result.location_name).first()
-                location.latitude = final_lat
-                location.longitude = final_lng
-                location.save()
+            _update_location_coordinates_if_viewable(validation, final_lat, final_lng)
 
             return JsonResponse({
                 'success': True,
@@ -1368,24 +1353,7 @@ def handle_use_source(validation, data):
             )
 
 
-            try:
-                location = Location.objects.get(name__iexact=result.location_name)
-                location.latitude = final_lat
-                location.longitude = final_lng
-                location.save()
-            except Location.DoesNotExist:
-
-                locations = Location.objects.filter(name__icontains=result.location_name)
-                if locations.exists():
-                    location = locations.first()
-                    location.latitude = final_lat
-                    location.longitude = final_lng
-                    location.save()
-            except Location.MultipleObjectsReturned:
-                location = Location.objects.filter(name__iexact=result.location_name).first()
-                location.latitude = final_lat
-                location.longitude = final_lng
-                location.save()
+            _update_location_coordinates_if_viewable(validation, final_lat, final_lng)
 
             return JsonResponse({
                 'success': True,
@@ -1444,24 +1412,7 @@ def handle_manual_coordinates(validation, data):
             )
 
 
-            try:
-                location = Location.objects.get(name__iexact=result.location_name)
-                location.latitude = lat
-                location.longitude = lng
-                location.save()
-            except Location.DoesNotExist:
-
-                locations = Location.objects.filter(name__icontains=result.location_name)
-                if locations.exists():
-                    location = locations.first()
-                    location.latitude = lat
-                    location.longitude = lng
-                    location.save()
-            except Location.MultipleObjectsReturned:
-                location = Location.objects.filter(name__iexact=result.location_name).first()
-                location.latitude = lat
-                location.longitude = lng
-                location.save()
+            _update_location_coordinates_if_viewable(validation, lat, lng)
 
         return JsonResponse({
             'success': True,
@@ -1686,7 +1637,7 @@ def validation_statistics(request):
 def validated_locations_map(request):
     """Show map of all validated locations with proper data structure."""
 
-    validated_locations = Location.objects.filter(
+    validated_locations = viewable_locations_for_user(request.user).filter(
         latitude__isnull=False,
         longitude__isnull=False
     ).order_by('name')
@@ -1720,7 +1671,7 @@ def download_validated_locations_csv(request):
     from datetime import datetime
 
     # Get all validated locations (Location model has: name, lat, lng, created_at, updated_at)
-    validated_locations = Location.objects.filter(
+    validated_locations = viewable_locations_for_user(request.user).filter(
         latitude__isnull=False,
         longitude__isnull=False
     ).order_by('name')
@@ -1772,6 +1723,19 @@ def start_batch_geocoding(request):
             location_ids = data.get('location_ids')  # Specific locations or None for all
             force_reprocess = data.get('force_reprocess', False)
             batch_size = data.get('batch_size', 50)
+            if location_ids:
+                requested_ids = {int(location_id) for location_id in location_ids}
+                allowed_ids = set(
+                    viewable_locations_for_user(request.user)
+                    .filter(id__in=requested_ids)
+                    .values_list("id", flat=True)
+                )
+                if requested_ids != allowed_ids:
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'One or more requested locations are not viewable by this user.'
+                    }, status=403)
+                location_ids = list(allowed_ids)
 
             # Start Celery task (pass user_id for GeocodingResult creation)
             task = batch_geocode_locations.delay(
@@ -1810,11 +1774,26 @@ def start_batch_validation(request):
 
             result_ids = data.get('result_ids')  # Specific results or None for all unvalidated
             batch_size = data.get('batch_size', 50)
+            if result_ids:
+                requested_ids = {int(result_id) for result_id in result_ids}
+                allowed_ids = set(
+                    GeocodingResult.objects.filter(
+                        id__in=requested_ids,
+                        created_by=request.user,
+                    ).values_list("id", flat=True)
+                )
+                if requested_ids != allowed_ids:
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'One or more requested geocoding results are not owned by this user.'
+                    }, status=403)
+                result_ids = list(allowed_ids)
 
             # Start Celery task
             task = batch_validate_locations.delay(
                 geocoding_result_ids=result_ids,
-                batch_size=batch_size
+                batch_size=batch_size,
+                user_id=request.user.id
             )
 
             return JsonResponse({

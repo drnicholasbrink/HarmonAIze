@@ -2,6 +2,7 @@
 {% load static %}
 
 {% block title %}AI Location Validation - HarmonAIze{% endblock title %}
+{% block container_class %}container-fluid validation-page-shell{% endblock container_class %}
 
 {% block css %}
   {{ block.super }}
@@ -21,6 +22,11 @@
       --border-radius: 12px;
     }
 
+    html,
+    body {
+      height: 100%;
+    }
+
     body {
       background-color: var(--background-color);
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -29,10 +35,28 @@
       margin: 0;
       padding: 0;
       height: 100vh;
+      height: 100dvh;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      overflow-y: hidden;
+    }
+
+    body > .mb-1 {
+      flex: 0 0 auto;
+    }
+
+    .validation-page-shell {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
       overflow: hidden;
     }
 
     .hero-section {
+      flex: 0 0 auto;
       background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
       color: white;
       padding: 1.5rem 0;
@@ -127,7 +151,9 @@
 
     .map-container {
       display: flex;
-      height: calc(100vh - 120px);
+      flex: 1 1 auto;
+      height: auto;
+      min-height: 0;
       overflow: hidden;
     }
 
@@ -137,10 +163,13 @@
       border-right: 1px solid var(--border-color);
       display: flex;
       flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
       box-shadow: var(--shadow);
     }
 
     .sidebar-header {
+      flex: 0 0 auto;
       background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
       color: white;
       padding: 2rem;
@@ -206,8 +235,10 @@
     }
 
     .source-selection {
-      flex: 1;
+      flex: 1 1 auto;
+      min-height: 0;
       overflow-y: auto;
+      overscroll-behavior: contain;
       padding: 1.5rem;
     }
 
@@ -332,6 +363,7 @@
     }
 
     .actions-section {
+      flex: 0 0 auto;
       padding: 1.5rem;
       border-top: 1px solid var(--border-color);
       background: #f8f9fa;
@@ -433,6 +465,8 @@
       bottom: 1rem;
       right: 1rem;
       z-index: 1000;
+      max-height: calc(100% - 2rem);
+      overflow-y: auto;
       background: var(--card-background);
       border-radius: var(--border-radius);
       padding: 1rem;
@@ -609,6 +643,19 @@
     }
 
     @media (max-width: 768px) {
+      body {
+        height: auto;
+        min-height: 100vh;
+        min-height: 100dvh;
+        display: block;
+        overflow-y: auto;
+      }
+
+      .validation-page-shell {
+        display: block;
+        overflow: visible;
+      }
+
       .hero-content {
         flex-direction: column;
         align-items: flex-start;

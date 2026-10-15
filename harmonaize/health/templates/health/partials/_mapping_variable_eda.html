@@ -1,0 +1,84 @@
+{% if variable_eda %}
+  <div class="variable-eda-panel">
+    <div class="eda-panel-header">
+      <div>
+        <h5>{{ attribute.display_name|default:attribute.variable_name }}</h5>
+        <p class="help-text">{{ attribute.variable_name }}</p>
+      </div>
+      <div class="eda-summary-tags">
+        <span class="eda-summary-tag">{{ column_type|title }}</span>
+        {% if raw_data_file %}
+          <span class="eda-summary-tag">{{ raw_data_file.original_filename|truncatechars:36 }}</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="eda-variable-stats">
+      {% if column_type == "numeric" %}
+        <div class="eda-stat"><span>Count</span><strong>{{ variable_eda.count|default:"-" }}</strong></div>
+        <div class="eda-stat"><span>Missing</span><strong>{{ variable_eda.missing|default:"-" }}</strong></div>
+        <div class="eda-stat"><span>Mean</span><strong>{{ variable_eda.mean|default:"-" }}</strong></div>
+        <div class="eda-stat"><span>Median</span><strong>{{ variable_eda.median|default:"-" }}</strong></div>
+        <div class="eda-stat"><span>Min</span><strong>{{ variable_eda.min|default:"-" }}</strong></div>
+        <div class="eda-stat"><span>Max</span><strong>{{ variable_eda.max|default:"-" }}</strong></div>
+      {% elif column_type == "categorical" %}
+        <div class="eda-stat"><span>Unique</span><strong>{{ variable_eda.unique|default:"-" }}</strong></div>
+        <div class="eda-stat"><span>Missing</span><strong>{{ variable_eda.missing|default:"-" }}</strong></div>
+        {% if variable_eda.top_values %}
+          <div class="eda-stat wide">
+            <span>Top values</span>
+            <strong>
+              {% for value in variable_eda.top_values|slice:":6" %}
+                {% if value.value %}{{ value.value }}{% else %}-{% endif %}{% if value.count %} ({{ value.count }}){% endif %}{% if not forloop.last %}, {% endif %}
+              {% endfor %}
+            </strong>
+          </div>
+        {% endif %}
+      {% elif column_type == "text" %}
+        <div class="eda-stat"><span>Unique</span><strong>{{ variable_eda.unique_count|default:"-" }}</strong></div>
+        <div class="eda-stat"><span>High Cardinality</span><strong>{{ variable_eda.high_cardinality|yesno:"Yes,No" }}</strong></div>
+      {% endif %}
+    </div>
+
+    {% if variable_eda.word_cloud_image %}
+      <div class="word-cloud-card variable-word-cloud">
+        <div class="eda-panel-subheader">
+          <h6>Word Cloud</h6>
+        </div>
+        <img src="data:image/png;base64,{{ variable_eda.word_cloud_image }}"
+             alt="Word cloud for {{ attribute.variable_name }}"
+             class="word-cloud-image">
+      </div>
+    {% endif %}
+
+    {% if variable_eda.dashboard_html %}
+      <div class="eda-panel-subheader">
+        <h6>Interactive EDA Figures</h6>
+      </div>
+      <div class="eda-plotly-dashboard variable-eda-dashboard">
+        {{ variable_eda.dashboard_html|safe }}
+      </div>
+    {% endif %}
+  </div>
+{% else %}
+  <div class="eda-not-ready-panel">
+    <div>
+      <strong>EDA not ready for this variable.</strong>
+      <p class="help-text">
+        {% if raw_data_file %}
+          The latest source EDA cache does not include {{ attribute.variable_name }}.
+        {% else %}
+          No cached source EDA file is available for this study.
+        {% endif %}
+      </p>
+    </div>
+    {% if raw_data_file %}
+      <form method="post" action="{% url 'health:start_eda_generation' raw_data_file.id %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-sm btn-outline-primary">
+          <i class="fas fa-chart-line"></i> Start EDA Generation
+        </button>
+      </form>
+    {% endif %}
+  </div>
+{% endif %}
