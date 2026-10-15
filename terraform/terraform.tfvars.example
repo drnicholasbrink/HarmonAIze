@@ -1,0 +1,75 @@
+# HarmonAIze Terraform variables — EXAMPLE
+# Copy to terraform.tfvars and fill in. terraform.tfvars is gitignored; never commit real secrets.
+
+# --- Core ---
+# prefix      = "harmonaize"
+# environment = "prod"
+# location    = "southafricanorth"
+
+# --- Container image (set after Phase 1 creates the ACR; see DEPLOYMENT.md §4) ---
+# container_app_image = "<acr_login_server>/harmonaize_production_django:latest"
+
+# --- OpenAI-compatible API ---
+# The app uses the public OpenAI SDK, so it works with OpenAI or any 3rd-party
+# OpenAI-compatible endpoint. The endpoint + model names are stored as Key Vault secrets
+# (openai-base-url / openai-embedding-model / openai-transformation-model) and these tfvars only
+# SEED them — after deploy, change them directly in Key Vault and roll a revision (no re-apply).
+# openai_base_url             = "https://api.openai.com/v1"   # or a 3rd-party provider's /v1 URL
+# openai_embedding_model      = "text-embedding-3-large"      # keep 3072 dims unless you migrate the vector columns
+# openai_transformation_model = "gpt-5"
+# deploy_azure_openai         = false                         # leave off unless you specifically want Azure OpenAI
+
+# --- Hostnames ---
+# allowed_hosts = "harmonaize.org"   # comma-separated; set to your real domain(s), avoid "*"
+
+# --- Bootstrap access to the private Key Vault (DEPLOY_RUNBOOK.md Phase C) ---
+# The Key Vault is private by default. If you run `terraform apply` from OUTSIDE the VNet
+# (a laptop / CI runner), set this to that machine's public IP so the first-apply secret
+# writes succeed; the vault's public endpoint is then firewalled to just this IP. Leave
+# blank to keep the vault fully private (deploy from a jumpbox in the VNet instead).
+# kv_bootstrap_allowed_ip = "203.0.113.7"
+
+# --- CI/CD deploy identity (GitHub Actions) ---
+# Object ID of the deploy service principal (run scripts/setup-github-oidc.sh to create it).
+# When set, Terraform grants it AcrPush + Contributor so the pipeline can push images and
+# roll out the Container Apps. Leave blank if you let the setup script assign the roles instead.
+# cicd_principal_id = "00000000-0000-0000-0000-000000000000"
+
+# --- Application secrets ---
+# ALL of these are stored in Key Vault and consumed by the Container Apps via managed-identity
+# references. Leave blank ("") to seed empty secrets and set real values in Key Vault later
+# (DEPLOYMENT.md §6.3). Generated/infra secrets (DB password, Redis/Storage keys, SECRET_KEY) are
+# created automatically and are NOT listed here.
+django_admin_url         = ""   # e.g. "manage-a1b2c3/"
+sendgrid_api_key         = ""   # e.g. "SG.xxxxxxxx"
+sentry_dsn               = ""   # e.g. "https://<key>@<org>.ingest.sentry.io/<id>"
+openai_api_key           = ""   # e.g. "sk-..."  (works with any OpenAI-compatible provider)
+google_geocoding_api_key = ""   # geolocation; optional
+gemini_api_key           = ""   # LLM-assisted geolocation; optional
+mapbox_access_token      = ""   # geolocation; optional
+# analysis_deidentification_salt = ""   # leave blank to auto-generate a strong random salt
+
+# --- Sizing / behaviour (defaults shown) ---
+# min_replicas               = 0       # web floors to 1 internally
+# max_replicas               = 5
+# db_sku_name                = "B_Standard_B2ms"   # Burstable 2 vCore / 8 GiB — cost-effective default
+# db_storage_mb              = 65536               # 64 GB starting size (grows via db_auto_grow_enabled)
+# db_auto_grow_enabled       = true                # auto-grow storage as data accumulates
+# enable_postgres_ha         = false               # Zone-Redundant HA off (needs a GP SKU; ~2x DB cost)
+# redis_sku_name             = "Balanced_B0"   # Azure Managed Redis SKU (classic tiers are retired)
+# storage_replication_type   = "GRS"
+#
+# For production with an uptime SLA, opt into HA on a General Purpose SKU:
+# db_sku_name        = "GP_Standard_D2s_v3"
+# enable_postgres_ha = true
+
+# --- Worker autoscaling (KEDA Redis scaler) ---
+# celery_queue_name          = "celery"
+# worker_target_queue_length = 5
+
+# --- Federated analysis stack (Armadillo / DataSHIELD / Keycloak VM) ---
+# See terraform/ARMADILLO_PLAN.md for the post-deploy checklist.
+# deploy_analysis_stack = false                      # true to deploy the analysis VM
+# analyst_source_cidrs  = ["203.0.113.0/24"]         # IPs allowed to reach Armadillo/Keycloak (8080/8081)
+# deploy_bastion        = false                      # true for interactive SSH onto the VM (no public IP on the VM)
+# bastion_sku           = "Basic"                    # Basic (portal connect) or Standard
