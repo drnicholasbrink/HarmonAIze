@@ -129,7 +129,7 @@ def test_run_geocoding_only_processes_viewable_locations(client, two_project_loc
     location_b.save(update_fields=["latitude", "longitude"])
     client.force_login(user_a)
 
-    def fake_geocode(_service, location, force_reprocess=False, user=None):
+    def fake_geocode(_service, location, force_reprocess=False, user=None, spatial_filter=None):
         return GeocodingResult.objects.create(
             location=location,
             location_name=location.name,
@@ -182,3 +182,32 @@ def test_batch_validation_default_is_scoped_to_user(two_project_locations):
 
     assert result["status"] == "completed"
     assert result["message"] == "No results to validate"
+
+
+def test_uploaded_locations_visible_only_to_uploader(geolocation_users):
+    from geolocation.querysets import viewable_locations_for_user
+
+    user_a, user_b = geolocation_users
+    uploaded = Location.objects.create(name="Uploaded Clinic", created_by=user_a)
+
+    assert list(viewable_locations_for_user(user_a)) == [uploaded]
+    assert not viewable_locations_for_user(user_b).exists()
+
+
+def test_manual_coordinate_update_rejects_non_viewable_location(client, geolocation_users):
+    user_a, user_b = geolocation_users
+    uploaded = Location.objects.create(name="Uploaded Clinic", created_by=user_a)
+    url = reverse("geolocation:manual_coordinate_update")
+    payload = {"location_id": uploaded.id, "latitude": -26.2, "longitude": 28.0}
+
+    client.force_login(user_b)
+    response = client.post(url, data=json.dumps(payload), content_type="application/json")
+    assert response.status_code == 404
+    uploaded.refresh_from_db()
+    assert uploaded.latitude is None
+
+    client.force_login(user_a)
+    response = client.post(url, data=json.dumps(payload), content_type="application/json")
+    assert response.status_code == 200
+    uploaded.refresh_from_db()
+    assert uploaded.latitude == pytest.approx(-26.2)

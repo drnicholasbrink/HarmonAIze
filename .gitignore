@@ -145,3 +145,13 @@ __azurite_db*__.json
 
 #VS Code
 .vscode/harmonaize/credentials/gee-service-account.json
+
+# Large admin boundary reference datasets — too big for git, hosted on
+# Google Drive and fetched at runtime by
+# geolocation/management/commands/download_admin_boundary_data.py
+harmonaize/geolocation/data_geocoding/*.geojson
+harmonaize/geolocation/data_geocoding/admin_boundary_index.json
+harmonaize/geolocation/data_geocoding/admin_boundaries/
+
+# Local env files contain real secrets (API keys, DB creds) - never commit
+harmonaize/.envs/.local/.django

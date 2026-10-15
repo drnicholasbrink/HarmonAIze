@@ -1,14 +1,10 @@
 # geolocation/tasks.py
 import logging
-import time
 from celery import shared_task, group, chord
-from celery.signals import task_postrun
 from django.core.cache import cache
 from django.utils import timezone
-from django.db import transaction
-from django.conf import settings
 
-from .models import GeocodingResult, ValidationResult, ValidatedDataset
+from .models import GeocodingResult
 from .querysets import viewable_locations_for_user
 from .validation import SmartGeocodingValidator
 from .services import GeocodingService
@@ -17,7 +13,7 @@ from core.models import Location
 logger = logging.getLogger(__name__)
 
 
-@shared_task(bind=True, rate_limit='100/m', max_retries=3, default_retry_delay=60)
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def geocode_single_location_task(self, location_id, force_reprocess=False, user_id=None):
     """
     Celery task to geocode a single location.
@@ -160,6 +156,16 @@ def batch_geocode_locations(self, location_ids=None, force_reprocess=False, batc
     task_id = self.request.id
     progress_key = f"geocoding_progress_{task_id}"
 
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    user = None
+    if user_id:
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            cache.set(progress_key, {'status': 'failed', 'error': f'User {user_id} not found'}, timeout=3600)
+            return {'status': 'failed', 'error': 'User not found'}
+
     try:
         # Initialize progress tracking
         cache.set(progress_key, {
@@ -273,7 +279,7 @@ def batch_geocode_locations(self, location_ids=None, force_reprocess=False, batc
         raise
 
 
-@shared_task(bind=True, rate_limit='50/m', max_retries=3, default_retry_delay=60)
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def validate_single_location_task(self, geocoding_result_id):
     """
     Celery task to validate a single geocoding result.

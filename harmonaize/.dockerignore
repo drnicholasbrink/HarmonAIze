@@ -10,3 +10,9 @@
 venv
 .git
 .envs/
+
+# Large geodata files — served from host volume mount (docker-compose.production.yml)
+geolocation/data_geocoding/*.geojson
+geolocation/data_geocoding/*.csv
+geolocation/data_geocoding/*.json
+geolocation/data_geocoding/admin_boundaries/

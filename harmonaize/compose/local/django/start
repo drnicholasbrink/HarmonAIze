@@ -13,5 +13,12 @@ python manage.py init_climate_services
 # Auto-load geolocation reference data in background (don't block server startup)
 (python manage.py load_hdx_data || true) &
 (python manage.py load_validation_data || true) &
+# Admin boundaries, in order: download from Google Drive (if not present) -> process GeoJSON
+# (if not already processed) -> pre-build the lookup index cached in Redis. Each step depends on the previous one.
+(
+  python manage.py download_admin_boundary_data || true
+  python manage.py process_admin_boundaries --simplify || true
+  python manage.py build_boundary_index || true
+) &
 
 exec uvicorn config.asgi:application --host 0.0.0.0 --reload --reload-include '*.html' "$@"

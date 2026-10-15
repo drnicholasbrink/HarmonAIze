@@ -130,6 +130,13 @@ class Location(models.Model):
     Attributes (e.g., climate, population, etc.) are attached via LocationAttribute.
     """
     name = models.CharField(max_length=200, blank=True, help_text="Place name (clinic, city, etc.)")
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='locations'
+    )
     latitude = models.FloatField(
         null=True, blank=True,
         validators=[MinValueValidator(-90.0), MaxValueValidator(90.0)],

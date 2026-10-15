@@ -97,11 +97,12 @@ RUN chmod +x /start-flower
 COPY --chown=django:django . ${APP_HOME}
 
 # make django owner of the WORKDIR directory as well.
-RUN chown -R django:django ${APP_HOME}
+RUN chown -R django:django ${APP_HOME} \
+    && chmod -R u+w ${APP_HOME}/locale
 
 USER django
 
-RUN DATABASE_URL="" \
+RUN DATABASE_URL="sqlite:////tmp/db.sqlite3" \
   DJANGO_SETTINGS_MODULE="config.settings.test" \
   python manage.py compilemessages
 
