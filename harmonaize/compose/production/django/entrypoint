@@ -4,6 +4,17 @@ set -o errexit
 set -o pipefail
 set -o nounset
 
+# Local development: load values from an env file that was created after
+# Docker Compose started (see the setup service). Values already set win.
+if [ -n "${AUTOLOAD_ENV_FILE:-}" ] && [ -f "${AUTOLOAD_ENV_FILE}" ]; then
+    while IFS='=' read -r key value || [ -n "${key}" ]; do
+        [[ "${key}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+        if [ -z "${!key+x}" ]; then
+            export "${key}=${value%$'\r'}"
+        fi
+    done < "${AUTOLOAD_ENV_FILE}"
+fi
+
 if [ -z "${POSTGRES_USER}" ]; then
     base_postgres_image_default_user='postgres'
     export POSTGRES_USER="${base_postgres_image_default_user}"

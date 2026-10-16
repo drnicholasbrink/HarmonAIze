@@ -9,21 +9,17 @@ export COMPOSE_FILE := "docker-compose.local.yml"
 default:
     @just --list
 
-# init: Create env files and generate random secrets (safe to rerun).
-init:
-    @python3 scripts/init_envs.py
-
 # init-production: Also fill .envs/.production/* with random secrets.
 init-production:
     @python3 scripts/init_envs.py --production
 
 # build: Build python image.
-build: init
+build:
     @echo "Building python image..."
     @docker compose build
 
 # up: Start up containers.
-up: init
+up:
     @echo "Starting up containers..."
     @docker compose up -d --remove-orphans
 
