@@ -10,6 +10,7 @@ from sentry_sdk.integrations.redis import RedisIntegration
 from .base import *  # noqa: F403
 from .base import DATABASES
 from .base import INSTALLED_APPS
+from .base import MIDDLEWARE
 from .base import REDIS_URL
 from .base import SPECTACULAR_SETTINGS
 from .base import env
@@ -71,7 +72,20 @@ SECURE_CONTENT_TYPE_NOSNIFF = env.bool(
     "DJANGO_SECURE_CONTENT_TYPE_NOSNIFF",
     default=True,
 )
+# https://docs.djangoproject.com/en/dev/ref/settings/#csrf-trusted-origins
+CSRF_TRUSTED_ORIGINS = env.list("DJANGO_CSRF_TRUSTED_ORIGINS", default=["https://harmonaize.org"])
 
+# AZURE FRONT DOOR
+# ------------------------------------------------------------------------------
+# Origin lockdown: reject any request that did not arrive through Front Door. The value is injected
+# by Terraform (var.frontdoor_id -> FRONTDOOR_ID); empty disables the check (see config/middleware.py).
+FRONTDOOR_ID = env("FRONTDOOR_ID", default="")
+# Run the check first so bypass attempts are rejected before any heavier processing.
+MIDDLEWARE = ["config.middleware.FrontDoorIDMiddleware", *MIDDLEWARE]
+# Front Door forwards the Container Apps FQDN as the Host (ACA ingress requires it) and the real
+# public host in X-Forwarded-Host; trust it so Django builds correct absolute URLs (emails, redirects).
+# https://docs.djangoproject.com/en/dev/ref/settings/#use-x-forwarded-host
+USE_X_FORWARDED_HOST = True
 
 # STATIC & MEDIA
 # ------------------------
@@ -95,19 +109,20 @@ else:
     AZURE_ACCOUNT_KEY = env("DJANGO_AZURE_ACCOUNT_KEY")
     AZURE_ACCOUNT_NAME = env("DJANGO_AZURE_ACCOUNT_NAME")
     AZURE_CONTAINER = env("DJANGO_AZURE_CONTAINER_NAME")
+    AZURE_URL_EXPIRATION_SECS = env.int("AZURE_URL_EXPIRATION_SECS", default=3600)
     STORAGES = {
         "default": {
             "BACKEND": "storages.backends.azure_storage.AzureStorage",
             "OPTIONS": {
                 "location": "media",
                 "overwrite_files": False,
+                "expiration_secs": AZURE_URL_EXPIRATION_SECS,
             },
         },
         "staticfiles": {
             "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
         },
     }
-    MEDIA_URL = f"https://{AZURE_ACCOUNT_NAME}.blob.core.windows.net/media/"
 
 # EMAIL
 # ------------------------------------------------------------------------------
@@ -196,22 +211,23 @@ LOGGING = {
 SENTRY_DSN = env("SENTRY_DSN", default="")
 SENTRY_LOG_LEVEL = env.int("DJANGO_SENTRY_LOG_LEVEL", logging.INFO)
 
-sentry_logging = LoggingIntegration(
-    level=SENTRY_LOG_LEVEL,  # Capture info and above as breadcrumbs
-    event_level=logging.ERROR,  # Send errors as events
-)
-integrations = [
-    sentry_logging,
-    DjangoIntegration(),
-    CeleryIntegration(),
-    RedisIntegration(),
-]
-sentry_sdk.init(
-    dsn=SENTRY_DSN,
-    integrations=integrations,
-    environment=env("SENTRY_ENVIRONMENT", default="production"),
-    traces_sample_rate=env.float("SENTRY_TRACES_SAMPLE_RATE", default=0.0),
-)
+if SENTRY_DSN and SENTRY_DSN.startswith("http"):
+    sentry_logging = LoggingIntegration(
+        level=SENTRY_LOG_LEVEL,  # Capture info and above as breadcrumbs
+        event_level=logging.ERROR,  # Send errors as events
+    )
+    integrations = [
+        sentry_logging,
+        DjangoIntegration(),
+        CeleryIntegration(),
+        RedisIntegration(),
+    ]
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=integrations,
+        environment=env("SENTRY_ENVIRONMENT", default="production"),
+        traces_sample_rate=env.float("SENTRY_TRACES_SAMPLE_RATE", default=0.0),
+    )
 
 # django-rest-framework
 # -------------------------------------------------------------------------------
@@ -223,7 +239,7 @@ SPECTACULAR_SETTINGS["SERVERS"] = [
 # OpenAI API Configuration
 # ------------------------------------------------------------------------------
 # Production OpenAI API key - required for embedding functionality
-OPENAI_API_KEY = env("OPENAI_API_KEY")
+OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
 
 # Your stuff...
 # ------------------------------------------------------------------------------

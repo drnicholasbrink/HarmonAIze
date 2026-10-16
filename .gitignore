@@ -146,6 +146,26 @@ __azurite_db*__.json
 #VS Code
 .vscode/harmonaize/credentials/gee-service-account.json
 
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+tfplan
+
+# graphify knowledge-graph output
+graphify-out/
+
 # Large admin boundary reference datasets — too big for git, hosted on
 # Google Drive and fetched at runtime by
 # geolocation/management/commands/download_admin_boundary_data.py

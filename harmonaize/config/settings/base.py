@@ -52,10 +52,10 @@ DATABASES = {
     'default': env.db("DATABASE_URL", default="postgres:///harmonaize")
 }
 DATABASES["default"]["ATOMIC_REQUESTS"] = True
-DATABASES["analysis_export"] = env.db(
-    "ANALYSIS_EXPORT_DATABASE_URL",
-    default="postgres://debug:debug@armadillo_postgres:5432/armadillo_snapshot",
-)
+if env("ANALYSIS_EXPORT_DATABASE_URL", default=""):
+    DATABASES["analysis_export"] = env.db("ANALYSIS_EXPORT_DATABASE_URL")
+else:
+    DATABASES["analysis_export"] = {k: v for k, v in DATABASES["default"].items()}
 DATABASES["analysis_export"]["ATOMIC_REQUESTS"] = False
 # https://docs.djangoproject.com/en/stable/ref/settings/#std:setting-DEFAULT_AUTO_FIELD
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
