@@ -155,3 +155,10 @@ harmonaize/geolocation/data_geocoding/admin_boundaries/
 
 # Local env files contain real secrets (API keys, DB creds) - never commit
 harmonaize/.envs/.local/.django
+
+# Track only the sanitised local Django onboarding example.
+!harmonaize/.envs/
+harmonaize/.envs/*
+!harmonaize/.envs/.local/
+harmonaize/.envs/.local/*
+!harmonaize/.envs/.local/.django.example

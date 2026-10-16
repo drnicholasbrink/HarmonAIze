@@ -1,0 +1,18 @@
+# Local Docker development only. Copy to .django before starting Compose.
+USE_DOCKER=yes
+IPYTHONDIR=/app/.ipython
+REDIS_URL=redis://redis:6379/0
+CELERY_FLOWER_USER=local-user
+CELERY_FLOWER_PASSWORD=local-development-only
+
+# Enable only when also starting the Docker Compose analysis profile.
+ANALYSIS_ENABLED=false
+
+# Optional integrations: add your own credentials to the untracked .django file.
+# OPENAI_API_KEY=
+# MAPBOX_ACCESS_TOKEN=
+# GOOGLE_APPLICATION_CREDENTIALS=/app/.envs/.local/gee-credentials.json
+# GOOGLE_GEOCODING_API_KEY=
+# GEMINI_API_KEY=
+# ANTHROPIC_API_KEY=
+# GEOLOCATION_USE_LLM=false

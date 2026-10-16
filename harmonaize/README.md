@@ -13,7 +13,11 @@ License: MIT
 
 1. **Install Docker Desktop**: https://www.docker.com/products/docker-desktop/
 2. **Clone and navigate**: Clone this repository and navigate to the `harmonaize` directory
-3. **Review local environment settings**: Update `./.envs/.local/.django` with any keys you need for OpenAI, Mapbox, or Google Earth Engine
+3. **Create local environment settings**:
+   ```bash
+   cp .envs/.local/.django.example .envs/.local/.django
+   ```
+   Review the local-only defaults and add any keys you need for OpenAI, Mapbox, or Google Earth Engine. Keep `.django` untracked. The example disables analysis; enable it only when starting the `analysis` profile.
 4. **Start the application**:
    ```bash
    docker-compose -f docker-compose.local.yml up -d
@@ -129,7 +133,7 @@ ARMADILLO_HOST_PORT=18081 docker-compose -f vendor/molgenis-service-armadillo/do
 
 ### Environment Files
 
-The env files committed under `./.envs/` are sanitized templates for onboarding and deployment reference.
+The env files committed under `./.envs/` are sanitized templates for onboarding and deployment reference. Create the untracked local Django file by copying `./.envs/.local/.django.example` to `./.envs/.local/.django` before starting Docker Compose.
 They do not contain working credentials.
 
 For local development, many of these values can be arbitrary as long as they are valid for your local Docker setup and are used consistently across the matching env files.
