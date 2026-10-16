@@ -245,11 +245,20 @@ OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
 # ------------------------------------------------------------------------------
 
 
-# INSECURE DEFAULT GUARDS
+# INSECURE DEFAULTS
 # ------------------------------------------------------------------------------
-# Refuse to start with the development defaults from base.py. A known salt makes
-# analysis pseudonyms reproducible, and admin/admin opens Armadillo/Keycloak.
-from django.core.exceptions import ImproperlyConfigured  # noqa: E402
+# Production never runs with the development defaults from base.py, but it is
+# not blocked by them either:
+# - No ANALYSIS_DEIDENTIFICATION_SALT set: derive a stable secret salt from
+#   DJANGO_SECRET_KEY. Set the salt explicitly so rotating the secret key does
+#   not change analysis pseudonyms (scripts/init_envs.py --production does this).
+# - Armadillo/Keycloak still on admin/admin: the system check warning below is
+#   shown on every manage.py command (including migrate on deploy).
+import hashlib  # noqa: E402
+import hmac  # noqa: E402
+
+from django.core.checks import Warning as CheckWarning  # noqa: E402
+from django.core.checks import register  # noqa: E402
 
 from .base import ANALYSIS_ARMADILLO_PASSWORD  # noqa: E402
 from .base import ANALYSIS_DEIDENTIFICATION_SALT  # noqa: E402
@@ -259,17 +268,29 @@ from .base import ANALYSIS_KEYCLOAK_SYNC_ENABLED  # noqa: E402
 from .base import INSECURE_ANALYSIS_DEFAULT_CREDENTIAL  # noqa: E402
 from .base import INSECURE_ANALYSIS_DEIDENTIFICATION_SALT  # noqa: E402
 
-if ANALYSIS_ENABLED:
-    _insecure = []
-    if ANALYSIS_DEIDENTIFICATION_SALT in ("", INSECURE_ANALYSIS_DEIDENTIFICATION_SALT):
-        _insecure.append("ANALYSIS_DEIDENTIFICATION_SALT")
-    if ANALYSIS_ARMADILLO_PASSWORD in ("", INSECURE_ANALYSIS_DEFAULT_CREDENTIAL):
-        _insecure.append("ANALYSIS_ARMADILLO_PASSWORD")
-    if ANALYSIS_KEYCLOAK_SYNC_ENABLED and ANALYSIS_KEYCLOAK_ADMIN_PASSWORD in (
-        "",
-        INSECURE_ANALYSIS_DEFAULT_CREDENTIAL,
-    ):
-        _insecure.append("ANALYSIS_KEYCLOAK_ADMIN_PASSWORD")
-    if _insecure:
-        msg = f"Set non-default values for: {', '.join(_insecure)}"
-        raise ImproperlyConfigured(msg)
+if ANALYSIS_DEIDENTIFICATION_SALT in ("", INSECURE_ANALYSIS_DEIDENTIFICATION_SALT):
+    ANALYSIS_DEIDENTIFICATION_SALT = hmac.new(
+        SECRET_KEY.encode(),
+        b"harmonaize-analysis-deidentification-salt",
+        hashlib.sha256,
+    ).hexdigest()
+
+
+@register("security")
+def check_insecure_analysis_credentials(app_configs, **kwargs):
+    if not ANALYSIS_ENABLED:
+        return []
+    defaults = ("", INSECURE_ANALYSIS_DEFAULT_CREDENTIAL)
+    insecure = []
+    if ANALYSIS_ARMADILLO_PASSWORD in defaults:
+        insecure.append("ANALYSIS_ARMADILLO_PASSWORD")
+    if ANALYSIS_KEYCLOAK_SYNC_ENABLED and ANALYSIS_KEYCLOAK_ADMIN_PASSWORD in defaults:
+        insecure.append("ANALYSIS_KEYCLOAK_ADMIN_PASSWORD")
+    return [
+        CheckWarning(
+            f"{name} is empty or the default 'admin'.",
+            hint="Set a strong password for the Armadillo/Keycloak admin account and this setting.",
+            id="harmonaize.W001",
+        )
+        for name in insecure
+    ]
