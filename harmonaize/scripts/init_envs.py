@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Create the env files and fill in placeholder secrets with random values.
 
-Run from the ``harmonaize/`` directory (``just up`` and ``just build`` run it
-for you):
+Local development needs no manual step: the ``setup`` service in
+docker-compose.local.yml runs this script inside the container before the app
+starts. For a docker-compose production deployment, run it once on the host
+from the ``harmonaize/`` directory:
 
-    python3 scripts/init_envs.py               # local development files
     python3 scripts/init_envs.py --production  # also .envs/.production/*
 
 What it does, and never more than once per value:
@@ -12,8 +13,10 @@ What it does, and never more than once per value:
 - Creates ``.envs/.local/.django`` if it is missing (from
   ``.envs/.local/.django.example`` when present, otherwise a built-in default).
 - Replaces empty or ``replace-with-...`` values of secret settings (Django
-  secret key, admin URL, Flower and PostgreSQL credentials, analysis salt)
-  with strong random values.
+  secret key, admin URL, Flower credentials, analysis salt, and with
+  ``--production`` the PostgreSQL credentials) with strong random values.
+  Local PostgreSQL credentials are left as they are: the local database only
+  listens on 127.0.0.1, and PostgreSQL keeps the user it was first created with.
 - Leaves every value you have already set untouched.
 - Marks tracked template files it changed as ``skip-worktree`` so the generated
   secrets are not committed by accident.
@@ -35,7 +38,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 LOCAL_DJANGO = ROOT / ".envs/.local/.django"
 LOCAL_DJANGO_EXAMPLE = ROOT / ".envs/.local/.django.example"
-LOCAL_POSTGRES = ROOT / ".envs/.local/.postgres"
 PRODUCTION_DJANGO = ROOT / ".envs/.production/.django"
 PRODUCTION_POSTGRES = ROOT / ".envs/.production/.postgres"
 
@@ -133,17 +135,19 @@ def postgres_volume_exists(prefix: str) -> bool:
     return bool(result.stdout.strip())
 
 
+def _git(*args: str) -> subprocess.CompletedProcess | None:
+    try:
+        return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, check=False)
+    except OSError:  # git is not installed, e.g. inside the container
+        return None
+
+
 def protect_tracked_file(path: Path) -> None:
     """Stop git from offering generated secrets in tracked templates for commit."""
     rel = path.relative_to(ROOT)
-    tracked = subprocess.run(
-        ["git", "ls-files", "--error-unmatch", str(rel)],
-        cwd=ROOT,
-        capture_output=True,
-        check=False,
-    )
-    if tracked.returncode == 0:
-        subprocess.run(["git", "update-index", "--skip-worktree", str(rel)], cwd=ROOT, check=False)
+    tracked = _git("ls-files", "--error-unmatch", str(rel))
+    if tracked is not None and tracked.returncode == 0:
+        _git("update-index", "--skip-worktree", str(rel))
         print(f"  {rel}: marked skip-worktree so these secrets stay out of commits")
 
 
@@ -199,11 +203,6 @@ def main() -> int:
         LOCAL_DJANGO.write_text(source)
         print(f"  {LOCAL_DJANGO.relative_to(ROOT)}: created")
     fill(LOCAL_DJANGO)
-
-    postgres_skip = set()
-    if postgres_volume_exists("harmonaize_local_postgres_data"):
-        postgres_skip = {"POSTGRES_USER", "POSTGRES_PASSWORD"}
-    fill(LOCAL_POSTGRES, skip=postgres_skip)
     manual = [LOCAL_DJANGO]
 
     if args.production:

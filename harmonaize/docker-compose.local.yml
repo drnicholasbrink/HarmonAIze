@@ -10,6 +10,19 @@ networks:
     driver: bridge
 
 services:
+  # Runs once before the app starts. On a fresh clone it creates
+  # .envs/.local/.django with random secrets; afterwards it does nothing.
+  setup:
+    build:
+      context: .
+      dockerfile: ./compose/local/django/Dockerfile
+    image: harmonaize_local_django
+    container_name: harmonaize_local_setup
+    volumes:
+      - .:/app:z
+    entrypoint: ["python", "scripts/init_envs.py"]
+    restart: "no"
+
   django: &django
     build:
       context: .
@@ -17,15 +30,24 @@ services:
     image: harmonaize_local_django
     container_name: harmonaize_local_django
     depends_on:
-      - postgres
-      - redis
-      - mailpit
+      setup:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_started
+      redis:
+        condition: service_started
+      mailpit:
+        condition: service_started
     volumes:
       - .:/app:z
     env_file:
-      - ./.envs/.local/.django
+      # Created by the setup service on first start.
+      - path: ./.envs/.local/.django
+        required: false
       - ./.envs/.local/.postgres
     environment:
+      # Read by the entrypoint, so the first start already uses the new file.
+      AUTOLOAD_ENV_FILE: /app/.envs/.local/.django
       ANALYSIS_DEIDENTIFICATION_SALT: harmonaize-local-analysis-salt
       ANALYSIS_EXPORT_ROOT: /app/harmonaize/media/analysis_exports
       ANALYSIS_ARMADILLO_BASE_URL: http://armadillo:8080
@@ -60,7 +82,8 @@ services:
     env_file:
       - ./.envs/.local/.postgres
     ports:
-      - '5432:5432'
+      # Local only: the local database credentials are not secret.
+      - '127.0.0.1:5432:5432'
 
   mailpit:
     image: docker.io/axllent/mailpit:latest
@@ -81,9 +104,14 @@ services:
     image: harmonaize_local_celeryworker
     container_name: harmonaize_local_celeryworker
     depends_on:
-      - redis
-      - postgres
-      - mailpit
+      setup:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+      postgres:
+        condition: service_started
+      mailpit:
+        condition: service_started
     ports: []
     command: /start-celeryworker
 
@@ -92,9 +120,14 @@ services:
     image: harmonaize_local_celerybeat
     container_name: harmonaize_local_celerybeat
     depends_on:
-      - redis
-      - postgres
-      - mailpit
+      setup:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+      postgres:
+        condition: service_started
+      mailpit:
+        condition: service_started
     ports: []
     command: /start-celerybeat
 
