@@ -2,6 +2,8 @@ from django.db import models
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from core.models import Study, Attribute
+from core.uploads import RandomizedUploadPath
+from core.validators import validate_upload_size
 import os
 
 User = get_user_model()
@@ -230,9 +232,8 @@ def validate_safe_transform_code(code: str):
         ast.Lambda, ast.FunctionDef, ast.arguments, ast.arg,
         ast.BinOp, ast.UnaryOp, ast.BoolOp, ast.Compare, ast.IfExp,
         ast.Call, ast.Name, ast.Load, ast.Store,
-        ast.Num, ast.Str, ast.Constant, ast.List, ast.Tuple, ast.Dict,
+        ast.Constant, ast.List, ast.Tuple, ast.Dict,
         ast.Set, ast.Attribute, ast.Subscript, ast.Slice,
-        ast.NameConstant,
         ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow, ast.Mod,
         ast.And, ast.Or, ast.Not, ast.USub, ast.UAdd,
         ast.Eq, ast.NotEq, ast.Lt, ast.LtE, ast.Gt, ast.GtE,
@@ -242,7 +243,18 @@ def validate_safe_transform_code(code: str):
         ast.ListComp, ast.DictComp, ast.SetComp, ast.GeneratorExp,
         ast.comprehension,
     )
-    banned_names = {"__import__", "open", "exec", "eval", "compile", "globals", "locals", "input", "help"}
+    banned_names = {
+        "__import__", "__builtins__", "__build_class__", "open", "exec", "eval", "compile",
+        "globals", "locals", "vars", "dir", "input", "help", "breakpoint",
+        "getattr", "setattr", "delattr", "hasattr", "type", "object", "super",
+        "classmethod", "staticmethod", "property", "memoryview", "exit", "quit",
+    }
+    # Attributes that expose interpreter internals (frames, code objects, globals)
+    # from generators, coroutines, functions and tracebacks.
+    banned_attribute_prefixes = ("gi_", "cr_", "ag_", "f_", "tb_", "co_", "func_", "im_")
+    banned_attributes = {"mro", "format", "format_map"}
+    max_constant_exponent = 10_000
+    max_constant_repeat = 1_000_000
     # Safe method names that can be called on objects
     safe_string_methods = {
         "upper", "lower", "title", "capitalize", "strip", "lstrip", "rstrip",
@@ -294,30 +306,51 @@ def validate_safe_transform_code(code: str):
             self.generic_visit(node)
 
         def visit_Attribute(self, node: ast.Attribute):
-            # Block access to dangerous attributes like __class__, __dict__, etc.
-            if node.attr.startswith('__') and node.attr.endswith('__'):
+            # Block access to dangerous attributes like __class__, __dict__, _private, etc.
+            if node.attr.startswith("_"):
                 msg = f"Access to dunder attribute not allowed: {node.attr}"
                 raise ValidationError(msg)
-            # Allow attribute access for safe method calls and the 'value' variable
-            if isinstance(node.value, ast.Name):
-                # Allow access to 'value' variable and its attributes
-                if node.value.id == "value":
-                    return
-                # Allow access to other variables for method calls
-                return
-            if isinstance(node.value, ast.Attribute):
-                # Allow chained attribute access (method calls validated separately)
-                return
-            if isinstance(node.value, ast.Call):
-                # Allow attribute access on results of function calls
-                return
-            # Allow the attribute access - method call validation happens in visit_Call
-            return
+            if node.attr in banned_attributes or node.attr.startswith(banned_attribute_prefixes):
+                msg = f"Access to attribute not allowed: {node.attr}"
+                raise ValidationError(msg)
+            if not isinstance(node.ctx, ast.Load):
+                msg = "Assigning or deleting attributes is not allowed in transform code."
+                raise ValidationError(msg)
+            # Method calls are validated in visit_Call; always validate the object
+            # expression too (e.g. ``x.__class__.mro`` must not slip through).
+            self.generic_visit(node)
 
         def visit_Name(self, node: ast.Name):
-            if node.id in banned_names:
+            if node.id in banned_names or node.id.startswith("__"):
                 msg = f"Use of banned identifier: {node.id}"
                 raise ValidationError(msg)
+
+        def visit_BinOp(self, node: ast.BinOp):
+            # Cheap static caps; the executor also guards these at runtime.
+            if isinstance(node.op, ast.Pow):
+                exponent = node.right
+                if isinstance(exponent, ast.BinOp) and isinstance(exponent.op, ast.Pow):
+                    msg = "Nested exponentiation (a ** b ** c) is not allowed in transform code."
+                    raise ValidationError(msg)
+                if (
+                    isinstance(exponent, ast.Constant)
+                    and isinstance(exponent.value, (int, float))
+                    and abs(exponent.value) > max_constant_exponent
+                ):
+                    msg = f"Exponent is too large (limit {max_constant_exponent})."
+                    raise ValidationError(msg)
+            if isinstance(node.op, ast.Mult):
+                for seq, count in ((node.left, node.right), (node.right, node.left)):
+                    if (
+                        isinstance(seq, (ast.Constant, ast.List, ast.Tuple))
+                        and not (isinstance(seq, ast.Constant) and not isinstance(seq.value, (str, bytes)))
+                        and isinstance(count, ast.Constant)
+                        and isinstance(count.value, int)
+                        and count.value > max_constant_repeat
+                    ):
+                        msg = f"Sequence repetition is too large (limit {max_constant_repeat})."
+                        raise ValidationError(msg)
+            self.generic_visit(node)
 
         def visit_For(self, node: ast.For):
             # Allow simple iteration, but do not allow the optional else block.
@@ -466,7 +499,9 @@ class RawDataFile(models.Model):
         help_text="Study this raw data belongs to"
     )
     file = models.FileField(
-        upload_to='raw_data/%Y/%m/%d/',
+        upload_to=RandomizedUploadPath("raw_data"),
+        max_length=255,
+        validators=[validate_upload_size],
         help_text="Raw data file (CSV, Excel, etc.)"
     )
     original_filename = models.CharField(

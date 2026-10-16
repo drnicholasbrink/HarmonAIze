@@ -2,6 +2,7 @@
 from typing import ClassVar
 
 from django.contrib.auth.models import AbstractUser
+from django.db import models
 from django.db.models import CharField
 from django.db.models import EmailField
 from django.urls import reverse
@@ -43,3 +44,32 @@ class User(AbstractUser):
 
         """
         return reverse("users:detail", kwargs={"pk": self.id})
+
+
+class AllowedEmailDomain(models.Model):
+    """An email domain that may self-register, on top of the settings list.
+
+    Managed by superusers in the admin. See
+    ``settings.ACCOUNT_ALLOWED_EMAIL_DOMAINS`` for the built-in domains.
+    """
+
+    domain = CharField(
+        _("Domain"),
+        max_length=253,
+        unique=True,
+        help_text=_("e.g. example.org. Subdomains of this domain are also allowed."),
+    )
+    note = CharField(_("Note"), blank=True, max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["domain"]
+        verbose_name = _("allowed email domain")
+        verbose_name_plural = _("allowed email domains")
+
+    def __str__(self) -> str:
+        return self.domain
+
+    def save(self, *args, **kwargs):
+        self.domain = self.domain.strip().lower().lstrip("@")
+        super().save(*args, **kwargs)

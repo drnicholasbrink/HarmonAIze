@@ -740,7 +740,7 @@ def test_approve_mapping_view(client, user, schema, attributes):
         role="value",
     )
     url = reverse("health:approve_mapping", kwargs={"schema_id": schema.id})
-    resp = client.get(url)
+    resp = client.post(url)
     assert resp.status_code == HTTP_REDIRECT
     schema.refresh_from_db()
     assert schema.status == "approved"

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }}{% endblock title %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body p-4">
+                    <h1 class="h4 mb-3">Join {{ project.name }}</h1>
+                    <p class="mb-2">
+                        {% if invitation.invited_by %}{{ invitation.invited_by.email }}{% else %}A project manager{% endif %}
+                        has invited you to join this project as
+                        <strong>{{ invitation.get_role_display }}</strong>.
+                    </p>
+                    <p class="text-muted small mb-4">
+                        This invitation expires on {{ invitation.expires_at|date:"M d, Y" }}.
+                    </p>
+                    <form method="post" action="{% url 'core:accept_invite' key=invitation.key %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-primary">Accept invitation</button>
+                        <a href="{% url 'core:project_list' %}" class="btn btn-outline-secondary ms-2">Not now</a>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}

@@ -1325,7 +1325,24 @@
   <div id="messageContainer" class="message-container"></div>
 
   <script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
+  {{ locations_data|json_script:"locations-data" }}
   <script>
+    const CSRF_TOKEN = '{{ csrf_token }}';
+
+    // Escape untrusted text before interpolating it into HTML strings.
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function jsonPostHeaders() {
+      return {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN};
+    }
+
     // Initialize map
     mapboxgl.accessToken = '{{ mapbox_token }}';
     const map = new mapboxgl.Map({
@@ -1335,8 +1352,8 @@
       zoom: 5
     });
 
-    const locationsData = {{ locations_data|safe }};
-    let currentLocationData = {% if current_location_json %}{{ current_location_json|safe }}{% else %}null{% endif %};
+    const locationsData = JSON.parse(document.getElementById('locations-data').textContent);
+    let currentLocationData = locationsData.length ? locationsData[0] : null;
     let markers = [];
     let manualMarker = null;  // For manually placed coordinates
     let currentMapStyle = 'mapbox-satellite';
@@ -1679,12 +1696,12 @@
         const popupHTML = `
           <div style="min-width: 250px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-              <span style="font-weight: 600; font-size: 1.1rem;">${coord.source}</span>
+              <span style="font-weight: 600; font-size: 1.1rem;">${escapeHtml(coord.source)}</span>
               ${isBest ? '<span style="background: var(--accent-color); color: white; padding: 0.25rem 0.5rem; border-radius: 10px; font-size: 0.7rem; font-weight: 600;">★ Best</span>' : ''}
             </div>
             <div style="background: #f8f9fa; padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem;">
               <div style="font-size: 0.8rem; color: #6c757d; margin-bottom: 0.25rem;">Coordinates</div>
-              <div style="font-family: monospace; font-size: 0.9rem;">${coord.lat.toFixed(5)}, ${coord.lng.toFixed(5)}</div>
+              <div style="font-family: monospace; font-size: 0.9rem;">${Number(coord.lat).toFixed(5)}, ${Number(coord.lng).toFixed(5)}</div>
             </div>
             <div style="background: #f8f9fa; padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem;">
               <div style="font-size: 0.8rem; color: #6c757d; margin-bottom: 0.5rem;">Validation Scores</div>
@@ -1702,7 +1719,7 @@
               </div>
               </div>
             </div>
-            <button onclick="selectSource('${coord.source_key}', ${coord.lat}, ${coord.lng})"
+            <button onclick="selectSource(${escapeHtml(JSON.stringify(String(coord.source_key)))}, ${Number(coord.lat)}, ${Number(coord.lng)})"
                     class="btn ${isBest ? 'btn-success' : 'btn-secondary'}"
                     style="width: 100%; padding: 0.75rem; font-size: 0.9rem;">
               ${isBest ? 'Use Best Source' : 'Use This Source'}
@@ -1803,7 +1820,7 @@
     };
 
     // Expected country for validation (can be set from backend)
-    const expectedCountry = {% if current_location.expected_country %}'{{ current_location.expected_country }}'{% else %}null{% endif %};
+    const expectedCountry = {% if current_location.expected_country %}'{{ current_location.expected_country|escapejs }}'{% else %}null{% endif %};
 
     // Toggle boundary layer visibility
     function toggleBoundaryLayer(layerType, show) {
@@ -2142,13 +2159,13 @@
           let popupContent = `
             <div style="padding: 8px; min-width: 150px;">
               <div style="font-weight: 700; font-size: 14px; color: ${config.lineColor}; margin-bottom: 4px;">
-                ${name}
+                ${escapeHtml(name)}
               </div>
               <div style="font-size: 11px; color: #666;">
                 <span style="background: ${config.lineColor}15; color: ${config.lineColor}; padding: 2px 6px; border-radius: 4px; font-weight: 600;">
-                  ${levelName}
+                  ${escapeHtml(levelName)}
                 </span>
-                ${adminLevel ? `<span style="margin-left: 6px; color: #999;">Level ${adminLevel}</span>` : ''}
+                ${adminLevel ? `<span style="margin-left: 6px; color: #999;">Level ${escapeHtml(adminLevel)}</span>` : ''}
               </div>
             </div>
           `;
@@ -2253,7 +2270,7 @@
       const warningHtml = `
         <div class="country-mismatch-badge">
           <span>⚠️</span>
-          <span>${source} coordinates may be outside ${expectedCountry}</span>
+          <span>${escapeHtml(source)} coordinates may be outside ${escapeHtml(expectedCountry)}</span>
         </div>
       `;
 
@@ -2301,7 +2318,7 @@
 
       fetch('{% url "geolocation:validation_api" %}', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: jsonPostHeaders(),
         body: JSON.stringify({
           action: 'use_source',
           geocoding_result_id: currentLocationData.id,
@@ -2336,7 +2353,7 @@
 
       fetch('{% url "geolocation:validation_api" %}', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: jsonPostHeaders(),
         body: JSON.stringify({
           action: 'approve_suggestion',
           geocoding_result_id: currentLocationData.id
@@ -2399,7 +2416,7 @@
       showLoading(true);
       fetch('{% url "geolocation:validation_api" %}', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: jsonPostHeaders(),
         body: JSON.stringify({
           action: 'manual_coordinates',
           geocoding_result_id: currentLocationData.id,
@@ -2448,7 +2465,7 @@
       showLoading(true);
       fetch('{% url "geolocation:validation_api" %}', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: jsonPostHeaders(),
         body: JSON.stringify({
           action: 'reject',
           geocoding_result_id: currentLocationData.id,

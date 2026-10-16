@@ -12,6 +12,8 @@ import csv
 from datetime import datetime, timedelta
 
 from core.models import Study, Location, Observation, Attribute
+from core.utils import csv_safe_row
+from geolocation.querysets import viewable_locations_for_user
 from .models import (
     ClimateDataSource,
     ClimateVariable,
@@ -462,7 +464,7 @@ def climate_data_export_view(request, request_id):
     response['Content-Disposition'] = f'attachment; filename="climate_data_{climate_request.id}.csv"'
     
     writer = csv.writer(response)
-    writer.writerow([
+    writer.writerow(csv_safe_row([
         'Date',
         'Location',
         'Latitude',
@@ -470,10 +472,10 @@ def climate_data_export_view(request, request_id):
         'Variable',
         'Value',
         'Unit'
-    ])
+    ]))
     
     for obs in observations:
-        writer.writerow([
+        writer.writerow(csv_safe_row([
             obs.time.timestamp.date() if obs.time else '',
             obs.location.name if obs.location else '',
             obs.location.latitude if obs.location else '',
@@ -481,7 +483,7 @@ def climate_data_export_view(request, request_id):
             obs.attribute.display_name,
             obs.float_value,
             obs.attribute.unit
-        ])
+        ]))
     
     return response
 
@@ -829,119 +831,81 @@ def cancel_climate_request_api(request, request_id):
 def core_integration_view(request):
     """
     Demonstrates how climate data integrates with Core module.
-    Uses raw SQL to avoid embedding field issues while showing integration.
+
+    Climate attributes are global (shared across studies), so observations are
+    scoped by location: only observations at locations visible to the user
+    through projects they belong to are shown. ``.values()`` queries avoid
+    loading the Attribute embedding columns.
     """
-    from django.db import connection
+    climate_attributes = list(
+        Attribute.objects.filter(category='climate')
+        .order_by('variable_name')
+        .values('variable_name', 'display_name', 'category', 'unit', 'variable_type')
+    )
 
-    with connection.cursor() as cursor:
-        # Get climate attributes from Core
-        cursor.execute("""
-            SELECT variable_name, display_name, category, unit, variable_type
-            FROM core_attribute
-            WHERE category = 'climate'
-            ORDER BY variable_name
-        """)
-        climate_attributes = [
-            {
-                'variable_name': row[0],
-                'display_name': row[1],
-                'category': row[2],
-                'unit': row[3],
-                'variable_type': row[4],
-            }
-            for row in cursor.fetchall()
-        ]
+    observations = Observation.objects.filter(
+        attribute__category='climate',
+        location__isnull=False,
+        location__in=viewable_locations_for_user(request.user).values('pk'),
+    )
 
-        # Count climate observations
-        cursor.execute("""
-            SELECT COUNT(*)
-            FROM core_observation o
-            JOIN core_attribute a ON o.attribute_id = a.id
-            WHERE a.category = 'climate'
-        """)
-        total_observations = cursor.fetchone()[0]
+    total_observations = observations.count()
 
-        # Get sample observations with location and time
-        cursor.execute("""
-            SELECT
-                a.display_name,
-                a.unit,
-                o.float_value,
-                l.name as location_name,
-                l.latitude,
-                l.longitude,
-                t.timestamp
-            FROM core_observation o
-            JOIN core_attribute a ON o.attribute_id = a.id
-            JOIN core_location l ON o.location_id = l.id
-            JOIN core_timedimension t ON o.time_id = t.id
-            WHERE a.category = 'climate'
-            ORDER BY t.timestamp DESC
-            LIMIT 20
-        """)
-        sample_observations = [
-            {
-                'variable': row[0],
-                'unit': row[1],
-                'value': row[2],
-                'location': row[3],
-                'latitude': row[4],
-                'longitude': row[5],
-                'timestamp': row[6],
-            }
-            for row in cursor.fetchall()
-        ]
+    sample_observations = [
+        {
+            'variable': row[0],
+            'unit': row[1],
+            'value': row[2],
+            'location': row[3],
+            'latitude': row[4],
+            'longitude': row[5],
+            'timestamp': row[6],
+        }
+        for row in observations.filter(time__isnull=False)
+        .order_by('-time__timestamp')
+        .values_list(
+            'attribute__display_name',
+            'attribute__unit',
+            'float_value',
+            'location__name',
+            'location__latitude',
+            'location__longitude',
+            'time__timestamp',
+        )[:20]
+    ]
 
-        # Get observations grouped by location
-        cursor.execute("""
-            SELECT
-                l.name,
-                COUNT(o.id) as observation_count,
-                l.latitude,
-                l.longitude
-            FROM core_observation o
-            JOIN core_attribute a ON o.attribute_id = a.id
-            JOIN core_location l ON o.location_id = l.id
-            WHERE a.category = 'climate'
-            GROUP BY l.id, l.name, l.latitude, l.longitude
-            ORDER BY observation_count DESC
-        """)
-        observations_by_location = [
-            {
-                'location': row[0],
-                'count': row[1],
-                'latitude': row[2],
-                'longitude': row[3],
-            }
-            for row in cursor.fetchall()
-        ]
+    observations_by_location = [
+        {
+            'location': row['location__name'],
+            'count': row['observation_count'],
+            'latitude': row['location__latitude'],
+            'longitude': row['location__longitude'],
+        }
+        for row in observations.values(
+            'location_id', 'location__name', 'location__latitude', 'location__longitude',
+        )
+        .annotate(observation_count=Count('id'))
+        .order_by('-observation_count')
+    ]
 
-        # Get observations grouped by variable
-        cursor.execute("""
-            SELECT
-                a.display_name,
-                a.unit,
-                COUNT(o.id) as observation_count,
-                AVG(o.float_value) as avg_value,
-                MIN(o.float_value) as min_value,
-                MAX(o.float_value) as max_value
-            FROM core_observation o
-            JOIN core_attribute a ON o.attribute_id = a.id
-            WHERE a.category = 'climate'
-            GROUP BY a.id, a.display_name, a.unit
-            ORDER BY observation_count DESC
-        """)
-        observations_by_variable = [
-            {
-                'variable': row[0],
-                'unit': row[1],
-                'count': row[2],
-                'avg': row[3],
-                'min': row[4],
-                'max': row[5],
-            }
-            for row in cursor.fetchall()
-        ]
+    observations_by_variable = [
+        {
+            'variable': row['attribute__display_name'],
+            'unit': row['attribute__unit'],
+            'count': row['observation_count'],
+            'avg': row['avg_value'],
+            'min': row['min_value'],
+            'max': row['max_value'],
+        }
+        for row in observations.values('attribute_id', 'attribute__display_name', 'attribute__unit')
+        .annotate(
+            observation_count=Count('id'),
+            avg_value=Avg('float_value'),
+            min_value=Min('float_value'),
+            max_value=Max('float_value'),
+        )
+        .order_by('-observation_count')
+    ]
 
     context = {
         'climate_attributes': climate_attributes,

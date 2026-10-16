@@ -5,7 +5,9 @@ from django.urls import reverse
 from django.views.generic import ListView, DetailView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
-from django.views.decorators.http import require_http_methods
+from django.views.decorators.http import require_http_methods, require_POST
+from django.core.exceptions import ValidationError
+from django.db import IntegrityError
 from django.conf import settings
 from django.db import transaction
 import pandas as pd
@@ -18,6 +20,24 @@ from health.models import RawDataFile
 from core.tsne_service import tsne_service
 from django.contrib.auth import get_user_model
 from django.utils.crypto import get_random_string
+from core.validators import validate_upload_size
+
+
+def _user_can_edit_attribute(user, attribute):
+    """Return True if ``user`` may modify ``attribute``.
+
+    Attributes owned by a study require membership of that study's project.
+    Attributes without an owning study (``study=NULL``, e.g. shared/global
+    attributes) may be linked to studies in several projects, so the user
+    must be a member of the project of *every* linked study; unlinked
+    ownerless attributes cannot be edited at all.
+    """
+    if attribute.study_id:
+        return attribute.study.project.members.filter(pk=user.pk).exists()
+    linked = attribute.studies.all()
+    if not linked.exists():
+        return False
+    return not linked.exclude(project__members=user).exists()
 
 
 @login_required
@@ -463,6 +483,26 @@ def download_codebook(request, pk):
 
 
 @login_required
+def download_protocol(request, pk):
+    """Download a study's protocol file after checking project membership."""
+    from django.http import FileResponse, Http404
+    import mimetypes
+
+    study = get_object_or_404(Study, pk=pk, project__members=request.user)
+    if not study.protocol_file:
+        raise Http404("No protocol file found for this study.")
+
+    filename = study.protocol_filename
+    content_type, _ = mimetypes.guess_type(filename)
+    return FileResponse(
+        study.protocol_file.open('rb'),
+        content_type=content_type or 'application/octet-stream',
+        as_attachment=True,
+        filename=filename,
+    )
+
+
+@login_required
 @require_http_methods(["POST"])
 def delete_study_file(request, pk, file_type):
     """
@@ -507,6 +547,11 @@ def add_study_document(request, pk):
     study = get_object_or_404(Study, pk=pk, project__members=request.user)
     
     if 'file' in request.FILES:
+        try:
+            validate_upload_size(request.FILES['file'])
+        except ValidationError as exc:
+            messages.error(request, ' '.join(exc.messages))
+            return redirect('core:study_detail', pk=pk)
         doc = StudyDocument.objects.create(
             study=study,
             file=request.FILES['file'],
@@ -575,8 +620,8 @@ def update_attribute(request, attribute_id):
     
     attribute = get_object_or_404(Attribute, pk=attribute_id)
     
-    # Check user has access to the study
-    if attribute.study and not attribute.study.project.members.filter(pk=request.user.pk).exists():
+    # Check user has access to every study/project this attribute belongs to
+    if not _user_can_edit_attribute(request.user, attribute):
         return JsonResponse({'success': False, 'error': 'Permission denied'}, status=403)
     
     try:
@@ -1041,24 +1086,16 @@ def delete_study(request, study_id):
         study_name = study.name
         study_purpose = study.get_study_purpose_display()
         
-        # Clean up uploaded files
-        files_to_delete = []
-        if study.codebook and study.codebook.name:
-            files_to_delete.append(study.codebook.path)
-        if study.protocol_file and study.protocol_file.name:
-            files_to_delete.append(study.protocol_file.path)
-        if study.additional_files and study.additional_files.name:
-            files_to_delete.append(study.additional_files.path)
-        
-        # Delete physical files from filesystem
-        import os
-        for file_path in files_to_delete:
-            try:
-                if os.path.exists(file_path):
-                    os.remove(file_path)
-            except OSError as e:
-                # Log the error but don't fail the deletion
-                print(f"Warning: Could not delete file {file_path}: {e}")
+        # Clean up uploaded files via the storage backend
+        stored_files = [study.codebook, study.protocol_file]
+        stored_files += [doc.file for doc in study.documents.all()]
+        for stored_file in stored_files:
+            if stored_file and stored_file.name:
+                try:
+                    stored_file.delete(save=False)
+                except Exception as e:
+                    # Log the error but don't fail the deletion
+                    print(f"Warning: Could not delete file {stored_file.name}: {e}")
         
         # Clear associated variables 
         variables_count = study.variables.count()
@@ -1296,6 +1333,16 @@ def tsne_visualization(request, project_id):
         )
         return redirect("core:project_detail", pk=project_id)
     
+    # Plotly renders trace names, titles, hover templates and hover values as
+    # pseudo-HTML, so HTML-escape every user-controlled string (study/project
+    # names, variable names, descriptions, categories) before it goes into the
+    # figure. Plotly decodes the entities, so they still display correctly.
+    from html import escape as html_escape
+
+    hover_df = df[["variable_name", "description", "category", "source_type"]].copy()
+    for column in hover_df.columns:
+        hover_df[column] = hover_df[column].fillna("").astype(str).map(html_escape)
+
     # Create grouped legend with separate traces for source and target studies
     # Create figure
     fig = go.Figure()
@@ -1325,7 +1372,8 @@ def tsne_visualization(request, project_id):
             legend_name = (
                 "Source Studies" if source_type == "source" else "Target Studies"
             )
-            trace_name = f"{study}"
+            safe_study = html_escape(str(study))
+            trace_name = safe_study
 
             fig.add_trace(go.Scatter(
                 x=study_df["x"],
@@ -1341,12 +1389,10 @@ def tsne_visualization(request, project_id):
                     "opacity": 0.7,
                     "line": {"width": 1, "color": "white"},
                 },
-                customdata=study_df[
-                    ["variable_name", "description", "category", "source_type"]
-                ].values,
+                customdata=hover_df.loc[study_df.index].values,
                 hovertemplate=(
                     "<b>%{customdata[0]}</b><br>"
-                    "Study: " + study + "<br>"
+                    "Study: " + safe_study + "<br>"
                     "Category: %{customdata[2]}<br>"
                     "Type: %{customdata[3]}<br>"
                     "Description: %{customdata[1]}<br>"
@@ -1362,7 +1408,7 @@ def tsne_visualization(request, project_id):
         title={
             "text": (
                 f"t-SNE Visualization: {embedding_type.title()} "
-                f"Embeddings for {project.name}"
+                f"Embeddings for {html_escape(project.name)}"
             ),
             "x": 0.5,
         },
@@ -1455,9 +1501,13 @@ def project_members(request, pk):
     can_manage = current_membership.role in ['owner', 'manager']
     
     members = ProjectMembership.objects.filter(project=project).select_related('user')
-    invitations = ProjectInvitation.objects.filter(project=project, status='pending') if can_manage else []
+    if can_manage:
+        ProjectInvitation.expire_stale(project=project)
+        invitations = ProjectInvitation.objects.filter(project=project, status='pending')
+    else:
+        invitations = []
     
-    form = ProjectInvitationForm()
+    form = ProjectInvitationForm(inviter_role=current_membership.role)
     
     context = {
         'project': project,
@@ -1470,6 +1520,7 @@ def project_members(request, pk):
     return render(request, 'core/project_members.html', context)
 
 @login_required
+@require_POST
 def invite_member(request, pk):
     """
     Process member invitation.
@@ -1477,94 +1528,138 @@ def invite_member(request, pk):
     project = get_object_or_404(Project, pk=pk, members=request.user)
     
     # Check permissions
-    if not ProjectMembership.objects.filter(
-        project=project, 
-        user=request.user, 
-        role__in=['owner', 'manager']
-    ).exists():
+    current_membership = ProjectMembership.objects.filter(
+        project=project,
+        user=request.user,
+        role__in=['owner', 'manager'],
+    ).first()
+    if current_membership is None:
         messages.error(request, "You do not have permission to invite members.")
         return redirect('core:project_members', pk=pk)
 
-    if request.method == 'POST':
-        form = ProjectInvitationForm(request.POST)
-        if form.is_valid():
-            email = form.cleaned_data['email']
-            role = form.cleaned_data['role']
-            
-            # Check if user is already a member
-            User = get_user_model()
-            try:
-                user = User.objects.get(email=email)
-                if ProjectMembership.objects.filter(project=project, user=user).exists():
-                    messages.warning(request, f"User {email} is already a member of this project.")
-                    return redirect('core:project_members', pk=pk)
-            except User.DoesNotExist:
-                # User doesn't exist yet, that's fine
-                pass
-            
-            # Check for pending invitation
-            if ProjectInvitation.objects.filter(project=project, email=email, status='pending').exists():
-                messages.warning(request, f"An invitation is already pending for {email}.")
-                return redirect('core:project_members', pk=pk)
+    form = ProjectInvitationForm(request.POST, inviter_role=current_membership.role)
+    if not form.is_valid():
+        for errors in form.errors.values():
+            for error in errors:
+                messages.error(request, error)
+        return redirect('core:project_members', pk=pk)
 
-            # Create invitation
-            key = get_random_string(64)
-            invitation = ProjectInvitation.objects.create(
-                email=email,
-                project=project,
-                role=role,
-                invited_by=request.user,
-                key=key
-            )
-            
-            # Generate invite URL
-            invite_url = request.build_absolute_uri(reverse('core:accept_invite', kwargs={'key': key}))
-            
-            # In a real app, send email here. For now, display message.
-            messages.success(
-                request, 
-                f"Invitation created for {email}. Share this link: {invite_url}"
-            )
-            
-            return redirect('core:project_members', pk=pk)
+    email = form.cleaned_data['email']
+    role = form.cleaned_data['role']
+    
+    # Check if user is already a member
+    if ProjectMembership.objects.filter(
+        project=project, user__email__iexact=email,
+    ).exists():
+        messages.warning(request, f"User {email} is already a member of this project.")
+        return redirect('core:project_members', pk=pk)
+    
+    # Check for pending (non-expired) invitation
+    ProjectInvitation.expire_stale(project=project)
+    if ProjectInvitation.objects.filter(project=project, email__iexact=email, status='pending').exists():
+        messages.warning(request, f"An invitation is already pending for {email}.")
+        return redirect('core:project_members', pk=pk)
+
+    # Create invitation
+    key = get_random_string(64)
+    invitation = ProjectInvitation.objects.create(
+        email=email,
+        project=project,
+        role=role,
+        invited_by=request.user,
+        key=key
+    )
+    
+    # Generate invite URL
+    invite_url = request.build_absolute_uri(reverse('core:accept_invite', kwargs={'key': key}))
+    
+    # In a real app, send email here. For now, display message.
+    messages.success(
+        request, 
+        f"Invitation created for {email}. Share this link: {invite_url}"
+    )
     
     return redirect('core:project_members', pk=pk)
 
 def accept_invite(request, key):
     """
     Handle invitation acceptance.
+
+    GET shows a confirmation page; only POST (with a CSRF token) adds the
+    membership, so a link or cross-site navigation cannot change state.
     """
     invitation = get_object_or_404(ProjectInvitation, key=key, status='pending')
-    
-    if request.user.is_authenticated:
-        if request.user.email.lower() != invitation.email.lower():
-             messages.error(
-                 request, 
-                 f"This invitation is for {invitation.email}, but you are logged in as {request.user.email}."
-             )
-             return redirect('core:project_list')
 
-        # Add to project
-        ProjectMembership.objects.create(
-            user=request.user,
-            project=invitation.project,
-            role=invitation.role
+    if invitation.is_expired:
+        invitation.status = 'expired'
+        invitation.save(update_fields=['status'])
+        messages.error(
+            request,
+            "This invitation has expired. Please ask a project owner or manager for a new one.",
         )
-        invitation.status = 'accepted'
-        invitation.save()
-        
-        messages.success(request, f"Welcome to {invitation.project.name}!")
-        return redirect('core:project_detail', pk=invitation.project.pk)
-    else:
-        # Store key in session and redirect to login
-        # You might need a custom login view or middleware to handle this redirect after login
-        # For now, we'll prompt them to login
+        if request.user.is_authenticated:
+            return redirect('core:project_list')
+        return redirect('home')
+
+    if not request.user.is_authenticated:
+        # Prompt the invitee to log in, then come back to this page.
         login_url = reverse('account_login')
         messages.info(request, f"Please log in as {invitation.email} to accept the invitation.")
-        
         return redirect(f"{login_url}?next={request.path}")
 
+    if request.user.email.lower() != invitation.email.lower():
+        messages.error(
+            request,
+            f"This invitation is for {invitation.email}, but you are logged in as {request.user.email}.",
+        )
+        return redirect('core:project_list')
+
+    if request.method != 'POST':
+        return render(request, 'core/accept_invite.html', {
+            'invitation': invitation,
+            'project': invitation.project,
+            'page_title': f'Join {invitation.project.name}',
+        })
+
+    # Re-check the role against the inviter's current role so invitations
+    # created before role limits existed (or by a since-demoted user) cannot
+    # grant more than the inviter holds.
+    inviter_role = None
+    if invitation.invited_by_id:
+        inviter_role = ProjectMembership.objects.filter(
+            project=invitation.project, user_id=invitation.invited_by_id,
+        ).values_list('role', flat=True).first()
+    if (
+        inviter_role not in ('owner', 'manager')
+        or ProjectMembership.role_rank(invitation.role) > ProjectMembership.role_rank(inviter_role)
+    ):
+        messages.error(
+            request,
+            "This invitation is no longer valid. Please ask a project owner or manager for a new one.",
+        )
+        return redirect('core:project_list')
+
+    try:
+        with transaction.atomic():
+            membership, created = ProjectMembership.objects.get_or_create(
+                user=request.user,
+                project=invitation.project,
+                defaults={'role': invitation.role},
+            )
+    except IntegrityError:
+        created = False
+
+    invitation.status = 'accepted'
+    invitation.save(update_fields=['status'])
+
+    if created:
+        messages.success(request, f"Welcome to {invitation.project.name}!")
+    else:
+        messages.info(request, f"You are already a member of {invitation.project.name}.")
+    return redirect('core:project_detail', pk=invitation.project.pk)
+
 @login_required
+@require_POST
 def remove_member(request, project_id, member_id):
     """
     Remove a member from the project.

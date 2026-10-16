@@ -43,6 +43,12 @@ repos:
       - id: djlint-reformat-django
       - id: djlint-django
 
+  # Block commits that contain credentials or API keys
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+
 # sets up .pre-commit-ci.yaml to ensure pre-commit dependencies stay up to date
 ci:
   autoupdate_schedule: weekly

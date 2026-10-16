@@ -766,6 +766,21 @@
 
   <script>
     const SCOPE_QS = '{{ scope.querystring|escapejs }}';
+    const CSRF_TOKEN = '{{ csrf_token }}';
+
+    // Escape untrusted text before interpolating it into HTML strings.
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function jsonPostHeaders() {
+      return {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN};
+    }
     function withScope(url) {
       return url + (url.includes('?') ? '&' : '?') + SCOPE_QS;
     }
@@ -794,41 +809,41 @@
         const confidenceColor = location.confidence >= 80 ? '#28a745' :
                                location.confidence >= 60 ? '#ffc107' : '#dc3545';
 
-        const statusClass = `status-${location.status}`;
+        const statusClass = `status-${escapeHtml(location.status)}`;
 
         row.innerHTML = `
           <td>
-            <div style="font-weight: 600;">${location.name}</div>
+            <div style="font-weight: 600;">${escapeHtml(location.name)}</div>
           </td>
           <td>
-            <span class="status-badge ${statusClass}">${location.status_display}</span>
+            <span class="status-badge ${statusClass}">${escapeHtml(location.status_display)}</span>
           </td>
           <td>
             <div style="display: flex; align-items: center;">
               <div class="confidence-bar">
-                <div class="confidence-fill" style="width: ${location.confidence}%; background-color: ${confidenceColor};"></div>
+                <div class="confidence-fill" style="width: ${Number(location.confidence) || 0}%; background-color: ${confidenceColor};"></div>
               </div>
-              <span style="font-size: 0.9rem;">${location.confidence}%</span>
+              <span style="font-size: 0.9rem;">${Number(location.confidence) || 0}%</span>
             </div>
           </td>
           <td>
             <div style="display: flex; flex-wrap: wrap; gap: 0.25rem;">
               ${location.sources.map(source =>
-                `<span style="background: #e9ecef; color: #495057; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">${source}</span>`
+                `<span style="background: #e9ecef; color: #495057; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">${escapeHtml(source)}</span>`
               ).join('')}
             </div>
           </td>
           <td>
             <div style="font-family: monospace; font-size: 0.9rem;">
               ${location.coordinates ?
-                `${location.coordinates.lat.toFixed(5)}, ${location.coordinates.lng.toFixed(5)}` :
+                `${Number(location.coordinates.lat).toFixed(5)}, ${Number(location.coordinates.lng).toFixed(5)}` :
                 '<span style="color: var(--text-secondary);">No coordinates</span>'
               }
             </div>
           </td>
           <td>
             ${location.status === 'needs_review' || location.status === 'pending' ?
-              `<a href="${withScope('{% url 'geolocation:validation_map' %}?location_id=' + location.geocoding_result_id)}"
+              `<a href="${escapeHtml(withScope('{% url 'geolocation:validation_map' %}?location_id=' + encodeURIComponent(location.geocoding_result_id)))}"
                  style="color: var(--primary-color); text-decoration: none; font-weight: 500;">
                  {% include 'components/svg_icon.html' with icon='eye' size='14' class='inline-icon' %} Review
                </a>` :
@@ -920,7 +935,7 @@
     function refreshStats() {
       return fetch(withScope('{% url "geolocation:geocoding_api" %}'), {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: jsonPostHeaders(),
         body: JSON.stringify({action: 'get_geocoding_stats'})
       })
       .then(response => response.json())
@@ -955,7 +970,7 @@
       // Use modern Celery-based batch processing instead of old API
       fetch(withScope('{% url "geolocation:start_batch_geocoding" %}'), {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: jsonPostHeaders(),
         body: JSON.stringify({
           force_reprocess: force,
           batch_size: 50
@@ -988,7 +1003,7 @@
         // Use modern Celery-based batch validation instead of old API
         fetch(withScope('{% url "geolocation:start_batch_validation" %}'), {
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
+          headers: jsonPostHeaders(),
           body: JSON.stringify({
             batch_size: 50
           })
@@ -1026,7 +1041,7 @@
 
         fetch(withScope('{% url "geolocation:bulk_validation_actions" %}'), {
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
+          headers: jsonPostHeaders(),
           body: JSON.stringify({action: 'auto_validate_high_confidence'})
         })
         .then(response => response.json())
@@ -1061,7 +1076,7 @@
 
         fetch(withScope('{% url "geolocation:geocoding_api" %}'), {
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
+          headers: jsonPostHeaders(),
           body: JSON.stringify({action: 'update_coordinates'})
         })
         .then(response => response.json())

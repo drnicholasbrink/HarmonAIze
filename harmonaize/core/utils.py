@@ -20,6 +20,25 @@ from django.shortcuts import redirect
 
 logger = logging.getLogger(__name__)
 
+CSV_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def csv_safe(value):
+    """Neutralise spreadsheet formula injection in a CSV cell.
+
+    Strings that a spreadsheet would treat as a formula are prefixed with a
+    single quote. Numbers are returned unchanged so negative values still
+    export as numbers.
+    """
+    if isinstance(value, str) and value.startswith(CSV_FORMULA_PREFIXES):
+        return "'" + value
+    return value
+
+
+def csv_safe_row(row):
+    """Apply :func:`csv_safe` to every cell of a row."""
+    return [csv_safe(value) for value in row]
+
 
 VARIABLE_NAME_EXPANSIONS = {
     "age": "age",
@@ -355,7 +374,7 @@ def save_generated_codebook_for_study(study, attributes: Optional[List[Any]] = N
     ])
 
     for attr in selected_attributes:
-        writer.writerow([
+        writer.writerow(csv_safe_row([
             attr.variable_name,
             attr.display_name,
             attr.description,
@@ -363,7 +382,7 @@ def save_generated_codebook_for_study(study, attributes: Optional[List[Any]] = N
             attr.unit,
             attr.ontology_code,
             attr.category,
-        ])
+        ]))
 
     csv_content = output.getvalue()
     output.close()

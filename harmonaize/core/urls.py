@@ -24,6 +24,7 @@ urlpatterns = [
     path('studies/<int:pk>/', views.StudyDetailView.as_view(), name='study_detail'),
     path('studies/<int:pk>/update-field/', views.update_study_field, name='update_study_field'),
     path('studies/<int:pk>/download-codebook/', views.download_codebook, name='download_codebook'),
+    path('studies/<int:pk>/download-protocol/', views.download_protocol, name='download_protocol'),
     path('studies/<int:pk>/delete-file/<str:file_type>/', views.delete_study_file, name='delete_study_file'),
     path('studies/<int:pk>/toggle-climate/', views.toggle_climate_linkage, name='study_toggle_climate'),
     path('studies/<int:study_id>/delete/', views.delete_study, name='delete_study'),

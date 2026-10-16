@@ -55,11 +55,13 @@
                                 {% if can_manage %}
                                 <td>
                                     {% if membership.user != request.user %}
-                                        <a href="{% url 'core:remove_member' project_id=project.pk member_id=membership.pk %}" 
-                                           class="btn btn-sm btn-outline-danger"
-                                           onclick="return confirm('Are you sure you want to remove this member?')">
-                                            Remove
-                                        </a>
+                                        <form method="post"
+                                              action="{% url 'core:remove_member' project_id=project.pk member_id=membership.pk %}"
+                                              class="d-inline"
+                                              onsubmit="return confirm('Are you sure you want to remove this member?')">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+                                        </form>
                                     {% endif %}
                                 </td>
                                 {% endif %}
@@ -105,6 +107,8 @@
                             <small class="text-muted">Role: {{ invite.get_role_display }}</small>
                             <br>
                             <small class="text-muted">Sent: {{ invite.sent_at|date:"M d, Y" }}</small>
+                            <br>
+                            <small class="text-muted">Expires: {{ invite.expires_at|date:"M d, Y" }}</small>
                             <br>
                             <small class="text-muted copy-link-container">
                                 <a href="#" onclick="navigator.clipboard.writeText('{{ request.scheme }}://{{ request.get_host }}{% url 'core:accept_invite' key=invite.key %}'); alert('Link copied!'); return false;">Copy Invite Link</a>
