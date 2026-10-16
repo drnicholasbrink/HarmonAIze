@@ -21,32 +21,35 @@ For contributor expectations, including the preference for small, transparent pu
 
 **TL;DR**: This project runs entirely in Docker containers. Here's how to get started:
 
-1. **Install Docker Desktop**: https://www.docker.com/products/docker-desktop/
+1. **Install Docker Desktop** (https://www.docker.com/products/docker-desktop/) and **[just](https://github.com/casey/just)** (`brew install just`, or see its install guide)
 2. **Clone and navigate**: Clone this repository and navigate to the `harmonaize` directory
    ```bash
    git clone https://github.com/drnicholasbrink/HarmonAIze.git HarmonAIzeToolkit
    cd HarmonAIzeToolkit/harmonaize
    ```
-3. **Create local environment settings**: run the setup script. It creates `./.envs/.local/.django` and fills every placeholder secret with a random value (`just up` runs it for you). Afterwards, add any keys you need for OpenAI, Mapbox, or Google Earth Engine; the script lists them.
+3. **First start: build and start with `just`**:
    ```bash
-   python3 scripts/init_envs.py
+   just build
+   just up
    ```
-4. **Start the application**:
-   ```bash
-   docker-compose -f docker-compose.local.yml up -d
-   ```
-5. **Make and run database migrations** (only the `0001` migrations are committed, so generate the rest locally; the Django container also runs `migrate` on start):
+   On first start this also creates `./.envs/.local/.django` and fills every placeholder secret with a random value, so there is nothing to edit by hand. It lists the optional keys (OpenAI, Mapbox, Google Earth Engine) you can add afterwards.
+4. **Make and run database migrations** (only the `0001` migrations are committed, so generate the rest locally; the Django container also runs `migrate` on start):
    ```bash
    docker-compose -f docker-compose.local.yml run --rm django python manage.py makemigrations
    ```
    ```bash
    docker-compose -f docker-compose.local.yml run --rm django python manage.py migrate
    ```
-6. **Create a superuser**:
+5. **Create a superuser**:
    ```bash
    docker-compose -f docker-compose.local.yml run --rm django python manage.py createsuperuser
    ```
-7. **Visit the application**: http://localhost:8000
+6. **Visit the application**: http://localhost:8000
+
+**Next time** you only need the normal start command; your env files and secrets are kept as they are:
+```bash
+just up    # or: docker compose -f docker-compose.local.yml up -d
+```
 
 **Important**: No need to install Python packages locally - everything runs in Docker containers!
 
@@ -151,12 +154,7 @@ They do not contain working credentials.
 
 `./.envs/.local/.django` is the exception: it is gitignored and not committed.
 
-**You don't have to edit secrets by hand.** Run the setup script from `harmonaize/`:
-
-```bash
-python3 scripts/init_envs.py               # local development (just up / just build run this)
-python3 scripts/init_envs.py --production  # also .envs/.production/* for a docker-compose deployment
-```
+**You don't have to edit secrets by hand.** On first start, `just build` / `just up` run `scripts/init_envs.py`, which sets them up for you. For a docker-compose production deployment, run `just init-production` once to fill `.envs/.production/*` as well.
 
 It works like cookiecutter-django's first-run generation:
 
@@ -185,6 +183,7 @@ Keep credential files such as Google Earth Engine JSON keys in a local-only path
 ### Prerequisites
 
 - **Docker Desktop**: https://www.docker.com/products/docker-desktop/ (Required)
+- **just**: https://github.com/casey/just (`brew install just`), used for the first start
 - **Git**: To clone the repository
 - **Code Editor**: Visual Studio Code recommended
 
@@ -198,7 +197,14 @@ Keep credential files such as Google Earth Engine JSON keys in a local-only path
    cd HarmonAIzeToolkit/harmonaize
    ```
 
-3. **Configure local environment variables**: run `python3 scripts/init_envs.py` (see [Environment Files](#environment-files)), then add the optional keys you need to `./.envs/.local/.django`.
+3. **First start: build and start the application**:
+   ```bash
+   just build
+   just up
+   ```
+   This creates `./.envs/.local/.django` and generates the local secrets (see [Environment Files](#environment-files)). After the first start, use `just up` or `docker compose -f docker-compose.local.yml up -d` as normal.
+
+   Then add the optional keys you need to `./.envs/.local/.django` and restart.
 
    Common optional local settings:
    ```bash
@@ -212,10 +218,7 @@ Keep credential files such as Google Earth Engine JSON keys in a local-only path
 
    `ANALYSIS_ENABLED` is a Django application flag. When it is `false`, the app starts without registering the analysis module and `/analysis/` shows the fallback unavailable page.
 
-4. **Build and start the application**:
-   ```bash
-   docker compose -f docker-compose.local.yml up -d
-   ```
+4. **Choose whether to run the analysis module**:
 
    With `ANALYSIS_ENABLED=false` in `./.envs/.local/.django`, this starts the normal local stack without the analysis module.
 
