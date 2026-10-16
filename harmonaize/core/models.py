@@ -5,7 +5,14 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.urls import reverse
 from django.conf import settings
 from pgvector.django import VectorField
+from datetime import timedelta
 import ast
+import os
+
+from django.utils import timezone
+
+from core.uploads import RandomizedUploadPath
+from core.validators import validate_upload_size
 
 User = get_user_model()
 
@@ -82,6 +89,22 @@ class ProjectMembership(models.Model):
         ('manager', 'Manager'),
         ('member', 'Member'),
     )
+    # Higher number = more privileges. Used to stop users granting roles
+    # above their own (e.g. a manager inviting an owner).
+    ROLE_RANK = {'member': 1, 'manager': 2, 'owner': 3}
+
+    @classmethod
+    def role_rank(cls, role):
+        return cls.ROLE_RANK.get(role, 0)
+
+    @classmethod
+    def assignable_roles(cls, inviter_role):
+        """Role choices an inviter with ``inviter_role`` may grant."""
+        rank = cls.role_rank(inviter_role)
+        return [
+            (value, label) for value, label in cls.ROLE_CHOICES
+            if cls.role_rank(value) <= rank
+        ]
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='project_memberships')
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='memberships')
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='member')
@@ -105,6 +128,29 @@ class ProjectInvitation(models.Model):
 
     def __str__(self):
         return f"Invite for {self.email} to {self.project.name}"
+
+    @staticmethod
+    def expiry_days():
+        return getattr(settings, 'PROJECT_INVITATION_EXPIRY_DAYS', 14)
+
+    @property
+    def expires_at(self):
+        if not self.sent_at:
+            return None
+        return self.sent_at + timedelta(days=self.expiry_days())
+
+    @property
+    def is_expired(self):
+        expires_at = self.expires_at
+        return expires_at is not None and timezone.now() >= expires_at
+
+    @classmethod
+    def expire_stale(cls, **filters):
+        """Mark pending invitations older than the expiry window as expired."""
+        cutoff = timezone.now() - timedelta(days=cls.expiry_days())
+        return cls.objects.filter(
+            status='pending', sent_at__lte=cutoff, **filters,
+        ).update(status='expired')
 
 
         completed_studies = self.studies.filter(
@@ -490,7 +536,9 @@ class Study(models.Model):
     
     # File uploads - consolidated for both source and target studies
     codebook = models.FileField(
-        upload_to='studies/codebooks/',
+        upload_to=RandomizedUploadPath('studies/codebooks'),
+        max_length=255,
+        validators=[validate_upload_size],
         null=True, blank=True,
         help_text="Upload your codebook (CSV, Excel, SPSS, Stata, JSON, DB, etc.)"
     )
@@ -500,7 +548,9 @@ class Study(models.Model):
         help_text="Auto-detected format of the codebook file"
     )
     protocol_file = models.FileField(
-        upload_to='studies/protocols/',
+        upload_to=RandomizedUploadPath('studies/protocols'),
+        max_length=255,
+        validators=[validate_upload_size],
         null=True, blank=True,
         help_text="Upload study protocol or additional documentation"
     )
@@ -573,6 +623,16 @@ class Study(models.Model):
         return reverse('core:study_detail', kwargs={'pk': self.pk})
     
     @property
+    def codebook_filename(self):
+        """Original filename of the codebook (without the storage directory)."""
+        return os.path.basename(self.codebook.name) if self.codebook else ""
+
+    @property
+    def protocol_filename(self):
+        """Original filename of the protocol file (without the storage directory)."""
+        return os.path.basename(self.protocol_file.name) if self.protocol_file else ""
+
+    @property
     def variable_count(self):
         """Return the number of variables associated with this study."""
         return self.attributes.count()
@@ -606,7 +666,9 @@ class StudyDocument(models.Model):
         related_name='documents'
     )
     file = models.FileField(
-        upload_to='studies/documents/',
+        upload_to=RandomizedUploadPath('studies/documents'),
+        max_length=255,
+        validators=[validate_upload_size],
         help_text="Upload study documentation"
     )
     document_type = models.CharField(

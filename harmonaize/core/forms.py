@@ -12,6 +12,20 @@ class ProjectInvitationForm(forms.Form):
         widget=forms.Select(attrs={'class': 'form-select'})
     )
 
+    def __init__(self, *args, inviter_role=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.inviter_role = inviter_role
+        # Only offer roles at or below the inviter's own role. ChoiceField
+        # validation rejects anything else, so this is enforced server-side.
+        self.fields['role'].choices = ProjectMembership.assignable_roles(inviter_role)
+        self.fields['role'].initial = 'member'
+
+    def clean_role(self):
+        role = self.cleaned_data['role']
+        if ProjectMembership.role_rank(role) > ProjectMembership.role_rank(self.inviter_role):
+            raise ValidationError("You cannot invite someone with a role higher than your own.")
+        return role
+
 class StudyCreationForm(forms.ModelForm):
     """
     Form for creating a new study and uploading initial files.

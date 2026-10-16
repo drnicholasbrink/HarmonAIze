@@ -529,3 +529,268 @@ def test_polling_apis_do_not_change_remembered_scope(client, two_projects_one_us
     )
 
     assert client.session[SESSION_KEY] == remembered
+
+
+# ---------------------------------------------------------------------------
+# Security regression tests
+# ---------------------------------------------------------------------------
+
+XSS_NAME = "</script><script>alert(1)</script>"
+
+
+@pytest.mark.django_db
+def test_validated_locations_map_json_script_escapes_script_tags(client, geolocation_users):
+    user_a, _user_b = geolocation_users
+    _create_project_location(user_a, "XSS Project", "XSSStudy", XSS_NAME, lat=-17.1, lng=31.1)
+    client.force_login(user_a)
+
+    response = client.get(reverse("geolocation:validated_locations_map"))
+
+    assert response.status_code == 200
+    body = response.content.decode()
+    assert XSS_NAME not in body
+    assert "<script>alert(1)" not in body
+    assert '<script id="locations-data" type="application/json">' in body
+    assert "\\u003C/script\\u003E" in body
+
+
+@pytest.mark.django_db
+def test_validation_map_json_script_escapes_script_tags(client, geolocation_users):
+    user_a, _user_b = geolocation_users
+    location = _create_project_location(user_a, "XSS Project", "XSSStudy", XSS_NAME)
+    GeocodingResult.objects.create(
+        location=location,
+        location_name=location.name,
+        created_by=user_a,
+        hdx_success=True,
+        hdx_lat=-17.9,
+        hdx_lng=31.9,
+    )
+    client.force_login(user_a)
+
+    response = client.get(reverse("geolocation:validation_map"))
+
+    assert response.status_code == 200
+    body = response.content.decode()
+    assert "<script>alert(1)" not in body
+
+
+CSRF_SECRET = "a" * 32
+
+
+@pytest.mark.django_db
+def test_geolocation_post_endpoints_enforce_csrf(geolocation_users):
+    from django.test import Client
+
+    user_a, _user_b = geolocation_users
+    uploaded = Location.objects.create(name="Uploaded Clinic", created_by=user_a)
+    csrf_client = Client(enforce_csrf_checks=True)
+    csrf_client.force_login(user_a)
+    payload = json.dumps({"location_id": uploaded.id, "latitude": -26.2, "longitude": 28.0})
+
+    for name in [
+        "geolocation:manual_coordinate_update",
+        "geolocation:validation_api",
+        "geolocation:geocoding_api",
+        "geolocation:bulk_validation_actions",
+        "geolocation:start_batch_geocoding",
+        "geolocation:start_batch_validation",
+    ]:
+        response = csrf_client.post(reverse(name), data=payload, content_type="application/json")
+        assert response.status_code == 403, name
+
+    uploaded.refresh_from_db()
+    assert uploaded.latitude is None
+
+    csrf_client.cookies["csrftoken"] = CSRF_SECRET
+    response = csrf_client.post(
+        reverse("geolocation:manual_coordinate_update"),
+        data=payload,
+        content_type="application/json",
+        HTTP_X_CSRFTOKEN=CSRF_SECRET,
+    )
+    assert response.status_code == 200
+    uploaded.refresh_from_db()
+    assert uploaded.latitude == pytest.approx(-26.2)
+
+
+@pytest.mark.django_db
+def test_json_endpoints_reject_non_json_content_type(client, geolocation_users):
+    user_a, _user_b = geolocation_users
+    uploaded = Location.objects.create(name="Uploaded Clinic", created_by=user_a)
+    client.force_login(user_a)
+
+    response = client.post(
+        reverse("geolocation:manual_coordinate_update"),
+        data=json.dumps({"location_id": uploaded.id, "latitude": 1, "longitude": 2}),
+        content_type="text/plain",
+    )
+    assert response.status_code == 415
+
+    response = client.post(
+        reverse("geolocation:validation_api"),
+        data={"action": "reject", "validation_id": "1"},
+    )
+    assert response.status_code == 415
+
+    response = client.post(
+        reverse("geolocation:manual_coordinate_update"),
+        data="not json",
+        content_type="application/json",
+    )
+    assert response.status_code == 400
+
+
+@pytest.mark.django_db
+def test_batch_progress_only_visible_to_task_owner(client, geolocation_users):
+    from django.core.cache import cache
+    from types import SimpleNamespace
+
+    user_a, user_b = geolocation_users
+    Location.objects.create(name="Uploaded Clinic", created_by=user_a)
+    client.force_login(user_a)
+
+    with patch(
+        "geolocation.views.batch_geocode_locations.delay",
+        return_value=SimpleNamespace(id="task-owned-by-a"),
+    ):
+        response = client.post(
+            reverse("geolocation:start_batch_geocoding"),
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+    assert response.status_code == 200
+    assert response.json()["task_id"] == "task-owned-by-a"
+    cache.set("geocoding_progress_task-owned-by-a", {"status": "processing", "progress": 40}, 60)
+
+    progress_url = reverse("geolocation:batch_progress", kwargs={"task_id": "task-owned-by-a"})
+    response = client.get(progress_url)
+    assert response.status_code == 200
+    assert response.json()["progress"] == 40
+
+    client.force_login(user_b)
+    response = client.get(progress_url)
+    assert response.status_code == 404
+    assert "progress" not in response.json()
+
+    response = client.get(reverse("geolocation:batch_progress", kwargs={"task_id": "someone-elses-task"}))
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_validated_locations_csv_neutralises_formulas(client, geolocation_users):
+    user_a, _user_b = geolocation_users
+    _create_project_location(
+        user_a, "CSV Project", "CSVStudy", "=HYPERLINK(\"http://evil\",\"x\")", lat=-17.1, lng=31.1,
+    )
+    client.force_login(user_a)
+
+    response = client.get(reverse("geolocation:download_validated_locations_csv"))
+
+    assert response.status_code == 200
+    rows = list(csv.DictReader(StringIO(response.content.decode())))
+    names = {row["Location Name"] for row in rows}
+    assert "'=HYPERLINK(\"http://evil\",\"x\")" in names
+    assert not any(name.startswith("=") for name in names)
+
+
+def _make_zip(path, members):
+    import zipfile
+
+    with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for name, data in members.items():
+            zf.writestr(name, data)
+
+
+def test_safe_extract_zip_rejects_too_many_members(tmp_path, settings):
+    import zipfile
+
+    from geolocation.utils import safe_extract_zip
+
+    settings.MAX_ZIP_MEMBERS = 2
+    archive = tmp_path / "many.zip"
+    _make_zip(archive, {f"f{i}.txt": b"x" for i in range(3)})
+    dest = tmp_path / "out"
+    dest.mkdir()
+
+    with zipfile.ZipFile(archive) as zf, pytest.raises(ValueError, match="too many members"):
+        safe_extract_zip(zf, dest)
+    assert not any(dest.iterdir())
+
+
+def test_safe_extract_zip_rejects_zip_bomb(tmp_path, settings):
+    import zipfile
+
+    from geolocation.utils import safe_extract_zip
+
+    settings.MAX_ZIP_UNCOMPRESSED_SIZE = 1024 * 1024
+    archive = tmp_path / "bomb.zip"
+    _make_zip(archive, {"bomb.bin": b"\0" * (4 * 1024 * 1024)})
+    assert archive.stat().st_size < 64 * 1024
+    dest = tmp_path / "out"
+    dest.mkdir()
+
+    with zipfile.ZipFile(archive) as zf, pytest.raises(ValueError, match="too large"):
+        safe_extract_zip(zf, dest)
+    assert not (dest / "bomb.bin").exists()
+
+
+def test_safe_extract_zip_counts_actual_bytes(tmp_path):
+    """A forged (small) declared file_size must not bypass the size limit."""
+    from io import BytesIO
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    from geolocation.utils import safe_extract_zip
+
+    forged = SimpleNamespace(filename="big.bin", file_size=1, is_dir=lambda: False)
+    fake_zip = MagicMock()
+    fake_zip.infolist.return_value = [forged]
+    fake_zip.open.side_effect = lambda info: BytesIO(b"x" * (3 * 1024 * 1024))
+    dest = tmp_path / "out"
+    dest.mkdir()
+
+    with pytest.raises(ValueError, match="too large"):
+        safe_extract_zip(fake_zip, dest, max_total_size=1024 * 1024)
+    assert not (dest / "big.bin").exists()
+
+
+def test_safe_extract_zip_extracts_and_blocks_traversal(tmp_path):
+    import zipfile
+
+    from geolocation.utils import safe_extract_zip
+
+    archive = tmp_path / "ok.zip"
+    _make_zip(archive, {"dir/a.txt": b"hello"})
+    dest = tmp_path / "out"
+    dest.mkdir()
+    with zipfile.ZipFile(archive) as zf:
+        safe_extract_zip(zf, dest)
+    assert (dest / "dir" / "a.txt").read_bytes() == b"hello"
+
+    evil = tmp_path / "evil.zip"
+    _make_zip(evil, {"../escape.txt": b"x"})
+    with zipfile.ZipFile(evil) as zf, pytest.raises(ValueError, match="Unsafe path"):
+        safe_extract_zip(zf, dest)
+    assert not (tmp_path / "escape.txt").exists()
+
+
+def test_location_upload_file_field_is_validated_and_randomised():
+    from django.core.exceptions import ValidationError
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    from core.validators import validate_upload_size
+    from geolocation.models import LocationCSVUpload
+
+    field = LocationCSVUpload._meta.get_field("file")
+    assert validate_upload_size in field.validators
+
+    path_a = field.upload_to(None, "sites.csv")
+    path_b = field.upload_to(None, "sites.csv")
+    assert path_a != path_b
+    assert path_a.startswith("location_csv/") and path_a.endswith("/sites.csv")
+
+    bad = SimpleUploadedFile("payload.html", b"<script>")
+    with pytest.raises(ValidationError):
+        field.run_validators(bad)
+    field.run_validators(SimpleUploadedFile("sites.csv", b"name\nA\n"))

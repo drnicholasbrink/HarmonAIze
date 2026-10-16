@@ -256,13 +256,61 @@ def suggest_location_column_mappings(columns: List[Dict[str, Any]]) -> Dict[str,
     return suggestions
 
 
-def safe_extract_zip(zip_file, dest) -> None:
-    """Extract a zipfile.ZipFile into dest, rejecting members that would escape it (Zip Slip)."""
+def safe_extract_zip(zip_file, dest, max_members=None, max_total_size=None) -> None:
+    """Extract a zipfile.ZipFile into dest safely.
+
+    Rejects members that would escape ``dest`` (Zip Slip) and guards against
+    zip bombs: the archive may hold at most ``settings.MAX_ZIP_MEMBERS`` members
+    and ``settings.MAX_ZIP_UNCOMPRESSED_SIZE`` bytes once extracted. Declared
+    sizes are checked up front, and the bytes actually written are counted while
+    extracting, so a forged ``file_size`` header cannot bypass the limit.
+    """
     from pathlib import Path
 
+    from django.conf import settings
+
+    if max_members is None:
+        max_members = getattr(settings, "MAX_ZIP_MEMBERS", 1000)
+    if max_total_size is None:
+        max_total_size = getattr(settings, "MAX_ZIP_UNCOMPRESSED_SIZE", 2 * 1024 * 1024 * 1024)
+
+    members = zip_file.infolist()
+    if len(members) > max_members:
+        raise ValueError(
+            f"Zip archive has too many members ({len(members)} > {max_members})"
+        )
+
+    declared_total = sum(info.file_size for info in members)
+    if declared_total > max_total_size:
+        raise ValueError(
+            f"Zip archive is too large when extracted ({declared_total} > {max_total_size} bytes)"
+        )
+
     dest = Path(dest).resolve()
-    for member in zip_file.namelist():
-        target = (dest / member).resolve()
+    targets = []
+    for info in members:
+        target = (dest / info.filename).resolve()
         if target != dest and dest not in target.parents:
-            raise ValueError(f"Unsafe path in zip archive: {member}")
-    zip_file.extractall(dest)
+            raise ValueError(f"Unsafe path in zip archive: {info.filename}")
+        targets.append((info, target))
+
+    written = 0
+    chunk_size = 1024 * 1024
+    for info, target in targets:
+        if info.is_dir():
+            target.mkdir(parents=True, exist_ok=True)
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with zip_file.open(info) as source, open(target, "wb") as out:
+            while True:
+                chunk = source.read(chunk_size)
+                if not chunk:
+                    break
+                written += len(chunk)
+                if written > max_total_size:
+                    out.close()
+                    target.unlink(missing_ok=True)
+                    raise ValueError(
+                        f"Zip archive is too large when extracted (more than {max_total_size} bytes)"
+                    )
+                out.write(chunk)

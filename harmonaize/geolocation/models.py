@@ -1,9 +1,13 @@
 # geolocation/models.py
 from django.db import models
 from django.contrib.auth import get_user_model
-from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.validators import FileExtensionValidator, MinValueValidator, MaxValueValidator
 from django.utils import timezone
 from core.models import Location
+from core.uploads import RandomizedUploadPath
+from core.validators import validate_upload_size
+
+LOCATION_UPLOAD_EXTENSIONS = ['csv', 'xlsx', 'xls', 'json']
 
 User = get_user_model()
 
@@ -608,7 +612,13 @@ class LocationCSVUpload(models.Model):
     ]
 
     # File information
-    file = models.FileField(upload_to='location_csv/%Y/%m/%d/')
+    file = models.FileField(
+        upload_to=RandomizedUploadPath('location_csv'),
+        validators=[
+            validate_upload_size,
+            FileExtensionValidator(allowed_extensions=LOCATION_UPLOAD_EXTENSIONS),
+        ],
+    )
     original_filename = models.CharField(max_length=255)
     file_format = models.CharField(max_length=20, default='csv')
     file_size = models.PositiveIntegerField(help_text="File size in bytes")

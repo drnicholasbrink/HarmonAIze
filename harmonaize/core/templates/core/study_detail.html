@@ -1922,8 +1922,8 @@
             </div>
             <div class="file-info">
               <div class="file-name">
-                <a href="{{ study.codebook.url }}" target="_blank" class="file-link">
-                  {{ study.codebook.name|cut:"studies/codebooks/" }}
+                <a href="{% url 'core:download_codebook' study.pk %}" class="file-link">
+                  {{ study.codebook_filename }}
                 </a>
               </div>
               <div class="file-meta">
@@ -2078,8 +2078,8 @@
             </div>
             <div class="file-info">
               <div class="file-name">
-                <a href="{{ study.protocol_file.url }}" target="_blank" class="file-link">
-                  {{ study.protocol_file.name|cut:"studies/protocols/" }}
+                <a href="{% url 'core:download_protocol' study.pk %}" class="file-link">
+                  {{ study.protocol_filename }}
                 </a>
               </div>
               <div class="file-meta">
@@ -2097,7 +2097,7 @@
               </div>
             </div>
             <div class="file-actions">
-              <a href="{{ study.protocol_file.url }}" class="btn btn-sm btn-file-action" target="_blank">
+              <a href="{% url 'core:download_protocol' study.pk %}" class="btn btn-sm btn-file-action">
                 <i class="fas fa-download"></i> Download
               </a>
               <button class="btn btn-sm btn-file-action" onclick="showProtocolUploadModal()">

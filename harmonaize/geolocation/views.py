@@ -6,7 +6,6 @@ import requests
 from django.shortcuts import render, get_object_or_404, redirect
 from django.urls import reverse
 from django.http import JsonResponse, Http404
-from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import TemplateView
 from django.conf import settings
 from django.db import transaction
@@ -27,6 +26,7 @@ from .validation import SmartGeocodingValidator
 from .tasks import batch_geocode_locations, batch_validate_locations
 from .services import GeocodingService
 from core.models import Location, ProjectMembership, Study
+from core.utils import csv_safe_row
 from .forms import LocationCSVUploadForm
 logger = logging.getLogger(__name__)
 
@@ -91,6 +91,59 @@ def update_locations_from_validation(user=None, scope=None):
             continue
 
     return updated_count
+
+
+class JSONBodyError(Exception):
+    """Raised when a JSON API request has the wrong content type or a bad body."""
+
+    def __init__(self, message, status=400):
+        super().__init__(message)
+        self.status = status
+
+    def response(self):
+        return JsonResponse({'success': False, 'error': str(self)}, status=self.status)
+
+
+def _load_json_body(request):
+    """Parse a JSON request body, rejecting non-JSON content types.
+
+    Requiring ``application/json`` means a cross-site HTML form (which can only
+    send urlencoded, multipart or text/plain bodies) can never reach these
+    endpoints, on top of Django's CSRF check.
+    """
+    if request.content_type != 'application/json':
+        raise JSONBodyError('Content-Type must be application/json', status=415)
+    try:
+        data = json.loads(request.body or b'{}')
+    except (ValueError, UnicodeDecodeError):
+        raise JSONBodyError('Invalid JSON body', status=400)
+    if not isinstance(data, dict):
+        raise JSONBodyError('JSON body must be an object', status=400)
+    return data
+
+
+TASK_OWNER_CACHE_TIMEOUT = 60 * 60 * 24 * 7
+TASK_OWNER_SESSION_KEY = 'geolocation_task_ids'
+
+
+def _task_owner_cache_key(task_id):
+    return f'geolocation_task_owner:{task_id}'
+
+
+def _remember_task_owner(request, task_id):
+    """Record that ``request.user`` started the Celery task ``task_id``."""
+    task_id = str(task_id)
+    cache.set(_task_owner_cache_key(task_id), request.user.pk, TASK_OWNER_CACHE_TIMEOUT)
+    task_ids = [t for t in request.session.get(TASK_OWNER_SESSION_KEY, []) if t != task_id]
+    task_ids.append(task_id)
+    request.session[TASK_OWNER_SESSION_KEY] = task_ids[-50:]
+
+
+def _user_owns_task(request, task_id):
+    task_id = str(task_id)
+    if cache.get(_task_owner_cache_key(task_id)) == request.user.pk:
+        return True
+    return task_id in request.session.get(TASK_OWNER_SESSION_KEY, [])
 
 
 def _geocoding_results_by_name(results):
@@ -363,10 +416,10 @@ def validation_map(request):
     stats = get_validation_stats(user=request.user, scope=scope)
 
     context = {
-        'locations_data': json.dumps(locations_data),
+        # Rendered with |json_script in the template (never |safe inside <script>).
+        'locations_data': locations_data,
         'mapbox_token': getattr(settings, 'MAPBOX_ACCESS_TOKEN', ''),
         'current_location': locations_data[0] if locations_data else None,
-        'current_location_json': json.dumps(locations_data[0]) if locations_data else 'null',
         'navigation': navigation_info,
         'scope': scope,
         **stats
@@ -532,7 +585,6 @@ class ValidationDashboardView(LoginRequiredMixin, TemplateView):
         return context
 
 @login_required
-@csrf_exempt
 def location_status_api(request):
     """ API endpoint to get comprehensive location status for dashboard table."""
     if request.method == 'GET':
@@ -703,7 +755,6 @@ def location_status_api(request):
     return JsonResponse({'error': 'Only GET requests are allowed'}, status=405)
 
 @login_required
-@csrf_exempt
 def validation_queue_api(request):
     """API endpoint to get actual validation queue data for the table."""
     if request.method == 'GET':
@@ -792,12 +843,14 @@ def validation_queue_api(request):
 
     return JsonResponse({'error': 'Only GET requests are allowed'}, status=405)
 @login_required
-@csrf_exempt
 def validation_api(request):
     """Enhanced API endpoint for validation actions with better error handling."""
     if request.method == 'POST':
         try:
-            data = json.loads(request.body)
+            data = _load_json_body(request)
+        except JSONBodyError as e:
+            return e.response()
+        try:
             action = data.get('action')
             validation_id = data.get('validation_id')
             geocoding_result_id = data.get('geocoding_result_id')
@@ -912,12 +965,14 @@ def spatial_filter_api(request):
 
 
 @login_required
-@csrf_exempt
 def geocoding_api(request):
     """API endpoint for running geocoding from the interface with CLEARER statistics."""
     if request.method == 'POST':
         try:
-            data = json.loads(request.body)
+            data = _load_json_body(request)
+        except JSONBodyError as e:
+            return e.response()
+        try:
             action = data.get('action')
             scope = resolve_scope(request)
 
@@ -1172,12 +1227,14 @@ def geocoding_api(request):
 
     return JsonResponse({'error': 'Only GET and POST requests are allowed'}, status=405)
 @login_required
-@csrf_exempt
 def bulk_validation_actions(request):
     """FIXED: Handle bulk validation actions with enhanced auto-approve logic."""
     if request.method == 'POST':
         try:
-            data = json.loads(request.body)
+            data = _load_json_body(request)
+        except JSONBodyError as e:
+            return e.response()
+        try:
             action = data.get('action')
             scope = resolve_scope(request)
             geocoding_results = scoped_geocoding_results(request.user, scope)
@@ -1881,11 +1938,11 @@ def validated_locations_map(request):
 
     context = {
         'scope': scope,
-        'locations_data': json.dumps(locations_data),
+        # Rendered with |json_script in the template (never |safe inside <script>).
+        'locations_data': locations_data,
         'mapbox_token': getattr(settings, 'MAPBOX_ACCESS_TOKEN', ''),
         'total_locations': len(locations_data),
         'source_files': source_files,
-        'source_files_json': json.dumps(source_files),
         'default_prefix': default_prefix,
     }
 
@@ -1943,7 +2000,7 @@ def download_validated_locations_csv(request):
     ]
     if include_polygon:
         header.append('WKT_Geometry')
-    writer.writerow(header)
+    writer.writerow(csv_safe_row(header))
 
     # Preload geocoding results for admin boundary info
     location_geocoding = {}
@@ -2002,7 +2059,7 @@ def download_validated_locations_csv(request):
         ]
         if include_polygon:
             row.append(wkt_geometry)
-        writer.writerow(row)
+        writer.writerow(csv_safe_row(row))
 
     return response
 
@@ -2311,7 +2368,6 @@ def download_validated_locations_geojson(request):
 
 # MODERN CELERY-BASED BATCH PROCESSING VIEWS
 @login_required
-@csrf_exempt
 def start_batch_geocoding(request):
     """
     Modern view-based batch geocoding using Celery.
@@ -2319,7 +2375,10 @@ def start_batch_geocoding(request):
     """
     if request.method == 'POST':
         try:
-            data = json.loads(request.body)
+            data = _load_json_body(request)
+        except JSONBodyError as e:
+            return e.response()
+        try:
 
 
             location_ids = data.get('location_ids')  # Specific locations or None for all
@@ -2359,6 +2418,7 @@ def start_batch_geocoding(request):
                 user_id=request.user.id,
                 scope_location_ids=scope_location_ids,
             )
+            _remember_task_owner(request, task.id)
 
             return JsonResponse({
                 'success': True,
@@ -2376,7 +2436,6 @@ def start_batch_geocoding(request):
 
     return JsonResponse({'error': 'POST required'}, status=405)
 @login_required
-@csrf_exempt
 def start_batch_validation(request):
     """
     Modern view-based batch validation using Celery.
@@ -2384,7 +2443,10 @@ def start_batch_validation(request):
     """
     if request.method == 'POST':
         try:
-            data = json.loads(request.body)
+            data = _load_json_body(request)
+        except JSONBodyError as e:
+            return e.response()
+        try:
 
 
             result_ids = data.get('result_ids')  # Specific results or None for all unvalidated
@@ -2424,6 +2486,7 @@ def start_batch_validation(request):
                 batch_size=batch_size,
                 user_id=request.user.id
             )
+            _remember_task_owner(request, task.id)
 
             return JsonResponse({
                 'success': True,
@@ -2445,7 +2508,10 @@ def batch_progress(request, task_id):
     """
     Get real-time progress of batch processing tasks.
     Provides progress updates for both geocoding and validation.
+    Only the user who started the task can read its progress.
     """
+    if not _user_owns_task(request, task_id):
+        return JsonResponse({'status': 'error', 'error': 'Task not found'}, status=404)
     try:
 
         progress_key = f"geocoding_progress_{task_id}"
@@ -2500,7 +2566,6 @@ def batch_progress(request, task_id):
 
 
 @login_required
-@csrf_exempt
 def manual_coordinate_update(request):
     """
     Manually set coordinates for a location.
@@ -2508,7 +2573,10 @@ def manual_coordinate_update(request):
     """
     if request.method == 'POST':
         try:
-            data = json.loads(request.body)
+            data = _load_json_body(request)
+        except JSONBodyError as e:
+            return e.response()
+        try:
             location_id = data.get('location_id')
             latitude = data.get('latitude')
             longitude = data.get('longitude')

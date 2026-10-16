@@ -48,7 +48,8 @@ LOCALE_PATHS = [str(BASE_DIR / "locale")]
 ANALYSIS_ENABLED = env.bool("ANALYSIS_ENABLED", default=True)
 
 DATABASES = {
-    'default': env.db('DATABASE_URL', default='postgres://VyEeAsAhLQRemlTBkLvZEOFiVOAtvIHf:DA3372kNwHHhsmhr5cS5ucomOjsY9hs0UiNzxlfOITRM4ZwjW1nTYXSPz1zWousV@localhost:5432/harmonaize')
+    # No credentials in the default: set DATABASE_URL (or POSTGRES_* in local.py).
+    'default': env.db("DATABASE_URL", default="postgres:///harmonaize")
 }
 DATABASES["default"]["ATOMIC_REQUESTS"] = True
 if env("ANALYSIS_EXPORT_DATABASE_URL", default=""):
@@ -65,6 +66,11 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Default is 1000, but we may have many variables with multiple fields each
 # https://docs.djangoproject.com/en/dev/ref/settings/#data-upload-max-number-fields
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 50000
+# Largest single uploaded file accepted by model FileFields (core.validators).
+MAX_UPLOAD_FILE_SIZE = env.int("DJANGO_MAX_UPLOAD_FILE_SIZE", default=500 * 1024 * 1024)
+# Limits applied when extracting uploaded ZIP archives (geolocation.utils.safe_extract_zip).
+MAX_ZIP_MEMBERS = env.int("DJANGO_MAX_ZIP_MEMBERS", default=1000)
+MAX_ZIP_UNCOMPRESSED_SIZE = env.int("DJANGO_MAX_ZIP_UNCOMPRESSED_SIZE", default=2 * 1024 * 1024 * 1024)
 
 # URLS
 # ------------------------------------------------------------------------------
@@ -348,6 +354,12 @@ CELERY_WORKER_MAX_TASKS_PER_CHILD = env.int("CELERY_WORKER_MAX_TASKS_PER_CHILD",
 # django-allauth
 # ------------------------------------------------------------------------------
 ACCOUNT_ALLOW_REGISTRATION = env.bool("DJANGO_ACCOUNT_ALLOW_REGISTRATION", True)
+# Email domains (and their subdomains) allowed to self-register. Superusers can
+# add more in the admin under Users > Allowed email domains.
+ACCOUNT_ALLOWED_EMAIL_DOMAINS = env.list(
+    "DJANGO_ACCOUNT_ALLOWED_EMAIL_DOMAINS",
+    default=["witsphr.org", "witsphr.co.za"],
+)
 # https://docs.allauth.org/en/latest/account/configuration.html
 ACCOUNT_LOGIN_METHODS = {"email"}
 # https://docs.allauth.org/en/latest/account/configuration.html
@@ -412,16 +424,19 @@ GOOGLE_GEOCODING_API_KEY = env("GOOGLE_GEOCODING_API_KEY", default="")
 
 # Analysis export configuration
 # ------------------------------------------------------------------------------
-ANALYSIS_DEIDENTIFICATION_SALT = env("ANALYSIS_DEIDENTIFICATION_SALT", default="harmonaize-analysis-salt")
+# Development-only defaults; production.py refuses to start with these.
+INSECURE_ANALYSIS_DEIDENTIFICATION_SALT = "harmonaize-analysis-salt"
+INSECURE_ANALYSIS_DEFAULT_CREDENTIAL = "admin"
+ANALYSIS_DEIDENTIFICATION_SALT = env("ANALYSIS_DEIDENTIFICATION_SALT", default=INSECURE_ANALYSIS_DEIDENTIFICATION_SALT)
 ANALYSIS_EXPORT_ROOT = env("ANALYSIS_EXPORT_ROOT", default=str(APPS_DIR / "media" / "analysis_exports"))
 ANALYSIS_ARMADILLO_BASE_URL = env("ANALYSIS_ARMADILLO_BASE_URL", default="http://armadillo:8080")
-ANALYSIS_ARMADILLO_USERNAME = env("ANALYSIS_ARMADILLO_USERNAME", default="admin")
-ANALYSIS_ARMADILLO_PASSWORD = env("ANALYSIS_ARMADILLO_PASSWORD", default="admin")
+ANALYSIS_ARMADILLO_USERNAME = env("ANALYSIS_ARMADILLO_USERNAME", default=INSECURE_ANALYSIS_DEFAULT_CREDENTIAL)
+ANALYSIS_ARMADILLO_PASSWORD = env("ANALYSIS_ARMADILLO_PASSWORD", default=INSECURE_ANALYSIS_DEFAULT_CREDENTIAL)
 ANALYSIS_KEYCLOAK_SYNC_ENABLED = env.bool("ANALYSIS_KEYCLOAK_SYNC_ENABLED", default=False)
 ANALYSIS_KEYCLOAK_BASE_URL = env("ANALYSIS_KEYCLOAK_BASE_URL", default="http://keycloak:8080")
 ANALYSIS_KEYCLOAK_REALM = env("ANALYSIS_KEYCLOAK_REALM", default="Armadillo")
-ANALYSIS_KEYCLOAK_ADMIN_USERNAME = env("ANALYSIS_KEYCLOAK_ADMIN_USERNAME", default="admin")
-ANALYSIS_KEYCLOAK_ADMIN_PASSWORD = env("ANALYSIS_KEYCLOAK_ADMIN_PASSWORD", default="admin")
+ANALYSIS_KEYCLOAK_ADMIN_USERNAME = env("ANALYSIS_KEYCLOAK_ADMIN_USERNAME", default=INSECURE_ANALYSIS_DEFAULT_CREDENTIAL)
+ANALYSIS_KEYCLOAK_ADMIN_PASSWORD = env("ANALYSIS_KEYCLOAK_ADMIN_PASSWORD", default=INSECURE_ANALYSIS_DEFAULT_CREDENTIAL)
 MAPBOX_ACCESS_TOKEN = env("MAPBOX_ACCESS_TOKEN", default="")
 
 # LLM Enhancement Settings (LLM is default, non-LLM only used as fallback)

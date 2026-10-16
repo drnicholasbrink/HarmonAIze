@@ -976,42 +976,26 @@ def cleanup_failed_ingestions():
 
 
 def _compile_transform_callable(code: str):
-    """Compile transform code into a callable. Supports lambda or def transform(value)."""
+    """Compile transform code into a callable. Supports lambda or def transform(value).
+
+    The code is re-validated here (not only when saved), operators are routed through
+    size guards and each call is time-limited; see ``health.safe_transform``.
+    """
     if not code or not code.strip():
         return None
 
-    safe_builtins = {
-        "int": int,
-        "float": float,
-        "str": str,
-        "bool": bool,
-        "round": round,
-        "abs": abs,
-        "min": min,
-        "max": max,
-        "len": len,
-        "sum": sum,
-        "any": any,
-        "all": all,
-        "sorted": sorted,
-        "reversed": reversed,
-    }
-    safe_globals = {"__builtins__": safe_builtins}
+    from django.core.exceptions import ValidationError
 
-    code_str = code.strip()
+    from .safe_transform import compile_transform
+
     try:
-        if code_str.startswith("lambda"):
-            func = eval(code_str, safe_globals, {})
-            return func
-        # Expect a def transform(value): ...
-        local_ns = {}
-        exec(code_str, safe_globals, local_ns)
-        if "transform" in local_ns and callable(local_ns["transform"]):
-            return local_ns["transform"]
+        return compile_transform(code)
+    except ValidationError as exc:
+        logger.warning("Rejected unsafe transform code at execution time: %s", exc)
+        return None
     except Exception:
         logger.exception("Failed to compile transform code")
         return None
-    return None
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
@@ -1104,6 +1088,13 @@ def transform_observations_for_schema(
 
         for rule in rules:
             transform_func = _compile_transform_callable(rule.transform_code or "")
+            if transform_func is None and (rule.transform_code or "").strip():
+                # Don't write untransformed values when the rule's transform is unusable.
+                errors.append(
+                    f"{rule.source_attribute.variable_name}: transform code was rejected or "
+                    "failed to compile; rule skipped."
+                )
+                continue
             # Source observations for this attribute
             qs = Observation.objects.filter(attribute=rule.source_attribute)
 

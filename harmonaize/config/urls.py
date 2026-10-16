@@ -1,6 +1,5 @@
 # ruff: noqa
 from django.conf import settings
-from django.conf.urls.static import static
 from django.contrib import admin
 from django.contrib.staticfiles.urls import staticfiles_urlpatterns
 from django.urls import include
@@ -48,9 +47,9 @@ urlpatterns = [
         if settings.ANALYSIS_ENABLED
         else include(disabled_analysis_urlpatterns, namespace="analysis"),
     ),
-    # ...
-    # Media files
-    *static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT),
+    # User-uploaded media (MEDIA_URL) is deliberately NOT served here. Uploaded
+    # codebooks, protocols, documents and raw data are only available through
+    # download views that check project membership.
 ]
 if settings.DEBUG:
     # Static file serving when using Gunicorn + Uvicorn for local web socket development

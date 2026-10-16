@@ -3,12 +3,14 @@ import io
 import json
 import logging
 import hashlib
+import re
 from collections.abc import Mapping
 from datetime import datetime, timedelta
 import pandas as pd
 from django.conf import settings
 from django.core.paginator import EmptyPage, Paginator
 from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse
 from django.http import (
     FileResponse,
     Http404,
@@ -30,7 +32,11 @@ from django.contrib.postgres.aggregates import ArrayAgg
 from celery import current_app
 
 from core.models import Study, Attribute, Observation, ProjectMembership
-from core.utils import infer_variables_from_dataframe, save_generated_codebook_for_study
+from core.utils import (
+    csv_safe,
+    infer_variables_from_dataframe,
+    save_generated_codebook_for_study,
+)
 from climate.models import ClimateDataRequest
 from .models import HarmonizationAIRun, MappingSchema, MappingRule, RawDataFile, RawDataColumn
 from core.forms import VariableConfirmationFormSetFactory
@@ -519,6 +525,31 @@ def _check_study_management_permission(user, study: Study) -> bool:
     return membership and membership.role in ['owner', 'manager']
 
 
+def get_schema_for_member(user, schema_id, queryset=None) -> MappingSchema:
+    """Return the mapping schema if ``user`` is a member of its project, else 404.
+
+    Every view that takes a ``schema_id`` must load the schema through this
+    helper so that users outside the owning project cannot read or change it.
+    """
+    if queryset is None:
+        queryset = MappingSchema.objects.all()
+    return get_object_or_404(
+        queryset,
+        id=schema_id,
+        source_study__project__members=user,
+    )
+
+
+def get_study_for_member(user, study_id, **filters) -> Study:
+    """Return the study if ``user`` is a member of its project, else 404."""
+    return get_object_or_404(
+        Study,
+        id=study_id,
+        project__members=user,
+        **filters,
+    )
+
+
 def _serialize_observation_value(observation: Observation) -> str:
     attribute = observation.attribute
     attr_type = getattr(attribute, "variable_type", None)
@@ -556,6 +587,25 @@ def _serialize_observation_value(observation: Observation) -> str:
     if value is None:
         return ""
     return str(value)
+
+
+_SIGNED_NUMBER_RE = re.compile(r"[+-](\d+\.?\d*|\.\d+)([eE][+-]?\d+)?")
+
+
+def _csv_export_cell(value):
+    """Neutralise spreadsheet formulas in an export cell.
+
+    Observation values are serialised to strings, so plain signed numbers such
+    as ``"-3.5"`` are left as-is to keep them numeric in spreadsheets; every
+    other formula-like string is escaped via :func:`core.utils.csv_safe`.
+    """
+    if isinstance(value, str) and _SIGNED_NUMBER_RE.fullmatch(value):
+        return value
+    return csv_safe(value)
+
+
+def _csv_export_row(row):
+    return [_csv_export_cell(value) for value in row]
 
 
 def _hash_patient_identifier(identifier: str) -> str:
@@ -604,7 +654,7 @@ def _combined_long_stream(queryset, exported_at: str, deidentify: bool = False):
 
     buffer = io.StringIO()
     writer = csv.writer(buffer)
-    writer.writerow(header)
+    writer.writerow(_csv_export_row(header))
     buffer.seek(0)
     yield buffer.read()
     buffer.truncate(0)
@@ -631,7 +681,7 @@ def _combined_long_stream(queryset, exported_at: str, deidentify: bool = False):
                 loc_name = _hash_location_identifier(loc_name)
 
         writer.writerow(
-            [
+            _csv_export_row([
                 patient_identifier,
                 loc_identifier,
                 loc_name,
@@ -643,7 +693,7 @@ def _combined_long_stream(queryset, exported_at: str, deidentify: bool = False):
                 _serialize_observation_value(obs),
                 obs.id,
                 exported_at,
-            ]
+            ])
         )
 
         buffer.seek(0)
@@ -674,7 +724,7 @@ def _outcome_wide_stream(
 
     buffer = io.StringIO()
     writer = csv.writer(buffer)
-    writer.writerow(header)
+    writer.writerow(_csv_export_row(header))
     buffer.seek(0)
     yield buffer.read()
     buffer.truncate(0)
@@ -735,7 +785,7 @@ def _outcome_wide_stream(
         row.append(exported_at)
 
         buffer.seek(0)
-        writer.writerow(row)
+        writer.writerow(_csv_export_row(row))
         buffer.seek(0)
         yield buffer.read()
         buffer.truncate(0)
@@ -763,7 +813,7 @@ def _harmonised_csv_stream(queryset, schema, raw_data_file, exported_at: str, us
     buffer = io.StringIO()
     writer = csv.writer(buffer)
 
-    writer.writerow(header)
+    writer.writerow(_csv_export_row(header))
     buffer.seek(0)
     yield buffer.read()
     buffer.truncate(0)
@@ -792,7 +842,7 @@ def _harmonised_csv_stream(queryset, schema, raw_data_file, exported_at: str, us
             location_name = getattr(observation.location, "name", "") or ""
 
         writer.writerow(
-            [
+            _csv_export_row([
                 patient_identifier,
                 source_patient_id,
                 relation_type,
@@ -807,7 +857,7 @@ def _harmonised_csv_stream(queryset, schema, raw_data_file, exported_at: str, us
                 raw_data_file.id,
                 exported_at,
                 observation.id,
-            ]
+            ])
         )
 
         buffer.seek(0)
@@ -830,7 +880,7 @@ def map_codebook(request, study_id):
     This is the first step in the harmonisation process.
     Uses unified codebook processing utility.
     """
-    study = get_object_or_404(Study, id=study_id, study_purpose='source')
+    study = get_study_for_member(request.user, study_id, study_purpose='source')
     
     if not _check_study_management_permission(request.user, study):
         return HttpResponseForbidden("You do not have permission to manage this study.")
@@ -858,7 +908,7 @@ def extract_variables(request, study_id):
     Uses unified codebook processing utility.
     Placeholder for LLM integration to enhance variable metadata.
     """
-    study = get_object_or_404(Study, id=study_id, study_purpose='source')
+    study = get_study_for_member(request.user, study_id, study_purpose='source')
     
     if not _check_study_management_permission(request.user, study):
         return HttpResponseForbidden("You do not have permission to manage this study.")
@@ -895,8 +945,8 @@ def start_harmonisation(request, study_id):
     """Create a new MappingSchema and redirect to harmonization dashboard."""
     from .utils import MessageManager
     
-    source_study = get_object_or_404(
-        Study, id=study_id, study_purpose="source",
+    source_study = get_study_for_member(
+        request.user, study_id, study_purpose="source",
     )
 
     if not _check_study_management_permission(request.user, source_study):
@@ -994,6 +1044,7 @@ def eda_status(request, file_id):
 
 
 @login_required
+@require_POST
 def approve_mapping(request, schema_id):
     """Approve a harmonisation mapping schema.
 
@@ -1004,7 +1055,7 @@ def approve_mapping(request, schema_id):
     - Sets approval metadata.
     - Optionally kicks off background transformation if raw data files exist and no transformations currently running.
     """
-    schema = get_object_or_404(MappingSchema, id=schema_id)
+    schema = get_schema_for_member(request.user, schema_id)
     
     if not _check_study_management_permission(request.user, schema.source_study):
         return HttpResponseForbidden("You do not have permission to approve this mapping.")
@@ -1067,9 +1118,10 @@ def approve_mapping(request, schema_id):
 
 
 @login_required
+@require_POST
 def finalize_harmonisation(request, schema_id):
     """Mark the study as harmonised after approval."""
-    schema = get_object_or_404(MappingSchema, id=schema_id)
+    schema = get_schema_for_member(request.user, schema_id)
     
     if not _check_study_management_permission(request.user, schema.source_study):
         return HttpResponseForbidden("You do not have permission to finalize this study.")
@@ -1090,7 +1142,7 @@ def rerun_harmonisation_transformations(request, schema_id):
     """Re-queue harmonised observation generation for an approved mapping schema."""
     from .utils import MessageManager
     
-    schema = get_object_or_404(MappingSchema, id=schema_id)
+    schema = get_schema_for_member(request.user, schema_id)
     
     if not _check_study_management_permission(request.user, schema.source_study):
         from django.http import HttpResponseForbidden
@@ -1196,8 +1248,8 @@ def select_variables(request, study_id):  # noqa: C901 (complexity accepted temp
     Let user select which extracted variables to include in the study.
     If variables already exist, redirect to study detail page.
     """
-    study = get_object_or_404(
-        Study, id=study_id, study_purpose="source",
+    study = get_study_for_member(
+        request.user, study_id, study_purpose="source",
     )
     
     if not _check_study_management_permission(request.user, study):
@@ -1404,11 +1456,8 @@ def reset_variables(request, study_id):
     """
     Reset all variables for a study and clear related session data.
     """
-    study = get_object_or_404(
-        Study,
-        id=study_id,
-        project__members=request.user,
-        study_purpose="source",
+    study = get_study_for_member(
+        request.user, study_id, study_purpose="source",
     )
     
     if request.method == "POST":
@@ -1438,12 +1487,12 @@ def reset_variables(request, study_id):
 @login_required
 def harmonization_dashboard(request, schema_id):
     """Unified harmonization dashboard for mapping all variables."""
-    schema = get_object_or_404(MappingSchema, id=schema_id)
+    schema = get_schema_for_member(request.user, schema_id)
     source_attrs = list(_mapping_source_attributes(schema))
     
     if not source_attrs:
         messages.error(request, "No variables found for this schema.")
-        return redirect("health:mapping_list")
+        return redirect("core:study_detail", pk=schema.source_study_id)
     
     # Handle universal settings form
     if request.method == 'POST' and 'update_universal_settings' in request.POST:
@@ -1616,7 +1665,7 @@ def harmonization_dashboard(request, schema_id):
 @login_required
 @require_http_methods(["GET"])
 def mapping_variable_summaries(request, schema_id):
-    schema = get_object_or_404(MappingSchema, id=schema_id)
+    schema = get_schema_for_member(request.user, schema_id)
     context = {
         "schema": schema,
         **_build_variable_summaries_page(request, schema),
@@ -1631,7 +1680,7 @@ def mapping_variable_summaries(request, schema_id):
 @login_required
 @require_http_methods(["GET"])
 def mapping_variable_card(request, schema_id, attribute_id):
-    schema = get_object_or_404(MappingSchema, id=schema_id)
+    schema = get_schema_for_member(request.user, schema_id)
     attribute = get_object_or_404(
         _mapping_source_attributes(schema),
         id=attribute_id,
@@ -1654,7 +1703,7 @@ def mapping_variable_card(request, schema_id, attribute_id):
 @login_required
 @require_http_methods(["POST"])
 def save_mapping_variable(request, schema_id, attribute_id):
-    schema = get_object_or_404(MappingSchema, id=schema_id)
+    schema = get_schema_for_member(request.user, schema_id)
     attribute = get_object_or_404(
         _mapping_source_attributes(schema),
         id=attribute_id,
@@ -1721,7 +1770,7 @@ def save_mapping_variable(request, schema_id, attribute_id):
 @login_required
 @require_http_methods(["GET"])
 def mapping_variable_eda(request, schema_id, attribute_id):
-    schema = get_object_or_404(MappingSchema, id=schema_id)
+    schema = get_schema_for_member(request.user, schema_id)
     attribute = get_object_or_404(
         _mapping_source_attributes(schema),
         id=attribute_id,
@@ -1758,7 +1807,7 @@ def mapping_variable_eda(request, schema_id, attribute_id):
 @login_required
 @require_http_methods(["GET"])
 def mapping_variable_suggestions(request, schema_id, attribute_id):
-    schema = get_object_or_404(MappingSchema, id=schema_id)
+    schema = get_schema_for_member(request.user, schema_id)
     attribute = get_object_or_404(_mapping_source_attributes(schema), id=attribute_id)
     refresh = _coerce_bool(request.GET.get("refresh"), default=False)
     try:
@@ -1789,7 +1838,7 @@ def mapping_variable_suggestions(request, schema_id, attribute_id):
 @login_required
 @require_http_methods(["POST"])
 def approve_similarity_threshold(request, schema_id):
-    schema = get_object_or_404(MappingSchema, id=schema_id)
+    schema = get_schema_for_member(request.user, schema_id)
     payload = _parse_json_body(request)
     threshold = float(payload.get("threshold") or 0)
     try:
@@ -1848,7 +1897,7 @@ def approve_similarity_threshold(request, schema_id):
 @login_required
 @require_POST
 def clear_mapping_rules(request, schema_id):
-    schema = get_object_or_404(MappingSchema, id=schema_id)
+    schema = get_schema_for_member(request.user, schema_id)
     if not _check_study_management_permission(request.user, schema.source_study):
         return HttpResponseForbidden("You do not have permission to clear this mapping.")
 
@@ -1874,7 +1923,7 @@ def clear_mapping_rules(request, schema_id):
 @login_required
 def study_harmonization_dashboard(request, study_id):
     """Redirect to harmonization dashboard for a study's most recent mapping schema."""
-    study = get_object_or_404(Study, id=study_id)
+    study = get_study_for_member(request.user, study_id)
 
     # Find the most recent mapping schema for this study as source
     mapping_schema = MappingSchema.objects.filter(
@@ -1897,11 +1946,7 @@ def upload_raw_data(request, study_id=None):
     """
     study = None
     if study_id:
-        study = get_object_or_404(Study, id=study_id, study_purpose='source')
-        # Check if user has permission to upload data for this study
-        if not study.project.members.filter(id=request.user.id).exists():
-            messages.error(request, "You don't have permission to upload data for this study.")
-            return redirect('core:study_detail', pk=study.pk)
+        study = get_study_for_member(request.user, study_id, study_purpose='source')
     
     # Check if study has variables
     has_variables = study.variables.exists() if study else False
@@ -2635,7 +2680,17 @@ def combined_export(request):
                 content_type="application/x-parquet",
             )
         else:
-            stream = dataset_exports.build_csv_stream(artifact.columns, artifact.rows)
+            safe_rows = (
+                {
+                    _csv_export_cell(key): _csv_export_cell(value)
+                    for key, value in row.items()
+                }
+                for row in artifact.rows
+            )
+            stream = dataset_exports.build_csv_stream(
+                _csv_export_row(artifact.columns),
+                safe_rows,
+            )
             response = StreamingHttpResponse(stream, content_type="text/csv")
 
         response["Content-Disposition"] = f'attachment; filename="{filename}"'
@@ -2656,6 +2711,7 @@ def combined_export(request):
 
 
 @login_required
+@require_POST
 def rerun_eda(request, file_id):
     """Clear and regenerate EDA caches for the specified raw data file.
 
@@ -2663,7 +2719,7 @@ def rerun_eda(request, file_id):
     then redirects back to the detail view preserving the current view_mode.
     """
     raw_data_file = get_object_or_404(RawDataFile, id=file_id, uploaded_by=request.user)
-    view_mode = request.GET.get('view_mode', 'source')
+    view_mode = request.POST.get('view_mode') or request.GET.get('view_mode', 'source')
 
     # Clear caches first
     raw_data_file.eda_cache_source = None
@@ -2692,7 +2748,7 @@ def rerun_eda(request, file_id):
         logger.exception('Failed to regenerate EDA for file %s', raw_data_file.id)
         messages.error(request, f'Could not regenerate analysis: {exc}')
 
-    redirect_url = reversed('health:raw_data_detail', kwargs={'file_id': raw_data_file.id})
+    redirect_url = reverse('health:raw_data_detail', kwargs={'file_id': raw_data_file.id})
     if view_mode in ['source', 'transformed', 'both']:
         redirect_url = f"{redirect_url}?view_mode={view_mode}"
     return redirect(redirect_url)
@@ -2925,13 +2981,9 @@ def study_variables_api(request, study_id):
     """
     from django.http import JsonResponse
     
+    study = get_study_for_member(request.user, study_id, study_purpose='source')
+
     try:
-        study = get_object_or_404(Study, id=study_id, study_purpose='source')
-        
-        # Check permission
-        if not study.project.members.filter(id=request.user.id).exists():
-            return JsonResponse({'error': 'Permission denied'}, status=403)
-        
         # Get participant ID variables (string/categorical types)
         participant_id_variables = study.variables.filter(
             variable_type__in=['string', 'categorical']
@@ -2947,9 +2999,7 @@ def study_variables_api(request, study_id):
             'date_variables': list(date_variables),
             'total_variables': study.variables.count()
         })
-        
-    except Study.DoesNotExist:
-        return JsonResponse({'error': 'Study not found'}, status=404)
+
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
@@ -2960,13 +3010,9 @@ def similarity_suggestions_api(request, schema_id):
     API endpoint to get similarity-based mapping suggestions for a schema.
     Returns JSON with similarity suggestions for all source attributes.
     """
-    try:
-        schema = get_object_or_404(MappingSchema, id=schema_id)
-        
-        # Check permission - user must have access to the source study
-        if not schema.source_study.project.members.filter(id=request.user.id).exists():
-            return JsonResponse({'error': 'Permission denied'}, status=403)
+    schema = get_schema_for_member(request.user, schema_id)
 
+    try:
         payload = get_similarity_payload(schema)
         
         return JsonResponse({
@@ -2976,9 +3022,7 @@ def similarity_suggestions_api(request, schema_id):
             'target_study_name': schema.target_study.name,
             'generated_at': payload.get('generated_at'),
         })
-        
-    except MappingSchema.DoesNotExist:
-        return JsonResponse({'error': 'Mapping schema not found'}, status=404)
+
     except Exception as e:
         logger.exception("Error getting similarity suggestions")
         return JsonResponse({'error': str(e)}, status=500)
@@ -2988,10 +3032,7 @@ def similarity_suggestions_api(request, schema_id):
 @require_http_methods(["POST"])
 def start_ai_harmonization_refresh(request, schema_id):
     """Queue a schema-wide AI refresh for mapping rules."""
-    schema = get_object_or_404(MappingSchema, id=schema_id)
-
-    if not schema.source_study.project.members.filter(id=request.user.id).exists():
-        return JsonResponse({"error": "Permission denied"}, status=403)
+    schema = get_schema_for_member(request.user, schema_id)
 
     if not _openai_api_key_is_configured():
         return JsonResponse({"error": "OpenAI API key is not configured."}, status=503)
@@ -3011,10 +3052,7 @@ def start_ai_harmonization_refresh(request, schema_id):
 @require_http_methods(["POST"])
 def restart_ai_harmonization_refresh(request, schema_id):
     """Cancel any active AI refresh state for the schema and queue a fresh batch run."""
-    schema = get_object_or_404(MappingSchema, id=schema_id)
-
-    if not schema.source_study.project.members.filter(id=request.user.id).exists():
-        return JsonResponse({"error": "Permission denied"}, status=403)
+    schema = get_schema_for_member(request.user, schema_id)
 
     if not _openai_api_key_is_configured():
         return JsonResponse({"error": "OpenAI API key is not configured."}, status=503)
@@ -3061,10 +3099,7 @@ def restart_ai_harmonization_refresh(request, schema_id):
 @require_http_methods(["POST"])
 def rerun_attribute_ai_harmonization(request, schema_id):
     """Queue an AI refresh for a single source attribute within a schema."""
-    schema = get_object_or_404(MappingSchema, id=schema_id)
-
-    if not schema.source_study.project.members.filter(id=request.user.id).exists():
-        return JsonResponse({"error": "Permission denied"}, status=403)
+    schema = get_schema_for_member(request.user, schema_id)
 
     if not _openai_api_key_is_configured():
         return JsonResponse({"error": "OpenAI API key is not configured."}, status=503)
@@ -3181,7 +3216,7 @@ def target_attribute_details_api(request, attribute_id):
             "study_name": study.name if study else "Unknown",
         })
         
-    except Attribute.DoesNotExist:
+    except Http404:
         return JsonResponse({"error": "Attribute not found"}, status=404)
     except Exception as e:
         logger.exception("Error getting target attribute details")
@@ -3225,7 +3260,7 @@ def transformation_suggestion_api(request):
 
         schema = None
         if schema_id:
-            schema = get_object_or_404(MappingSchema, id=schema_id)
+            schema = get_schema_for_member(request.user, schema_id)
         
         # Check user has access to both attributes via studies
         user_studies = Study.objects.filter(project__members=request.user).distinct()
@@ -3241,8 +3276,6 @@ def transformation_suggestion_api(request):
             return JsonResponse({"error": "Permission denied"}, status=403)
 
         if schema is not None:
-            if not schema.source_study.project.members.filter(id=request.user.id).exists():
-                return JsonResponse({"error": "Permission denied"}, status=403)
             if not schema.source_study.variables.filter(id=source_attribute.id).exists():
                 return JsonResponse({"error": "Source attribute is not part of this mapping schema"}, status=400)
             if not schema.target_study.variables.filter(id=target_attribute.id).exists():
@@ -3301,6 +3334,8 @@ def transformation_suggestion_api(request):
             
     except json.JSONDecodeError:
         return JsonResponse({"error": "Invalid JSON in request body"}, status=400)
+    except Http404:
+        raise
     except Exception as e:
         logger.exception("Error generating transformation suggestion")
         return JsonResponse({

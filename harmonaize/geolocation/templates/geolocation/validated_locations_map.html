@@ -795,7 +795,19 @@
   <div id="messageContainer" class="message-container"></div>
 
   <script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
+  {{ locations_data|json_script:"locations-data" }}
+  {{ source_files|json_script:"source-files-data" }}
   <script>
+    // Escape untrusted text before interpolating it into HTML strings.
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
     // Initialize map
     mapboxgl.accessToken = '{{ mapbox_token }}';
     const map = new mapboxgl.Map({
@@ -805,8 +817,8 @@
       zoom: 5
     });
 
-    const locationsData = {{ locations_data|safe }};
-    const sourceFiles = {{ source_files_json|safe }};
+    const locationsData = JSON.parse(document.getElementById('locations-data').textContent);
+    const sourceFiles = JSON.parse(document.getElementById('source-files-data').textContent);
     const defaultPrefix = '{{ default_prefix|escapejs }}';
     let markers = [];
     let currentMapStyle = 'satellite';
@@ -984,7 +996,7 @@
         legendItem.className = 'legend-item';
         legendItem.innerHTML = `
           <div class="legend-color" style="background-color: ${locationColors[location.name]}"></div>
-          <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${location.name}</span>
+          <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(location.name)}</span>
         `;
         legendContainer.appendChild(legendItem);
       });
@@ -1460,10 +1472,10 @@
             .setLngLat(e.lngLat)
             .setHTML(`
               <div style="padding: 8px; min-width: 150px;">
-                <div style="font-weight: 700; font-size: 14px; color: ${config.lineColor}; margin-bottom: 4px;">${name}</div>
+                <div style="font-weight: 700; font-size: 14px; color: ${config.lineColor}; margin-bottom: 4px;">${escapeHtml(name)}</div>
                 <div style="font-size: 11px; color: #666;">
-                  <span style="background: ${config.lineColor}15; color: ${config.lineColor}; padding: 2px 6px; border-radius: 4px; font-weight: 600;">${levelName}</span>
-                  ${adminLevel ? `<span style="margin-left: 6px; color: #999;">Level ${adminLevel}</span>` : ''}
+                  <span style="background: ${config.lineColor}15; color: ${config.lineColor}; padding: 2px 6px; border-radius: 4px; font-weight: 600;">${escapeHtml(levelName)}</span>
+                  ${adminLevel ? `<span style="margin-left: 6px; color: #999;">Level ${escapeHtml(adminLevel)}</span>` : ''}
                 </div>
               </div>
             `)
@@ -1519,16 +1531,16 @@
         // Create popup HTML
         const popupHTML = `
           <div style="min-width: 250px;">
-            <div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 1rem; color: ${locationColors[location.name]}">${location.name}</div>
+            <div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 1rem; color: ${locationColors[location.name]}">${escapeHtml(location.name)}</div>
             <div style="background: #f0fdf4; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
               <div style="font-size: 0.8rem; color: #15803d; font-weight: 600; margin-bottom: 0.5rem;">Validated Coordinates</div>
-              <div style="font-family: monospace; font-size: 0.9rem; color: #374151;">${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}</div>
+              <div style="font-family: monospace; font-size: 0.9rem; color: #374151;">${Number(location.lat).toFixed(5)}, ${Number(location.lng).toFixed(5)}</div>
             </div>
             <div style="background: #f8f9fa; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
               <div style="font-size: 0.8rem; color: #6b7280; margin-bottom: 0.25rem;">Status</div>
               <div style="font-size: 0.9rem; font-weight: 600; color: var(--accent-color);">Ready for Analysis</div>
             </div>
-            <button onclick="zoomToLocation(${location.lat}, ${location.lng})"
+            <button onclick="zoomToLocation(${Number(location.lat)}, ${Number(location.lng)})"
                     style="background: var(--accent-color); color: white; border: none; padding: 0.75rem 1rem; border-radius: 8px; width: 100%; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">
               Zoom to Location
             </button>

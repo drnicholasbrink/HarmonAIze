@@ -12,7 +12,9 @@ SECRET_KEY = env(
     default="XSCNrK2XUK0x6WcVEGLARr3TvJqwTMjtHOyLpEg8ghJnczUdtbV5FaoXf13Wo1vG",
 )
 # https://docs.djangoproject.com/en/dev/ref/settings/#allowed-hosts
-ALLOWED_HOSTS = ["localhost", "0.0.0.0", "127.0.0.1", "950dd82c5c60.ngrok-free.app"]  # noqa: S104
+ALLOWED_HOSTS = ["localhost", "0.0.0.0", "127.0.0.1"]  # noqa: S104
+# Extra hosts (e.g. a temporary ngrok tunnel) come from the environment.
+ALLOWED_HOSTS += env.list("DJANGO_EXTRA_ALLOWED_HOSTS", default=[])
 
 # CACHES
 # ------------------------------------------------------------------------------
@@ -91,8 +93,8 @@ OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
 DATABASES["default"] = {
     "ENGINE": "django.db.backends.postgresql",
     "NAME": env("POSTGRES_DB", default="postgres"),
-    "USER": env("POSTGRES_USER", default="drnicholasbrink"),
-    "PASSWORD": env("POSTGRES_PASSWORD", default="qirvyw-nurkoR-kyzgi7"),
-    "HOST": env("POSTGRES_HOST", default="harmonaize-db.postgres.database.azure.com"),
+    "USER": env("POSTGRES_USER"),
+    "PASSWORD": env("POSTGRES_PASSWORD"),
+    "HOST": env("POSTGRES_HOST"),
     "PORT": env("POSTGRES_PORT", default="5432"),
 }

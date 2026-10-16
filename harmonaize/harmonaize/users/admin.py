@@ -6,6 +6,7 @@ from django.utils.translation import gettext_lazy as _
 
 from .forms import UserAdminChangeForm
 from .forms import UserAdminCreationForm
+from .models import AllowedEmailDomain
 from .models import User
 
 if settings.DJANGO_ADMIN_FORCE_ALLAUTH:
@@ -48,3 +49,23 @@ class UserAdmin(auth_admin.UserAdmin):
             },
         ),
     )
+
+
+@admin.register(AllowedEmailDomain)
+class AllowedEmailDomainAdmin(admin.ModelAdmin):
+    """Only superusers may change which email domains can register."""
+
+    list_display = ["domain", "note", "created_at"]
+    search_fields = ["domain", "note"]
+
+    def has_view_permission(self, request, obj=None):
+        return request.user.is_superuser
+
+    def has_add_permission(self, request):
+        return request.user.is_superuser
+
+    def has_change_permission(self, request, obj=None):
+        return request.user.is_superuser
+
+    def has_delete_permission(self, request, obj=None):
+        return request.user.is_superuser

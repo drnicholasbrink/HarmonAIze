@@ -973,3 +973,116 @@ class ClimateIntegrationTestCase(TestCase):
         # But hit counts should have increased
         cache_entries = ClimateDataCache.objects.filter(hit_count__gt=0)
         self.assertGreater(cache_entries.count(), 0)
+
+
+class ClimateSecurityTestCase(TestCase):
+    """Regression tests for climate data scoping and CSV export hardening."""
+
+    def _project_with_location(self, user, name, location_name):
+        from core.models import ProjectMembership
+
+        project = Project.objects.create(name=f'{name} Project', created_by=user)
+        ProjectMembership.objects.create(project=project, user=user, role='owner')
+        study = Study.objects.create(
+            name=f'{name} Study',
+            created_by=user,
+            project=project,
+            study_type='cohort',
+            study_purpose='source',
+        )
+        location = Location.objects.create(name=location_name, latitude=-26.2, longitude=28.0)
+        location.location_lists.add(study)
+        return project, study, location
+
+    def setUp(self):
+        self.user_a = User.objects.create_user(email='climate-a@example.com', password='pw12345')
+        self.user_b = User.objects.create_user(email='climate-b@example.com', password='pw12345')
+        _, self.study_a, self.location_a = self._project_with_location(
+            self.user_a, 'A', "=HYPERLINK(\"http://evil\",\"x\")",
+        )
+        _, self.study_b, self.location_b = self._project_with_location(
+            self.user_b, 'B', 'Secret Clinic B',
+        )
+        self.variable = ClimateVariable.objects.create(
+            name='temperature', display_name='Temperature', category='temperature', unit='C',
+        )
+        self.attribute = Attribute.objects.create(
+            variable_name='climate_temperature',
+            display_name='Temperature',
+            variable_type='float',
+            category='climate',
+            source_type='target',
+            unit='C',
+        )
+        self.attribute.studies.add(self.study_a, self.study_b)
+        when = timezone.make_aware(datetime(2023, 6, 1))
+        time_dim = TimeDimension.objects.create(timestamp=when)
+        Observation.objects.create(
+            location=self.location_a, attribute=self.attribute, time=time_dim, float_value=11.0,
+        )
+        Observation.objects.create(
+            location=self.location_b, attribute=self.attribute, time=time_dim, float_value=99.0,
+        )
+
+    def test_core_integration_view_excludes_other_projects(self):
+        self.client.force_login(self.user_a)
+
+        response = self.client.get(reverse('climate:core_integration'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['total_observations'], 1)
+        locations = {row['location'] for row in response.context['observations_by_location']}
+        self.assertEqual(locations, {self.location_a.name})
+        samples = {row['location'] for row in response.context['sample_observations']}
+        self.assertEqual(samples, {self.location_a.name})
+        by_variable = response.context['observations_by_variable']
+        self.assertEqual(by_variable[0]['count'], 1)
+        self.assertEqual(by_variable[0]['max'], 11.0)
+        self.assertNotContains(response, 'Secret Clinic B')
+
+    def test_core_integration_view_for_user_without_projects(self):
+        outsider = User.objects.create_user(email='climate-c@example.com', password='pw12345')
+        self.client.force_login(outsider)
+
+        response = self.client.get(reverse('climate:core_integration'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['total_observations'], 0)
+        self.assertEqual(response.context['observations_by_location'], [])
+
+    def test_climate_csv_export_neutralises_formulas(self):
+        request = ClimateDataRequest.objects.create(
+            study=self.study_a,
+            start_date=date(2023, 1, 1),
+            end_date=date(2023, 12, 31),
+            status='completed',
+        )
+        request.variables.add(self.variable)
+        request.locations.add(self.location_a)
+        self.client.force_login(self.user_a)
+
+        response = self.client.get(reverse('climate:data_export', kwargs={'request_id': request.pk}))
+
+        self.assertEqual(response.status_code, 200)
+        import csv
+        from io import StringIO
+        rows = list(csv.DictReader(StringIO(response.content.decode())))
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['Location'], "'=HYPERLINK(\"http://evil\",\"x\")")
+
+    def test_process_request_api_enforces_csrf(self):
+        request = ClimateDataRequest.objects.create(
+            study=self.study_a,
+            start_date=date(2023, 1, 1),
+            end_date=date(2023, 12, 31),
+        )
+        csrf_client = Client(enforce_csrf_checks=True)
+        csrf_client.force_login(self.user_a)
+
+        response = csrf_client.post(
+            reverse('climate:process_request_api', kwargs={'request_id': request.pk}),
+            data=json.dumps({}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 403)
