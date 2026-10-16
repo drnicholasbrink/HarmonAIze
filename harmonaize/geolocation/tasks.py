@@ -40,16 +40,16 @@ def geocode_single_location_task(self, location_id, force_reprocess=False, user_
                 return {
                     'success': False,
                     'location_id': location_id,
-                    'location_name': str(location),
+                    'location_name': 'Unknown',
                     'error': f'User {user_id} not found'
                 }
 
         if not user:
-            logger.error(f"No user provided for geocoding '{location.name}'")
+            logger.error(f"No user provided for geocoding location {location_id}")
             return {
                 'success': False,
                 'location_id': location_id,
-                'location_name': str(location),
+                'location_name': 'Unknown',
                 'error': 'No user provided'
             }
 

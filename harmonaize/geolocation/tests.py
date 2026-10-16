@@ -16,6 +16,7 @@ from core.models import ProjectMembership
 from core.models import Study
 from geolocation.models import GeocodingResult
 from geolocation.tasks import batch_validate_locations
+from geolocation.tasks import geocode_single_location_task
 
 User = get_user_model()
 
@@ -529,3 +530,36 @@ def test_polling_apis_do_not_change_remembered_scope(client, two_projects_one_us
     )
 
     assert client.session[SESSION_KEY] == remembered
+
+
+@pytest.mark.django_db
+def test_geocode_task_reports_an_unknown_user_without_retrying():
+    # Issue #29: this path referenced `location` before it was assigned, so the
+    # NameError fell into the generic handler and was retried three times.
+    retry = patch.object(
+        geocode_single_location_task, "retry", side_effect=AssertionError("retried"),
+    )
+    with retry:
+        result = geocode_single_location_task(12345, user_id=999999)
+
+    assert result == {
+        "success": False,
+        "location_id": 12345,
+        "location_name": "Unknown",
+        "error": "User 999999 not found",
+    }
+
+
+def test_geocode_task_reports_a_missing_user_without_retrying():
+    retry = patch.object(
+        geocode_single_location_task, "retry", side_effect=AssertionError("retried"),
+    )
+    with retry:
+        result = geocode_single_location_task(12345)
+
+    assert result == {
+        "success": False,
+        "location_id": 12345,
+        "location_name": "Unknown",
+        "error": "No user provided",
+    }
