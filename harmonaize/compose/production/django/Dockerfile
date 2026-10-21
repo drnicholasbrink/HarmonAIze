@@ -2,15 +2,14 @@
 # define an alias for the specific python version used in this file.
 FROM docker.io/python:3.12.9-slim-bookworm AS python
 
-# eMudhra/emSign CA incident: pip uses its own vendored certifi bundle, so the
-# OS trust store alone does not protect it. Install pip 26.2.2 from a
-# hash-pinned URL, then refresh certifi and the system CA store.
+# eMudhra/emSign CA incident: pip trusts both the system CA store and its own
+# vendored certifi bundle. Remove the compromised root from the system store
+# first, then install pip 26.2.2 from a hash-pinned URL.
 # https://discuss.python.org/t/109576
-RUN python -m pip install --no-cache-dir \
-  "pip @ https://files.pythonhosted.org/packages/3f/06/3e4420302363fbb71be3c7f35ce042f54bfca330e3e66b3a2e3c4cca579f/pip-26.2.2-py3-none-any.whl#sha256=fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70" \
-  && python -m pip install --no-cache-dir "certifi>=2026.10.19" \
-  && apt-get update && apt-get install --no-install-recommends -y --only-upgrade ca-certificates \
-  && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install --no-install-recommends -y --only-upgrade ca-certificates \
+  && rm -rf /var/lib/apt/lists/* \
+  && python -m pip install --no-cache-dir \
+  "pip @ https://files.pythonhosted.org/packages/3f/06/3e4420302363fbb71be3c7f35ce042f54bfca330e3e66b3a2e3c4cca579f/pip-26.2.2-py3-none-any.whl#sha256=fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70"
 
 # Python build stage
 FROM python AS python-build-stage
