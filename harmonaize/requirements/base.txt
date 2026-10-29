@@ -32,7 +32,7 @@ drf-spectacular==0.28.0  # https://github.com/tfranzel/drf-spectacular
 django-ace==1.43.3
 #pygraphviz for ERD
 graphviz==0.17
-pygraphviz==1.14  # https://pygraphviz.github.io/
+pygraphviz==2.0.4  # https://pygraphviz.github.io/
 
 # Data processing and ML
 pandas==2.2.3  # https://github.com/pandas-dev/pandas
