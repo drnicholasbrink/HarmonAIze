@@ -46,6 +46,11 @@ updates:
       - dependency-name: 'djangorestframework-stubs'
         versions:
           - '>=3.17'
+      # pgvector 0.5 returns Python lists instead of NumPy arrays for VectorField,
+      # roughly tripling memory when loading Attributes. Upgrade once code is adapted.
+      - dependency-name: 'pgvector'
+        versions:
+          - '>=0.5'
 
   # Python base images for the Django and docs containers
   - package-ecosystem: 'docker'
