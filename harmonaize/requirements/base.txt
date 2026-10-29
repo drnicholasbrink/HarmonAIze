@@ -35,7 +35,7 @@ graphviz==0.21
 pygraphviz==2.0.4  # https://pygraphviz.github.io/
 
 # Data processing and ML
-pandas==2.2.3  # https://github.com/pandas-dev/pandas
+pandas==3.1.0  # https://github.com/pandas-dev/pandas
 pyarrow==26.0.0  # https://github.com/apache/arrow
 openpyxl==3.1.5  # https://openpyxl.readthedocs.io/
 geopandas==1.2.0  # https://github.com/geopandas/geopandas - Shapefile and geospatial data export
