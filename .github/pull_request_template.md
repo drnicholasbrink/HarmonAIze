@@ -12,3 +12,4 @@ Fixes #
 - [ ] One issue per PR, no unrelated changes
 - [ ] No migrations beyond `0001` and nothing under `.envs/` committed
 - [ ] README or module docs updated if setup, environment variables or workflows changed
+- [ ] No outstanding (unfixed) security vulnerabilities described in the title, description, commits or comments

@@ -17,6 +17,8 @@ License: MIT
 
 For contributor expectations, including the preference for small, transparent pull requests, see [CONTRIBUTORS.md](CONTRIBUTORS.md). For how issues are labelled, prioritised and picked up, see [Contributing and issue workflow](#contributing-and-issue-workflow). To report a security vulnerability, follow [SECURITY.md](SECURITY.md) and do not open a public issue.
 
+> **Never describe an outstanding (unfixed) security vulnerability in a commit message, branch name, pull request, review comment or issue.** This repository is public and its history is permanent. Track open vulnerabilities only in the repository's Security tab. See [CONTRIBUTORS.md](CONTRIBUTORS.md#security-vulnerabilities-in-commits-and-pull-requests).
+
 ## Quick Start
 
 **TL;DR**: This project runs entirely in Docker containers. Here's how to get started:
@@ -466,6 +468,7 @@ harmonaize/
 - **Avoid:** Implementing features without error handling
 - **Avoid:** Using development shortcuts in production code
 - **Avoid:** Breaking existing functionality while adding new features
+- **Avoid:** Describing outstanding (unfixed) security vulnerabilities in commit messages, PRs, comments or issues. The repository is public. Write fixes up neutrally and keep open findings in the Security tab.
 
 **Remember**: This codebase serves researchers working with sensitive health and climate data. Reliability, security, and user experience are paramount.
 
@@ -812,8 +815,9 @@ To pick something up:
 2. Assign yourself, branch from `dev` (for example `fix/123-short-name`), and keep the PR to that one issue.
 3. Reference the issue in the PR (`Fixes #123`), add or update tests, and run the affected tests locally (see [Running Tests with pytest](#running-tests-with-pytest)).
 4. Do not commit generated migrations beyond `0001`, or anything under `.envs/`.
+5. Do not describe outstanding (unfixed) security vulnerabilities in commit messages, branch names, PR descriptions or comments, including vulnerable dependencies and scanner findings. Write security fixes up neutrally. See [CONTRIBUTORS.md](CONTRIBUTORS.md#security-vulnerabilities-in-commits-and-pull-requests).
 
-Security problems are never filed as public issues. See [SECURITY.md](SECURITY.md).
+Security problems are never filed as public issues. See [SECURITY.md](SECURITY.md). Dependabot and Trivy monitor dependencies automatically (see [CONTRIBUTORS.md](CONTRIBUTORS.md#dependency-security)). Review their findings in the repository's Security tab.
 
 ## Deployment
 
