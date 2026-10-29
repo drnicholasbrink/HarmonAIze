@@ -1,0 +1,78 @@
+# Config for Dependabot updates. See Documentation here:
+# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+#
+# GitHub only reads this file from the repo-root .github/ (it previously lived in
+# harmonaize/.github/ and was silently ignored), so every directory below is
+# relative to the repo root.
+#
+# This file drives *version* updates. *Security* updates (PRs opened as soon as an
+# advisory lands, regardless of schedule) additionally need "Dependabot alerts" and
+# "Dependabot security updates" switched on under Settings → Code security.
+
+version: 2
+updates:
+  # Update GitHub actions in .github/workflows
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+    groups:
+      github-actions:
+        patterns:
+          - '*'
+
+  # Python/Pip - picks up harmonaize/requirements/*.txt and pyproject.toml
+  - package-ecosystem: 'pip'
+    directory: '/harmonaize'
+    schedule:
+      interval: 'weekly'
+    groups:
+      python:
+        update-types:
+          - 'minor'
+          - 'patch'
+        # Django framework upgrades (5.0 -> 5.2) arrive as their own PR.
+        exclude-patterns:
+          - 'django'
+
+  # Python base images for the Django and docs containers
+  - package-ecosystem: 'docker'
+    directories:
+      - '/harmonaize/compose/local/django'
+      - '/harmonaize/compose/local/docs'
+      - '/harmonaize/compose/production/django'
+    schedule:
+      interval: 'weekly'
+    # Ignore minor version updates (3.12 -> 3.13) but update patch versions
+    ignore:
+      - dependency-name: '*'
+        update-types:
+          - 'version-update:semver-major'
+          - 'version-update:semver-minor'
+    groups:
+      docker-python:
+        patterns:
+          - '*'
+
+  - package-ecosystem: 'docker'
+    directories:
+      - '/harmonaize/compose/production/postgres'
+      - '/harmonaize/compose/production/traefik'
+    schedule:
+      interval: 'weekly'
+    # Postgres majors need a data migration; bump those deliberately.
+    ignore:
+      - dependency-name: 'postgres'
+        update-types:
+          - 'version-update:semver-major'
+
+  # Terraform providers (terraform/providers.tf + .terraform.lock.hcl)
+  - package-ecosystem: 'terraform'
+    directory: '/terraform'
+    schedule:
+      interval: 'weekly'
+    # Provider majors (e.g. azurerm 3 -> 4) are breaking migrations; do them by hand.
+    ignore:
+      - dependency-name: '*'
+        update-types:
+          - 'version-update:semver-major'

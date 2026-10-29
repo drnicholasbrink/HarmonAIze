@@ -1,0 +1,117 @@
+name: security
+
+# Dependency and configuration scanning with Trivy.
+#   image  - builds the production Django image and scans its OS packages and
+#            installed Python packages (incl. transitive deps). A plain repo scan
+#            can't see our deps: Trivy only parses files literally named
+#            requirements.txt, and ours are requirements/{base,production,local}.txt.
+#   config - scans Dockerfiles and Terraform for misconfigurations (report only).
+#
+# Findings are uploaded to Security → Code scanning. The image job fails only on
+# CRITICAL vulnerabilities that already have a fix available.
+#
+# Supply-chain note: trivy-action was hijacked in March 2026 (GHSA-69fq-xp46-6x23).
+# It is pinned to the full commit SHA of an immutable release, and the Trivy binary
+# is pinned to an exact version. Never switch either to a tag or `latest`.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  # Weekly re-scan: new CVEs get published against code that hasn't changed.
+  schedule:
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TRIVY_VERSION: v0.76.1
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # Same build as deploy.yml: context is the `harmonaize` dir.
+      - name: Build production image
+        run: |
+          docker build \
+            -f harmonaize/compose/production/django/Dockerfile \
+            -t harmonaize-django:${{ github.sha }} \
+            harmonaize
+
+      - name: Trivy image scan (SARIF)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: ${{ env.TRIVY_VERSION }}
+          scan-type: image
+          image-ref: harmonaize-django:${{ github.sha }}
+          # Dependencies only; GitHub secret scanning covers secrets.
+          scanners: vuln
+          # gettext's jars are covered by the Debian package scan; skipping them
+          # avoids a Java DB download (a flaky extra step) for nothing.
+          skip-dirs: /usr/share/java,/usr/share/maven-repo
+          format: sarif
+          output: trivy-image.sarif
+          severity: MEDIUM,HIGH,CRITICAL
+          limit-severities-for-sarif: true
+
+      # Fork PRs get a read-only token and can't upload; they still hit the gate below.
+      - name: Upload to code scanning
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-image.sarif
+          category: trivy-image
+
+      - name: Trivy gate (fixable CRITICAL)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: ${{ env.TRIVY_VERSION }}
+          skip-setup-trivy: true
+          scan-type: image
+          image-ref: harmonaize-django:${{ github.sha }}
+          scanners: vuln
+          skip-dirs: /usr/share/java,/usr/share/maven-repo
+          format: table
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+  config:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Trivy config scan (SARIF)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: ${{ env.TRIVY_VERSION }}
+          scan-type: config
+          scan-ref: .
+          skip-dirs: harmonaize/vendor
+          format: sarif
+          output: trivy-config.sarif
+          severity: MEDIUM,HIGH,CRITICAL
+          limit-severities-for-sarif: true
+
+      - name: Upload to code scanning
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-config.sarif
+          category: trivy-config
