@@ -40,7 +40,7 @@ pyarrow==26.0.0  # https://github.com/apache/arrow
 openpyxl==3.1.5  # https://openpyxl.readthedocs.io/
 geopandas==1.2.0  # https://github.com/geopandas/geopandas - Shapefile and geospatial data export
 shapely==2.2.0  # https://github.com/shapely/shapely - point-in-polygon boundary validation
-pgvector==0.5.1  # https://github.com/pgvector/pgvector-python
+pgvector==0.4.2  # https://github.com/pgvector/pgvector-python - 0.5 returns lists instead of NumPy arrays (~3x memory)
 numpy==2.5.4  # https://numpy.org/
 scikit-learn==1.9.1  # https://scikit-learn.org/
 scipy==1.18.1  # https://scipy.org/

@@ -11,7 +11,7 @@ mypy==1.15.0  # https://github.com/python/mypy
 django-stubs[compatible-mypy]==5.2.9  # https://github.com/typeddjango/django-stubs
 pytest==9.1.1  # https://github.com/pytest-dev/pytest
 pytest-sugar==1.1.1  # https://github.com/Frozenball/pytest-sugar
-djangorestframework-stubs==3.18.1  # https://github.com/typeddjango/djangorestframework-stubs
+djangorestframework-stubs==3.16.9  # https://github.com/typeddjango/djangorestframework-stubs
 
 # Documentation
 # ------------------------------------------------------------------------------
