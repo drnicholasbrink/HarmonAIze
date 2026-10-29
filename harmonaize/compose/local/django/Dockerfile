@@ -1,5 +1,5 @@
 # define an alias for the specific python version used in this file.
-FROM docker.io/python:3.12.9-slim-bookworm AS python
+FROM docker.io/python:3.12.16-slim-bookworm AS python
 
 # eMudhra/emSign CA incident: pip trusts both the system CA store and its own
 # vendored certifi bundle. Remove the compromised root from the system store
