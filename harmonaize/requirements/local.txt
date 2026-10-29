@@ -35,4 +35,4 @@ django-coverage-plugin==3.1.0  # https://github.com/nedbat/django_coverage_plugi
 pytest-django==4.10.0  # https://github.com/pytest-dev/pytest-django
 
 #erd 
-pygraphviz==1.7  # https://pygraphviz.github.io/
+pygraphviz==1.14  # https://pygraphviz.github.io/
