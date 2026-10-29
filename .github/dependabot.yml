@@ -34,6 +34,18 @@ updates:
         # Django framework upgrades (5.0 -> 5.2) arrive as their own PR.
         exclude-patterns:
           - 'django'
+    # Stay on the Django 5.2 LTS line: a move to Django 6 (which also needs
+    # django-stubs 6 and djangorestframework-stubs 3.17+) is done deliberately.
+    ignore:
+      - dependency-name: 'django'
+        update-types:
+          - 'version-update:semver-major'
+      - dependency-name: 'django-stubs'
+        update-types:
+          - 'version-update:semver-major'
+      - dependency-name: 'djangorestframework-stubs'
+        versions:
+          - '>=3.17'
 
   # Python base images for the Django and docs containers
   - package-ecosystem: 'docker'
