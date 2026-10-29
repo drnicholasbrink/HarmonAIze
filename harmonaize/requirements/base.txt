@@ -2,66 +2,66 @@ certifi>=2026.10.19  # emSign CA removed; https://discuss.python.org/t/109576
 python-slugify==8.0.4  # https://github.com/un33k/python-slugify
 Pillow==13.0.0  # https://github.com/python-pillow/Pillow
 argon2-cffi==23.1.0  # https://github.com/hynek/argon2_cffi
-whitenoise==6.9.0  # https://github.com/evansd/whitenoise
+whitenoise==6.12.0  # https://github.com/evansd/whitenoise
 redis==5.2.1  # https://github.com/redis/redis-py
-hiredis==3.1.0  # https://github.com/redis/hiredis-py
-celery==5.4.0  # pyup: < 6.0  # https://github.com/celery/celery
-django-celery-beat==2.8.1  # https://github.com/celery/django-celery-beat
-flower==2.0.1  # https://github.com/mher/flower
-uvicorn[standard]==0.34.0  # https://github.com/encode/uvicorn
-uvicorn-worker==0.3.0  # https://github.com/Kludex/uvicorn-worker
+hiredis==3.5.0  # https://github.com/redis/hiredis-py
+celery==5.6.3  # pyup: < 6.0  # https://github.com/celery/celery
+django-celery-beat==2.9.0  # https://github.com/celery/django-celery-beat
+flower==2.2.0  # https://github.com/mher/flower
+uvicorn[standard]==0.54.0  # https://github.com/encode/uvicorn
+uvicorn-worker==0.4.0  # https://github.com/Kludex/uvicorn-worker
 
 # Django
 # ------------------------------------------------------------------------------
 django==5.2.18  # pyup: < 5.3  # https://www.djangoproject.com/
-django-environ==0.12.0  # https://github.com/joke2k/django-environ
+django-environ==0.14.0  # https://github.com/joke2k/django-environ
 django-model-utils==5.0.0  # https://github.com/jazzband/django-model-utils
-django-allauth[mfa]==65.4.1  # https://github.com/pennersr/django-allauth
+django-allauth[mfa]==65.21.0  # https://github.com/pennersr/django-allauth
 fido2<1.2  # pin: allauth[mfa] 65.4.1 uses fido2.features.webauthn_json_mapping, removed in fido2 1.2.0
-django-crispy-forms==2.3  # https://github.com/django-crispy-forms/django-crispy-forms
+django-crispy-forms==2.7  # https://github.com/django-crispy-forms/django-crispy-forms
 crispy-bootstrap5==2024.10  # https://github.com/django-crispy-forms/crispy-bootstrap5
 django-redis==5.4.0  # https://github.com/jazzband/django-redis
 django-extensions==3.2.3  # https://github.com/django-extensions/django-extensions
 # Django REST Framework
-djangorestframework==3.16.1  # https://github.com/encode/django-rest-framework
-django-cors-headers==4.7.0  # https://github.com/adamchainz/django-cors-headers
-django-htmx==1.27.0  # https://github.com/adamchainz/django-htmx
+djangorestframework==3.18.3  # https://github.com/encode/django-rest-framework
+django-cors-headers==4.9.0  # https://github.com/adamchainz/django-cors-headers
+django-htmx==1.29.0  # https://github.com/adamchainz/django-htmx
 # DRF-spectacular for api documentation
-drf-spectacular==0.28.0  # https://github.com/tfranzel/drf-spectacular
+drf-spectacular==0.30.0  # https://github.com/tfranzel/drf-spectacular
 # ACE for code editor
-django-ace==1.43.3
+django-ace==1.44.0
 #pygraphviz for ERD
-graphviz==0.17
+graphviz==0.21
 pygraphviz==2.0.4  # https://pygraphviz.github.io/
 
 # Data processing and ML
 pandas==2.2.3  # https://github.com/pandas-dev/pandas
 pyarrow==18.1.0  # https://github.com/apache/arrow
 openpyxl==3.1.5  # https://openpyxl.readthedocs.io/
-geopandas==1.0.1  # https://github.com/geopandas/geopandas - Shapefile and geospatial data export
-shapely==2.0.6  # https://github.com/shapely/shapely - point-in-polygon boundary validation
-pgvector==0.4.1  # https://github.com/pgvector/pgvector-python
-numpy==2.3.4  # https://numpy.org/
-scikit-learn==1.7.2  # https://scikit-learn.org/
-scipy==1.16.3  # https://scipy.org/
-ijson==3.2.3  # https://github.com/ICRAR/ijson - Streaming JSON parser for large files
+geopandas==1.2.0  # https://github.com/geopandas/geopandas - Shapefile and geospatial data export
+shapely==2.2.0  # https://github.com/shapely/shapely - point-in-polygon boundary validation
+pgvector==0.5.1  # https://github.com/pgvector/pgvector-python
+numpy==2.5.4  # https://numpy.org/
+scikit-learn==1.9.1  # https://scikit-learn.org/
+scipy==1.18.1  # https://scipy.org/
+ijson==3.6.0  # https://github.com/ICRAR/ijson - Streaming JSON parser for large files
 gdown==5.2.0  # https://github.com/wkentaro/gdown - fetch pre-built admin boundary dataset from Google Drive
 
 # Visualization
 plotly==6.3.1  # https://plotly.com/python/
-matplotlib==3.10.7  # https://matplotlib.org/
+matplotlib==3.11.2  # https://matplotlib.org/
 seaborn==0.13.2  # https://seaborn.pydata.org/
 
 # AI/ML APIs
 openai==2.7.1  # https://github.com/openai/openai-python
-tiktoken==0.12.0  # https://github.com/openai/tiktoken
-google-generativeai==0.8.3  # https://github.com/google/generative-ai-python
+tiktoken==0.14.0  # https://github.com/openai/tiktoken
+google-generativeai==0.8.6  # https://github.com/google/generative-ai-python
 anthropic==0.52.0  # https://github.com/anthropics/anthropic-sdk-python
 fuzzywuzzy==0.18.0  # https://github.com/seatgeek/fuzzywuzzy
-python-Levenshtein==0.27.1  # https://github.com/maxbachmann/Levenshtein (speedup for fuzzywuzzy)
+python-Levenshtein==0.27.5  # https://github.com/maxbachmann/Levenshtein (speedup for fuzzywuzzy)
 
 #climate data
-earthengine-api==1.7.26
-google-auth==2.41.0
-google-auth-oauthlib==1.2.3
-google-auth-httplib2==0.2.1
+earthengine-api==1.7.49
+google-auth==2.62.0
+google-auth-oauthlib==1.5.0
+google-auth-httplib2==0.4.4
