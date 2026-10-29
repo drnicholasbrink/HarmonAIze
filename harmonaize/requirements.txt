@@ -1,6 +1,0 @@
-# Entry point for GitHub's dependency graph (which drives Dependabot alerts).
-# It only recognises files named requirements*.txt, so it can't read
-# requirements/{base,production,local}.txt directly; it follows the -r
-# include chain from here: local.txt -> production.txt -> base.txt.
-# Edit the files under requirements/, not this one.
--r requirements/local.txt
