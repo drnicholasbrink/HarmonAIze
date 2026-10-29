@@ -2,7 +2,7 @@
 
 -r base.txt
 
-gunicorn==23.0.0  # https://github.com/benoitc/gunicorn
+gunicorn==26.2.0  # https://github.com/benoitc/gunicorn
 psycopg[c]==3.3.6  # https://github.com/psycopg/psycopg
 sentry-sdk==2.73.0  # https://github.com/getsentry/sentry-python
 
