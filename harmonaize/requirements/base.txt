@@ -53,7 +53,7 @@ matplotlib==3.11.2  # https://matplotlib.org/
 seaborn==0.13.2  # https://seaborn.pydata.org/
 
 # AI/ML APIs
-openai==2.7.1  # https://github.com/openai/openai-python
+openai==3.38.0  # https://github.com/openai/openai-python
 tiktoken==0.14.0  # https://github.com/openai/tiktoken
 google-generativeai==0.8.6  # https://github.com/google/generative-ai-python
 anthropic==0.52.0  # https://github.com/anthropics/anthropic-sdk-python
