@@ -29,7 +29,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.11"
+          python-version: "3.12"
           cache: pip
           cache-dependency-path: harmonaize/requirements/local.txt
       # emSign CA incident (discuss.python.org/t/109576): drop the compromised root
@@ -55,7 +55,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.11"
+          python-version: "3.12"
           cache: pip
           cache-dependency-path: harmonaize/requirements/local.txt
       # emSign CA incident (discuss.python.org/t/109576): drop the compromised root
@@ -106,7 +106,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.11"
+          python-version: "3.12"
           cache: pip
           cache-dependency-path: harmonaize/requirements/local.txt
       # emSign CA incident (discuss.python.org/t/109576): drop the compromised root
