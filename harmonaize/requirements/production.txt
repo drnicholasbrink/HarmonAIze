@@ -9,5 +9,5 @@ sentry-sdk==2.73.0  # https://github.com/getsentry/sentry-python
 # Django
 # ------------------------------------------------------------------------------
 django-storages[azure]==1.14.6  # https://github.com/jschneier/django-storages
-django-anymail[sendgrid]==12.0  # https://github.com/anymail/django-anymail
+django-anymail[sendgrid]==15.2  # https://github.com/anymail/django-anymail
 fido2<1.2.0  # Pin for allauth 65.4.1 webauthn compatibility
