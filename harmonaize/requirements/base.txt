@@ -13,7 +13,7 @@ uvicorn-worker==0.4.0  # https://github.com/Kludex/uvicorn-worker
 
 # Django
 # ------------------------------------------------------------------------------
-django==5.2.18  # pyup: < 5.3  # https://www.djangoproject.com/
+django==5.2.19  # pyup: < 5.3  # https://www.djangoproject.com/
 django-environ==0.14.0  # https://github.com/joke2k/django-environ
 django-model-utils==5.0.0  # https://github.com/jazzband/django-model-utils
 django-allauth[mfa]==65.21.0  # https://github.com/pennersr/django-allauth
