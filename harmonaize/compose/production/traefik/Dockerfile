@@ -1,4 +1,4 @@
-FROM docker.io/traefik:v3.7.18
+FROM docker.io/traefik:v3.7.19
 
 # Run Traefik as an unprivileged user. Binding ports 80/443 still works because
 # Docker (20.10+) sets net.ipv4.ip_unprivileged_port_start=0 inside containers.
